@@ -66,93 +66,118 @@
 </head>
 <body class="text-gray-800">
 
-    <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
-        <!-- Cabeçalho -->
-        <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg">
-            <h1 class="text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
-            <p class="opacity-90 mt-1">Gerencie ocorrências e registros de busca ativa de forma centralizada e segura.</p>
-        </header>
-
-        <!-- Abas de Navegação -->
-        <div class="mb-6 border-b border-gray-200">
-            <nav class="flex -mb-px space-x-6" aria-label="Tabs">
-                <button id="tab-occurrences" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm tab-active">
-                    <i class="fas fa-exclamation-triangle mr-2"></i>Ocorrências Disciplinares
+    <div id="login-screen" class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+        <div class="w-full max-w-md text-center">
+            <div class="bg-white p-8 rounded-2xl shadow-lg">
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">Sistema Pedagógico</h1>
+                <p class="text-gray-500 mb-8">Faça login para aceder aos seus registos.</p>
+                <button id="google-login-btn" class="w-full bg-white text-gray-700 font-semibold py-3 px-4 border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition duration-300 flex items-center justify-center">
+                    <img src="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png" alt="Google logo" class="h-6 mr-3">
+                    Entrar com o Google
                 </button>
-                <button id="tab-absences" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                    <i class="fas fa-user-clock mr-2"></i>Busca Ativa (Faltas)
-                </button>
-            </nav>
-        </div>
-
-        <!-- Conteúdo das Abas -->
-        <div id="tab-content-occurrences">
-             <div class="mb-6 flex flex-wrap gap-4 justify-between items-center">
-                <h2 class="text-2xl font-semibold text-gray-700">Registros de Ocorrências</h2>
-                <div class="flex gap-4 flex-wrap">
-                    <button id="generate-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300">
-                        <i class="fas fa-file-invoice mr-2"></i>Gerar Relatório
-                    </button>
-                    <button id="add-occurrence-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition duration-300">
-                        <i class="fas fa-plus mr-2"></i>Nova Ocorrência
-                    </button>
-                </div>
             </div>
-            <main class="bg-white rounded-lg shadow-md p-6">
-                <div class="mb-4">
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
-                        <input type="text" id="search-occurrences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Buscar por nome do aluno...">
+            <p class="text-xs text-gray-400 mt-6">A autenticação garante que os seus dados fiquem guardados e sincronizados de forma segura.</p>
+        </div>
+    </div>
+
+    <div id="main-content" class="hidden">
+        <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
+            <!-- Cabeçalho -->
+            <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
+                    <p class="opacity-90 mt-1">Gerencie ocorrências e registros de busca ativa de forma centralizada e segura.</p>
+                </div>
+                <div id="user-profile" class="flex items-center space-x-4 hidden">
+                    <img id="user-photo" class="h-12 w-12 rounded-full border-2 border-white/50" src="" alt="User photo">
+                    <div class="text-right">
+                        <p id="user-name" class="font-semibold"></p>
+                        <button id="logout-btn" class="text-sm text-indigo-200 hover:text-white transition">Sair</button>
                     </div>
                 </div>
-                <div id="loading-occurrences" class="text-center p-8">
-                    <i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i>
-                    <p class="mt-2 text-gray-500">Carregando registros...</p>
-                </div>
-                <div id="empty-state-occurrences" class="text-center p-8 hidden">
-                    <i class="fas fa-file-alt fa-3x text-gray-300 mb-4"></i>
-                    <h3 class="text-xl font-semibold text-gray-600">Nenhuma ocorrência registrada</h3>
-                    <p class="text-gray-500 mt-1">Clique em "Nova Ocorrência" para começar.</p>
-                </div>
-                <div id="occurrences-list" class="overflow-x-auto"></div>
-            </main>
-        </div>
+            </header>
 
-        <div id="tab-content-absences" class="hidden">
-            <div class="mb-6 flex flex-wrap gap-4 justify-between items-center">
-                <h2 class="text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
-                <div class="flex gap-4 flex-wrap">
-                    <button id="generate-ficha-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300">
-                        <i class="fas fa-file-invoice mr-2"></i>Gerar Ficha Consolidada
+            <!-- Abas de Navegação -->
+            <div class="mb-6 border-b border-gray-200">
+                <nav class="flex -mb-px space-x-6" aria-label="Tabs">
+                    <button id="tab-occurrences" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm tab-active">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>Ocorrências Disciplinares
                     </button>
-                     <button id="add-absence-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50 transition duration-300">
-                        <i class="fas fa-plus mr-2"></i>Registrar Ação
+                    <button id="tab-absences" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                        <i class="fas fa-user-clock mr-2"></i>Busca Ativa (Faltas)
                     </button>
-                </div>
+                </nav>
             </div>
-             <main class="bg-white rounded-lg shadow-md p-6">
-                <div class="mb-4">
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
-                        <input type="text" id="search-absences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Buscar por nome do aluno...">
+
+            <!-- Conteúdo das Abas -->
+            <div id="tab-content-occurrences">
+                 <div class="mb-6 flex flex-wrap gap-4 justify-between items-center">
+                    <h2 class="text-2xl font-semibold text-gray-700">Registros de Ocorrências</h2>
+                    <div class="flex gap-4 flex-wrap">
+                        <button id="generate-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300">
+                            <i class="fas fa-file-invoice mr-2"></i>Gerar Relatório
+                        </button>
+                        <button id="add-occurrence-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition duration-300">
+                            <i class="fas fa-plus mr-2"></i>Nova Ocorrência
+                        </button>
                     </div>
                 </div>
-                <div id="loading-absences" class="text-center p-8">
-                    <i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i>
-                    <p class="mt-2 text-gray-500">Carregando registros...</p>
+                <main class="bg-white rounded-lg shadow-md p-6">
+                    <div class="mb-4">
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
+                            <input type="text" id="search-occurrences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Buscar por nome do aluno...">
+                        </div>
+                    </div>
+                    <div id="loading-occurrences" class="text-center p-8">
+                        <i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i>
+                        <p class="mt-2 text-gray-500">Carregando registros...</p>
+                    </div>
+                    <div id="empty-state-occurrences" class="text-center p-8 hidden">
+                        <i class="fas fa-file-alt fa-3x text-gray-300 mb-4"></i>
+                        <h3 class="text-xl font-semibold text-gray-600">Nenhuma ocorrência registrada</h3>
+                        <p class="text-gray-500 mt-1">Clique em "Nova Ocorrência" para começar.</p>
+                    </div>
+                    <div id="occurrences-list" class="overflow-x-auto"></div>
+                </main>
+            </div>
+
+            <div id="tab-content-absences" class="hidden">
+                <div class="mb-6 flex flex-wrap gap-4 justify-between items-center">
+                    <h2 class="text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
+                    <div class="flex gap-4 flex-wrap">
+                        <button id="generate-ficha-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300">
+                            <i class="fas fa-file-invoice mr-2"></i>Gerar Ficha Consolidada
+                        </button>
+                         <button id="add-absence-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50 transition duration-300">
+                            <i class="fas fa-plus mr-2"></i>Registrar Ação
+                        </button>
+                    </div>
                 </div>
-                <div id="empty-state-absences" class="text-center p-8 hidden">
-                    <i class="fas fa-folder-open fa-3x text-gray-300 mb-4"></i>
-                    <h3 class="text-xl font-semibold text-gray-600">Nenhuma ação de busca ativa registrada</h3>
-                    <p class="text-gray-500 mt-1">Clique em "Registrar Ação" para começar.</p>
-                </div>
-                <div id="absences-list" class="overflow-x-auto"></div>
-            </main>
+                 <main class="bg-white rounded-lg shadow-md p-6">
+                    <div class="mb-4">
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
+                            <input type="text" id="search-absences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Buscar por nome do aluno...">
+                        </div>
+                    </div>
+                    <div id="loading-absences" class="text-center p-8">
+                        <i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i>
+                        <p class="mt-2 text-gray-500">Carregando registros...</p>
+                    </div>
+                    <div id="empty-state-absences" class="text-center p-8 hidden">
+                        <i class="fas fa-folder-open fa-3x text-gray-300 mb-4"></i>
+                        <h3 class="text-xl font-semibold text-gray-600">Nenhuma ação de busca ativa registrada</h3>
+                        <p class="text-gray-500 mt-1">Clique em "Registrar Ação" para começar.</p>
+                    </div>
+                    <div id="absences-list" class="overflow-x-auto"></div>
+                </main>
+            </div>
+            
+            <footer class="text-center text-sm text-gray-400 mt-8">
+                <p>Desenvolvido para Gestão Pedagógica</p>
+            </footer>
         </div>
-        
-        <footer class="text-center text-sm text-gray-400 mt-8">
-            <p>Desenvolvido para Gestão Pedagógica</p>
-        </footer>
     </div>
 
     <!-- Modal: Adicionar/Editar Ocorrência -->
@@ -292,7 +317,7 @@
     <!-- Firebase and App Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ************************************************************************************
@@ -321,10 +346,19 @@
             activeTab: 'occurrences',
             recordToDelete: null,
             db: null,
-            userId: null
+            userId: null,
+            unsubscribeOccurrences: null,
+            unsubscribeAbsences: null
         };
 
         const dom = {
+            loginScreen: document.getElementById('login-screen'),
+            mainContent: document.getElementById('main-content'),
+            googleLoginBtn: document.getElementById('google-login-btn'),
+            logoutBtn: document.getElementById('logout-btn'),
+            userProfile: document.getElementById('user-profile'),
+            userName: document.getElementById('user-name'),
+            userPhoto: document.getElementById('user-photo'),
             occurrenceModal: document.getElementById('occurrence-modal'),
             absenceModal: document.getElementById('absence-modal'),
             notificationModalBackdrop: document.getElementById('notification-modal-backdrop'),
@@ -472,6 +506,31 @@
         const addRecord = (type, data) => addDoc(getCollectionRef(type), { ...data, createdAt: serverTimestamp() });
         const updateRecord = (type, id, data) => setDoc(doc(getCollectionRef(type), id), data, { merge: true });
         const deleteRecord = (type, id) => deleteDoc(doc(getCollectionRef(type), id));
+
+        const setupFirestoreListeners = () => {
+            if (state.unsubscribeOccurrences) state.unsubscribeOccurrences();
+            state.unsubscribeOccurrences = onSnapshot(query(getCollectionRef('occurrence')), (snapshot) => {
+                state.occurrences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                if (state.activeTab === 'occurrences') render();
+            }, (error) => console.error("Erro ao buscar ocorrências:", error));
+
+            if (state.unsubscribeAbsences) state.unsubscribeAbsences();
+            state.unsubscribeAbsences = onSnapshot(query(getCollectionRef('absence')), (snapshot) => {
+                state.absences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                if (state.activeTab === 'absences') render();
+            }, (error) => console.error("Erro ao buscar ações:", error));
+        };
+
+        const detachFirestoreListeners = () => {
+            if (state.unsubscribeOccurrences) {
+                state.unsubscribeOccurrences();
+                state.unsubscribeOccurrences = null;
+            }
+            if (state.unsubscribeAbsences) {
+                state.unsubscribeAbsences();
+                state.unsubscribeAbsences = null;
+            }
+        };
 
         const openNotificationModal = (id) => {
             const data = state.occurrences.find(occ => occ.id === id);
@@ -703,11 +762,11 @@
                 closeModal(dom.reportGeneratorModal);
             });
              document.getElementById('action-type').addEventListener('change', (e) => {
-                const action = e.target.value;
-                document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
-                if (action.startsWith('tentativa')) { document.getElementById('group-tentativas').classList.remove('hidden'); } 
-                else if (action) { const group = document.getElementById(`group-${action}`); if (group) group.classList.remove('hidden'); }
-            });
+                 const action = e.target.value;
+                 document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
+                 if (action.startsWith('tentativa')) { document.getElementById('group-tentativas').classList.remove('hidden'); } 
+                 else if (action) { const group = document.getElementById(`group-${action}`); if (group) group.classList.remove('hidden'); }
+             });
         };
 
         // --- INICIALIZAÇÃO ---
@@ -726,41 +785,47 @@
             state.db = getFirestore(app);
 
             onAuthStateChanged(auth, user => {
-                if (user) {
+                detachFirestoreListeners();
+                if (user && !user.isAnonymous) {
                     state.userId = user.uid;
-                    onSnapshot(query(getCollectionRef('occurrence')), (snapshot) => {
-                        state.occurrences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        if(state.activeTab === 'occurrences') render();
-                    }, (error) => console.error("Erro ao buscar ocorrências:", error));
-                    
-                    onSnapshot(query(getCollectionRef('absence')), (snapshot) => {
-                        state.absences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        if(state.activeTab === 'absences') render();
-                    }, (error) => console.error("Erro ao buscar ações:", error));
+                    dom.userName.textContent = user.displayName;
+                    dom.userPhoto.src = user.photoURL;
+                    dom.loginScreen.classList.add('hidden');
+                    dom.mainContent.classList.remove('hidden');
+                    dom.userProfile.classList.remove('hidden');
+                    setupFirestoreListeners();
                 } else {
                     state.userId = null;
                     state.occurrences = [];
                     state.absences = [];
                     render();
+                    dom.mainContent.classList.add('hidden');
+                    dom.userProfile.classList.add('hidden');
+                    dom.loginScreen.classList.remove('hidden');
                 }
             });
 
-            (async () => {
+            dom.googleLoginBtn.addEventListener('click', async () => {
+                const provider = new GoogleAuthProvider();
                 try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                } catch (error) { 
-                    console.error("Falha na autenticação:", error); 
-                    showToast("Falha na autenticação.");
+                    await signInWithPopup(auth, provider);
+                } catch (error) {
+                    console.error("Erro durante o login com o Google:", error);
+                    showToast("Falha no login. Tente novamente.");
                 }
-            })();
+            });
+
+            dom.logoutBtn.addEventListener('click', async () => {
+                try {
+                    await signOut(auth);
+                } catch (error) {
+                    console.error("Erro ao sair:", error);
+                }
+            });
 
             setupEventListeners();
         });
     </script>
 </body>
-
 </html>
+
