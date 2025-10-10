@@ -127,6 +127,18 @@
             </div>
         </div>
     </div>
+    
+    <div id="verify-email-screen" class="hidden flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+        <div class="w-full max-w-md text-center">
+            <div class="bg-white p-8 rounded-2xl shadow-lg">
+                 <i class="fas fa-envelope-open-text fa-3x text-indigo-500 mb-4"></i>
+                <h1 class="text-2xl font-bold text-gray-800 mb-2">Verifique o seu Email</h1>
+                <p class="text-gray-600 mb-6">Enviámos um link de verificação para <strong id="verification-email"></strong>. Por favor, clique no link para ativar a sua conta.</p>
+                <button id="resend-verification-btn" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300 mb-3">Reenviar Email</button>
+                <button id="verification-logout-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300">Sair</button>
+            </div>
+        </div>
+    </div>
 
 
     <div id="main-content" class="hidden">
@@ -263,15 +275,11 @@
                 </div>
                 <div>
                     <label for="involved" class="block text-sm font-medium text-gray-700">Pessoas Envolvidas</label>
-                    <input type="text" id="involved" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: Outros alunos, professores...">
+                    <input type="text" id="involved" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required placeholder="Ex: Outros alunos, professores...">
                 </div>
                 <div>
                     <label for="actions-taken-school" class="block text-sm font-medium text-gray-700">Providências da Escola</label>
-                    <textarea id="actions-taken-school" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: Conversa com o aluno, contato com os pais..."></textarea>
-                </div>
-                <div>
-                    <label for="actions-taken-family" class="block text-sm font-medium text-gray-700">Providências da Família</label>
-                    <textarea id="actions-taken-family" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: Acompanhamento, diálogo..."></textarea>
+                    <textarea id="actions-taken-school" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required placeholder="Ex: Conversa com o aluno, contato com os pais..."></textarea>
                 </div>
                 <div class="pt-4 border-t">
                     <h4 class="text-md font-semibold text-gray-600">Convocação para Reunião (Opcional)</h4>
@@ -301,6 +309,7 @@
             </div>
             <form id="absence-form" class="p-6 space-y-6 overflow-y-auto">
                 <input type="hidden" id="absence-id">
+                 <input type="hidden" id="action-type">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div class="relative">
                         <label for="absence-student-name" class="block text-sm font-medium text-gray-700">Nome do Aluno(a)</label>
@@ -312,47 +321,9 @@
                         <input type="text" id="absence-student-class" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" readonly>
                     </div>
                 </div>
-                <div>
-                    <label for="action-type" class="block text-sm font-medium text-gray-700">Tipo de Ação</label>
-                    <select id="action-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
-                        <option value="">Selecione...</option>
-                        <option value="tentativa_1">1ª Tentativa de Contato</option>
-                        <option value="tentativa_2">2ª Tentativa de Contato</option>
-                        <option value="tentativa_3">3ª Tentativa de Contato</option>
-                        <option value="visita">Visita In Loco</option>
-                        <option value="encaminhamento_ct">Encaminhamento ao Conselho Tutelar</option>
-                        <option value="devolutiva_ct">Devolutiva do C.T. / Parecer Final</option>
-                    </select>
-                </div>
+                
                 <div id="dynamic-fields-container" class="space-y-4">
-                    <div id="group-tentativas" class="dynamic-field-group hidden space-y-4">
-                         <div><label for="contact-absence-period" class="block text-sm">Período das Faltas</label><input type="text" id="contact-absence-period" class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                        <div><label for="absence-count" class="block text-sm">Nº de Faltas no Período</label><input type="number" id="absence-count" class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div><label for="meeting-date" class="block text-sm">Data do Comparecimento</label><input type="date" id="meeting-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                            <div><label for="meeting-time" class="block text-sm">Horário do Comparecimento</label><input type="time" id="meeting-time" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                        </div>
-                        <div><label class="block text-sm">Dia do Contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                        <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                        <div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
-                    </div>
-                    <div id="group-visita" class="dynamic-field-group hidden space-y-4">
-                        <div><label for="visit-absence-period" class="block text-sm">Período das Faltas</label><input type="text" id="visit-absence-period" class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                        <div><label for="visit-absence-count" class="block text-sm">Nº de Faltas no Período</label><input type="number" id="visit-absence-count" class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                        <div><label class="block text-sm">Nome do agente da visita:</label><input type="text" id="visit-agent" class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                        <div><label class="block text-sm">Dia da visita:</label><input type="date" id="visit-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                        <div><label class="block text-sm">Nome e justificativa do responsável:</label><textarea id="visit-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
-                        <div><label class="block text-sm">Observações:</label><textarea id="visit-obs" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
-                        <div><span class="block text-sm">Estudante retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-returned" value="yes"> Sim</label> <label><input type="radio" name="visit-returned" value="no"> Não</label></div></div>
-                    </div>
-                    <div id="group-encaminhamento_ct" class="dynamic-field-group hidden space-y-4">
-                        <div><label class="block text-sm">Data do envio ao C.T.:</label><input type="date" id="ct-sent-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                    </div>
-                    <div id="group-devolutiva_ct" class="dynamic-field-group hidden space-y-4">
-                        <div><label class="block text-sm">Devolutiva do C.T.:</label><textarea id="ct-feedback" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
-                        <div><span class="block text-sm">Estudante retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="ct-returned" value="yes"> Sim</label> <label><input type="radio" name="ct-returned" value="no"> Não</label></div></div>
-                        <div><label class="block text-sm">Parecer da Busca Ativa Escolar (BAE):</label><textarea id="ct-parecer" rows="3" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
-                    </div>
+                    <!-- Os grupos de campos serão mostrados/escondidos aqui via JS -->
                 </div>
                 <div class="pt-4 flex justify-end space-x-3 bg-white sticky bottom-0 pb-6 -mx-6 px-6 border-t">
                     <button type="button" id="cancel-absence-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300">Cancelar</button>
@@ -444,12 +415,9 @@
     <!-- Firebase and App Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendEmailVerification } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ************************************************************************************
-        // CONFIGURAÇÃO DO FIREBASE
-        // ************************************************************************************
         const firebaseConfig = {
             apiKey: "AIzaSyCDWtwnD_3V9En9qEEYtlP_dpOTvt-P9ks",
             authDomain: "acompanhamento-vida-escolar.firebaseapp.com",
@@ -458,7 +426,6 @@
             messagingSenderId: "315669308837",
             appId: "1:315669308837:web:053497df9ceea4df5c4c9c"
         };
-        // ************************************************************************************
         
         const config = {
             schoolName: "Nome da Escola (Exemplo)",
@@ -481,6 +448,10 @@
 
         const dom = {
             loginScreen: document.getElementById('login-screen'),
+            verifyEmailScreen: document.getElementById('verify-email-screen'),
+            verificationEmail: document.getElementById('verification-email'),
+            resendVerificationBtn: document.getElementById('resend-verification-btn'),
+            verificationLogoutBtn: document.getElementById('verification-logout-btn'),
             mainContent: document.getElementById('main-content'),
             loginView: document.getElementById('login-view'),
             registerView: document.getElementById('register-view'),
@@ -658,18 +629,37 @@
 
         const getStudentsDocRef = () => {
              const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-             return doc(state.db, `/artifacts/${appId}/public/data/school-data`, 'students');
+             return doc(db, `/artifacts/${appId}/public/data/school-data`, 'students');
+        };
+        
+        const getLogsCollectionRef = () => {
+             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+             return collection(db, `/artifacts/${appId}/public/data/logs`);
         };
 
         const getCollectionRef = (type) => {
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             const collectionName = type === 'occurrence' ? 'occurrences' : 'absences';
             // MUDANÇA CRÍTICA: Aponta para uma coleção pública partilhada
-            return collection(state.db, `/artifacts/${appId}/public/data/${collectionName}`);
+            return collection(db, `/artifacts/${appId}/public/data/${collectionName}`);
         };
         const addRecord = (type, data) => addDoc(getCollectionRef(type), { ...data, createdAt: serverTimestamp() });
         const updateRecord = (type, id, data) => setDoc(doc(getCollectionRef(type), id), data, { merge: true });
         const deleteRecord = (type, id) => deleteDoc(doc(getCollectionRef(type), id));
+
+        const logAction = async (action, details) => {
+            try {
+                await addDoc(getLogsCollectionRef(), {
+                    action,
+                    ...details,
+                    userEmail: auth.currentUser?.email,
+                    timestamp: serverTimestamp()
+                });
+            } catch (error) {
+                console.error("Erro ao registar log:", error);
+            }
+        };
+
 
         const setupFirestoreListeners = async () => {
             if (!state.userId) return;
@@ -736,7 +726,6 @@
                         <div><h4 class="font-semibold mb-1">Descrição:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
                         <div><h4 class="font-semibold mb-1">Pessoas Envolvidas:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.involved)}</p></div>
                         <div><h4 class="font-semibold mb-1">Providências da Escola:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.actionsTakenSchool)}</p></div>
-                        <div><h4 class="font-semibold mb-1">Providências da Família:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.actionsTakenFamily)}</p></div>
                     </div>
                     <p class="mt-4 text-justify">Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica para uma reunião na seguinte data e horário:</p>
                     <div class="mt-4 p-3 bg-indigo-100 text-indigo-800 rounded-md text-center font-semibold"><p><strong>Data:</strong> ${formatDate(data.meetingDate) || 'A ser agendada'}</p><p><strong>Horário:</strong> ${formatTime(data.meetingTime) || ''}</p></div>
@@ -751,13 +740,19 @@
             const student = state.students.find(s => s.matricula === record.studentId) || {name: 'Aluno Removido', class: 'N/A'};
             
             const attemptLabels = { tentativa_1: "primeira", tentativa_2: "segunda", tentativa_3: "terceira" };
-            const actionTitles = { tentativa_1: "Notificação de Frequência Escolar", tentativa_2: "Notificação de Frequência Escolar", tentativa_3: "Notificação de Frequência Escolar", visita: "Notificação de Visita Domiciliar", encaminhamento_ct: "Comprovante de Encaminhamento ao C.T.", devolutiva_ct: "Registro de Devolutiva do C.T." };
+            const actionTitles = { tentativa_1: "1ª Notificação de Frequência Escolar", tentativa_2: "2ª Notificação de Frequência Escolar", tentativa_3: "3ª Notificação de Frequência Escolar", visita: "Relatório de Visita Domiciliar", encaminhamento_ct: "Comprovante de Encaminhamento ao C.T.", devolutiva_ct: "Registro de Devolutiva do C.T." };
             const title = actionTitles[record.actionType] || 'Notificação de Busca Ativa';
             
             let body = '';
             switch (record.actionType) {
                 case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
-                    body = `<p class="mt-4 text-justify">Vimos por meio desta notificá-los que o(a) estudante acumulou <strong>${formatText(record.absenceCount)} faltas</strong> no período de <strong>${formatText(record.periodoFaltas)}</strong>.</p><p class="mt-4 text-justify">Esta é a <strong>${attemptLabels[record.actionType]} tentativa de contato</strong>. Solicitamos o comparecimento de um responsável na data e horário abaixo:</p><div class="mt-4 p-3 bg-gray-100 rounded-md text-center"><p><strong>Data:</strong> ${formatDate(record.meetingDate)}</p><p><strong>Horário:</strong> ${formatTime(record.meetingTime)}</p></div>`;
+                    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+                    body = `<p class="mt-4 text-justify">Prezados(as) responsáveis, <strong>${responsaveis}</strong>,</p>
+                    <p class="mt-4 text-justify">Gostaríamos de informar que o(a) estudante <strong>${student.name}</strong> acumulou <strong>${formatText(record.absenceCount)} horas/aulas de ausência</strong> no período de <strong>${formatText(record.periodoFaltas)}</strong>.</p>
+                    <p class="mt-4 text-justify">Reforçamos que, de acordo com a legislação vigente, é responsabilidade da família garantir e acompanhar a frequência escolar do(a) aluno(a).</p>
+                    <p class="mt-4 text-justify">Esta é a <strong>${attemptLabels[record.actionType]} tentativa de contato</strong>. Solicitamos o vosso comparecimento na <strong>coordenação pedagógica</strong> desta unidade escolar para esclarecimentos e orientações na data e horário abaixo:</p>
+                    <div class="mt-4 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 rounded-md text-center"><p><strong>Data:</strong> ${formatDate(record.meetingDate)}</p><p><strong>Horário:</strong> ${formatTime(record.meetingTime)}</p></div>
+                    <p class="mt-6 text-justify font-semibold text-red-600">🚨 ATENÇÃO: O não comparecimento ou a persistência das faltas poderá implicar no acionamento do Conselho Tutelar.</p>`;
                     break;
                 case 'visita':
                     body = `<p class="mt-4">Notificamos que na data de <strong>${formatDate(record.visitDate)}</strong>, o agente escolar <strong>${formatText(record.visitAgent)}</strong> realizou uma visita domiciliar.</p><p class="mt-2"><strong>Justificativa do responsável:</strong> ${formatText(record.visitReason)}</p>`;
@@ -838,25 +833,24 @@
                 dom.absenceForm.reset(); 
                 document.getElementById('absence-id').value = ''; 
                 document.getElementById('absence-modal-title').innerText = 'Registar Ação de Busca Ativa'; 
-                document.getElementById('action-type').dispatchEvent(new Event('change')); 
                 openModal(dom.absenceModal); 
             });
 
             // Listeners dos botões de partilha
             document.getElementById('share-btn').addEventListener('click', () => {
-                const title = document.getElementById('notification-title').textContent;
+                const title = "🚨 " + document.getElementById('notification-title').textContent;
                 const content = document.getElementById('notification-content').innerText;
-                shareContent(title, content);
+                shareContent(title, "📄 " + content);
             });
 
             document.getElementById('report-share-btn').addEventListener('click', () => {
-                const title = document.getElementById('report-view-title').textContent;
+                const title = "📋 " + document.getElementById('report-view-title').textContent;
                 const content = document.getElementById('report-view-content').innerText;
                 shareContent(title, content);
             });
 
             document.getElementById('ficha-share-btn').addEventListener('click', () => {
-                const title = document.getElementById('ficha-view-title').textContent;
+                const title = "📑 " + document.getElementById('ficha-view-title').textContent;
                 const content = document.getElementById('ficha-view-content').innerText;
                 shareContent(title, content);
             });
@@ -888,11 +882,20 @@
                     description: document.getElementById('description').value.trim(), 
                     involved: document.getElementById('involved').value.trim(), 
                     actionsTakenSchool: document.getElementById('actions-taken-school').value.trim(), 
-                    actionsTakenFamily: document.getElementById('actions-taken-family').value.trim(), 
                     meetingDate: document.getElementById('meeting-date-occurrence').value, 
                     meetingTime: document.getElementById('meeting-time-occurrence').value 
                 };
-                try { id ? await updateRecord('occurrence', id, data) : await addRecord('occurrence', data); showToast(`Ocorrência ${id ? 'atualizada' : 'registada'} com sucesso!`); closeModal(dom.occurrenceModal); } catch (error) { console.error("Erro:", error); showToast('Erro ao salvar.'); }
+                try { 
+                    if(id) {
+                        await updateRecord('occurrence', id, data);
+                        await logAction('update_occurrence', { occurrenceId: id, studentName: student.name });
+                    } else {
+                        const newDoc = await addRecord('occurrence', data);
+                        await logAction('create_occurrence', { occurrenceId: newDoc.id, studentName: student.name });
+                    }
+                    showToast(`Ocorrência ${id ? 'atualizada' : 'registada'} com sucesso!`); 
+                    closeModal(dom.occurrenceModal); 
+                } catch (error) { console.error("Erro:", error); showToast('Erro ao salvar.'); }
             });
 
             dom.absenceForm.addEventListener('submit', async (e) => {
@@ -923,7 +926,17 @@
                         Object.assign(data, { ctFeedback: document.getElementById('ct-feedback').value, ctReturned: document.querySelector('input[name="ct-returned"]:checked')?.value || null, ctParecer: document.getElementById('ct-parecer').value });
                         break;
                 }
-                try { id ? await updateRecord('absence', id, data) : await addRecord('absence', data); showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`); closeModal(dom.absenceModal); } catch (error) { console.error("Erro ao salvar ação:", error); showToast('Erro ao salvar.'); }
+                try { 
+                    if(id) {
+                        await updateRecord('absence', id, data); 
+                        await logAction('update_absence_action', { actionId: id, studentName: student.name, actionType });
+                    } else {
+                        const newDoc = await addRecord('absence', data);
+                         await logAction('create_absence_action', { actionId: newDoc.id, studentName: student.name, actionType });
+                    }
+                    showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`); 
+                    closeModal(dom.absenceModal); 
+                } catch (error) { console.error("Erro ao salvar ação:", error); showToast('Erro ao salvar.'); }
             });
 
             dom.occurrencesListDiv.addEventListener('click', (e) => {
@@ -943,13 +956,16 @@
                         document.getElementById('description').value = data.description || '';
                         document.getElementById('involved').value = data.involved || '';
                         document.getElementById('actions-taken-school').value = data.actionsTakenSchool || '';
-                        document.getElementById('actions-taken-family').value = data.actionsTakenFamily || '';
                         document.getElementById('meeting-date-occurrence').value = data.meetingDate || '';
                         document.getElementById('meeting-time-occurrence').value = data.meetingTime || '';
                         openModal(dom.occurrenceModal);
                     }
                 }
-                else if (button.classList.contains('delete-btn')) { state.recordToDelete = { id, type: 'occurrence' }; openModal(dom.deleteConfirmModal); }
+                else if (button.classList.contains('delete-btn')) { 
+                    state.recordToDelete = { id, type: 'occurrence' }; 
+                    document.getElementById('delete-confirm-message').textContent = "Tem a certeza que quer excluir esta ocorrência? A ação não pode ser desfeita.";
+                    openModal(dom.deleteConfirmModal); 
+                }
                 else if (button.classList.contains('view-btn')) { openNotificationModal(id); }
             });
 
@@ -963,11 +979,14 @@
                     if (data && student) {
                         dom.absenceForm.reset();
                         document.getElementById('absence-modal-title').innerText = 'Editar Ação de Busca Ativa';
-                        document.getElementById('action-type').value = data.actionType || '';
-                        document.getElementById('action-type').dispatchEvent(new Event('change'));
+                        
+                        setupAbsenceForm(data.actionType);
+                        
                         document.getElementById('absence-id').value = data.id || '';
                         document.getElementById('absence-student-name').value = student.name || '';
                         document.getElementById('absence-student-class').value = student.class || '';
+                        document.getElementById('action-type').value = data.actionType || '';
+                        
                         switch (data.actionType) {
                             case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
                                 document.getElementById('contact-absence-period').value = data.periodoFaltas || '';
@@ -999,13 +1018,27 @@
                         openModal(dom.absenceModal);
                     }
                 }
-                else if (button.classList.contains('delete-absence-btn')) { state.recordToDelete = { id, type: 'absence' }; openModal(dom.deleteConfirmModal); }
+                else if (button.classList.contains('delete-absence-btn')) { 
+                    state.recordToDelete = { id, type: 'absence' }; 
+                    document.getElementById('delete-confirm-message').textContent = "Tem a certeza que quer excluir esta ação de busca ativa? A ação não pode ser desfeita.";
+                    openModal(dom.deleteConfirmModal);
+                }
                 else if (button.classList.contains('view-absence-btn')) { openFichaViewModal(id); }
             });
 
             document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
                 if (state.recordToDelete) {
-                    try { await deleteRecord(state.recordToDelete.type, state.recordToDelete.id); showToast('Registro excluído com sucesso.'); } catch (error) { console.error("Erro ao excluir:", error); showToast('Erro ao excluir.'); } finally { state.recordToDelete = null; closeModal(dom.deleteConfirmModal); }
+                    try { 
+                        await deleteRecord(state.recordToDelete.type, state.recordToDelete.id); 
+                        await logAction(`delete_${state.recordToDelete.type}`, { recordId: state.recordToDelete.id });
+                        showToast('Registro excluído com sucesso.'); 
+                    } catch (error) { 
+                        console.error("Erro ao excluir:", error); 
+                        showToast('Erro ao excluir.'); 
+                    } finally { 
+                        state.recordToDelete = null; 
+                        closeModal(dom.deleteConfirmModal); 
+                    }
                 }
             });
 
@@ -1019,13 +1052,7 @@
                 else generateAndShowConsolidatedFicha(selectedStudentId);
                 closeModal(dom.reportGeneratorModal);
             });
-             document.getElementById('action-type').addEventListener('change', (e) => {
-                 const action = e.target.value;
-                 document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
-                 if (action.startsWith('tentativa')) { document.getElementById('group-tentativas').classList.remove('hidden'); } 
-                 else if (action) { const group = document.getElementById(`group-${action}`); if (group) group.classList.remove('hidden'); }
-             });
-
+            
             document.getElementById('manage-students-btn').addEventListener('click', () => {
                 renderStudentsList();
                 openModal(dom.studentsModal);
@@ -1066,6 +1093,7 @@
                             await setDoc(getStudentsDocRef(), { list: newStudentList });
                             state.students = newStudentList;
                             renderStudentsList();
+                            await logAction('import_students', { studentCount: newStudentList.length });
                             showToast(`${newStudentList.length} alunos importados com sucesso!`);
                             fileInput.value = '';
                             feedbackDiv.innerHTML = '';
@@ -1113,6 +1141,7 @@
                     state.students = updatedList;
                     renderStudentsList();
                     resetStudentForm();
+                    await logAction(id ? 'update_student' : 'add_student', { studentName: name, studentId: matricula });
                     showToast(`Aluno ${id ? 'atualizado' : 'adicionado'} com sucesso.`);
                 } catch(error) {
                     console.error("Erro ao salvar aluno:", error);
@@ -1211,6 +1240,7 @@
                             await setDoc(getStudentsDocRef(), { list: updatedList });
                             state.students = updatedList;
                             renderStudentsList();
+                            await logAction('delete_student', { studentName: student.name, studentId: student.matricula });
                             showToast("Aluno removido com sucesso.");
                         } catch(error) {
                             console.error("Erro ao remover aluno:", error);
@@ -1243,17 +1273,27 @@
 
             const app = initializeApp(finalConfig);
             const auth = getAuth(app);
-            state.db = getFirestore(app);
+            const db = getFirestore(app);
+            state.db = db;
 
             onAuthStateChanged(auth, async user => {
                 detachFirestoreListeners();
                 if (user) {
-                    state.userId = user.uid;
-                    dom.userEmail.textContent = user.email;
-                    dom.loginScreen.classList.add('hidden');
-                    dom.mainContent.classList.remove('hidden');
-                    dom.userProfile.classList.remove('hidden');
-                    await setupFirestoreListeners();
+                    await user.reload();
+                    if(user.emailVerified) {
+                        state.userId = user.uid;
+                        dom.userEmail.textContent = user.email;
+                        dom.loginScreen.classList.add('hidden');
+                        dom.verifyEmailScreen.classList.add('hidden');
+                        dom.mainContent.classList.remove('hidden');
+                        dom.userProfile.classList.remove('hidden');
+                        await setupFirestoreListeners();
+                    } else {
+                        dom.verificationEmail.textContent = user.email;
+                        dom.loginScreen.classList.add('hidden');
+                        dom.mainContent.classList.add('hidden');
+                        dom.verifyEmailScreen.style.display = 'flex';
+                    }
                 } else {
                     state.userId = null;
                     state.students = [];
@@ -1262,7 +1302,8 @@
                     render();
                     dom.mainContent.classList.add('hidden');
                     dom.userProfile.classList.add('hidden');
-                    dom.loginScreen.classList.remove('hidden');
+                    dom.verifyEmailScreen.classList.add('hidden');
+                    dom.loginScreen.style.display = 'flex';
                 }
             });
 
@@ -1283,7 +1324,10 @@
                 const email = document.getElementById('register-email').value;
                 const password = document.getElementById('register-password').value;
                 try {
-                    await createUserWithEmailAndPassword(auth, email, password);
+                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                    await sendEmailVerification(userCredential.user);
+                    await logAction('create_account', { userEmail: email });
+                    showToast("Conta criada! Verifique o seu email para ativar.");
                 } catch (error) {
                     console.error("Erro ao registar:", error.code);
                      if (error.code === 'auth/email-already-in-use') {
@@ -1295,6 +1339,25 @@
                     }
                 }
             });
+
+            dom.resendVerificationBtn.addEventListener('click', async () => {
+                try {
+                    await sendEmailVerification(auth.currentUser);
+                    showToast("Email de verificação reenviado.");
+                } catch (error) {
+                    console.error("Erro ao reenviar email:", error);
+                    showToast("Erro ao reenviar email. Tente mais tarde.");
+                }
+            });
+
+            dom.verificationLogoutBtn.addEventListener('click', async () => {
+                 try {
+                    await signOut(auth);
+                } catch (error) {
+                    console.error("Erro ao sair:", error);
+                }
+            });
+
 
             dom.logoutBtn.addEventListener('click', async () => {
                 try {
