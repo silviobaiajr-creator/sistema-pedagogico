@@ -362,20 +362,74 @@
         </div>
     </div>
     <div id="students-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
                 <h3 class="text-xl font-semibold">Gerir Lista de Alunos</h3>
                 <button id="close-students-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
-            <div class="p-6 space-y-4">
-                <p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `nome`, `turma`, `resp1`, `resp2`. Isto substituirá a lista de alunos atual.</p>
-                <div>
-                    <label for="csv-file" class="block text-sm font-medium text-gray-700">Ficheiro CSV</label>
-                    <input type="file" id="csv-file" accept=".csv" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+            <div class="p-6 flex-grow overflow-y-auto space-y-6">
+                <!-- Formulário para Adicionar/Editar Aluno -->
+                <div class="bg-gray-50 p-4 rounded-lg border">
+                    <h4 id="student-form-title" class="text-lg font-semibold mb-2">Adicionar Novo Aluno</h4>
+                    <form id="student-form" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
+                        <input type="hidden" id="student-id-input">
+                        <div>
+                            <label for="student-matricula-input" class="block text-sm font-medium text-gray-700">Matrícula</label>
+                            <input type="text" id="student-matricula-input" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
+                        </div>
+                        <div>
+                            <label for="student-name-input" class="block text-sm font-medium text-gray-700">Nome Completo</label>
+                            <input type="text" id="student-name-input" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
+                        </div>
+                        <div>
+                            <label for="student-class-input" class="block text-sm font-medium text-gray-700">Turma</label>
+                            <input type="text" id="student-class-input" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
+                        </div>
+                        <div>
+                            <label for="student-resp1-input" class="block text-sm font-medium text-gray-700">Responsável 1</label>
+                            <input type="text" id="student-resp1-input" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
+                        </div>
+                        <div>
+                            <label for="student-resp2-input" class="block text-sm font-medium text-gray-700">Responsável 2</label>
+                            <input type="text" id="student-resp2-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
+                        </div>
+                        <div class="flex space-x-2">
+                             <button type="submit" id="save-student-btn" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Salvar</button>
+                             <button type="button" id="cancel-edit-student-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300 hidden">Cancelar</button>
+                        </div>
+                    </form>
                 </div>
-                 <div id="csv-feedback" class="text-sm"></div>
-                <div class="pt-4 flex justify-end space-x-3">
-                    <button type="button" id="upload-csv-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Carregar e Salvar</button>
+                
+                 <!-- Lista de Alunos -->
+                <div>
+                    <h4 class="text-lg font-semibold mb-2">Alunos Registados</h4>
+                    <div id="students-list-container" class="border rounded-lg overflow-hidden">
+                        <div class="overflow-y-auto max-h-64">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50 sticky top-0">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Turma</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="students-list-table" class="bg-white divide-y divide-gray-200">
+                                    <!-- Alunos serão inseridos aqui -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Importação CSV -->
+                <div class="border-t pt-6">
+                     <h4 class="text-lg font-semibold mb-2">Importar em Massa</h4>
+                    <p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`, `turma`, `resp1`, `resp2`. Isto **substituirá** a lista de alunos atual.</p>
+                    <div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                        <input type="file" id="csv-file" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                        <button type="button" id="upload-csv-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 transition duration-300 whitespace-nowrap">Carregar CSV</button>
+                    </div>
+                    <div id="csv-feedback" class="text-sm mt-2"></div>
                 </div>
             </div>
         </div>
@@ -608,14 +662,13 @@
         const setupFirestoreListeners = async () => {
             if (!state.userId) return;
 
-            // Carregar lista de alunos
             try {
                 const docSnap = await getDoc(getStudentsDocRef());
                 if (docSnap.exists() && docSnap.data().list) {
                     state.students = docSnap.data().list;
+                    renderStudentsList();
                 } else {
-                     // Se não houver lista na DB, usa a lista local como default
-                    console.log("Nenhuma lista de alunos encontrada no Firestore. A usar a lista padrão.");
+                    console.log("Nenhuma lista de alunos encontrada no Firestore.");
                 }
             } catch (error) {
                 console.error("Erro ao carregar lista de alunos:", error);
@@ -813,6 +866,7 @@
                     return;
                 }
                 const data = { 
+                    studentId: student.matricula,
                     studentName: student.name, 
                     studentClass: student.class, 
                     resp1: student.resp1,
@@ -839,6 +893,7 @@
                 }
                 const actionType = document.getElementById('action-type').value;
                 const data = { 
+                    studentId: student.matricula,
                     studentName: student.name, 
                     studentClass: student.class, 
                     resp1: student.resp1,
@@ -960,7 +1015,10 @@
                  else if (action) { const group = document.getElementById(`group-${action}`); if (group) group.classList.remove('hidden'); }
              });
 
-            document.getElementById('manage-students-btn').addEventListener('click', () => openModal(dom.studentsModal));
+            document.getElementById('manage-students-btn').addEventListener('click', () => {
+                renderStudentsList();
+                openModal(dom.studentsModal);
+            });
             document.getElementById('close-students-modal-btn').addEventListener('click', () => closeModal(dom.studentsModal));
             document.getElementById('upload-csv-btn').addEventListener('click', async () => {
                 const fileInput = document.getElementById('csv-file');
@@ -975,28 +1033,31 @@
                     skipEmptyLines: true,
                     transformHeader: header => header.toLowerCase().trim().replace(/\s+/g, ''),
                     complete: async (results) => {
-                        const requiredHeaders = ['nome', 'turma', 'resp1', 'resp2'];
+                        const requiredHeaders = ['matricula', 'nome', 'turma', 'resp1', 'resp2'];
                         const fileHeaders = results.meta.fields;
                         
                         const hasAllHeaders = requiredHeaders.every(h => fileHeaders.includes(h));
 
                         if (!hasAllHeaders) {
-                            feedbackDiv.innerHTML = `<p class="text-red-500">Erro: O ficheiro CSV deve conter as colunas: nome, turma, resp1, resp2.</p>`;
+                            feedbackDiv.innerHTML = `<p class="text-red-500">Erro: O ficheiro CSV deve conter as colunas: matricula, nome, turma, resp1, resp2.</p>`;
                             return;
                         }
 
                         const newStudentList = results.data.map(row => ({
+                            matricula: row.matricula || '',
                             name: row.nome || '',
                             class: row.turma || '',
                             resp1: row.resp1 || '',
                             resp2: row.resp2 || ''
-                        })).filter(s => s.name);
+                        })).filter(s => s.name && s.matricula);
 
                         try {
                             await setDoc(getStudentsDocRef(), { list: newStudentList });
                             state.students = newStudentList;
+                            renderStudentsList();
                             showToast(`${newStudentList.length} alunos importados com sucesso!`);
-                            closeModal(dom.studentsModal);
+                            fileInput.value = '';
+                            feedbackDiv.innerHTML = '';
                         } catch(error) {
                             console.error("Erro ao salvar lista de alunos:", error);
                             showToast("Erro ao salvar a nova lista de alunos.");
@@ -1004,6 +1065,51 @@
                     }
                 });
             });
+
+            document.getElementById('student-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = document.getElementById('student-id-input').value; // Usando matricula como ID
+                const matricula = document.getElementById('student-matricula-input').value.trim();
+                const name = document.getElementById('student-name-input').value.trim();
+                const studentClass = document.getElementById('student-class-input').value.trim();
+                const resp1 = document.getElementById('student-resp1-input').value.trim();
+                const resp2 = document.getElementById('student-resp2-input').value.trim();
+
+                if (!matricula || !name || !studentClass || !resp1) {
+                    showToast("Matrícula, Nome, Turma e Responsável 1 são obrigatórios.");
+                    return;
+                }
+                
+                const studentData = { matricula, name, class: studentClass, resp1, resp2 };
+                
+                let updatedList = [...state.students];
+
+                if (id) { // Editando
+                    const index = updatedList.findIndex(s => s.matricula === id);
+                    if (index > -1) {
+                        updatedList[index] = studentData;
+                    }
+                } else { // Adicionando
+                     if (updatedList.some(s => s.matricula === matricula)) {
+                        showToast("Erro: Matrícula já existe.");
+                        return;
+                    }
+                    updatedList.push(studentData);
+                }
+
+                try {
+                    await setDoc(getStudentsDocRef(), { list: updatedList });
+                    state.students = updatedList;
+                    renderStudentsList();
+                    resetStudentForm();
+                    showToast(`Aluno ${id ? 'atualizado' : 'adicionado'} com sucesso.`);
+                } catch(error) {
+                    console.error("Erro ao salvar aluno:", error);
+                    showToast("Erro ao salvar dados do aluno.");
+                }
+            });
+
+            document.getElementById('cancel-edit-student-btn').addEventListener('click', resetStudentForm);
         };
 
         const setupAutocomplete = (inputId, suggestionsId) => {
@@ -1043,10 +1149,74 @@
             });
 
              document.addEventListener('click', (e) => {
-                if (!input.contains(e.target)) {
+                if (!suggestionsContainer.contains(e.target) && e.target !== input) {
                     suggestionsContainer.classList.add('hidden');
                 }
             });
+        };
+
+        const renderStudentsList = () => {
+            const tableBody = document.getElementById('students-list-table');
+            tableBody.innerHTML = '';
+            state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-4 py-2 text-sm text-gray-900">${student.name}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500">${student.class}</td>
+                    <td class="px-4 py-2 text-right text-sm space-x-2">
+                        <button class="edit-student-btn text-yellow-600 hover:text-yellow-900" data-id="${student.matricula}"><i class="fas fa-pencil-alt"></i></button>
+                        <button class="delete-student-btn text-red-600 hover:text-red-900" data-id="${student.matricula}"><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            document.querySelectorAll('.edit-student-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    const student = state.students.find(s => s.matricula === id);
+                    if (student) {
+                        document.getElementById('student-form-title').textContent = 'Editar Aluno';
+                        document.getElementById('student-id-input').value = student.matricula;
+                        document.getElementById('student-matricula-input').value = student.matricula;
+                        document.getElementById('student-matricula-input').readOnly = true;
+                        document.getElementById('student-matricula-input').classList.add('bg-gray-100');
+                        document.getElementById('student-name-input').value = student.name;
+                        document.getElementById('student-class-input').value = student.class;
+                        document.getElementById('student-resp1-input').value = student.resp1;
+                        document.getElementById('student-resp2-input').value = student.resp2;
+                        document.getElementById('cancel-edit-student-btn').classList.remove('hidden');
+                    }
+                });
+            });
+
+             document.querySelectorAll('.delete-student-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    const student = state.students.find(s => s.matricula === id);
+                    if (student && confirm(`Tem a certeza que quer remover o aluno "${student.name}"?`)) {
+                        const updatedList = state.students.filter(s => s.matricula !== id);
+                        try {
+                            await setDoc(getStudentsDocRef(), { list: updatedList });
+                            state.students = updatedList;
+                            renderStudentsList();
+                            showToast("Aluno removido com sucesso.");
+                        } catch(error) {
+                            console.error("Erro ao remover aluno:", error);
+                            showToast("Erro ao remover aluno.");
+                        }
+                    }
+                });
+            });
+        };
+        
+        const resetStudentForm = () => {
+            document.getElementById('student-form-title').textContent = 'Adicionar Novo Aluno';
+            document.getElementById('student-form').reset();
+            document.getElementById('student-id-input').value = '';
+            document.getElementById('student-matricula-input').readOnly = false;
+            document.getElementById('student-matricula-input').classList.remove('bg-gray-100');
+            document.getElementById('cancel-edit-student-btn').classList.add('hidden');
         };
 
         // --- INICIALIZAÇÃO ---
