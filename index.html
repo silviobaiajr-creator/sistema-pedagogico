@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -38,6 +39,24 @@
         }
         tbody tr:nth-child(even) {
             background-color: #f9fafb;
+        }
+        .autocomplete-suggestions {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #d1d5db;
+            border-top: none;
+            border-radius: 0 0 0.375rem 0.375rem;
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 10;
+            width: 100%;
+        }
+        .suggestion-item {
+            padding: 0.5rem;
+            cursor: pointer;
+        }
+        .suggestion-item:hover {
+            background-color: #eef2ff;
         }
         @media print {
             body > div:not(.printable-area) {
@@ -118,10 +137,15 @@
                     <h1 class="text-2xl sm:text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
                     <p class="opacity-90 mt-1 text-sm sm:text-base">Base de dados partilhada entre todos os utilizadores.</p>
                 </div>
-                <div id="user-profile" class="flex items-center space-x-4 hidden self-center sm:self-auto">
-                    <div class="text-right">
-                        <p id="user-email" class="font-semibold text-sm"></p>
-                        <button id="logout-btn" class="text-xs sm:text-sm text-indigo-200 hover:text-white transition">Sair</button>
+                <div class="flex items-center gap-4">
+                     <button id="manage-students-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm">
+                        <i class="fas fa-users-cog mr-2"></i>Gerir Alunos
+                    </button>
+                    <div id="user-profile" class="flex items-center space-x-4 hidden self-center sm:self-auto">
+                        <div class="text-right">
+                            <p id="user-email" class="font-semibold text-sm"></p>
+                            <button id="logout-btn" class="text-xs sm:text-sm text-indigo-200 hover:text-white transition">Sair</button>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -219,10 +243,10 @@
             <form id="occurrence-form" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                 <input type="hidden" id="occurrence-id">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    <div class="relative">
                         <label for="student-name" class="block text-sm font-medium text-gray-700">Nome do Aluno(a)</label>
-                        <input type="text" id="student-name" list="students-datalist" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
-                        <datalist id="students-datalist"></datalist>
+                        <input type="text" id="student-name" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required autocomplete="off">
+                        <div id="student-name-suggestions" class="autocomplete-suggestions hidden"></div>
                     </div>
                     <div>
                         <label for="student-class" class="block text-sm font-medium text-gray-700">Turma</label>
@@ -278,10 +302,10 @@
             <form id="absence-form" class="p-6 space-y-6 overflow-y-auto">
                 <input type="hidden" id="absence-id">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                     <div class="relative">
                         <label for="absence-student-name" class="block text-sm font-medium text-gray-700">Nome do Aluno(a)</label>
-                        <input type="text" id="absence-student-name" list="students-datalist-absences" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
-                        <datalist id="students-datalist-absences"></datalist>
+                        <input type="text" id="absence-student-name" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required autocomplete="off">
+                        <div id="absence-student-name-suggestions" class="autocomplete-suggestions hidden"></div>
                     </div>
                      <div>
                         <label for="absence-student-class" class="block text-sm font-medium text-gray-700">Ano/Ciclo</label>
@@ -337,6 +361,25 @@
             </form>
         </div>
     </div>
+    <div id="students-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0">
+            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
+                <h3 class="text-xl font-semibold">Gerir Lista de Alunos</h3>
+                <button id="close-students-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `nome`, `turma`, `resp1`, `resp2`. Isto substituirá a lista de alunos atual.</p>
+                <div>
+                    <label for="csv-file" class="block text-sm font-medium text-gray-700">Ficheiro CSV</label>
+                    <input type="file" id="csv-file" accept=".csv" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                </div>
+                 <div id="csv-feedback" class="text-sm"></div>
+                <div class="pt-4 flex justify-end space-x-3">
+                    <button type="button" id="upload-csv-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Carregar e Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <div id="notification-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div id="notification-modal" class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div id="notification-header" class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center flex-shrink-0 no-print"><h3 id="notification-title" class="text-xl font-semibold">Notificação de Ocorrência</h3><button id="close-notification-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button></div><div id="notification-content" class="p-8 overflow-y-auto bg-white"></div><div id="notification-actions" class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 flex-shrink-0 no-print"><button id="share-btn" class="bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-600 transition duration-300"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="print-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition duration-300"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
     <div id="report-generator-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="report-generator-title" class="text-xl font-semibold">Gerar Relatório por Aluno</h3><button id="close-report-generator-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button></div><div class="p-6 space-y-4"><div><label for="student-select" class="block text-sm font-medium text-gray-700">Selecione o Aluno(a)</label><select id="student-select" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"><option value="">Carregando...</option></select></div></div><div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg"><button type="button" id="cancel-report-generator-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300">Cancelar</button><button type="button" id="create-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 transition duration-300">Gerar</button></div></div></div>
     <div id="report-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div id="report-view-modal" class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div id="report-view-header" class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center flex-shrink-0 no-print"><h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3><button id="close-report-view-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button></div><div id="report-view-content" class="p-8 overflow-y-auto bg-white"></div><div id="report-view-actions" class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 flex-shrink-0 no-print"><button id="report-share-btn" class="bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-600 transition duration-300"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="report-print-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition duration-300"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
@@ -348,7 +391,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ************************************************************************************
         // CONFIGURAÇÃO DO FIREBASE
@@ -362,27 +405,14 @@
             appId: "1:315669308837:web:053497df9ceea4df5c4c9c"
         };
         // ************************************************************************************
-
-        // Simulação de dados de alunos importados de uma planilha Google
-        const students = [
-            { name: "Ana Clara Sousa", class: "6º Ano A", resp1: "Marcos Sousa", resp2: "Juliana Pereira" },
-            { name: "Bruno Costa", class: "7º Ano B", resp1: "Fernanda Costa", resp2: "" },
-            { name: "Carlos Eduardo Ferreira", class: "8º Ano C", resp1: "Roberto Ferreira", resp2: "Sandra Ferreira" },
-            { name: "Daniela Martins", class: "9º Ano A", resp1: "Cláudia Martins", resp2: "" },
-            { name: "Eduardo Oliveira", class: "6º Ano B", resp1: "Sérgio Oliveira", resp2: "Patrícia Oliveira" },
-            { name: "Fernanda Lima", class: "7º Ano C", resp1: "Ricardo Lima", resp2: "Beatriz Lima" },
-            { name: "Gabriel Alves", class: "8º Ano A", resp1: "José Alves", resp2: "" },
-            { name: "Helena Santos", class: "9º Ano B", resp1: "Maria Santos", resp2: "Antônio Santos" },
-            { name: "Isabela Ribeiro", class: "6º Ano C", resp1: "Paulo Ribeiro", resp2: "Lúcia Ribeiro" },
-            { name: "João Pedro Rocha", class: "7º Ano A", resp1: "Fábio Rocha", resp2: "" }
-        ];
-
+        
         const config = {
             schoolName: "Nome da Escola (Exemplo)",
             city: "Cidade (Exemplo)"
         };
 
         const state = {
+            students: [],
             occurrences: [],
             absences: [],
             filterOccurrences: '',
@@ -409,6 +439,7 @@
             userEmail: document.getElementById('user-email'),
             occurrenceModal: document.getElementById('occurrence-modal'),
             absenceModal: document.getElementById('absence-modal'),
+            studentsModal: document.getElementById('students-modal'),
             notificationModalBackdrop: document.getElementById('notification-modal-backdrop'),
             deleteConfirmModal: document.getElementById('delete-confirm-modal'),
             reportGeneratorModal: document.getElementById('report-generator-modal'),
@@ -559,6 +590,11 @@
             else renderAbsences();
         };
 
+        const getStudentsDocRef = () => {
+             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+             return doc(state.db, `/artifacts/${appId}/public/data/school-data`, 'students');
+        };
+
         const getCollectionRef = (type) => {
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             const collectionName = type === 'occurrence' ? 'occurrences' : 'absences';
@@ -569,8 +605,23 @@
         const updateRecord = (type, id, data) => setDoc(doc(getCollectionRef(type), id), data, { merge: true });
         const deleteRecord = (type, id) => deleteDoc(doc(getCollectionRef(type), id));
 
-        const setupFirestoreListeners = () => {
-            if (!state.userId) return; 
+        const setupFirestoreListeners = async () => {
+            if (!state.userId) return;
+
+            // Carregar lista de alunos
+            try {
+                const docSnap = await getDoc(getStudentsDocRef());
+                if (docSnap.exists() && docSnap.data().list) {
+                    state.students = docSnap.data().list;
+                } else {
+                     // Se não houver lista na DB, usa a lista local como default
+                    console.log("Nenhuma lista de alunos encontrada no Firestore. A usar a lista padrão.");
+                }
+            } catch (error) {
+                console.error("Erro ao carregar lista de alunos:", error);
+                showToast("Erro ao carregar a lista de alunos.");
+            }
+
             if (state.unsubscribeOccurrences) state.unsubscribeOccurrences();
             state.unsubscribeOccurrences = onSnapshot(query(getCollectionRef('occurrence')), (snapshot) => {
                 state.occurrences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -710,35 +761,17 @@
                 document.getElementById('occurrence-id').value = ''; 
                 document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência'; 
                 document.getElementById('occurrence-date').valueAsDate = new Date();
-                const datalist = document.getElementById('students-datalist');
-                datalist.innerHTML = students.map(s => `<option value="${s.name}"></option>`).join('');
                 openModal(dom.occurrenceModal); 
-            });
-
-            document.getElementById('student-name').addEventListener('input', (e) => {
-                const selectedStudent = students.find(s => s.name === e.target.value);
-                if (selectedStudent) {
-                    document.getElementById('student-class').value = selectedStudent.class;
-                }
             });
 
             document.getElementById('add-absence-btn').addEventListener('click', () => { 
                 dom.absenceForm.reset(); 
                 document.getElementById('absence-id').value = ''; 
                 document.getElementById('absence-modal-title').innerText = 'Registar Ação de Busca Ativa'; 
-                const datalist = document.getElementById('students-datalist-absences');
-                datalist.innerHTML = students.map(s => `<option value="${s.name}"></option>`).join('');
                 document.getElementById('action-type').dispatchEvent(new Event('change')); 
                 openModal(dom.absenceModal); 
             });
 
-             document.getElementById('absence-student-name').addEventListener('input', (e) => {
-                const selectedStudent = students.find(s => s.name === e.target.value);
-                if (selectedStudent) {
-                    document.getElementById('absence-student-class').value = selectedStudent.class;
-                }
-            });
-            
             // Listeners dos botões de partilha
             document.getElementById('share-btn').addEventListener('click', () => {
                 const title = document.getElementById('notification-title').textContent;
@@ -774,9 +807,9 @@
                 e.preventDefault();
                 const id = document.getElementById('occurrence-id').value;
                 const studentName = document.getElementById('student-name').value.trim();
-                const student = students.find(s => s.name === studentName);
+                const student = state.students.find(s => s.name === studentName);
                 if (!student) {
-                    showToast("Por favor, selecione um aluno válido da lista.");
+                    showToast("Aluno inválido. Por favor, selecione um aluno da lista.");
                     return;
                 }
                 const data = { 
@@ -799,9 +832,9 @@
                 e.preventDefault();
                 const id = document.getElementById('absence-id').value;
                  const studentName = document.getElementById('absence-student-name').value.trim();
-                const student = students.find(s => s.name === studentName);
+                const student = state.students.find(s => s.name === studentName);
                  if (!student) {
-                    showToast("Por favor, selecione um aluno válido da lista.");
+                    showToast("Aluno inválido. Por favor, selecione um aluno da lista.");
                     return;
                 }
                 const actionType = document.getElementById('action-type').value;
@@ -848,8 +881,6 @@
                         document.getElementById('actions-taken-family').value = data.actionsTakenFamily || '';
                         document.getElementById('meeting-date-occurrence').value = data.meetingDate || '';
                         document.getElementById('meeting-time-occurrence').value = data.meetingTime || '';
-                        const datalist = document.getElementById('students-datalist');
-                        datalist.innerHTML = students.map(s => `<option value="${s.name}"></option>`).join('');
                         openModal(dom.occurrenceModal);
                     }
                 }
@@ -866,8 +897,6 @@
                     if (data) {
                         dom.absenceForm.reset();
                         document.getElementById('absence-modal-title').innerText = 'Editar Ação de Busca Ativa';
-                         const datalist = document.getElementById('students-datalist-absences');
-                        datalist.innerHTML = students.map(s => `<option value="${s.name}"></option>`).join('');
                         document.getElementById('action-type').value = data.actionType || '';
                         document.getElementById('action-type').dispatchEvent(new Event('change'));
                         document.getElementById('absence-id').value = data.id || '';
@@ -930,6 +959,94 @@
                  if (action.startsWith('tentativa')) { document.getElementById('group-tentativas').classList.remove('hidden'); } 
                  else if (action) { const group = document.getElementById(`group-${action}`); if (group) group.classList.remove('hidden'); }
              });
+
+            document.getElementById('manage-students-btn').addEventListener('click', () => openModal(dom.studentsModal));
+            document.getElementById('close-students-modal-btn').addEventListener('click', () => closeModal(dom.studentsModal));
+            document.getElementById('upload-csv-btn').addEventListener('click', async () => {
+                const fileInput = document.getElementById('csv-file');
+                const feedbackDiv = document.getElementById('csv-feedback');
+                if (fileInput.files.length === 0) {
+                    showToast("Por favor, selecione um ficheiro CSV.");
+                    return;
+                }
+                
+                Papa.parse(fileInput.files[0], {
+                    header: true,
+                    skipEmptyLines: true,
+                    transformHeader: header => header.toLowerCase().trim().replace(/\s+/g, ''),
+                    complete: async (results) => {
+                        const requiredHeaders = ['nome', 'turma', 'resp1', 'resp2'];
+                        const fileHeaders = results.meta.fields;
+                        
+                        const hasAllHeaders = requiredHeaders.every(h => fileHeaders.includes(h));
+
+                        if (!hasAllHeaders) {
+                            feedbackDiv.innerHTML = `<p class="text-red-500">Erro: O ficheiro CSV deve conter as colunas: nome, turma, resp1, resp2.</p>`;
+                            return;
+                        }
+
+                        const newStudentList = results.data.map(row => ({
+                            name: row.nome || '',
+                            class: row.turma || '',
+                            resp1: row.resp1 || '',
+                            resp2: row.resp2 || ''
+                        })).filter(s => s.name);
+
+                        try {
+                            await setDoc(getStudentsDocRef(), { list: newStudentList });
+                            state.students = newStudentList;
+                            showToast(`${newStudentList.length} alunos importados com sucesso!`);
+                            closeModal(dom.studentsModal);
+                        } catch(error) {
+                            console.error("Erro ao salvar lista de alunos:", error);
+                            showToast("Erro ao salvar a nova lista de alunos.");
+                        }
+                    }
+                });
+            });
+        };
+
+        const setupAutocomplete = (inputId, suggestionsId) => {
+            const input = document.getElementById(inputId);
+            const suggestionsContainer = document.getElementById(suggestionsId);
+            
+            input.addEventListener('input', () => {
+                const value = input.value.toLowerCase();
+                suggestionsContainer.innerHTML = '';
+                if (!value) {
+                    suggestionsContainer.classList.add('hidden');
+                    return;
+                }
+                
+                const filteredStudents = state.students.filter(s => s.name.toLowerCase().includes(value)).slice(0, 5);
+                
+                if (filteredStudents.length > 0) {
+                    suggestionsContainer.classList.remove('hidden');
+                    filteredStudents.forEach(student => {
+                        const item = document.createElement('div');
+                        item.classList.add('suggestion-item');
+                        item.textContent = student.name;
+                        item.addEventListener('click', () => {
+                            input.value = student.name;
+                            if (inputId.startsWith('student-name')) {
+                                document.getElementById('student-class').value = student.class;
+                            } else {
+                                document.getElementById('absence-student-class').value = student.class;
+                            }
+                            suggestionsContainer.classList.add('hidden');
+                        });
+                        suggestionsContainer.appendChild(item);
+                    });
+                } else {
+                    suggestionsContainer.classList.add('hidden');
+                }
+            });
+
+             document.addEventListener('click', (e) => {
+                if (!input.contains(e.target)) {
+                    suggestionsContainer.classList.add('hidden');
+                }
+            });
         };
 
         // --- INICIALIZAÇÃO ---
@@ -947,7 +1064,7 @@
             const auth = getAuth(app);
             state.db = getFirestore(app);
 
-            onAuthStateChanged(auth, user => {
+            onAuthStateChanged(auth, async user => {
                 detachFirestoreListeners();
                 if (user) {
                     state.userId = user.uid;
@@ -955,9 +1072,10 @@
                     dom.loginScreen.classList.add('hidden');
                     dom.mainContent.classList.remove('hidden');
                     dom.userProfile.classList.remove('hidden');
-                    setupFirestoreListeners();
+                    await setupFirestoreListeners();
                 } else {
                     state.userId = null;
+                    state.students = [];
                     state.occurrences = [];
                     state.absences = [];
                     render();
@@ -1006,6 +1124,8 @@
             });
 
             setupEventListeners();
+            setupAutocomplete('student-name', 'student-name-suggestions');
+            setupAutocomplete('absence-student-name', 'absence-student-name-suggestions');
         });
     </script>
 </body>
