@@ -317,7 +317,7 @@
     <!-- Firebase and App Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ************************************************************************************
@@ -807,13 +807,19 @@
 
             dom.googleLoginBtn.addEventListener('click', async () => {
                 const provider = new GoogleAuthProvider();
-                try {
-                    await signInWithPopup(auth, provider);
-                } catch (error) {
-                    console.error("Erro durante o login com o Google:", error);
-                    showToast("Falha no login. Tente novamente.");
-                }
+                await signInWithRedirect(auth, provider);
             });
+
+            getRedirectResult(auth)
+                .catch(error => {
+                    console.error("Erro durante o redirecionamento do login:", error);
+                    if (error.code === 'auth/unauthorized-domain') {
+                        showToast("Erro: Domínio não autorizado. Verifique a configuração no Firebase.");
+                    } else {
+                        showToast("Falha no login. Tente novamente.");
+                    }
+                });
+
 
             dom.logoutBtn.addEventListener('click', async () => {
                 try {
