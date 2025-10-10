@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -442,6 +441,23 @@
             setTimeout(() => modalElement.classList.add('hidden'), 300);
         };
 
+        const shareContent = async (title, text) => {
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: title,
+                        text: text,
+                    });
+                } catch (error) {
+                    console.error('Erro ao partilhar:', error);
+                    showToast('Erro ao partilhar o conteúdo.');
+                }
+            } else {
+                const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+                window.open(whatsappUrl, '_blank');
+            }
+        };
+
         const renderOccurrences = () => {
             dom.loadingOccurrences.classList.add('hidden');
             const filtered = state.occurrences
@@ -678,6 +694,27 @@
             dom.searchAbsences.addEventListener('input', (e) => { state.filterAbsences = e.target.value; render(); });
             document.getElementById('add-occurrence-btn').addEventListener('click', () => { dom.occurrenceForm.reset(); document.getElementById('occurrence-id').value = ''; document.getElementById('modal-title').innerText = 'Registrar Nova Ocorrência'; document.getElementById('occurrence-date').valueAsDate = new Date(); openModal(dom.occurrenceModal); });
             document.getElementById('add-absence-btn').addEventListener('click', () => { dom.absenceForm.reset(); document.getElementById('absence-id').value = ''; document.getElementById('absence-modal-title').innerText = 'Registrar Ação de Busca Ativa'; const studentNames = [...new Set([...state.occurrences, ...state.absences].map(item => item.studentName))].sort(); document.getElementById('student-names-datalist').innerHTML = studentNames.map(name => `<option value="${name}"></option>`).join(''); document.getElementById('action-type').dispatchEvent(new Event('change')); openModal(dom.absenceModal); });
+            
+            // Listeners dos botões de partilha
+            document.getElementById('whatsapp-share-btn').addEventListener('click', () => {
+                const title = document.getElementById('notification-title').textContent;
+                const content = document.getElementById('notification-content').innerText;
+                shareContent(title, content);
+            });
+
+            document.getElementById('report-whatsapp-share-btn').addEventListener('click', () => {
+                const title = document.getElementById('report-view-title').textContent;
+                const content = document.getElementById('report-view-content').innerText;
+                shareContent(title, content);
+            });
+
+            document.getElementById('ficha-whatsapp-share-btn').addEventListener('click', () => {
+                const title = document.getElementById('ficha-view-title').textContent;
+                const content = document.getElementById('ficha-view-content').innerText;
+                shareContent(title, content);
+            });
+
+
             ['close-modal-btn', 'cancel-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.occurrenceModal)));
             ['close-absence-modal-btn', 'cancel-absence-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.absenceModal)));
             ['close-report-generator-btn', 'cancel-report-generator-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.reportGeneratorModal)));
