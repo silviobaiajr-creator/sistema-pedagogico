@@ -67,18 +67,49 @@
 <body class="text-gray-800">
 
     <div id="login-screen" class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-        <div class="w-full max-w-md text-center">
+        <div class="w-full max-w-md">
             <div class="bg-white p-8 rounded-2xl shadow-lg">
-                <h1 class="text-3xl font-bold text-gray-800 mb-2">Sistema Pedagógico</h1>
-                <p class="text-gray-500 mb-8">Faça login para aceder aos seus registos.</p>
-                <button id="google-login-btn" class="w-full bg-white text-gray-700 font-semibold py-3 px-4 border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition duration-300 flex items-center justify-center">
-                    <img src="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png" alt="Google logo" class="h-6 mr-3">
-                    Entrar com o Google
-                </button>
+                <div id="login-view">
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2 text-center">Entrar</h1>
+                    <p class="text-gray-500 mb-8 text-center">Aceda à sua conta para continuar.</p>
+                    <form id="login-form" class="space-y-4">
+                        <div>
+                            <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
+                            <input type="email" id="login-email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
+                        </div>
+                        <div>
+                            <label for="login-password" class="block text-sm font-medium text-gray-700">Senha</label>
+                            <input type="password" id="login-password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Entrar</button>
+                    </form>
+                    <p class="text-center text-sm text-gray-500 mt-6">
+                        Não tem uma conta? <button id="show-register-view" class="font-semibold text-indigo-600 hover:underline">Registe-se</button>
+                    </p>
+                </div>
+
+                <div id="register-view" class="hidden">
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2 text-center">Criar Conta</h1>
+                    <p class="text-gray-500 mb-8 text-center">Crie uma nova conta para usar o sistema.</p>
+                    <form id="register-form" class="space-y-4">
+                        <div>
+                            <label for="register-email" class="block text-sm font-medium text-gray-700">Email</label>
+                            <input type="email" id="register-email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
+                        </div>
+                        <div>
+                            <label for="register-password" class="block text-sm font-medium text-gray-700">Senha (mínimo 6 caracteres)</label>
+                            <input type="password" id="register-password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Criar Conta</button>
+                    </form>
+                    <p class="text-center text-sm text-gray-500 mt-6">
+                        Já tem uma conta? <button id="show-login-view" class="font-semibold text-indigo-600 hover:underline">Entrar</button>
+                    </p>
+                </div>
             </div>
-            <p class="text-xs text-gray-400 mt-6">A autenticação garante que os seus dados fiquem guardados e sincronizados de forma segura.</p>
         </div>
     </div>
+
 
     <div id="main-content" class="hidden">
         <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
@@ -86,12 +117,11 @@
             <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg flex justify-between items-center">
                 <div>
                     <h1 class="text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
-                    <p class="opacity-90 mt-1">Gerencie ocorrências e registros de busca ativa de forma centralizada e segura.</p>
+                    <p class="opacity-90 mt-1">Base de dados partilhada entre todos os utilizadores.</p>
                 </div>
                 <div id="user-profile" class="flex items-center space-x-4 hidden">
-                    <img id="user-photo" class="h-12 w-12 rounded-full border-2 border-white/50" src="" alt="User photo">
                     <div class="text-right">
-                        <p id="user-name" class="font-semibold"></p>
+                        <p id="user-email" class="font-semibold text-sm"></p>
                         <button id="logout-btn" class="text-sm text-indigo-200 hover:text-white transition">Sair</button>
                     </div>
                 </div>
@@ -180,7 +210,7 @@
         </div>
     </div>
 
-    <!-- Modal: Adicionar/Editar Ocorrência -->
+    <!-- Modals (Ocorrência, Busca Ativa, etc.) permanecem os mesmos -->
     <div id="occurrence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -317,7 +347,7 @@
     <!-- Firebase and App Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ************************************************************************************
@@ -354,11 +384,15 @@
         const dom = {
             loginScreen: document.getElementById('login-screen'),
             mainContent: document.getElementById('main-content'),
-            googleLoginBtn: document.getElementById('google-login-btn'),
+            loginView: document.getElementById('login-view'),
+            registerView: document.getElementById('register-view'),
+            showRegisterViewBtn: document.getElementById('show-register-view'),
+            showLoginViewBtn: document.getElementById('show-login-view'),
+            loginForm: document.getElementById('login-form'),
+            registerForm: document.getElementById('register-form'),
             logoutBtn: document.getElementById('logout-btn'),
             userProfile: document.getElementById('user-profile'),
-            userName: document.getElementById('user-name'),
-            userPhoto: document.getElementById('user-photo'),
+            userEmail: document.getElementById('user-email'),
             occurrenceModal: document.getElementById('occurrence-modal'),
             absenceModal: document.getElementById('absence-modal'),
             notificationModalBackdrop: document.getElementById('notification-modal-backdrop'),
@@ -500,14 +534,15 @@
         const getCollectionRef = (type) => {
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             const collectionName = type === 'occurrence' ? 'occurrences' : 'absences';
-            if (!state.userId) throw new Error("Usuário não autenticado.");
-            return collection(state.db, `/artifacts/${appId}/users/${state.userId}/${collectionName}`);
+            // MUDANÇA CRÍTICA: Aponta para uma coleção pública partilhada
+            return collection(state.db, `/artifacts/${appId}/public/data/${collectionName}`);
         };
         const addRecord = (type, data) => addDoc(getCollectionRef(type), { ...data, createdAt: serverTimestamp() });
         const updateRecord = (type, id, data) => setDoc(doc(getCollectionRef(type), id), data, { merge: true });
         const deleteRecord = (type, id) => deleteDoc(doc(getCollectionRef(type), id));
 
         const setupFirestoreListeners = () => {
+            if (!state.userId) return; 
             if (state.unsubscribeOccurrences) state.unsubscribeOccurrences();
             state.unsubscribeOccurrences = onSnapshot(query(getCollectionRef('occurrence')), (snapshot) => {
                 state.occurrences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -532,6 +567,18 @@
             }
         };
 
+        // Funções de UI
+        const showLoginView = () => {
+            dom.registerView.classList.add('hidden');
+            dom.loginView.classList.remove('hidden');
+        };
+
+        const showRegisterView = () => {
+            dom.loginView.classList.add('hidden');
+            dom.registerView.classList.remove('hidden');
+        };
+        
+        // As funções de modal e relatórios permanecem as mesmas
         const openNotificationModal = (id) => {
             const data = state.occurrences.find(occ => occ.id === id);
             if (data) {
@@ -622,6 +669,9 @@
         };
         
         const setupEventListeners = () => {
+            dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
+            dom.showLoginViewBtn.addEventListener('click', showLoginView);
+
             dom.tabOccurrences.addEventListener('click', () => { state.activeTab = 'occurrences'; dom.tabOccurrences.classList.add('tab-active'); dom.tabAbsences.classList.remove('tab-active'); dom.tabContentOccurrences.classList.remove('hidden'); dom.tabContentAbsences.classList.add('hidden'); render(); });
             dom.tabAbsences.addEventListener('click', () => { state.activeTab = 'absences'; dom.tabAbsences.classList.add('tab-active'); dom.tabOccurrences.classList.remove('tab-active'); dom.tabContentAbsences.classList.remove('hidden'); dom.tabContentOccurrences.classList.add('hidden'); render(); });
             dom.searchOccurrences.addEventListener('input', (e) => { state.filterOccurrences = e.target.value; render(); });
@@ -786,10 +836,9 @@
 
             onAuthStateChanged(auth, user => {
                 detachFirestoreListeners();
-                if (user && !user.isAnonymous) {
+                if (user) {
                     state.userId = user.uid;
-                    dom.userName.textContent = user.displayName;
-                    dom.userPhoto.src = user.photoURL;
+                    dom.userEmail.textContent = user.email;
                     dom.loginScreen.classList.add('hidden');
                     dom.mainContent.classList.remove('hidden');
                     dom.userProfile.classList.remove('hidden');
@@ -805,16 +854,32 @@
                 }
             });
 
-            dom.googleLoginBtn.addEventListener('click', async () => {
-                const provider = new GoogleAuthProvider();
+            dom.loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
                 try {
-                    await signInWithPopup(auth, provider);
+                    await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
-                    console.error("Erro durante o login com o Google:", error);
-                    if (error.code === 'auth/unauthorized-domain') {
-                        showToast("Erro: Domínio não autorizado. Verifique a configuração no Firebase.");
+                    console.error("Erro ao entrar:", error.code);
+                    showToast("Email ou senha inválidos.");
+                }
+            });
+
+            dom.registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('register-email').value;
+                const password = document.getElementById('register-password').value;
+                try {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                } catch (error) {
+                    console.error("Erro ao registar:", error.code);
+                     if (error.code === 'auth/email-already-in-use') {
+                        showToast("Este email já está a ser utilizado.");
+                    } else if (error.code === 'auth/weak-password') {
+                        showToast("A sua senha é muito fraca.");
                     } else {
-                        showToast("Falha no login. Tente novamente.");
+                        showToast("Erro ao criar a conta.");
                     }
                 }
             });
