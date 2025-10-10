@@ -113,45 +113,45 @@
     <div id="main-content" class="hidden">
         <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
             <!-- Cabeçalho -->
-            <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg flex justify-between items-center">
+            <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg flex flex-col sm:flex-row justify-between sm:items-center gap-4 text-center sm:text-left">
                 <div>
-                    <h1 class="text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
-                    <p class="opacity-90 mt-1">Base de dados partilhada entre todos os utilizadores.</p>
+                    <h1 class="text-2xl sm:text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
+                    <p class="opacity-90 mt-1 text-sm sm:text-base">Base de dados partilhada entre todos os utilizadores.</p>
                 </div>
-                <div id="user-profile" class="flex items-center space-x-4 hidden">
+                <div id="user-profile" class="flex items-center space-x-4 hidden self-center sm:self-auto">
                     <div class="text-right">
                         <p id="user-email" class="font-semibold text-sm"></p>
-                        <button id="logout-btn" class="text-sm text-indigo-200 hover:text-white transition">Sair</button>
+                        <button id="logout-btn" class="text-xs sm:text-sm text-indigo-200 hover:text-white transition">Sair</button>
                     </div>
                 </div>
             </header>
 
             <!-- Abas de Navegação -->
             <div class="mb-6 border-b border-gray-200">
-                <nav class="flex -mb-px space-x-6" aria-label="Tabs">
-                    <button id="tab-occurrences" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm tab-active">
-                        <i class="fas fa-exclamation-triangle mr-2"></i>Ocorrências Disciplinares
+                <nav class="flex -mb-px space-x-2 sm:space-x-6" aria-label="Tabs">
+                    <button id="tab-occurrences" class="text-center flex-1 sm:flex-none whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm tab-active">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>Ocorrências
                     </button>
-                    <button id="tab-absences" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                        <i class="fas fa-user-clock mr-2"></i>Busca Ativa (Faltas)
+                    <button id="tab-absences" class="text-center flex-1 sm:flex-none whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                        <i class="fas fa-user-clock mr-2"></i>Busca Ativa
                     </button>
                 </nav>
             </div>
 
             <!-- Conteúdo das Abas -->
             <div id="tab-content-occurrences">
-                 <div class="mb-6 flex flex-wrap gap-4 justify-between items-center">
-                    <h2 class="text-2xl font-semibold text-gray-700">Registros de Ocorrências</h2>
-                    <div class="flex gap-4 flex-wrap">
-                        <button id="generate-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300">
-                            <i class="fas fa-file-invoice mr-2"></i>Gerar Relatório
+                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-center sm:justify-between items-center">
+                    <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Registros de Ocorrências</h2>
+                    <div class="flex gap-2 sm:gap-4 flex-wrap justify-center">
+                        <button id="generate-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300 text-sm">
+                            <i class="fas fa-file-invoice mr-2"></i>Relatório
                         </button>
-                        <button id="add-occurrence-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition duration-300">
+                        <button id="add-occurrence-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition duration-300 text-sm">
                             <i class="fas fa-plus mr-2"></i>Nova Ocorrência
                         </button>
                     </div>
                 </div>
-                <main class="bg-white rounded-lg shadow-md p-6">
+                <main class="bg-white rounded-lg shadow-md p-4 sm:p-6">
                     <div class="mb-4">
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
@@ -160,11 +160,11 @@
                     </div>
                     <div id="loading-occurrences" class="text-center p-8">
                         <i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i>
-                        <p class="mt-2 text-gray-500">Carregando registros...</p>
+                        <p class="mt-2 text-gray-500">A carregar registos...</p>
                     </div>
                     <div id="empty-state-occurrences" class="text-center p-8 hidden">
                         <i class="fas fa-file-alt fa-3x text-gray-300 mb-4"></i>
-                        <h3 class="text-xl font-semibold text-gray-600">Nenhuma ocorrência registrada</h3>
+                        <h3 class="text-xl font-semibold text-gray-600">Nenhuma ocorrência registada</h3>
                         <p class="text-gray-500 mt-1">Clique em "Nova Ocorrência" para começar.</p>
                     </div>
                     <div id="occurrences-list" class="overflow-x-auto"></div>
@@ -172,18 +172,18 @@
             </div>
 
             <div id="tab-content-absences" class="hidden">
-                <div class="mb-6 flex flex-wrap gap-4 justify-between items-center">
-                    <h2 class="text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
-                    <div class="flex gap-4 flex-wrap">
-                        <button id="generate-ficha-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300">
-                            <i class="fas fa-file-invoice mr-2"></i>Gerar Ficha Consolidada
+                <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-center sm:justify-between items-center">
+                    <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
+                    <div class="flex gap-2 sm:gap-4 flex-wrap justify-center">
+                        <button id="generate-ficha-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300 text-sm">
+                            <i class="fas fa-file-invoice mr-2"></i>Ficha Consolidada
                         </button>
-                         <button id="add-absence-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50 transition duration-300">
-                            <i class="fas fa-plus mr-2"></i>Registrar Ação
+                         <button id="add-absence-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50 transition duration-300 text-sm">
+                            <i class="fas fa-plus mr-2"></i>Registar Ação
                         </button>
                     </div>
                 </div>
-                 <main class="bg-white rounded-lg shadow-md p-6">
+                 <main class="bg-white rounded-lg shadow-md p-4 sm:p-6">
                     <div class="mb-4">
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
@@ -192,12 +192,12 @@
                     </div>
                     <div id="loading-absences" class="text-center p-8">
                         <i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i>
-                        <p class="mt-2 text-gray-500">Carregando registros...</p>
+                        <p class="mt-2 text-gray-500">A carregar registos...</p>
                     </div>
                     <div id="empty-state-absences" class="text-center p-8 hidden">
                         <i class="fas fa-folder-open fa-3x text-gray-300 mb-4"></i>
-                        <h3 class="text-xl font-semibold text-gray-600">Nenhuma ação de busca ativa registrada</h3>
-                        <p class="text-gray-500 mt-1">Clique em "Registrar Ação" para começar.</p>
+                        <h3 class="text-xl font-semibold text-gray-600">Nenhuma ação de busca ativa registada</h3>
+                        <p class="text-gray-500 mt-1">Clique em "Registar Ação" para começar.</p>
                     </div>
                     <div id="absences-list" class="overflow-x-auto"></div>
                 </main>
@@ -209,11 +209,11 @@
         </div>
     </div>
 
-    <!-- Modals (Ocorrência, Busca Ativa, etc.) permanecem os mesmos -->
+    <!-- Modals -->
     <div id="occurrence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
-                <h3 id="modal-title" class="text-xl font-semibold">Registrar Nova Ocorrência</h3>
+                <h3 id="modal-title" class="text-xl font-semibold">Registar Nova Ocorrência</h3>
                 <button id="close-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <form id="occurrence-form" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
@@ -221,11 +221,12 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label for="student-name" class="block text-sm font-medium text-gray-700">Nome do Aluno(a)</label>
-                        <input type="text" id="student-name" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                        <input type="text" id="student-name" list="students-datalist" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                        <datalist id="students-datalist"></datalist>
                     </div>
                     <div>
                         <label for="student-class" class="block text-sm font-medium text-gray-700">Turma</label>
-                        <input type="text" id="student-class" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                        <input type="text" id="student-class" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 bg-gray-100" readonly required>
                     </div>
                 </div>
                 <div>
@@ -271,7 +272,7 @@
     <div id="absence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0 max-h-[95vh] flex flex-col">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
-                <h3 id="absence-modal-title" class="text-xl font-semibold">Registrar Ação de Busca Ativa</h3>
+                <h3 id="absence-modal-title" class="text-xl font-semibold">Registar Ação de Busca Ativa</h3>
                 <button id="close-absence-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <form id="absence-form" class="p-6 space-y-6 overflow-y-auto">
@@ -279,12 +280,12 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label for="absence-student-name" class="block text-sm font-medium text-gray-700">Nome do Aluno(a)</label>
-                        <input type="text" id="absence-student-name" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required list="student-names-datalist">
-                        <datalist id="student-names-datalist"></datalist>
+                        <input type="text" id="absence-student-name" list="students-datalist-absences" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
+                        <datalist id="students-datalist-absences"></datalist>
                     </div>
                      <div>
                         <label for="absence-student-class" class="block text-sm font-medium text-gray-700">Ano/Ciclo</label>
-                        <input type="text" id="absence-student-class" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <input type="text" id="absence-student-class" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" readonly>
                     </div>
                 </div>
                 <div>
@@ -336,10 +337,10 @@
             </form>
         </div>
     </div>
-    <div id="notification-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div id="notification-modal" class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div id="notification-header" class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center flex-shrink-0 no-print"><h3 id="notification-title" class="text-xl font-semibold">Notificação de Ocorrência</h3><button id="close-notification-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button></div><div id="notification-content" class="p-8 overflow-y-auto bg-white"></div><div id="notification-actions" class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 flex-shrink-0 no-print"><button id="whatsapp-share-btn" class="bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-600 transition duration-300"><i class="fab fa-whatsapp mr-2"></i>Enviar</button><button id="print-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition duration-300"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
+    <div id="notification-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div id="notification-modal" class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div id="notification-header" class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center flex-shrink-0 no-print"><h3 id="notification-title" class="text-xl font-semibold">Notificação de Ocorrência</h3><button id="close-notification-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button></div><div id="notification-content" class="p-8 overflow-y-auto bg-white"></div><div id="notification-actions" class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 flex-shrink-0 no-print"><button id="share-btn" class="bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-600 transition duration-300"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="print-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition duration-300"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
     <div id="report-generator-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="report-generator-title" class="text-xl font-semibold">Gerar Relatório por Aluno</h3><button id="close-report-generator-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button></div><div class="p-6 space-y-4"><div><label for="student-select" class="block text-sm font-medium text-gray-700">Selecione o Aluno(a)</label><select id="student-select" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"><option value="">Carregando...</option></select></div></div><div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg"><button type="button" id="cancel-report-generator-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300">Cancelar</button><button type="button" id="create-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 transition duration-300">Gerar</button></div></div></div>
-    <div id="report-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div id="report-view-modal" class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div id="report-view-header" class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center flex-shrink-0 no-print"><h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3><button id="close-report-view-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button></div><div id="report-view-content" class="p-8 overflow-y-auto bg-white"></div><div id="report-view-actions" class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 flex-shrink-0 no-print"><button id="report-whatsapp-share-btn" class="bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-600 transition duration-300"><i class="fab fa-whatsapp mr-2"></i>Enviar</button><button id="report-print-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition duration-300"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
-    <div id="ficha-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div id="ficha-view-modal" class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div id="ficha-view-header" class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center flex-shrink-0 no-print"><h3 id="ficha-view-title" class="text-xl font-semibold">Visualizar Documento</h3><button id="close-ficha-view-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button></div><div id="ficha-view-content" class="p-8 overflow-y-auto bg-white"></div><div id="ficha-view-actions" class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 flex-shrink-0 no-print"><button id="ficha-whatsapp-share-btn" class="bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-600 transition duration-300"><i class="fab fa-whatsapp mr-2"></i>Enviar</button><button id="ficha-print-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition duration-300"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
+    <div id="report-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div id="report-view-modal" class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div id="report-view-header" class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center flex-shrink-0 no-print"><h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3><button id="close-report-view-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button></div><div id="report-view-content" class="p-8 overflow-y-auto bg-white"></div><div id="report-view-actions" class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 flex-shrink-0 no-print"><button id="report-share-btn" class="bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-600 transition duration-300"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="report-print-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition duration-300"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
+    <div id="ficha-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div id="ficha-view-modal" class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div id="ficha-view-header" class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center flex-shrink-0 no-print"><h3 id="ficha-view-title" class="text-xl font-semibold">Visualizar Documento</h3><button id="close-ficha-view-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button></div><div id="ficha-view-content" class="p-8 overflow-y-auto bg-white"></div><div id="ficha-view-actions" class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 flex-shrink-0 no-print"><button id="ficha-share-btn" class="bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-600 transition duration-300"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="ficha-print-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition duration-300"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
     <div id="delete-confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="p-6"><div class="text-center"><i class="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i><h3 class="text-lg font-semibold text-gray-800">Confirmar Exclusão</h3><p class="mt-2 text-sm text-gray-500">Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.</p></div></div><div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg"><button type="button" id="confirm-delete-btn" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">Excluir</button><button type="button" id="cancel-delete-btn" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">Cancelar</button></div></div></div>
     <div id="toast-notification" class="fixed bottom-5 right-5 bg-gray-800 text-white py-3 px-5 rounded-lg shadow-lg transform translate-y-20 opacity-0 z-50"><p id="toast-message"></p></div>
 
@@ -361,6 +362,20 @@
             appId: "1:315669308837:web:053497df9ceea4df5c4c9c"
         };
         // ************************************************************************************
+
+        // Simulação de dados de alunos importados de uma planilha Google
+        const students = [
+            { name: "Ana Clara Sousa", class: "6º Ano A", resp1: "Marcos Sousa", resp2: "Juliana Pereira" },
+            { name: "Bruno Costa", class: "7º Ano B", resp1: "Fernanda Costa", resp2: "" },
+            { name: "Carlos Eduardo Ferreira", class: "8º Ano C", resp1: "Roberto Ferreira", resp2: "Sandra Ferreira" },
+            { name: "Daniela Martins", class: "9º Ano A", resp1: "Cláudia Martins", resp2: "" },
+            { name: "Eduardo Oliveira", class: "6º Ano B", resp1: "Sérgio Oliveira", resp2: "Patrícia Oliveira" },
+            { name: "Fernanda Lima", class: "7º Ano C", resp1: "Ricardo Lima", resp2: "Beatriz Lima" },
+            { name: "Gabriel Alves", class: "8º Ano A", resp1: "José Alves", resp2: "" },
+            { name: "Helena Santos", class: "9º Ano B", resp1: "Maria Santos", resp2: "Antônio Santos" },
+            { name: "Isabela Ribeiro", class: "6º Ano C", resp1: "Paulo Ribeiro", resp2: "Lúcia Ribeiro" },
+            { name: "João Pedro Rocha", class: "7º Ano A", resp1: "Fábio Rocha", resp2: "" }
+        ];
 
         const config = {
             schoolName: "Nome da Escola (Exemplo)",
@@ -444,10 +459,7 @@
         const shareContent = async (title, text) => {
             if (navigator.share) {
                 try {
-                    await navigator.share({
-                        title: title,
-                        text: text,
-                    });
+                    await navigator.share({ title, text });
                 } catch (error) {
                     console.error('Erro ao partilhar:', error);
                     showToast('Erro ao partilhar o conteúdo.');
@@ -474,7 +486,7 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aluno(a)</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Turma</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Turma</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
@@ -483,7 +495,7 @@
                             ${filtered.map(occ => `
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${occ.studentName}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${occ.studentClass}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">${occ.studentClass}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(occ.date)}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                                         <button class="view-btn text-indigo-600 hover:text-indigo-900" data-id="${occ.id}" title="Ver Notificação"><i class="fas fa-eye"></i></button>
@@ -517,7 +529,7 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aluno(a)</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo de Ação</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Tipo de Ação</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data da Ação</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
@@ -528,7 +540,7 @@
                                 return `
                                     <tr>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${abs.studentName}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${actionTitles[abs.actionType] || 'N/A'}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">${actionTitles[abs.actionType] || 'N/A'}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(actionDate)}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                                             <button class="view-absence-btn text-indigo-600 hover:text-indigo-900" data-id="${abs.id}" title="Ver Ação"><i class="fas fa-eye"></i></button>
@@ -594,14 +606,14 @@
             dom.registerView.classList.remove('hidden');
         };
         
-        // As funções de modal e relatórios permanecem as mesmas
         const openNotificationModal = (id) => {
             const data = state.occurrences.find(occ => occ.id === id);
             if (data) {
                 document.getElementById('notification-title').innerText = 'Notificação de Ocorrência Escolar';
+                 const responsaveis = [data.resp1, data.resp2].filter(Boolean).join(' e ');
                 document.getElementById('notification-content').innerHTML = `
                     <div class="space-y-6 text-sm"><div class="text-center border-b pb-4"><h2 class="text-xl font-bold uppercase">${config.schoolName}</h2><h3 class="text-lg font-semibold mt-2">NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR</h3></div>
-                    <div class="pt-4"><p class="mb-2"><strong>Aos Pais e/ou Responsáveis pelo(a) aluno(a):</strong></p><p class="text-lg font-semibold">${formatText(data.studentName)}</p><p class="text-gray-600"><strong>Turma:</strong> ${formatText(data.studentClass)}</p></div>
+                    <div class="pt-4"><p class="mb-2"><strong>Aos Responsáveis (${responsaveis}) pelo(a) aluno(a):</strong></p><p class="text-lg font-semibold">${formatText(data.studentName)}</p><p class="text-gray-600"><strong>Turma:</strong> ${formatText(data.studentClass)}</p></div>
                     <p class="text-justify">Prezados(as), vimos por meio desta notificá-los sobre uma ocorrência disciplinar envolvendo o(a) aluno(a) supracitado(a), registrada em <strong>${formatDate(data.date)}</strong>.</p>
                     <div class="border-t pt-4 space-y-4">
                         <div><h4 class="font-semibold mb-1">Descrição:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
@@ -692,23 +704,55 @@
             dom.tabAbsences.addEventListener('click', () => { state.activeTab = 'absences'; dom.tabAbsences.classList.add('tab-active'); dom.tabOccurrences.classList.remove('tab-active'); dom.tabContentAbsences.classList.remove('hidden'); dom.tabContentOccurrences.classList.add('hidden'); render(); });
             dom.searchOccurrences.addEventListener('input', (e) => { state.filterOccurrences = e.target.value; render(); });
             dom.searchAbsences.addEventListener('input', (e) => { state.filterAbsences = e.target.value; render(); });
-            document.getElementById('add-occurrence-btn').addEventListener('click', () => { dom.occurrenceForm.reset(); document.getElementById('occurrence-id').value = ''; document.getElementById('modal-title').innerText = 'Registrar Nova Ocorrência'; document.getElementById('occurrence-date').valueAsDate = new Date(); openModal(dom.occurrenceModal); });
-            document.getElementById('add-absence-btn').addEventListener('click', () => { dom.absenceForm.reset(); document.getElementById('absence-id').value = ''; document.getElementById('absence-modal-title').innerText = 'Registrar Ação de Busca Ativa'; const studentNames = [...new Set([...state.occurrences, ...state.absences].map(item => item.studentName))].sort(); document.getElementById('student-names-datalist').innerHTML = studentNames.map(name => `<option value="${name}"></option>`).join(''); document.getElementById('action-type').dispatchEvent(new Event('change')); openModal(dom.absenceModal); });
+            
+            document.getElementById('add-occurrence-btn').addEventListener('click', () => { 
+                dom.occurrenceForm.reset(); 
+                document.getElementById('occurrence-id').value = ''; 
+                document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência'; 
+                document.getElementById('occurrence-date').valueAsDate = new Date();
+                const datalist = document.getElementById('students-datalist');
+                datalist.innerHTML = students.map(s => `<option value="${s.name}"></option>`).join('');
+                openModal(dom.occurrenceModal); 
+            });
+
+            document.getElementById('student-name').addEventListener('input', (e) => {
+                const selectedStudent = students.find(s => s.name === e.target.value);
+                if (selectedStudent) {
+                    document.getElementById('student-class').value = selectedStudent.class;
+                }
+            });
+
+            document.getElementById('add-absence-btn').addEventListener('click', () => { 
+                dom.absenceForm.reset(); 
+                document.getElementById('absence-id').value = ''; 
+                document.getElementById('absence-modal-title').innerText = 'Registar Ação de Busca Ativa'; 
+                const datalist = document.getElementById('students-datalist-absences');
+                datalist.innerHTML = students.map(s => `<option value="${s.name}"></option>`).join('');
+                document.getElementById('action-type').dispatchEvent(new Event('change')); 
+                openModal(dom.absenceModal); 
+            });
+
+             document.getElementById('absence-student-name').addEventListener('input', (e) => {
+                const selectedStudent = students.find(s => s.name === e.target.value);
+                if (selectedStudent) {
+                    document.getElementById('absence-student-class').value = selectedStudent.class;
+                }
+            });
             
             // Listeners dos botões de partilha
-            document.getElementById('whatsapp-share-btn').addEventListener('click', () => {
+            document.getElementById('share-btn').addEventListener('click', () => {
                 const title = document.getElementById('notification-title').textContent;
                 const content = document.getElementById('notification-content').innerText;
                 shareContent(title, content);
             });
 
-            document.getElementById('report-whatsapp-share-btn').addEventListener('click', () => {
+            document.getElementById('report-share-btn').addEventListener('click', () => {
                 const title = document.getElementById('report-view-title').textContent;
                 const content = document.getElementById('report-view-content').innerText;
                 shareContent(title, content);
             });
 
-            document.getElementById('ficha-whatsapp-share-btn').addEventListener('click', () => {
+            document.getElementById('ficha-share-btn').addEventListener('click', () => {
                 const title = document.getElementById('ficha-view-title').textContent;
                 const content = document.getElementById('ficha-view-content').innerText;
                 shareContent(title, content);
@@ -729,15 +773,45 @@
             dom.occurrenceForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const id = document.getElementById('occurrence-id').value;
-                const data = { studentName: document.getElementById('student-name').value.trim(), studentClass: document.getElementById('student-class').value.trim(), date: document.getElementById('occurrence-date').value, description: document.getElementById('description').value.trim(), involved: document.getElementById('involved').value.trim(), actionsTakenSchool: document.getElementById('actions-taken-school').value.trim(), actionsTakenFamily: document.getElementById('actions-taken-family').value.trim(), meetingDate: document.getElementById('meeting-date-occurrence').value, meetingTime: document.getElementById('meeting-time-occurrence').value };
-                try { id ? await updateRecord('occurrence', id, data) : await addRecord('occurrence', data); showToast(`Ocorrência ${id ? 'atualizada' : 'registrada'} com sucesso!`); closeModal(dom.occurrenceModal); } catch (error) { console.error("Erro:", error); showToast('Erro ao salvar.'); }
+                const studentName = document.getElementById('student-name').value.trim();
+                const student = students.find(s => s.name === studentName);
+                if (!student) {
+                    showToast("Por favor, selecione um aluno válido da lista.");
+                    return;
+                }
+                const data = { 
+                    studentName: student.name, 
+                    studentClass: student.class, 
+                    resp1: student.resp1,
+                    resp2: student.resp2,
+                    date: document.getElementById('occurrence-date').value, 
+                    description: document.getElementById('description').value.trim(), 
+                    involved: document.getElementById('involved').value.trim(), 
+                    actionsTakenSchool: document.getElementById('actions-taken-school').value.trim(), 
+                    actionsTakenFamily: document.getElementById('actions-taken-family').value.trim(), 
+                    meetingDate: document.getElementById('meeting-date-occurrence').value, 
+                    meetingTime: document.getElementById('meeting-time-occurrence').value 
+                };
+                try { id ? await updateRecord('occurrence', id, data) : await addRecord('occurrence', data); showToast(`Ocorrência ${id ? 'atualizada' : 'registada'} com sucesso!`); closeModal(dom.occurrenceModal); } catch (error) { console.error("Erro:", error); showToast('Erro ao salvar.'); }
             });
 
             dom.absenceForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const id = document.getElementById('absence-id').value;
+                 const studentName = document.getElementById('absence-student-name').value.trim();
+                const student = students.find(s => s.name === studentName);
+                 if (!student) {
+                    showToast("Por favor, selecione um aluno válido da lista.");
+                    return;
+                }
                 const actionType = document.getElementById('action-type').value;
-                const data = { studentName: document.getElementById('absence-student-name').value.trim(), studentClass: document.getElementById('absence-student-class').value.trim(), actionType };
+                const data = { 
+                    studentName: student.name, 
+                    studentClass: student.class, 
+                    resp1: student.resp1,
+                    resp2: student.resp2,
+                    actionType 
+                };
                 switch (actionType) {
                     case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
                         Object.assign(data, { periodoFaltas: document.getElementById('contact-absence-period').value, absenceCount: document.getElementById('absence-count').value, meetingDate: document.getElementById('meeting-date').value, meetingTime: document.getElementById('meeting-time').value, contactDate: document.getElementById('contact-date').value, contactPerson: document.getElementById('contact-person').value, contactReason: document.getElementById('contact-reason').value });
@@ -752,7 +826,7 @@
                         Object.assign(data, { ctFeedback: document.getElementById('ct-feedback').value, ctReturned: document.querySelector('input[name="ct-returned"]:checked')?.value || null, ctParecer: document.getElementById('ct-parecer').value });
                         break;
                 }
-                try { id ? await updateRecord('absence', id, data) : await addRecord('absence', data); showToast(`Ação ${id ? 'atualizada' : 'registrada'} com sucesso!`); closeModal(dom.absenceModal); } catch (error) { console.error("Erro ao salvar ação:", error); showToast('Erro ao salvar.'); }
+                try { id ? await updateRecord('absence', id, data) : await addRecord('absence', data); showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`); closeModal(dom.absenceModal); } catch (error) { console.error("Erro ao salvar ação:", error); showToast('Erro ao salvar.'); }
             });
 
             dom.occurrencesListDiv.addEventListener('click', (e) => {
@@ -774,6 +848,8 @@
                         document.getElementById('actions-taken-family').value = data.actionsTakenFamily || '';
                         document.getElementById('meeting-date-occurrence').value = data.meetingDate || '';
                         document.getElementById('meeting-time-occurrence').value = data.meetingTime || '';
+                        const datalist = document.getElementById('students-datalist');
+                        datalist.innerHTML = students.map(s => `<option value="${s.name}"></option>`).join('');
                         openModal(dom.occurrenceModal);
                     }
                 }
@@ -790,8 +866,8 @@
                     if (data) {
                         dom.absenceForm.reset();
                         document.getElementById('absence-modal-title').innerText = 'Editar Ação de Busca Ativa';
-                        const studentNames = [...new Set([...state.occurrences, ...state.absences].map(item => item.studentName))].sort();
-                        document.getElementById('student-names-datalist').innerHTML = studentNames.map(name => `<option value="${name}"></option>`).join('');
+                         const datalist = document.getElementById('students-datalist-absences');
+                        datalist.innerHTML = students.map(s => `<option value="${s.name}"></option>`).join('');
                         document.getElementById('action-type').value = data.actionType || '';
                         document.getElementById('action-type').dispatchEvent(new Event('change'));
                         document.getElementById('absence-id').value = data.id || '';
