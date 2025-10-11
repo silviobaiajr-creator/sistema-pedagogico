@@ -1267,11 +1267,6 @@
 
         // --- INICIALIZAÇÃO ---
         document.addEventListener('DOMContentLoaded', () => {
-            const app = initializeApp(finalConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-            state.db = db;
-
             onAuthStateChanged(auth, async user => {
                 if(state.verificationTimer) clearInterval(state.verificationTimer);
 
