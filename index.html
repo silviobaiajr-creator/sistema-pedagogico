@@ -774,7 +774,7 @@
                 dom.emptyStateAbsences.classList.add('hidden');
                 
                 const groupedByProcess = filtered.reduce((acc, action) => {
-                    const key = action.processId || `unknown-process-${action.id}`;
+                    const key = action.processId || `no-proc-${action.id}`; 
                     if (!acc[key]) {
                         acc[key] = [];
                     }
@@ -800,7 +800,7 @@
                             <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center" data-process-id="${processId}">
                                 <div>
                                     <p class="font-semibold text-gray-800">${student.name}</p>
-                                    <p class="text-sm text-gray-500">Início do Processo: ${formatDate(firstAction.createdAt?.toDate())}</p>
+                                    <p class="text-sm text-gray-500">ID do Processo: ${processId} - Início: ${formatDate(firstAction.createdAt?.toDate())}</p>
                                 </div>
                                 <i class="fas fa-chevron-down transition-transform duration-300"></i>
                             </div>
@@ -1128,7 +1128,7 @@
             document.getElementById('absence-student-endereco').value = student.endereco || '';
             document.getElementById('absence-student-contato').value = student.contato || '';
             
-            const { processId, currentCycleActions } = getStudentProcessInfo(student.matricula);
+            const { processId } = getStudentProcessInfo(student.matricula);
             document.getElementById('absence-process-id').value = data?.processId || processId;
 
 
