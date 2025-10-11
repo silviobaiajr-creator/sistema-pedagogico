@@ -815,7 +815,7 @@
                         const actionDate = abs.contactDate || abs.visitDate || abs.ctSentDate || (abs.createdAt && abs.createdAt.toDate().toISOString().split('T')[0]);
                         const returned = abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes';
                         html += `
-                            <tr class="border-b">
+                            <tr class="border-b last:border-b-0">
                                 <td class="py-3 pr-3">
                                     <p class="font-medium text-gray-700">${actionDisplayTitles[abs.actionType] || 'N/A'}</p>
                                     <p class="text-sm text-gray-500">Data: ${formatDate(actionDate)}</p>
