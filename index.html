@@ -773,7 +773,7 @@
                 dom.emptyStateAbsences.classList.add('hidden');
                 
                 const groupedByProcess = filtered.reduce((acc, action) => {
-                    const key = action.processId || `proc-${action.id}`;
+                    const key = action.processId || `no-proc-${action.id}`; 
                     if (!acc[key]) acc[key] = [];
                     acc[key].push(action);
                     return acc;
