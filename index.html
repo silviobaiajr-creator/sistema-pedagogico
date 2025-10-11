@@ -303,6 +303,7 @@
             </div>
             <form id="absence-form" class="p-6 space-y-4 overflow-y-auto">
                 <input type="hidden" id="absence-id">
+                <input type="hidden" id="absence-process-id">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div>
                         <label for="absence-student-name" class="block text-sm font-medium text-gray-700">Nome do Aluno(a)</label>
@@ -631,8 +632,7 @@
             return enhancedText;
         };
         
-        const determineNextActionForStudent = (studentId) => {
-            const sequence = ['tentativa_1', 'tentativa_2', 'tentativa_3', 'visita', 'encaminhamento_ct', 'analise'];
+        const getStudentProcessInfo = (studentId) => {
             const studentActions = state.absences
                 .filter(a => a.studentId === studentId)
                 .sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
@@ -646,6 +646,32 @@
             }
             
             const currentCycleActions = studentActions.slice(lastAnaliseIndex + 1);
+            
+            let processId;
+            if (currentCycleActions.length > 0 && currentCycleActions[0].processId) {
+                processId = currentCycleActions[0].processId;
+            } else {
+                const allProcessIdsForStudent = studentActions
+                    .map(a => a.processId)
+                    .filter(Boolean);
+                
+                const processNumbers = allProcessIdsForStudent
+                    .map(pid => parseInt(pid.split('-')[1] || 0, 10))
+                    .filter(num => !isNaN(num));
+                    
+                const maxNumber = processNumbers.length > 0 ? Math.max(...processNumbers) : 0;
+                processId = `${studentId}-${maxNumber + 1}`;
+            }
+
+            return {
+                currentCycleActions,
+                processId
+            };
+        };
+
+        const determineNextActionForStudent = (studentId) => {
+            const { currentCycleActions } = getStudentProcessInfo(studentId);
+            const sequence = ['tentativa_1', 'tentativa_2', 'tentativa_3', 'visita', 'encaminhamento_ct', 'analise'];
             const existingActionTypes = new Set(currentCycleActions.map(a => a.actionType));
 
             const hasReturnedInCurrentCycle = currentCycleActions.some(
@@ -662,7 +688,7 @@
                 }
             }
             
-            return 'analise';
+            return 'analise'; // Fallback
         };
 
         const shareContent = async (title, text) => {
@@ -740,35 +766,71 @@
                 dom.absencesListDiv.innerHTML = '';
             } else {
                 dom.emptyStateAbsences.classList.add('hidden');
+                
+                const groupedByProcess = filtered.reduce((acc, action) => {
+                    const key = action.processId || `proc-${action.id}`;
+                    if (!acc[key]) acc[key] = [];
+                    acc[key].push(action);
+                    return acc;
+                }, {});
+
+                const sortedGroupKeys = Object.keys(groupedByProcess).sort((a, b) => {
+                    const lastActionA = groupedByProcess[a].sort((x, y) => (y.createdAt?.toDate() || 0) - (x.createdAt?.toDate() || 0))[0];
+                    const lastActionB = groupedByProcess[b].sort((x, y) => (y.createdAt?.toDate() || 0) - (x.createdAt?.toDate() || 0))[0];
+                    return (lastActionB.createdAt?.toDate() || 0) - (lastActionA.createdAt?.toDate() || 0);
+                });
+
+                let html = '';
+                for (const processId of sortedGroupKeys) {
+                    const actions = groupedByProcess[processId].sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
+                    const firstAction = actions[0];
+                    const student = state.students.find(s => s.matricula === firstAction.studentId);
+                    if (!student) continue;
+
+                    html += `
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr class="bg-indigo-50">
+                                <td colspan="4" class="px-6 py-3 text-left text-sm font-semibold text-indigo-800">
+                                    Processo para: ${student.name} (Início: ${formatDate(firstAction.createdAt?.toDate())})
+                                </td>
+                            </tr>
+                    `;
+
+                    actions.forEach(abs => {
+                        const actionDate = abs.contactDate || abs.visitDate || abs.ctSentDate || (abs.createdAt && abs.createdAt.toDate().toISOString().split('T')[0]);
+                        const returned = abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes';
+                        html += `
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${student.name}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    ${actionDisplayTitles[abs.actionType] || 'N/A'}
+                                    ${returned ? '<span class="ml-2 text-green-600 font-semibold"><i class="fas fa-check-circle"></i> Aluno Retornou</span>' : ''}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(actionDate)}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                    <button class="view-absence-btn text-indigo-600 hover:text-indigo-900" data-id="${abs.id}" title="Ver Ação"><i class="fas fa-eye"></i></button>
+                                    <button class="edit-absence-btn text-yellow-600 hover:text-yellow-900" data-id="${abs.id}" title="Editar Ação"><i class="fas fa-pencil-alt"></i></button>
+                                    <button class="delete-absence-btn text-red-600 hover:text-red-900" data-id="${abs.id}" title="Excluir Ação"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    html += `</tbody>`;
+                }
+
                 dom.absencesListDiv.innerHTML = `
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aluno(a)</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Tipo de Ação</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data da Ação</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Detalhes da Ação</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            ${filtered.map(abs => {
-                                const student = state.students.find(s => s.matricula === abs.studentId);
-                                const studentName = student ? student.name : 'Aluno Removido';
-                                const actionDate = abs.contactDate || abs.visitDate || abs.ctSentDate || (abs.createdAt && abs.createdAt.toDate().toISOString().split('T')[0]);
-                                return `
-                                    <tr>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${studentName}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">${actionDisplayTitles[abs.actionType] || 'N/A'}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(actionDate)}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                            <button class="view-absence-btn text-indigo-600 hover:text-indigo-900" data-id="${abs.id}" title="Ver Ação"><i class="fas fa-eye"></i></button>
-                                            <button class="edit-absence-btn text-yellow-600 hover:text-yellow-900" data-id="${abs.id}" title="Editar Ação"><i class="fas fa-pencil-alt"></i></button>
-                                            <button class="delete-absence-btn text-red-600 hover:text-red-900" data-id="${abs.id}" title="Excluir Ação"><i class="fas fa-trash"></i></button>
-                                        </td>
-                                    </tr>`;
-                            }).join('')}
-                        </tbody>
-                    </table>`;
+                        ${html}
+                    </table>
+                `;
             }
         };
 
@@ -1059,6 +1121,10 @@
             document.getElementById('absence-student-class').value = student.class || '';
             document.getElementById('absence-student-endereco').value = student.endereco || '';
             document.getElementById('absence-student-contato').value = student.contato || '';
+            
+            const { processId } = getStudentProcessInfo(student.matricula);
+            document.getElementById('absence-process-id').value = data?.processId || processId;
+
 
             const finalActionType = forceActionType || determineNextActionForStudent(student.matricula);
             document.getElementById('action-type').value = finalActionType;
@@ -1068,12 +1134,15 @@
             // Lógica para persistir dados de faltas
             const absenceFieldsContainer = dom.absenceForm.querySelector('.bg-gray-50');
             const absenceInputs = absenceFieldsContainer.querySelectorAll('input');
-            const firstAbsenceRecord = state.absences.find(a => a.studentId === student.matricula && a.periodoFaltasStart);
+            
+            const studentActions = state.absences.filter(a => a.studentId === student.matricula && a.processId === (data?.processId || processId));
+            const firstAbsenceRecordInCycle = studentActions.find(a => a.periodoFaltasStart);
 
-            if (finalActionType !== 'tentativa_1' && firstAbsenceRecord) {
-                document.getElementById('absence-start-date').value = firstAbsenceRecord.periodoFaltasStart || '';
-                document.getElementById('absence-end-date').value = firstAbsenceRecord.periodoFaltasEnd || '';
-                document.getElementById('absence-count').value = firstAbsenceRecord.absenceCount || '';
+
+            if (finalActionType !== 'tentativa_1' && firstAbsenceRecordInCycle) {
+                document.getElementById('absence-start-date').value = firstAbsenceRecordInCycle.periodoFaltasStart || '';
+                document.getElementById('absence-end-date').value = firstAbsenceRecordInCycle.periodoFaltasEnd || '';
+                document.getElementById('absence-count').value = firstAbsenceRecordInCycle.absenceCount || '';
                 absenceInputs.forEach(input => input.readOnly = true);
             } else {
                 absenceInputs.forEach(input => input.readOnly = false);
@@ -1081,9 +1150,9 @@
             
             // Preencher dados da ação se estiver editando
             if (isEditing) {
-                document.getElementById('absence-start-date').value = data.periodoFaltasStart || '';
-                document.getElementById('absence-end-date').value = data.periodoFaltasEnd || '';
-                document.getElementById('absence-count').value = data.absenceCount || '';
+                document.getElementById('absence-start-date').value = data.periodoFaltasStart || firstAbsenceRecordInCycle?.periodoFaltasStart || '';
+                document.getElementById('absence-end-date').value = data.periodoFaltasEnd || firstAbsenceRecordInCycle?.periodoFaltasEnd || '';
+                document.getElementById('absence-count').value = data.absenceCount || firstAbsenceRecordInCycle?.absenceCount || '';
 
                 switch (data.actionType) {
                     case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
@@ -1190,9 +1259,11 @@
                     return;
                 }
                 const actionType = document.getElementById('action-type').value;
+                const processId = document.getElementById('absence-process-id').value;
                 const data = { 
                     studentId: student.matricula,
-                    actionType 
+                    actionType,
+                    processId
                 };
 
                 try {
@@ -1246,10 +1317,12 @@
 
                 try {
                     const isNewRecord = !id;
-                    const savedRecordId = id || (await addRecord('absence', data)).id;
-                    if(isNewRecord) {
-                         data.id = savedRecordId;
-                         state.absences.push(data); // Adicionar localmente para a verificação de retorno funcionar imediatamente
+                    if (isNewRecord) {
+                        const newDocRef = await addRecord('absence', data);
+                        data.id = newDocRef.id;
+                        state.absences.push(data); // Adicionar localmente para a verificação de retorno funcionar imediatamente
+                    } else {
+                        await updateRecord('absence', id, data);
                     }
                    
                     showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
