@@ -207,11 +207,6 @@
             <div id="tab-content-absences" class="hidden">
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-center sm:justify-between items-center">
                     <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
-                    <div class="flex gap-2 sm:gap-4 flex-wrap justify-center">
-                        <button id="generate-ficha-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300 text-sm">
-                            <i class="fas fa-file-invoice mr-2"></i>Ficha Consolidada
-                        </button>
-                    </div>
                 </div>
                  <main class="bg-white rounded-lg shadow-md p-4 sm:p-6">
                     <div class="mb-4">
@@ -802,7 +797,12 @@
                                     <p class="font-semibold text-gray-800">${student.name}</p>
                                     <p class="text-sm text-gray-500">ID do Processo: ${processId} - Início: ${formatDate(firstAction.createdAt?.toDate())}</p>
                                 </div>
-                                <i class="fas fa-chevron-down transition-transform duration-300"></i>
+                                <div class="flex items-center space-x-4">
+                                     <button class="generate-ficha-btn-row bg-purple-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-purple-700 text-xs no-print" data-student-id="${student.matricula}">
+                                        <i class="fas fa-file-invoice"></i> Ficha
+                                    </button>
+                                    <i class="fas fa-chevron-down transition-transform duration-300"></i>
+                                </div>
                             </div>
                             <div class="process-content" id="content-${processId}">
                                 <div class="p-4 border-t border-gray-200">
@@ -1128,7 +1128,7 @@
             document.getElementById('absence-student-endereco').value = student.endereco || '';
             document.getElementById('absence-student-contato').value = student.contato || '';
             
-            const { processId } = getStudentProcessInfo(student.matricula);
+            const { processId, currentCycleActions } = getStudentProcessInfo(student.matricula);
             document.getElementById('absence-process-id').value = data?.processId || processId;
 
 
@@ -1141,8 +1141,7 @@
             const absenceFieldsContainer = dom.absenceForm.querySelector('#absence-form > .bg-gray-50');
             const absenceInputs = absenceFieldsContainer.querySelectorAll('input');
             
-            const studentActions = state.absences.filter(a => a.studentId === student.matricula && a.processId === (data?.processId || processId));
-            const firstAbsenceRecordInCycle = studentActions.find(a => a.periodoFaltasStart);
+            const firstAbsenceRecordInCycle = currentCycleActions.find(a => a.periodoFaltasStart);
 
 
             if (finalActionType !== 'tentativa_1' && firstAbsenceRecordInCycle) {
@@ -1352,8 +1351,8 @@
                 const header = target.closest('.process-header');
                 const button = target.closest('button');
 
-                if (header) {
-                    const processId = header.dataset.processId;
+                if (header && !button) { 
+                     const processId = header.dataset.processId;
                     const content = document.getElementById(`content-${processId}`);
                     const icon = header.querySelector('i');
                     if (content) {
@@ -1368,6 +1367,13 @@
                 }
 
                 if(button) {
+                    const studentId = button.dataset.studentId;
+                    if (button.classList.contains('generate-ficha-btn-row')) {
+                        e.stopPropagation(); 
+                        generateAndShowConsolidatedFicha(studentId);
+                        return; 
+                    }
+
                     const id = button.dataset.id;
                     if (button.classList.contains('edit-absence-btn')) {
                         const data = state.absences.find(a => a.id === id);
@@ -1415,7 +1421,7 @@
             });
 
             document.getElementById('generate-report-btn').addEventListener('click', () => openReportGeneratorModal('occurrences'));
-            document.getElementById('generate-ficha-btn').addEventListener('click', () => openReportGeneratorModal('absences'));
+            
             document.getElementById('create-report-btn').addEventListener('click', () => {
                 const selectedStudentId = document.getElementById('student-select').value;
                 if (!selectedStudentId) return showToast('Por favor, selecione um aluno.');
