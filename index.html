@@ -507,7 +507,6 @@
             userProfile: document.getElementById('user-profile'),
             userEmail: document.getElementById('user-email'),
             occurrenceModal: document.getElementById('occurrence-modal'),
-            occurrenceSearchModal: document.getElementById('occurrence-search-modal'),
             absenceModal: document.getElementById('absence-modal'),
             studentsModal: document.getElementById('students-modal'),
             notificationModalBackdrop: document.getElementById('notification-modal-backdrop'),
@@ -942,12 +941,6 @@
 
             dom.tabOccurrences.addEventListener('click', () => { state.activeTab = 'occurrences'; dom.tabOccurrences.classList.add('tab-active'); dom.tabAbsences.classList.remove('tab-active'); dom.tabContentOccurrences.classList.remove('hidden'); dom.tabContentAbsences.classList.add('hidden'); render(); });
             dom.tabAbsences.addEventListener('click', () => { state.activeTab = 'absences'; dom.tabAbsences.classList.add('tab-active'); dom.tabOccurrences.classList.remove('tab-active'); dom.tabContentAbsences.classList.remove('hidden'); dom.tabContentOccurrences.classList.add('hidden'); render(); });
-            
-            document.getElementById('add-occurrence-btn').addEventListener('click', () => { 
-                document.getElementById('occurrence-student-search-input').value = '';
-                document.getElementById('occurrence-student-search-suggestions').innerHTML = '';
-                openModal(dom.occurrenceSearchModal); 
-            });
 
             // Listeners dos botões de partilha
             document.getElementById('share-btn').addEventListener('click', () => {
@@ -972,7 +965,6 @@
             ['close-modal-btn', 'cancel-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.occurrenceModal)));
             ['close-absence-modal-btn', 'cancel-absence-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.absenceModal)));
             ['close-report-generator-btn', 'cancel-report-generator-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.reportGeneratorModal)));
-            document.getElementById('close-occurrence-search-modal-btn').addEventListener('click', () => closeModal(dom.occurrenceSearchModal));
             document.getElementById('close-notification-btn').addEventListener('click', () => closeModal(dom.notificationModalBackdrop));
             document.getElementById('close-report-view-btn').addEventListener('click', () => closeModal(dom.reportViewModalBackdrop));
             document.getElementById('close-ficha-view-btn').addEventListener('click', () => closeModal(dom.fichaViewModalBackdrop));
