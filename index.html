@@ -84,51 +84,6 @@
 </head>
 <body class="text-gray-800">
 
-    <div id="login-screen" class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-        <div class="w-full max-w-md">
-            <div class="bg-white p-8 rounded-2xl shadow-lg">
-                <div id="login-view">
-                    <h1 class="text-3xl font-bold text-gray-800 mb-2 text-center">Entrar</h1>
-                    <p class="text-gray-500 mb-8 text-center">Aceda à sua conta para continuar.</p>
-                    <form id="login-form" class="space-y-4">
-                        <div>
-                            <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
-                            <input type="email" id="login-email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
-                        </div>
-                        <div>
-                            <label for="login-password" class="block text-sm font-medium text-gray-700">Senha</label>
-                            <input type="password" id="login-password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
-                        </div>
-                        <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Entrar</button>
-                    </form>
-                    <p class="text-center text-sm text-gray-500 mt-6">
-                        Não tem uma conta? <button id="show-register-view" class="font-semibold text-indigo-600 hover:underline">Registe-se</button>
-                    </p>
-                </div>
-
-                <div id="register-view" class="hidden">
-                    <h1 class="text-3xl font-bold text-gray-800 mb-2 text-center">Criar Conta</h1>
-                    <p class="text-gray-500 mb-8 text-center">Crie uma nova conta para usar o sistema.</p>
-                    <form id="register-form" class="space-y-4">
-                        <div>
-                            <label for="register-email" class="block text-sm font-medium text-gray-700">Email</label>
-                            <input type="email" id="register-email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
-                        </div>
-                        <div>
-                            <label for="register-password" class="block text-sm font-medium text-gray-700">Senha (mínimo 6 caracteres)</label>
-                            <input type="password" id="register-password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
-                        </div>
-                        <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Criar Conta</button>
-                    </form>
-                    <p class="text-center text-sm text-gray-500 mt-6">
-                        Já tem uma conta? <button id="show-login-view" class="font-semibold text-indigo-600 hover:underline">Entrar</button>
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-
     <div id="main-content" class="hidden">
         <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
             <!-- Cabeçalho -->
@@ -444,7 +399,7 @@
     <!-- Firebase and App Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signOut, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ************************************************************************************
@@ -480,14 +435,7 @@
         };
 
         const dom = {
-            loginScreen: document.getElementById('login-screen'),
             mainContent: document.getElementById('main-content'),
-            loginView: document.getElementById('login-view'),
-            registerView: document.getElementById('register-view'),
-            showRegisterViewBtn: document.getElementById('show-register-view'),
-            showLoginViewBtn: document.getElementById('show-login-view'),
-            loginForm: document.getElementById('login-form'),
-            registerForm: document.getElementById('register-form'),
             logoutBtn: document.getElementById('logout-btn'),
             userProfile: document.getElementById('user-profile'),
             userEmail: document.getElementById('user-email'),
@@ -541,17 +489,9 @@
             setTimeout(() => modalElement.classList.add('hidden'), 300);
         };
 
-        // ===== INÍCIO DA ATUALIZAÇÃO =====
-        /**
-         * Melhora o texto para partilha no WhatsApp, adicionando emojis contextuais e formatação.
-         * @param {string} title - O título do conteúdo a ser partilhado.
-         * @param {string} text - O texto original.
-         * @returns {string} - O texto melhorado.
-         */
         const enhanceTextForSharing = (title, text) => {
             let enhancedText = text;
 
-            // Adiciona um cabeçalho com emoji baseado no título
             if (title.toLowerCase().includes('ocorrência')) {
                 enhancedText = `*📢 NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR 📢*\n\n${text}`;
             } else if (title.toLowerCase().includes('relatório')) {
@@ -560,7 +500,6 @@
                 enhancedText = `*📈 FICHA DE ACOMPANHAMENTO 📈*\n\n${text}`;
             }
 
-            // Substitui palavras-chave por versões com emojis
             enhancedText = enhancedText.replace(/Aos Responsáveis/g, '👥 Aos Responsáveis');
             enhancedText = enhancedText.replace(/Aluno\(a\):/g, '👤 Aluno(a):');
             enhancedText = enhancedText.replace(/Turma:/g, '🏫 Turma:');
@@ -570,19 +509,12 @@
             enhancedText = enhancedText.replace(/Providências da Escola:/g, '🏛️ Providências da Escola:');
             enhancedText = enhancedText.replace(/Providências da Família:/g, '👨‍👩‍👧‍👦 Providências da Família:');
 
-            // Adiciona um rodapé
             enhancedText += `\n\n-------------\n_Mensagem enviada pelo Sistema de Acompanhamento Pedagógico._`;
 
             return enhancedText;
         };
         
-        /**
-         * Determina e seleciona a próxima ação de busca ativa para um aluno com base no seu histórico.
-         * A contagem de tentativas é automática. Após 3 tentativas, sugere a visita in loco.
-         * @param {string} studentId - A matrícula do aluno.
-         */
         const setNextAbsenceAction = (studentId) => {
-            // Só executa a lógica se for um novo registo (sem ID no formulário)
             if (document.getElementById('absence-id').value) {
                 return;
             }
@@ -600,12 +532,9 @@
             } else if (attemptCount === 2) {
                 nextAction = 'tentativa_3';
             } else {
-                // Após 3 tentativas, o próximo passo sugerido é a visita.
                 nextAction = 'visita';
             }
-
-            // Se a opção existir no <select>, define-a como o valor
-            // e dispara o evento de 'change' para mostrar os campos dinâmicos corretos.
+            
             if (Array.from(actionTypeSelect.options).some(opt => opt.value === nextAction)) {
                  actionTypeSelect.value = nextAction;
                  actionTypeSelect.dispatchEvent(new Event('change'));
@@ -613,9 +542,7 @@
         };
 
         const shareContent = async (title, text) => {
-            // Gera o texto melhorado com emojis e formatação
             const enhancedText = enhanceTextForSharing(title, text);
-
             if (navigator.share) {
                 try {
                     await navigator.share({ title, text: enhancedText });
@@ -624,14 +551,10 @@
                     showToast('Erro ao partilhar o conteúdo.');
                 }
             } else {
-                // NOTA: Figurinhas (stickers) não podem ser enviadas via link.
-                // A API do WhatsApp para links apenas suporta o pré-preenchimento de mensagens de texto.
-                // O uso de emojis é a melhor alternativa visual.
                 const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(enhancedText)}`;
                 window.open(whatsappUrl, '_blank');
             }
         };
-        // ===== FIM DA ATUALIZAÇÃO =====
 
         const renderOccurrences = () => {
             dom.loadingOccurrences.classList.add('hidden');
@@ -742,7 +665,6 @@
         const getCollectionRef = (type) => {
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             const collectionName = type === 'occurrence' ? 'occurrences' : 'absences';
-            // MUDANÇA CRÍTICA: Aponta para uma coleção pública partilhada
             return collection(state.db, `/artifacts/${appId}/public/data/${collectionName}`);
         };
         const addRecord = (type, data) => addDoc(getCollectionRef(type), { ...data, createdAt: serverTimestamp() });
@@ -789,17 +711,6 @@
             }
         };
 
-        // Funções de UI
-        const showLoginView = () => {
-            dom.registerView.classList.add('hidden');
-            dom.loginView.classList.remove('hidden');
-        };
-
-        const showRegisterView = () => {
-            dom.loginView.classList.add('hidden');
-            dom.registerView.classList.remove('hidden');
-        };
-        
         const openNotificationModal = (id) => {
             const data = state.occurrences.find(occ => occ.id === id);
             if (data) {
@@ -896,9 +807,6 @@
         };
         
         const setupEventListeners = () => {
-            dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
-            dom.showLoginViewBtn.addEventListener('click', showLoginView);
-
             dom.tabOccurrences.addEventListener('click', () => { state.activeTab = 'occurrences'; dom.tabOccurrences.classList.add('tab-active'); dom.tabAbsences.classList.remove('tab-active'); dom.tabContentOccurrences.classList.remove('hidden'); dom.tabContentAbsences.classList.add('hidden'); render(); });
             dom.tabAbsences.addEventListener('click', () => { state.activeTab = 'absences'; dom.tabAbsences.classList.add('tab-active'); dom.tabOccurrences.classList.remove('tab-active'); dom.tabContentAbsences.classList.remove('hidden'); dom.tabContentOccurrences.classList.add('hidden'); render(); });
             dom.searchOccurrences.addEventListener('input', (e) => { state.filterOccurrences = e.target.value; render(); });
@@ -1211,23 +1119,24 @@
                 if (!value) {
                     suggestionsContainer.classList.add('hidden');
                     return;
-                                item.classList.add('suggestion-item');
-                                item.textContent = student.name;
-                                item.addEventListener('click', () => {
-                                    input.value = student.name;
-                                    if (inputId.startsWith('student-name')) {
-                                        document.getElementById('student-class').value = student.class;
-                                    } else {
-                                        document.getElementById('absence-student-class').value = student.class;
-                                        // ATUALIZAÇÃO: Determina a próxima ação de busca ativa automaticamente
-                                        setNextAbsenceAction(student.matricula);
-                                    }
-                                    suggestionsContainer.classList.add('hidden');
-                                });
-                                suggestionsContainer.appendChild(item);
-                            });
-                        } else {
+                }
+                
+                const filteredStudents = state.students.filter(s => s.name.toLowerCase().includes(value)).slice(0, 5);
+                
+                if (filteredStudents.length > 0) {
+                    suggestionsContainer.classList.remove('hidden');
+                    filteredStudents.forEach(student => {
+                        const item = document.createElement('div');
+                        item.classList.add('suggestion-item');
+                        item.textContent = student.name;
+                        item.addEventListener('click', () => {
+                            input.value = student.name;
+                            if (inputId.startsWith('student-name')) {
+                                document.getElementById('student-class').value = student.class;
+                            } else {
                                 document.getElementById('absence-student-class').value = student.class;
+                                // ATUALIZAÇÃO: Determina a próxima ação de busca ativa automaticamente
+                                setNextAbsenceAction(student.matricula);
                             }
                             suggestionsContainer.classList.add('hidden');
                         });
@@ -1316,7 +1225,7 @@
                 : firebaseConfig;
 
             if (Object.keys(finalConfig).length < 2) {
-                 document.getElementById('app').innerHTML = `<div class="text-center p-8 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg"><h2 class="font-bold text-lg">Configuração Incompleta do Firebase</h2><p class="mt-2">A configuração do Firebase não foi encontrada. Por favor, siga o guia de configuração para obter e colar as chaves do seu projeto Firebase no código.</p></div>`;
+                 document.body.innerHTML = `<div class="p-8 text-center text-red-700 bg-red-100"><h1>Configuração Incompleta do Firebase</h1><p class="mt-2">A configuração do Firebase não foi encontrada no ambiente. A aplicação não pode ser iniciada.</p></div>`;
                 return;
             }
 
@@ -1328,8 +1237,7 @@
                 detachFirestoreListeners();
                 if (user) {
                     state.userId = user.uid;
-                    dom.userEmail.textContent = user.email;
-                    dom.loginScreen.classList.add('hidden');
+                    dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
                     dom.mainContent.classList.remove('hidden');
                     dom.userProfile.classList.remove('hidden');
                     await setupFirestoreListeners();
@@ -1341,43 +1249,28 @@
                     render();
                     dom.mainContent.classList.add('hidden');
                     dom.userProfile.classList.add('hidden');
-                    dom.loginScreen.classList.remove('hidden');
                 }
             });
 
-            dom.loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const email = document.getElementById('login-email').value;
-                const password = document.getElementById('login-password').value;
+            const initializeAuthentication = async () => {
                 try {
-                    await signInWithEmailAndPassword(auth, email, password);
-                } catch (error) {
-                    console.error("Erro ao entrar:", error.code);
-                    showToast("Email ou senha inválidos.");
-                }
-            });
-
-            dom.registerForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const email = document.getElementById('register-email').value;
-                const password = document.getElementById('register-password').value;
-                try {
-                    await createUserWithEmailAndPassword(auth, email, password);
-                } catch (error) {
-                    console.error("Erro ao registar:", error.code);
-                     if (error.code === 'auth/email-already-in-use') {
-                        showToast("Este email já está a ser utilizado.");
-                    } else if (error.code === 'auth/weak-password') {
-                        showToast("A sua senha é muito fraca.");
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
                     } else {
-                        showToast("Erro ao criar a conta.");
+                        await signInAnonymously(auth);
                     }
+                } catch (error) {
+                    console.error("Falha na autenticação inicial:", error);
+                    document.body.innerHTML = `<div class="p-8 text-center text-red-700 bg-red-100"><h1>Erro de Autenticação</h1><p>Não foi possível iniciar a sessão. Por favor, recarregue a página.</p></div>`;
                 }
-            });
+            };
+            
+            initializeAuthentication();
 
             dom.logoutBtn.addEventListener('click', async () => {
                 try {
                     await signOut(auth);
+                    // A página irá recarregar ou o onAuthStateChanged irá tratar da limpeza da UI.
                 } catch (error) {
                     console.error("Erro ao sair:", error);
                 }
