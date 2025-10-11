@@ -576,6 +576,42 @@
             return enhancedText;
         };
         
+        /**
+         * Determina e seleciona a próxima ação de busca ativa para um aluno com base no seu histórico.
+         * A contagem de tentativas é automática. Após 3 tentativas, sugere a visita in loco.
+         * @param {string} studentId - A matrícula do aluno.
+         */
+        const setNextAbsenceAction = (studentId) => {
+            // Só executa a lógica se for um novo registo (sem ID no formulário)
+            if (document.getElementById('absence-id').value) {
+                return;
+            }
+
+            const studentActions = state.absences.filter(a => a.studentId === studentId);
+            const attemptCount = studentActions.filter(a => a.actionType.startsWith('tentativa')).length;
+            
+            const actionTypeSelect = document.getElementById('action-type');
+            let nextAction = '';
+
+            if (attemptCount === 0) {
+                nextAction = 'tentativa_1';
+            } else if (attemptCount === 1) {
+                nextAction = 'tentativa_2';
+            } else if (attemptCount === 2) {
+                nextAction = 'tentativa_3';
+            } else {
+                // Após 3 tentativas, o próximo passo sugerido é a visita.
+                nextAction = 'visita';
+            }
+
+            // Se a opção existir no <select>, define-a como o valor
+            // e dispara o evento de 'change' para mostrar os campos dinâmicos corretos.
+            if (Array.from(actionTypeSelect.options).some(opt => opt.value === nextAction)) {
+                 actionTypeSelect.value = nextAction;
+                 actionTypeSelect.dispatchEvent(new Event('change'));
+            }
+        };
+
         const shareContent = async (title, text) => {
             // Gera o texto melhorado com emojis e formatação
             const enhancedText = enhanceTextForSharing(title, text);
@@ -1175,21 +1211,22 @@
                 if (!value) {
                     suggestionsContainer.classList.add('hidden');
                     return;
-                }
-                
-                const filteredStudents = state.students.filter(s => s.name.toLowerCase().includes(value)).slice(0, 5);
-                
-                if (filteredStudents.length > 0) {
-                    suggestionsContainer.classList.remove('hidden');
-                    filteredStudents.forEach(student => {
-                        const item = document.createElement('div');
-                        item.classList.add('suggestion-item');
-                        item.textContent = student.name;
-                        item.addEventListener('click', () => {
-                            input.value = student.name;
-                            if (inputId.startsWith('student-name')) {
-                                document.getElementById('student-class').value = student.class;
-                            } else {
+                                item.classList.add('suggestion-item');
+                                item.textContent = student.name;
+                                item.addEventListener('click', () => {
+                                    input.value = student.name;
+                                    if (inputId.startsWith('student-name')) {
+                                        document.getElementById('student-class').value = student.class;
+                                    } else {
+                                        document.getElementById('absence-student-class').value = student.class;
+                                        // ATUALIZAÇÃO: Determina a próxima ação de busca ativa automaticamente
+                                        setNextAbsenceAction(student.matricula);
+                                    }
+                                    suggestionsContainer.classList.add('hidden');
+                                });
+                                suggestionsContainer.appendChild(item);
+                            });
+                        } else {
                                 document.getElementById('absence-student-class').value = student.class;
                             }
                             suggestionsContainer.classList.add('hidden');
@@ -1353,3 +1390,4 @@
     </script>
 </body>
 </html>
+
