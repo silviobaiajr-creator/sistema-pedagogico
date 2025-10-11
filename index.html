@@ -301,10 +301,10 @@
                 <h3 id="absence-modal-title" class="text-xl font-semibold">Registar Ação de Busca Ativa</h3>
                 <button id="close-absence-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
-            <form id="absence-form" class="p-6 space-y-6 overflow-y-auto">
+            <form id="absence-form" class="p-6 space-y-4 overflow-y-auto">
                 <input type="hidden" id="absence-id">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <div class="relative">
+                     <div>
                         <label for="absence-student-name" class="block text-sm font-medium text-gray-700">Nome do Aluno(a)</label>
                         <input type="text" id="absence-student-name" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" required readonly>
                     </div>
@@ -321,6 +321,14 @@
                         <input type="text" id="absence-student-contato" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" readonly>
                     </div>
                 </div>
+                 <div class="border rounded-md p-3 space-y-2 bg-gray-50">
+                    <h5 class="text-sm font-semibold text-gray-600 px-2">Faltas apuradas no período de:</h5>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div><label for="absence-start-date" class="block text-sm">Início</label><input type="date" id="absence-start-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                        <div><label for="absence-end-date" class="block text-sm">Fim</label><input type="date" id="absence-end-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                    </div>
+                    <div class="pt-2"><label for="absence-count" class="block text-sm">Nº de faltas</label><input type="number" id="absence-count" class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                </div>
                 <div>
                     <label for="action-type-display" class="block text-sm font-medium text-gray-700">Tipo de Ação</label>
                     <input type="text" id="action-type-display" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" readonly>
@@ -328,45 +336,38 @@
                 </div>
                 <div id="dynamic-fields-container" class="space-y-4">
                     <div id="group-tentativas" class="dynamic-field-group hidden space-y-4">
-                        <div class="border rounded-md p-3 space-y-2 bg-gray-50">
-                             <h5 class="text-sm font-semibold text-gray-600">Faltas apuradas no período de:</h5>
+                        <fieldset class="border rounded-md p-3 space-y-2 bg-gray-50">
+                            <legend class="text-sm font-semibold text-gray-600 px-2">Data e horário para notificação</legend>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div><label for="contact-absence-start-date" class="block text-sm">Início</label><input type="date" id="contact-absence-start-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                                <div><label for="contact-absence-end-date" class="block text-sm">Fim</label><input type="date" id="contact-absence-end-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                                <div><label for="meeting-date" class="block text-sm">Data do Comparecimento</label><input type="date" id="meeting-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label for="meeting-time" class="block text-sm">Horário do Comparecimento</label><input type="time" id="meeting-time" class="mt-1 w-full border-gray-300 rounded-md"></div>
                             </div>
-                            <div class="pt-2"><label for="absence-count" class="block text-sm">Nº de Faltas</label><input type="number" id="absence-count" class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div><label for="meeting-date" class="block text-sm">Data do Comparecimento</label><input type="date" id="meeting-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                            <div><label for="meeting-time" class="block text-sm">Horário do Comparecimento</label><input type="time" id="meeting-time" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                        </div>
-                        <div><label class="block text-sm">Dia do Contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                        <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                        <div>
-                            <span class="block text-sm">Conseguiu contato?</span>
-                            <div class="mt-2 space-x-4">
-                                <label><input type="radio" name="contact-succeeded" value="yes"> Sim</label> 
-                                <label><input type="radio" name="contact-succeeded" value="no"> Não</label>
+                        </fieldset>
+
+                        <fieldset id="family-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
+                            <legend class="text-sm font-semibold text-gray-600 px-2">Família na escola</legend>
+                            <div>
+                                <span class="block text-sm">Conseguiu contato?</span>
+                                <div class="mt-2 space-x-4">
+                                    <label><input type="radio" name="contact-succeeded" value="yes"> Sim</label> 
+                                    <label><input type="radio" name="contact-succeeded" value="no"> Não</label>
+                                </div>
                             </div>
-                        </div>
-                        <div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
-                        <div>
-                            <span class="block text-sm">O aluno retornou?</span>
-                            <div class="mt-2 space-x-4">
-                                <label><input type="radio" name="contact-returned" value="yes"> Sim</label> 
-                                <label><input type="radio" name="contact-returned" value="no"> Não</label>
+                            <div id="family-contact-fields" class="space-y-4">
+                                <div><label class="block text-sm">Dia do contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                                <div>
+                                    <span class="block text-sm">O aluno retornou?</span>
+                                    <div class="mt-2 space-x-4">
+                                        <label><input type="radio" name="contact-returned" value="yes"> Sim</label> 
+                                        <label><input type="radio" name="contact-returned" value="no"> Não</label>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        </fieldset>
                     </div>
                     <div id="group-visita" class="dynamic-field-group hidden space-y-4">
-                         <div class="border rounded-md p-3 space-y-2 bg-gray-50">
-                             <h5 class="text-sm font-semibold text-gray-600">Faltas apuradas no período de:</h5>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div><label for="visit-absence-start-date" class="block text-sm">Início</label><input type="date" id="visit-absence-start-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                                <div><label for="visit-absence-end-date" class="block text-sm">Fim</label><input type="date" id="visit-absence-end-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                            </div>
-                            <div class="pt-2"><label for="visit-absence-count" class="block text-sm">Nº de Faltas</label><input type="number" id="visit-absence-count" class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                        </div>
                         <div><label class="block text-sm">Nome do agente da visita:</label><input type="text" id="visit-agent" class="mt-1 block w-full border-gray-300 rounded-md"></div>
                         <div><label class="block text-sm">Dia da visita:</label><input type="date" id="visit-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
                          <div><label class="block text-sm">Com quem falou?</label><input type="text" id="visit-contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
@@ -956,6 +957,25 @@
             document.getElementById('report-view-content').innerHTML = fichaHTML;
             openModal(dom.reportViewModalBackdrop);
         };
+
+        const toggleFamilyContactFields = (enable) => {
+            const fieldsContainer = document.getElementById('family-contact-fields');
+            const inputs = fieldsContainer.querySelectorAll('input, textarea');
+            
+            inputs.forEach(input => {
+                input.disabled = !enable;
+                if (!enable) {
+                    input.classList.add('bg-gray-200', 'cursor-not-allowed');
+                } else {
+                    input.classList.remove('bg-gray-200', 'cursor-not-allowed');
+                }
+            });
+             // Limpar os campos se estiver desabilitado, exceto os botões de rádio
+            if (!enable) {
+                fieldsContainer.querySelectorAll('input[type="text"], input[type="date"], textarea').forEach(el => el.value = '');
+                fieldsContainer.querySelectorAll('input[type="radio"]').forEach(el => el.checked = false);
+            }
+        };
         
         const setupEventListeners = () => {
             dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
@@ -1033,11 +1053,12 @@
                 };
 
                 try {
+                     data.periodoFaltasStart = document.getElementById('absence-start-date').value || null;
+                     data.periodoFaltasEnd = document.getElementById('absence-end-date').value || null;
+                     data.absenceCount = document.getElementById('absence-count').value || null;
+
                     switch (actionType) {
                         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
-                            data.periodoFaltasStart = document.getElementById('contact-absence-start-date').value || null;
-                            data.periodoFaltasEnd = document.getElementById('contact-absence-end-date').value || null;
-                            data.absenceCount = document.getElementById('absence-count').value || null;
                             data.meetingDate = document.getElementById('meeting-date').value || null;
                             data.meetingTime = document.getElementById('meeting-time').value || null;
                             data.contactDate = document.getElementById('contact-date').value || null;
@@ -1049,9 +1070,6 @@
                             data.contactReturned = contactReturnedRadio ? contactReturnedRadio.value : null;
                             break;
                         case 'visita':
-                            data.periodoFaltasStart = document.getElementById('visit-absence-start-date').value || null;
-                            data.periodoFaltasEnd = document.getElementById('visit-absence-end-date').value || null;
-                            data.absenceCount = document.getElementById('visit-absence-count').value || null;
                             data.visitAgent = document.getElementById('visit-agent').value || null;
                             data.visitDate = document.getElementById('visit-date').value || null;
                             data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
@@ -1139,23 +1157,22 @@
                         document.getElementById('absence-student-endereco').value = student.endereco || '';
                         document.getElementById('absence-student-contato').value = student.contato || '';
 
+                        document.getElementById('absence-start-date').value = data.periodoFaltasStart || '';
+                        document.getElementById('absence-end-date').value = data.periodoFaltasEnd || '';
+                        document.getElementById('absence-count').value = data.absenceCount || '';
+
                         switch (data.actionType) {
                             case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
-                                document.getElementById('contact-absence-start-date').value = data.periodoFaltasStart || '';
-                                document.getElementById('contact-absence-end-date').value = data.periodoFaltasEnd || '';
-                                document.getElementById('absence-count').value = data.absenceCount || '';
                                 document.getElementById('meeting-date').value = data.meetingDate || '';
                                 document.getElementById('meeting-time').value = data.meetingTime || '';
                                 document.getElementById('contact-date').value = data.contactDate || '';
                                 document.getElementById('contact-person').value = data.contactPerson || '';
                                 document.getElementById('contact-reason').value = data.contactReason || '';
                                 if(data.contactSucceeded) document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).checked = true;
+                                toggleFamilyContactFields(data.contactSucceeded === 'yes');
                                 if(data.contactReturned) document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`).checked = true;
                                 break;
                             case 'visita':
-                                document.getElementById('visit-absence-start-date').value = data.periodoFaltasStart || '';
-                                document.getElementById('visit-absence-end-date').value = data.periodoFaltasEnd || '';
-                                document.getElementById('visit-absence-count').value = data.absenceCount || '';
                                 document.getElementById('visit-agent').value = data.visitAgent || '';
                                 document.getElementById('visit-date').value = data.visitDate || '';
                                 document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
@@ -1198,9 +1215,23 @@
              document.getElementById('action-type').addEventListener('change', (e) => {
                  const action = e.target.value;
                  document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
-                 if (action.startsWith('tentativa')) { document.getElementById('group-tentativas').classList.remove('hidden'); } 
-                 else if (action) { const group = document.getElementById(`group-${action}`); if (group) group.classList.remove('hidden'); }
+                 if (action.startsWith('tentativa')) { 
+                     document.getElementById('group-tentativas').classList.remove('hidden');
+                     toggleFamilyContactFields(false); // Desabilitar por padrão
+                     const radioNo = document.querySelector('input[name="contact-succeeded"][value="no"]');
+                     if (radioNo) radioNo.checked = true;
+                 } 
+                 else if (action) { 
+                     const group = document.getElementById(`group-${action}`); 
+                     if (group) group.classList.remove('hidden');
+                 }
              });
+             
+             document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    toggleFamilyContactFields(e.target.value === 'yes');
+                });
+            });
 
             document.getElementById('manage-students-btn').addEventListener('click', () => {
                 renderStudentsList();
