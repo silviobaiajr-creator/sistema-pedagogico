@@ -58,6 +58,9 @@
         .suggestion-item:hover {
             background-color: #eef2ff;
         }
+        .signature-block {
+            display: none;
+        }
         @media print {
             body > div:not(.printable-area) {
                 display: none;
@@ -78,6 +81,10 @@
             }
             .no-print {
                 display: none !important;
+            }
+            .signature-block {
+                display: block !important;
+                page-break-inside: avoid;
             }
         }
     </style>
@@ -169,16 +176,14 @@
                         <button id="generate-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300 text-sm">
                             <i class="fas fa-file-invoice mr-2"></i>Relatório
                         </button>
-                        <button id="add-occurrence-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition duration-300 text-sm">
-                            <i class="fas fa-plus mr-2"></i>Nova Ocorrência
-                        </button>
                     </div>
                 </div>
                 <main class="bg-white rounded-lg shadow-md p-4 sm:p-6">
                     <div class="mb-4">
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
-                            <input type="text" id="search-occurrences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Buscar por nome do aluno...">
+                            <input type="text" id="search-occurrences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Buscar aluno para ver histórico ou registar nova ocorrência...">
+                            <div id="occurrence-student-suggestions" class="autocomplete-suggestions hidden"></div>
                         </div>
                     </div>
                     <div id="loading-occurrences" class="text-center p-8">
@@ -188,7 +193,7 @@
                     <div id="empty-state-occurrences" class="text-center p-8 hidden">
                         <i class="fas fa-file-alt fa-3x text-gray-300 mb-4"></i>
                         <h3 class="text-xl font-semibold text-gray-600">Nenhuma ocorrência registada</h3>
-                        <p class="text-gray-500 mt-1">Clique em "Nova Ocorrência" para começar.</p>
+                        <p class="text-gray-500 mt-1">Use a busca acima para registar uma nova ocorrência.</p>
                     </div>
                     <div id="occurrences-list" class="overflow-x-auto"></div>
                 </main>
@@ -231,22 +236,6 @@
     </div>
 
     <!-- Modals -->
-    <div id="occurrence-search-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg modal-content transform scale-95 opacity-0">
-            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
-                <h3 class="text-xl font-semibold">Selecionar Aluno para Ocorrência</h3>
-                <button id="close-occurrence-search-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
-            </div>
-            <div class="p-6">
-                <div class="relative">
-                    <label for="occurrence-student-search-input" class="block text-sm font-medium text-gray-700">Buscar Aluno(a)</label>
-                    <input type="text" id="occurrence-student-search-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2" required autocomplete="off" placeholder="Digite as iniciais do nome do aluno...">
-                    <div id="occurrence-student-search-suggestions" class="autocomplete-suggestions hidden"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div id="occurrence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -342,6 +331,13 @@
                         </div>
                         <div><label class="block text-sm">Dia do Contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
                         <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                        <div>
+                            <span class="block text-sm">Conseguiu contato?</span>
+                            <div class="mt-2 space-x-4">
+                                <label><input type="radio" name="contact-succeeded" value="yes"> Sim</label> 
+                                <label><input type="radio" name="contact-succeeded" value="no"> Não</label>
+                            </div>
+                        </div>
                         <div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
                         <div>
                             <span class="block text-sm">O aluno retornou?</span>
@@ -359,9 +355,10 @@
                         <div><label for="visit-absence-count" class="block text-sm">Nº de Faltas no Período</label><input type="number" id="visit-absence-count" class="mt-1 block w-full border-gray-300 rounded-md"></div>
                         <div><label class="block text-sm">Nome do agente da visita:</label><input type="text" id="visit-agent" class="mt-1 block w-full border-gray-300 rounded-md"></div>
                         <div><label class="block text-sm">Dia da visita:</label><input type="date" id="visit-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                         <div><label class="block text-sm">Com quem falou?</label><input type="text" id="visit-contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
                         <div><label class="block text-sm">Nome e justificativa do responsável:</label><textarea id="visit-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
-                        <div><label class="block text-sm">Observações:</label><textarea id="visit-obs" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
                         <div><span class="block text-sm">Estudante retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-returned" value="yes"> Sim</label> <label><input type="radio" name="visit-returned" value="no"> Não</label></div></div>
+                        <div><label class="block text-sm">Observações:</label><textarea id="visit-obs" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
                     </div>
                     <div id="group-encaminhamento_ct" class="dynamic-field-group hidden space-y-4">
                         <div><label class="block text-sm">Data do envio ao C.T.:</label><input type="date" id="ct-sent-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
@@ -638,7 +635,7 @@
                 })
                 .sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
 
-            if (filtered.length === 0) {
+            if (filtered.length === 0 && state.filterOccurrences === '') {
                 dom.emptyStateOccurrences.classList.remove('hidden');
                 dom.occurrencesListDiv.innerHTML = '';
             } else {
@@ -868,7 +865,72 @@
             const findAction = (type) => studentActions.find(a => a.actionType === type) || {};
             const t1 = findAction('tentativa_1'), t2 = findAction('tentativa_2'), t3 = findAction('tentativa_3'), visita = findAction('visita'), ct = findAction('encaminhamento_ct'), dev = findAction('devolutiva_ct');
 
-            const fichaHTML = `<div class="space-y-4 text-sm"><div class="text-center border-b pb-4"><h2 class="text-lg font-bold uppercase">${config.schoolName}</h2><h3 class="font-semibold mt-1">Ficha de Acompanhamento da Busca Ativa</h3></div><div class="border rounded-md p-3"><p><strong>Nome:</strong> ${studentData.name}</p><p><strong>Ano/Ciclo:</strong> ${studentData.class || ''}</p></div><div class="border rounded-md p-3 space-y-3"><h4 class="font-semibold text-base">1) Contato com Responsável</h4><div class="pl-4"><p><strong>1º Contato:</strong> Dia ${formatDate(t1.contactDate)}</p><p><strong>Justificativa:</strong> ${formatText(t1.contactReason)}</p><p><strong>Retornou?</strong> ${t1.contactReturned === 'yes' ? 'Sim' : t1.contactReturned === 'no' ? 'Não' : ''}</p></div><div class="pl-4 border-t pt-2"><p><strong>2º Contato:</strong> Dia ${formatDate(t2.contactDate)}</p><p><strong>Justificativa:</strong> ${formatText(t2.contactReason)}</p><p><strong>Retornou?</strong> ${t2.contactReturned === 'yes' ? 'Sim' : t2.contactReturned === 'no' ? 'Não' : ''}</p></div><div class="pl-4 border-t pt-2"><p><strong>3º Contato:</strong> Dia ${formatDate(t3.contactDate)}</p><p><strong>Justificativa:</strong> ${formatText(t3.contactReason)}</p><p><strong>Retornou?</strong> ${t3.contactReturned === 'yes' ? 'Sim' : t3.contactReturned === 'no' ? 'Não' : ''}</p></div></div><div class="border rounded-md p-3 space-y-2"><h4 class="font-semibold text-base">2) Visita / Contato In Loco</h4><p><strong>Dia:</strong> ${formatDate(visita.visitDate)}</p><p><strong>Justificativa:</strong> ${formatText(visita.visitReason)}</p><p><strong>Retornou?</strong> ${visita.visitReturned === 'yes' ? 'Sim' : visita.visitReturned === 'no' ? 'Não' : ''}</p></div><div class="border rounded-md p-3 space-y-2"><h4 class="font-semibold text-base">3) Encaminhamento ao Conselho Tutelar</h4><p><strong>Data do envio:</strong> ${formatDate(ct.ctSentDate)}</p><p><strong>Devolutiva:</strong> ${formatText(dev.ctFeedback)}</p><p><strong>Retornou?</strong> ${dev.ctReturned === 'yes' ? 'Sim' : dev.ctReturned === 'no' ? 'Não' : ''}</p><p><strong>Parecer BAE:</strong> ${formatText(dev.ctParecer)}</p></div></div>`;
+            const fichaHTML = `
+                <div class="space-y-4 text-sm">
+                    <div class="text-center border-b pb-4">
+                        <h2 class="text-lg font-bold uppercase">${config.schoolName}</h2>
+                        <h3 class="font-semibold mt-1">Ficha de Acompanhamento da Busca Ativa</h3>
+                    </div>
+                    <div class="border rounded-md p-3">
+                        <p><strong>Nome:</strong> ${studentData.name}</p>
+                        <p><strong>Ano/Ciclo:</strong> ${studentData.class || ''}</p>
+                    </div>
+
+                    <div class="border rounded-md p-3 space-y-3">
+                        <h4 class="font-semibold text-base">1) Tentativas de contato com o responsável pelo estudante (ligações, whatsApp ou carta ao responsável)</h4>
+                        <div class="pl-4">
+                            <p><strong>1º Contato:</strong> Dia ${formatDate(t1.contactDate)}</p>
+                            <p><strong>Com quem falou?</strong> ${formatText(t1.contactPerson)}</p>
+                            <p><strong>Conseguiu contato?</strong> ${t1.contactSucceeded === 'yes' ? 'Sim' : t1.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                            <p><strong>Justificativa:</strong> ${formatText(t1.contactReason)}</p>
+                        </div>
+                        <div class="pl-4 border-t pt-2">
+                            <p><strong>2º Contato:</strong> Dia ${formatDate(t2.contactDate)}</p>
+                            <p><strong>Com quem falou?</strong> ${formatText(t2.contactPerson)}</p>
+                            <p><strong>Conseguiu contato?</strong> ${t2.contactSucceeded === 'yes' ? 'Sim' : t2.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                            <p><strong>Justificativa:</strong> ${formatText(t2.contactReason)}</p>
+                        </div>
+                        <div class="pl-4 border-t pt-2">
+                            <p><strong>3º Contato:</strong> Dia ${formatDate(t3.contactDate)}</p>
+                             <p><strong>Com quem falou?</strong> ${formatText(t3.contactPerson)}</p>
+                            <p><strong>Conseguiu contato?</strong> ${t3.contactSucceeded === 'yes' ? 'Sim' : t3.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                            <p><strong>Justificativa:</strong> ${formatText(t3.contactReason)}</p>
+                        </div>
+                    </div>
+
+                    <div class="border rounded-md p-3 space-y-2">
+                        <h4 class="font-semibold text-base">2) Contato in loco/Conversa com o responsável</h4>
+                        <p><strong>Nome do agente que realizou a visita:</strong> ${formatText(visita.visitAgent)}</p>
+                        <p><strong>Dia:</strong> ${formatDate(visita.visitDate)}</p>
+                        <p><strong>Com quem falou?</strong> ${formatText(visita.visitContactPerson)}</p>
+                        <p><strong>Justificativa:</strong> ${formatText(visita.visitReason)}</p>
+                        <p><strong>Retornou?</strong> ${visita.visitReturned === 'yes' ? 'Sim' : visita.visitReturned === 'no' ? 'Não' : ''}</p>
+                        <p><strong>Observação:</strong> ${formatText(visita.visitObs)}</p>
+                    </div>
+
+                    <div class="border rounded-md p-3 space-y-2">
+                        <h4 class="font-semibold text-base">3) Encaminhamento ao Conselho Tutelar</h4>
+                        <p><strong>Data do envio:</strong> ${formatDate(ct.ctSentDate)}</p>
+                        <p><strong>Devolutiva:</strong> ${formatText(dev.ctFeedback)}</p>
+                        <p><strong>Retornou?</strong> ${dev.ctReturned === 'yes' ? 'Sim' : dev.ctReturned === 'no' ? 'Não' : ''}</p>
+                    </div>
+
+                     <div class="border rounded-md p-3 space-y-2">
+                        <h4 class="font-semibold text-base">4) Análise</h4>
+                        <p><strong>Parecer da BAE:</strong> ${formatText(dev.ctParecer)}</p>
+                    </div>
+                    
+                    <div class="signature-block pt-16 mt-8 space-y-12">
+                        <div class="text-center w-2/3 mx-auto">
+                            <div class="border-t border-gray-400"></div>
+                            <p class="mt-1">Diretor(a)</p>
+                        </div>
+                         <div class="text-center w-2/3 mx-auto">
+                            <div class="border-t border-gray-400"></div>
+                            <p class="mt-1">Coordenador(a) Pedagógico(a)</p>
+                        </div>
+                    </div>
+                </div>`;
             document.getElementById('report-view-title').textContent = "Ficha Consolidada de Busca Ativa";
             document.getElementById('report-view-content').innerHTML = fichaHTML;
             openModal(dom.reportViewModalBackdrop);
@@ -967,8 +1029,10 @@
                             data.contactDate = document.getElementById('contact-date').value || null;
                             data.contactPerson = document.getElementById('contact-person').value || null;
                             data.contactReason = document.getElementById('contact-reason').value || null;
-                            const contactRadio = document.querySelector('input[name="contact-returned"]:checked');
-                            data.contactReturned = contactRadio ? contactRadio.value : null;
+                            const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
+                            data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
+                            const contactReturnedRadio = document.querySelector('input[name="contact-returned"]:checked');
+                            data.contactReturned = contactReturnedRadio ? contactReturnedRadio.value : null;
                             break;
                         case 'visita':
                             data.periodoFaltasStart = document.getElementById('visit-absence-start-date').value || null;
@@ -976,6 +1040,7 @@
                             data.absenceCount = document.getElementById('visit-absence-count').value || null;
                             data.visitAgent = document.getElementById('visit-agent').value || null;
                             data.visitDate = document.getElementById('visit-date').value || null;
+                            data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
                             data.visitReason = document.getElementById('visit-reason').value || null;
                             data.visitObs = document.getElementById('visit-obs').value || null;
                             const visitRadio = document.querySelector('input[name="visit-returned"]:checked');
@@ -1067,6 +1132,7 @@
                                 document.getElementById('contact-date').value = data.contactDate || '';
                                 document.getElementById('contact-person').value = data.contactPerson || '';
                                 document.getElementById('contact-reason').value = data.contactReason || '';
+                                if(data.contactSucceeded) document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).checked = true;
                                 if(data.contactReturned) document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`).checked = true;
                                 break;
                             case 'visita':
@@ -1075,6 +1141,7 @@
                                 document.getElementById('visit-absence-count').value = data.absenceCount || '';
                                 document.getElementById('visit-agent').value = data.visitAgent || '';
                                 document.getElementById('visit-date').value = data.visitDate || '';
+                                document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
                                 document.getElementById('visit-reason').value = data.visitReason || '';
                                 document.getElementById('visit-obs').value = data.visitObs || '';
                                 if (data.visitReturned) document.querySelector(`input[name="visit-returned"][value="${data.visitReturned}"]`).checked = true;
@@ -1412,10 +1479,16 @@
 
             setupEventListeners();
             
-            // Setup para a busca de ocorrências que apenas filtra a lista
-            setupAutocomplete('search-occurrences', 'occurrence-student-suggestions', null); 
+            setupAutocomplete('search-occurrences', 'occurrence-student-suggestions', (student) => {
+                dom.occurrenceForm.reset();
+                document.getElementById('occurrence-id').value = '';
+                document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
+                document.getElementById('student-name').value = student.name;
+                document.getElementById('student-class').value = student.class;
+                document.getElementById('occurrence-date').valueAsDate = new Date();
+                openModal(dom.occurrenceModal);
+            }); 
 
-            // Setup para a busca de busca ativa, que abre o modal de ação
             setupAutocomplete('search-absences', 'absence-student-suggestions', (student) => {
                 dom.absenceForm.reset();
                 document.getElementById('absence-id').value = '';
@@ -1426,21 +1499,11 @@
                 const nextAction = determineNextActionForStudent(student.matricula);
                 document.getElementById('action-type').value = nextAction;
                 document.getElementById('action-type-display').value = actionDisplayTitles[nextAction] || '';
-                document.getElementById('action-type').dispatchEvent(new Event('change'));
+                
+                const event = new Event('change');
+                document.getElementById('action-type').dispatchEvent(event);
                 
                 openModal(dom.absenceModal);
-            });
-            
-            // Novo setup para a busca de aluno ao criar ocorrência
-            setupAutocomplete('occurrence-student-search-input', 'occurrence-student-search-suggestions', (student) => {
-                closeModal(dom.occurrenceSearchModal);
-                dom.occurrenceForm.reset();
-                document.getElementById('occurrence-id').value = '';
-                document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
-                document.getElementById('student-name').value = student.name;
-                document.getElementById('student-class').value = student.class;
-                document.getElementById('occurrence-date').valueAsDate = new Date();
-                openModal(dom.occurrenceModal);
             });
         });
     </script>
