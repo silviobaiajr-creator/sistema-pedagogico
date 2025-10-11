@@ -640,7 +640,7 @@
         const getStudentProcessInfo = (studentId) => {
             const studentActions = state.absences
                 .filter(a => a.studentId === studentId)
-                .sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
+                .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
 
             let lastAnaliseIndex = -1;
             for (let i = studentActions.length - 1; i >= 0; i--) {
