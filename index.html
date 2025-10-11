@@ -1151,10 +1151,24 @@
                     return;
                 }
 
-                try { 
-                    id ? await updateRecord('absence', id, data) : await addRecord('absence', data); 
-                    showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`); 
-                    closeModal(dom.absenceModal); 
+                try {
+                    const isNewRecord = !id;
+                    const savedRecordId = id || (await addRecord('absence', data)).id;
+                    if(isNewRecord) {
+                         data.id = savedRecordId;
+                         state.absences.push(data); // Adicionar localmente para a verificação de retorno funcionar imediatamente
+                    }
+                   
+                    showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
+                    
+                    const studentReturned = (data.actionType.startsWith('tentativa') && data.contactReturned === 'yes') || (data.actionType === 'visita' && data.visitReturned === 'yes');
+
+                    closeModal(dom.absenceModal);
+
+                    if (studentReturned) {
+                        setTimeout(() => openAbsenceModalForStudent(student, 'analise'), 350);
+                    }
+
                 } catch (error) { 
                     console.error("Erro ao salvar ação:", error); 
                     showToast('Erro ao salvar.'); 
@@ -1196,54 +1210,7 @@
                     const data = state.absences.find(a => a.id === id);
                     const student = state.students.find(s => s.matricula === data.studentId);
                     if (data && student) {
-                        dom.absenceForm.reset();
-                        document.getElementById('absence-modal-title').innerText = 'Editar Ação de Busca Ativa';
-                        
-                        document.getElementById('action-type').value = data.actionType || '';
-                        document.getElementById('action-type-display').value = actionDisplayTitles[data.actionType] || '';
-                        document.getElementById('action-type').dispatchEvent(new Event('change'));
-
-                        document.getElementById('absence-id').value = data.id || '';
-                        document.getElementById('absence-student-name').value = student.name || '';
-                        document.getElementById('absence-student-class').value = student.class || '';
-                        document.getElementById('absence-student-endereco').value = student.endereco || '';
-                        document.getElementById('absence-student-contato').value = student.contato || '';
-
-                        document.getElementById('absence-start-date').value = data.periodoFaltasStart || '';
-                        document.getElementById('absence-end-date').value = data.periodoFaltasEnd || '';
-                        document.getElementById('absence-count').value = data.absenceCount || '';
-
-                        switch (data.actionType) {
-                            case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
-                                document.getElementById('meeting-date').value = data.meetingDate || '';
-                                document.getElementById('meeting-time').value = data.meetingTime || '';
-                                document.getElementById('contact-date').value = data.contactDate || '';
-                                document.getElementById('contact-person').value = data.contactPerson || '';
-                                document.getElementById('contact-reason').value = data.contactReason || '';
-                                if(data.contactSucceeded) document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).checked = true;
-                                toggleFamilyContactFields(data.contactSucceeded === 'yes');
-                                if(data.contactReturned) document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`).checked = true;
-                                break;
-                            case 'visita':
-                                document.getElementById('visit-agent').value = data.visitAgent || '';
-                                document.getElementById('visit-date').value = data.visitDate || '';
-                                document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
-                                document.getElementById('visit-reason').value = data.visitReason || '';
-                                document.getElementById('visit-obs').value = data.visitObs || '';
-                                if(data.visitSucceeded) document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).checked = true;
-                                toggleVisitContactFields(data.visitSucceeded === 'yes');
-                                if (data.visitReturned) document.querySelector(`input[name="visit-returned"][value="${data.visitReturned}"]`).checked = true;
-                                break;
-                            case 'encaminhamento_ct':
-                                document.getElementById('ct-sent-date').value = data.ctSentDate || '';
-                                document.getElementById('ct-feedback').value = data.ctFeedback || '';
-                                if (data.ctReturned) document.querySelector(`input[name="ct-returned"][value="${data.ctReturned}"]`).checked = true;
-                                break;
-                            case 'analise':
-                                document.getElementById('ct-parecer').value = data.ctParecer || '';
-                                break;
-                        }
-                        openModal(dom.absenceModal);
+                        openAbsenceModalForStudent(student, data.actionType, data);
                     }
                 }
                 else if (button.classList.contains('delete-absence-btn')) { state.recordToDelete = { id, type: 'absence' }; openModal(dom.deleteConfirmModal); }
@@ -1608,22 +1575,7 @@
             }); 
 
             setupAutocomplete('search-absences', 'absence-student-suggestions', (student) => {
-                dom.absenceForm.reset();
-                document.getElementById('absence-id').value = '';
-                document.getElementById('absence-modal-title').innerText = 'Registar Ação de Busca Ativa';
-                document.getElementById('absence-student-name').value = student.name;
-                document.getElementById('absence-student-class').value = student.class;
-                document.getElementById('absence-student-endereco').value = student.endereco || '';
-                document.getElementById('absence-student-contato').value = student.contato || '';
-                
-                const nextAction = determineNextActionForStudent(student.matricula);
-                document.getElementById('action-type').value = nextAction;
-                document.getElementById('action-type-display').value = actionDisplayTitles[nextAction] || '';
-                
-                const event = new Event('change');
-                document.getElementById('action-type').dispatchEvent(event);
-                
-                openModal(dom.absenceModal);
+                openAbsenceModalForStudent(student);
             });
         });
     </script>
