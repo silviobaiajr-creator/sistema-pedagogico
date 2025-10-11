@@ -312,6 +312,14 @@
                         <label for="absence-student-class" class="block text-sm font-medium text-gray-700">Ano/Ciclo</label>
                         <input type="text" id="absence-student-class" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" readonly>
                     </div>
+                    <div class="md:col-span-2">
+                        <label for="absence-student-endereco" class="block text-sm font-medium text-gray-700">Endereço</label>
+                        <input type="text" id="absence-student-endereco" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" readonly>
+                    </div>
+                    <div>
+                        <label for="absence-student-contato" class="block text-sm font-medium text-gray-700">Contato</label>
+                        <input type="text" id="absence-student-contato" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" readonly>
+                    </div>
                 </div>
                 <div>
                     <label for="action-type-display" class="block text-sm font-medium text-gray-700">Tipo de Ação</label>
@@ -320,11 +328,14 @@
                 </div>
                 <div id="dynamic-fields-container" class="space-y-4">
                     <div id="group-tentativas" class="dynamic-field-group hidden space-y-4">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                             <div><label for="contact-absence-start-date" class="block text-sm">Início do Período</label><input type="date" id="contact-absence-start-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                             <div><label for="contact-absence-end-date" class="block text-sm">Fim do Período</label><input type="date" id="contact-absence-end-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                        <div class="border rounded-md p-3 space-y-2 bg-gray-50">
+                             <h5 class="text-sm font-semibold text-gray-600">Faltas apuradas no período de:</h5>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div><label for="contact-absence-start-date" class="block text-sm">Início</label><input type="date" id="contact-absence-start-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                                <div><label for="contact-absence-end-date" class="block text-sm">Fim</label><input type="date" id="contact-absence-end-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                            </div>
+                            <div class="pt-2"><label for="absence-count" class="block text-sm">Nº de Faltas</label><input type="number" id="absence-count" class="mt-1 block w-full border-gray-300 rounded-md"></div>
                         </div>
-                        <div><label for="absence-count" class="block text-sm">Nº de Faltas no Período</label><input type="number" id="absence-count" class="mt-1 block w-full border-gray-300 rounded-md"></div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div><label for="meeting-date" class="block text-sm">Data do Comparecimento</label><input type="date" id="meeting-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
                             <div><label for="meeting-time" class="block text-sm">Horário do Comparecimento</label><input type="time" id="meeting-time" class="mt-1 w-full border-gray-300 rounded-md"></div>
@@ -348,11 +359,14 @@
                         </div>
                     </div>
                     <div id="group-visita" class="dynamic-field-group hidden space-y-4">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                             <div><label for="visit-absence-start-date" class="block text-sm">Início do Período</label><input type="date" id="visit-absence-start-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                             <div><label for="visit-absence-end-date" class="block text-sm">Fim do Período</label><input type="date" id="visit-absence-end-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                         <div class="border rounded-md p-3 space-y-2 bg-gray-50">
+                             <h5 class="text-sm font-semibold text-gray-600">Faltas apuradas no período de:</h5>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div><label for="visit-absence-start-date" class="block text-sm">Início</label><input type="date" id="visit-absence-start-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                                <div><label for="visit-absence-end-date" class="block text-sm">Fim</label><input type="date" id="visit-absence-end-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                            </div>
+                            <div class="pt-2"><label for="visit-absence-count" class="block text-sm">Nº de Faltas</label><input type="number" id="visit-absence-count" class="mt-1 block w-full border-gray-300 rounded-md"></div>
                         </div>
-                        <div><label for="visit-absence-count" class="block text-sm">Nº de Faltas no Período</label><input type="number" id="visit-absence-count" class="mt-1 block w-full border-gray-300 rounded-md"></div>
                         <div><label class="block text-sm">Nome do agente da visita:</label><input type="text" id="visit-agent" class="mt-1 block w-full border-gray-300 rounded-md"></div>
                         <div><label class="block text-sm">Dia da visita:</label><input type="date" id="visit-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
                          <div><label class="block text-sm">Com quem falou?</label><input type="text" id="visit-contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
@@ -386,7 +400,7 @@
                 <!-- Formulário para Adicionar/Editar Aluno -->
                 <div class="bg-gray-50 p-4 rounded-lg border">
                     <h4 id="student-form-title" class="text-lg font-semibold mb-2">Adicionar Novo Aluno</h4>
-                    <form id="student-form" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
+                    <form id="student-form" class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
                         <input type="hidden" id="student-id-input">
                         <div>
                             <label for="student-matricula-input" class="block text-sm font-medium text-gray-700">Matrícula</label>
@@ -401,6 +415,14 @@
                             <input type="text" id="student-class-input" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
                         </div>
                         <div>
+                            <label for="student-contato-input" class="block text-sm font-medium text-gray-700">Contato</label>
+                            <input type="text" id="student-contato-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label for="student-endereco-input" class="block text-sm font-medium text-gray-700">Endereço</label>
+                            <input type="text" id="student-endereco-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
+                        </div>
+                        <div>
                             <label for="student-resp1-input" class="block text-sm font-medium text-gray-700">Responsável 1</label>
                             <input type="text" id="student-resp1-input" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
                         </div>
@@ -408,7 +430,7 @@
                             <label for="student-resp2-input" class="block text-sm font-medium text-gray-700">Responsável 2</label>
                             <input type="text" id="student-resp2-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
                         </div>
-                        <div class="flex space-x-2">
+                        <div class="flex space-x-2 sm:col-span-2 self-end">
                              <button type="submit" id="save-student-btn" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Salvar</button>
                              <button type="button" id="cancel-edit-student-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300 hidden">Cancelar</button>
                         </div>
@@ -439,7 +461,7 @@
                 <!-- Importação CSV -->
                 <div class="border-t pt-6">
                      <h4 class="text-lg font-semibold mb-2">Importar em Massa</h4>
-                    <p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`, `turma`, `resp1`, `resp2`. Isto **substituirá** a lista de alunos atual.</p>
+                    <p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`, `turma`, `endereco`, `contato`, `resp1`, `resp2`. Isto **substituirá** a lista de alunos atual.</p>
                     <div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                         <input type="file" id="csv-file" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
                         <button type="button" id="upload-csv-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 transition duration-300 whitespace-nowrap">Carregar CSV</button>
@@ -1114,6 +1136,9 @@
                         document.getElementById('absence-id').value = data.id || '';
                         document.getElementById('absence-student-name').value = student.name || '';
                         document.getElementById('absence-student-class').value = student.class || '';
+                        document.getElementById('absence-student-endereco').value = student.endereco || '';
+                        document.getElementById('absence-student-contato').value = student.contato || '';
+
                         switch (data.actionType) {
                             case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
                                 document.getElementById('contact-absence-start-date').value = data.periodoFaltasStart || '';
@@ -1195,13 +1220,13 @@
                     skipEmptyLines: true,
                     transformHeader: header => header.toLowerCase().trim().replace(/\s+/g, ''),
                     complete: async (results) => {
-                        const requiredHeaders = ['matricula', 'nome', 'turma', 'resp1', 'resp2'];
+                        const requiredHeaders = ['matricula', 'nome', 'turma', 'endereco', 'contato', 'resp1', 'resp2'];
                         const fileHeaders = results.meta.fields;
                         
                         const hasAllHeaders = requiredHeaders.every(h => fileHeaders.includes(h));
 
                         if (!hasAllHeaders) {
-                            feedbackDiv.innerHTML = `<p class="text-red-500">Erro: O ficheiro CSV deve conter as colunas: matricula, nome, turma, resp1, resp2.</p>`;
+                            feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Faltam colunas. O ficheiro CSV deve conter: matricula, nome, turma, endereco, contato, resp1, resp2.</p>`;
                             return;
                         }
 
@@ -1209,6 +1234,8 @@
                             matricula: row.matricula || '',
                             name: row.nome || '',
                             class: row.turma || '',
+                            endereco: row.endereco || '',
+                            contato: row.contato || '',
                             resp1: row.resp1 || '',
                             resp2: row.resp2 || ''
                         })).filter(s => s.name && s.matricula);
@@ -1234,6 +1261,8 @@
                 const matricula = document.getElementById('student-matricula-input').value.trim();
                 const name = document.getElementById('student-name-input').value.trim();
                 const studentClass = document.getElementById('student-class-input').value.trim();
+                const endereco = document.getElementById('student-endereco-input').value.trim();
+                const contato = document.getElementById('student-contato-input').value.trim();
                 const resp1 = document.getElementById('student-resp1-input').value.trim();
                 const resp2 = document.getElementById('student-resp2-input').value.trim();
 
@@ -1242,7 +1271,7 @@
                     return;
                 }
                 
-                const studentData = { matricula, name, class: studentClass, resp1, resp2 };
+                const studentData = { matricula, name, class: studentClass, endereco, contato, resp1, resp2 };
                 
                 let updatedList = [...state.students];
 
@@ -1349,6 +1378,8 @@
                         document.getElementById('student-matricula-input').classList.add('bg-gray-100');
                         document.getElementById('student-name-input').value = student.name;
                         document.getElementById('student-class-input').value = student.class;
+                        document.getElementById('student-endereco-input').value = student.endereco || '';
+                        document.getElementById('student-contato-input').value = student.contato || '';
                         document.getElementById('student-resp1-input').value = student.resp1;
                         document.getElementById('student-resp2-input').value = student.resp2;
                         document.getElementById('cancel-edit-student-btn').classList.remove('hidden');
@@ -1487,6 +1518,8 @@
                 document.getElementById('absence-modal-title').innerText = 'Registar Ação de Busca Ativa';
                 document.getElementById('absence-student-name').value = student.name;
                 document.getElementById('absence-student-class').value = student.class;
+                document.getElementById('absence-student-endereco').value = student.endereco || '';
+                document.getElementById('absence-student-contato').value = student.contato || '';
                 
                 const nextAction = determineNextActionForStudent(student.matricula);
                 document.getElementById('action-type').value = nextAction;
