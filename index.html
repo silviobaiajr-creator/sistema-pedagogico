@@ -443,7 +443,8 @@
             db: null,
             userId: null,
             unsubscribeOccurrences: null,
-            unsubscribeAbsences: null
+            unsubscribeAbsences: null,
+            verificationTimer: null
         };
 
         const dom = {
@@ -640,7 +641,6 @@
         const getCollectionRef = (type) => {
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             const collectionName = type === 'occurrence' ? 'occurrences' : 'absences';
-            // MUDANÇA CRÍTICA: Aponta para uma coleção pública partilhada
             return collection(db, `/artifacts/${appId}/public/data/${collectionName}`);
         };
         const addRecord = (type, data) => addDoc(getCollectionRef(type), { ...data, createdAt: serverTimestamp() });
@@ -1277,14 +1277,15 @@
             state.db = db;
 
             onAuthStateChanged(auth, async user => {
-                detachFirestoreListeners();
+                if(state.verificationTimer) clearInterval(state.verificationTimer);
+
                 if (user) {
                     await user.reload();
                     if(user.emailVerified) {
                         state.userId = user.uid;
                         dom.userEmail.textContent = user.email;
                         dom.loginScreen.classList.add('hidden');
-                        dom.verifyEmailScreen.classList.add('hidden');
+                        dom.verifyEmailScreen.style.display = 'none';
                         dom.mainContent.classList.remove('hidden');
                         dom.userProfile.classList.remove('hidden');
                         await setupFirestoreListeners();
@@ -1293,6 +1294,13 @@
                         dom.loginScreen.classList.add('hidden');
                         dom.mainContent.classList.add('hidden');
                         dom.verifyEmailScreen.style.display = 'flex';
+                        
+                        state.verificationTimer = setInterval(async () => {
+                            await auth.currentUser.reload();
+                            if (auth.currentUser.emailVerified) {
+                                window.location.reload();
+                            }
+                        }, 5000);
                     }
                 } else {
                     state.userId = null;
