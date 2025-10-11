@@ -765,8 +765,7 @@
                 .filter(a => {
                     const student = state.students.find(s => s.matricula === a.studentId);
                     return student && student.name.toLowerCase().startsWith(state.filterAbsences.toLowerCase());
-                })
-                .sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
+                });
 
             if (filtered.length === 0 && state.filterAbsences === '') {
                 dom.emptyStateAbsences.classList.remove('hidden');
@@ -1135,7 +1134,7 @@
             document.getElementById('action-type').dispatchEvent(new Event('change'));
 
             // Lógica para persistir dados de faltas
-            const absenceFieldsContainer = dom.absenceForm.querySelector('.bg-gray-50');
+            const absenceFieldsContainer = dom.absenceForm.querySelector('#absence-form > .bg-gray-50');
             const absenceInputs = absenceFieldsContainer.querySelectorAll('input');
             
             const studentActions = state.absences.filter(a => a.studentId === student.matricula && a.processId === (data?.processId || processId));
