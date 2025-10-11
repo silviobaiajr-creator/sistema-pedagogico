@@ -653,8 +653,10 @@
             const currentCycleActions = studentActions.slice(lastAnaliseIndex + 1);
             
             let processId;
-            if (currentCycleActions.length > 0 && currentCycleActions[0].processId) {
-                processId = currentCycleActions[0].processId;
+            const existingProcessAction = currentCycleActions.find(a => a.processId);
+
+            if (existingProcessAction) {
+                processId = existingProcessAction.processId;
             } else {
                 const allProcessIdsForStudent = studentActions
                     .map(a => a.processId)
