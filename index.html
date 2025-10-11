@@ -636,6 +636,11 @@
             const studentActions = state.absences.filter(a => a.studentId === studentId);
             const existingActionTypes = new Set(studentActions.map(a => a.actionType));
 
+            // NOVA LÓGICA: Se o processo foi encerrado com uma "Análise", recomeça.
+            if (existingActionTypes.has('analise')) {
+                return 'tentativa_1';
+            }
+
             for (const action of sequence) {
                 if (!existingActionTypes.has(action)) {
                     return action; // Retorna a primeira ação da sequência que ainda não foi realizada
@@ -1048,12 +1053,12 @@
             // Lógica para persistir dados de faltas
             const absenceFieldsContainer = dom.absenceForm.querySelector('.bg-gray-50');
             const absenceInputs = absenceFieldsContainer.querySelectorAll('input');
-            const firstAttemptData = state.absences.find(a => a.studentId === student.matricula && a.actionType === 'tentativa_1');
+            const firstAbsenceRecord = state.absences.find(a => a.studentId === student.matricula && a.periodoFaltasStart);
 
-            if (finalActionType !== 'tentativa_1' && firstAttemptData) {
-                document.getElementById('absence-start-date').value = firstAttemptData.periodoFaltasStart || '';
-                document.getElementById('absence-end-date').value = firstAttemptData.periodoFaltasEnd || '';
-                document.getElementById('absence-count').value = firstAttemptData.absenceCount || '';
+            if (finalActionType !== 'tentativa_1' && firstAbsenceRecord) {
+                document.getElementById('absence-start-date').value = firstAbsenceRecord.periodoFaltasStart || '';
+                document.getElementById('absence-end-date').value = firstAbsenceRecord.periodoFaltasEnd || '';
+                document.getElementById('absence-count').value = firstAbsenceRecord.absenceCount || '';
                 absenceInputs.forEach(input => input.readOnly = true);
             } else {
                 absenceInputs.forEach(input => input.readOnly = false);
