@@ -292,6 +292,24 @@
             </form>
         </div>
     </div>
+
+    <!-- NOVO MODAL DE BUSCA DE ALUNO PARA BUSCA ATIVA -->
+    <div id="student-search-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg modal-content transform scale-95 opacity-0">
+            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
+                <h3 class="text-xl font-semibold">Selecionar Aluno para Ação</h3>
+                <button id="close-student-search-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+            </div>
+            <div class="p-6">
+                <div class="relative">
+                    <label for="student-search-input" class="block text-sm font-medium text-gray-700">Buscar Aluno(a)</label>
+                    <input type="text" id="student-search-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2" required autocomplete="off" placeholder="Digite o nome do aluno...">
+                    <div id="student-search-suggestions" class="autocomplete-suggestions hidden"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="absence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0 max-h-[95vh] flex flex-col">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -303,8 +321,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div class="relative">
                         <label for="absence-student-name" class="block text-sm font-medium text-gray-700">Nome do Aluno(a)</label>
-                        <input type="text" id="absence-student-name" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required autocomplete="off">
-                        <div id="absence-student-name-suggestions" class="autocomplete-suggestions hidden"></div>
+                        <input type="text" id="absence-student-name" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" required readonly>
                     </div>
                      <div>
                         <label for="absence-student-class" class="block text-sm font-medium text-gray-700">Ano/Ciclo</label>
@@ -493,6 +510,7 @@
             occurrenceModal: document.getElementById('occurrence-modal'),
             absenceModal: document.getElementById('absence-modal'),
             studentsModal: document.getElementById('students-modal'),
+            studentSearchModal: document.getElementById('student-search-modal'),
             notificationModalBackdrop: document.getElementById('notification-modal-backdrop'),
             deleteConfirmModal: document.getElementById('delete-confirm-modal'),
             reportGeneratorModal: document.getElementById('report-generator-modal'),
@@ -565,31 +583,18 @@
             return enhancedText;
         };
         
-        const setNextAbsenceAction = (studentId) => {
-            if (document.getElementById('absence-id').value) {
-                return;
-            }
-
+        const determineNextActionForStudent = (studentId) => {
+            const sequence = ['tentativa_1', 'tentativa_2', 'tentativa_3', 'visita', 'encaminhamento_ct', 'devolutiva_ct'];
             const studentActions = state.absences.filter(a => a.studentId === studentId);
-            const attemptCount = studentActions.filter(a => a.actionType.startsWith('tentativa')).length;
-            
-            const actionTypeSelect = document.getElementById('action-type');
-            let nextAction = '';
+            const existingActionTypes = new Set(studentActions.map(a => a.actionType));
 
-            if (attemptCount === 0) {
-                nextAction = 'tentativa_1';
-            } else if (attemptCount === 1) {
-                nextAction = 'tentativa_2';
-            } else if (attemptCount === 2) {
-                nextAction = 'tentativa_3';
-            } else {
-                nextAction = 'visita';
+            for (const action of sequence) {
+                if (!existingActionTypes.has(action)) {
+                    return action; // Retorna a primeira ação da sequência que ainda não foi realizada
+                }
             }
-            
-            if (Array.from(actionTypeSelect.options).some(opt => opt.value === nextAction)) {
-                 actionTypeSelect.value = nextAction;
-                 actionTypeSelect.dispatchEvent(new Event('change'));
-            }
+
+            return sequence[sequence.length - 1]; // Se todas já foram feitas, retorna a última (Parecer Final)
         };
 
         const shareContent = async (title, text) => {
@@ -874,12 +879,13 @@
                 openModal(dom.occurrenceModal); 
             });
 
-            document.getElementById('add-absence-btn').addEventListener('click', () => { 
-                dom.absenceForm.reset(); 
-                document.getElementById('absence-id').value = ''; 
-                document.getElementById('absence-modal-title').innerText = 'Registar Ação de Busca Ativa'; 
-                document.getElementById('action-type').dispatchEvent(new Event('change')); 
-                openModal(dom.absenceModal); 
+            document.getElementById('add-absence-btn').addEventListener('click', () => {
+                const searchInput = document.getElementById('student-search-input');
+                searchInput.value = '';
+                const suggestionsContainer = document.getElementById('student-search-suggestions');
+                suggestionsContainer.innerHTML = '';
+                suggestionsContainer.classList.add('hidden');
+                openModal(dom.studentSearchModal);
             });
 
             // Listeners dos botões de partilha
@@ -905,6 +911,7 @@
             ['close-modal-btn', 'cancel-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.occurrenceModal)));
             ['close-absence-modal-btn', 'cancel-absence-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.absenceModal)));
             ['close-report-generator-btn', 'cancel-report-generator-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.reportGeneratorModal)));
+            document.getElementById('close-student-search-modal-btn').addEventListener('click', () => closeModal(dom.studentSearchModal));
             document.getElementById('close-notification-btn').addEventListener('click', () => closeModal(dom.notificationModalBackdrop));
             document.getElementById('close-report-view-btn').addEventListener('click', () => closeModal(dom.reportViewModalBackdrop));
             document.getElementById('close-ficha-view-btn').addEventListener('click', () => closeModal(dom.fichaViewModalBackdrop));
@@ -1226,13 +1233,7 @@
                         item.textContent = student.name;
                         item.addEventListener('click', () => {
                             input.value = student.name;
-                            if (inputId.startsWith('student-name')) {
-                                document.getElementById('student-class').value = student.class;
-                            } else {
-                                document.getElementById('absence-student-class').value = student.class;
-                                // ATUALIZAÇÃO: Determina a próxima ação de busca ativa automaticamente
-                                setNextAbsenceAction(student.matricula);
-                            }
+                            document.getElementById('student-class').value = student.class;
                             suggestionsContainer.classList.add('hidden');
                         });
                         suggestionsContainer.appendChild(item);
@@ -1243,6 +1244,57 @@
             });
 
              document.addEventListener('click', (e) => {
+                if (!suggestionsContainer.contains(e.target) && e.target !== input) {
+                    suggestionsContainer.classList.add('hidden');
+                }
+            });
+        };
+        
+        const setupStudentSearch = () => {
+            const input = document.getElementById('student-search-input');
+            const suggestionsContainer = document.getElementById('student-search-suggestions');
+
+            input.addEventListener('input', () => {
+                const value = input.value.toLowerCase();
+                suggestionsContainer.innerHTML = '';
+                if (!value) {
+                    suggestionsContainer.classList.add('hidden');
+                    return;
+                }
+                
+                const filteredStudents = state.students.filter(s => s.name.toLowerCase().includes(value)).slice(0, 5);
+                
+                if (filteredStudents.length > 0) {
+                    suggestionsContainer.classList.remove('hidden');
+                    filteredStudents.forEach(student => {
+                        const item = document.createElement('div');
+                        item.classList.add('suggestion-item');
+                        item.textContent = student.name;
+                        item.addEventListener('click', () => {
+                            closeModal(dom.studentSearchModal);
+                            
+                            dom.absenceForm.reset();
+                            document.getElementById('absence-id').value = '';
+                            document.getElementById('absence-modal-title').innerText = 'Registar Ação de Busca Ativa';
+                            
+                            document.getElementById('absence-student-name').value = student.name;
+                            document.getElementById('absence-student-class').value = student.class;
+                            
+                            const nextAction = determineNextActionForStudent(student.matricula);
+                            const actionSelect = document.getElementById('action-type');
+                            actionSelect.value = nextAction;
+                            actionSelect.dispatchEvent(new Event('change'));
+                            
+                            openModal(dom.absenceModal);
+                        });
+                        suggestionsContainer.appendChild(item);
+                    });
+                } else {
+                    suggestionsContainer.classList.add('hidden');
+                }
+            });
+
+            document.addEventListener('click', (e) => {
                 if (!suggestionsContainer.contains(e.target) && e.target !== input) {
                     suggestionsContainer.classList.add('hidden');
                 }
@@ -1399,7 +1451,7 @@
 
             setupEventListeners();
             setupAutocomplete('student-name', 'student-name-suggestions');
-            setupAutocomplete('absence-student-name', 'absence-student-name-suggestions');
+            setupStudentSearch();
         });
     </script>
 </body>
