@@ -84,6 +84,50 @@
 </head>
 <body class="text-gray-800">
 
+    <div id="login-screen" class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+        <div class="w-full max-w-md">
+            <div class="bg-white p-8 rounded-2xl shadow-lg">
+                <div id="login-view">
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2 text-center">Entrar</h1>
+                    <p class="text-gray-500 mb-8 text-center">Aceda à sua conta para continuar.</p>
+                    <form id="login-form" class="space-y-4">
+                        <div>
+                            <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
+                            <input type="email" id="login-email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
+                        </div>
+                        <div>
+                            <label for="login-password" class="block text-sm font-medium text-gray-700">Senha</label>
+                            <input type="password" id="login-password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Entrar</button>
+                    </form>
+                    <p class="text-center text-sm text-gray-500 mt-6">
+                        Não tem uma conta? <button id="show-register-view" class="font-semibold text-indigo-600 hover:underline">Registe-se</button>
+                    </p>
+                </div>
+
+                <div id="register-view" class="hidden">
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2 text-center">Criar Conta</h1>
+                    <p class="text-gray-500 mb-8 text-center">Crie uma nova conta para usar o sistema.</p>
+                    <form id="register-form" class="space-y-4">
+                        <div>
+                            <label for="register-email" class="block text-sm font-medium text-gray-700">Email</label>
+                            <input type="email" id="register-email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
+                        </div>
+                        <div>
+                            <label for="register-password" class="block text-sm font-medium text-gray-700">Senha (mínimo 6 caracteres)</label>
+                            <input type="password" id="register-password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Criar Conta</button>
+                    </form>
+                    <p class="text-center text-sm text-gray-500 mt-6">
+                        Já tem uma conta? <button id="show-login-view" class="font-semibold text-indigo-600 hover:underline">Entrar</button>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="main-content" class="hidden">
         <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
             <!-- Cabeçalho -->
@@ -399,7 +443,7 @@
     <!-- Firebase and App Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signOut, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ************************************************************************************
@@ -435,7 +479,14 @@
         };
 
         const dom = {
+            loginScreen: document.getElementById('login-screen'),
             mainContent: document.getElementById('main-content'),
+            loginView: document.getElementById('login-view'),
+            registerView: document.getElementById('register-view'),
+            showRegisterViewBtn: document.getElementById('show-register-view'),
+            showLoginViewBtn: document.getElementById('show-login-view'),
+            loginForm: document.getElementById('login-form'),
+            registerForm: document.getElementById('register-form'),
             logoutBtn: document.getElementById('logout-btn'),
             userProfile: document.getElementById('user-profile'),
             userEmail: document.getElementById('user-email'),
@@ -807,6 +858,9 @@
         };
         
         const setupEventListeners = () => {
+            dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
+            dom.showLoginViewBtn.addEventListener('click', showLoginView);
+
             dom.tabOccurrences.addEventListener('click', () => { state.activeTab = 'occurrences'; dom.tabOccurrences.classList.add('tab-active'); dom.tabAbsences.classList.remove('tab-active'); dom.tabContentOccurrences.classList.remove('hidden'); dom.tabContentAbsences.classList.add('hidden'); render(); });
             dom.tabAbsences.addEventListener('click', () => { state.activeTab = 'absences'; dom.tabAbsences.classList.add('tab-active'); dom.tabOccurrences.classList.remove('tab-active'); dom.tabContentAbsences.classList.remove('hidden'); dom.tabContentOccurrences.classList.add('hidden'); render(); });
             dom.searchOccurrences.addEventListener('input', (e) => { state.filterOccurrences = e.target.value; render(); });
@@ -884,9 +938,9 @@
             dom.absenceForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const id = document.getElementById('absence-id').value;
-                 const studentName = document.getElementById('absence-student-name').value.trim();
+                const studentName = document.getElementById('absence-student-name').value.trim();
                 const student = state.students.find(s => s.name === studentName);
-                 if (!student) {
+                if (!student) {
                     showToast("Aluno inválido. Por favor, selecione um aluno da lista.");
                     return;
                 }
@@ -895,21 +949,62 @@
                     studentId: student.matricula,
                     actionType 
                 };
-                switch (actionType) {
-                    case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
-                        Object.assign(data, { periodoFaltas: document.getElementById('contact-absence-period').value, absenceCount: document.getElementById('absence-count').value, meetingDate: document.getElementById('meeting-date').value, meetingTime: document.getElementById('meeting-time').value, contactDate: document.getElementById('contact-date').value, contactPerson: document.getElementById('contact-person').value, contactReason: document.getElementById('contact-reason').value });
-                        break;
-                    case 'visita':
-                        Object.assign(data, { periodoFaltas: document.getElementById('visit-absence-period').value, absenceCount: document.getElementById('visit-absence-count').value, visitAgent: document.getElementById('visit-agent').value, visitDate: document.getElementById('visit-date').value, visitReason: document.getElementById('visit-reason').value, visitObs: document.getElementById('visit-obs').value, visitReturned: document.querySelector('input[name="visit-returned"]:checked')?.value || null });
-                        break;
-                    case 'encaminhamento_ct':
-                        data.ctSentDate = document.getElementById('ct-sent-date').value;
-                        break;
-                    case 'devolutiva_ct':
-                        Object.assign(data, { ctFeedback: document.getElementById('ct-feedback').value, ctReturned: document.querySelector('input[name="ct-returned"]:checked')?.value || null, ctParecer: document.getElementById('ct-parecer').value });
-                        break;
+
+                // ===== CORREÇÃO DO BUG "ERRO AO SALVAR" =====
+                // Recolha de dados refatorada para ser mais explícita e robusta.
+                try {
+                    switch (actionType) {
+                        case 'tentativa_1':
+                        case 'tentativa_2':
+                        case 'tentativa_3':
+                            data.periodoFaltas = document.getElementById('contact-absence-period').value || null;
+                            data.absenceCount = document.getElementById('absence-count').value || null;
+                            data.meetingDate = document.getElementById('meeting-date').value || null;
+                            data.meetingTime = document.getElementById('meeting-time').value || null;
+                            data.contactDate = document.getElementById('contact-date').value || null;
+                            data.contactPerson = document.getElementById('contact-person').value || null;
+                            data.contactReason = document.getElementById('contact-reason').value || null;
+                            break;
+                        case 'visita':
+                            data.periodoFaltas = document.getElementById('visit-absence-period').value || null;
+                            data.absenceCount = document.getElementById('visit-absence-count').value || null;
+                            data.visitAgent = document.getElementById('visit-agent').value || null;
+                            data.visitDate = document.getElementById('visit-date').value || null;
+                            data.visitReason = document.getElementById('visit-reason').value || null;
+                            data.visitObs = document.getElementById('visit-obs').value || null;
+                            const visitRadio = document.querySelector('input[name="visit-returned"]:checked');
+                            data.visitReturned = visitRadio ? visitRadio.value : null;
+                            break;
+                        case 'encaminhamento_ct':
+                            data.ctSentDate = document.getElementById('ct-sent-date').value || null;
+                            break;
+                        case 'devolutiva_ct':
+                            data.ctFeedback = document.getElementById('ct-feedback').value || null;
+                            const ctRadio = document.querySelector('input[name="ct-returned"]:checked');
+                            data.ctReturned = ctRadio ? ctRadio.value : null;
+                            data.ctParecer = document.getElementById('ct-parecer').value || null;
+                            break;
+                        default:
+                             if (!actionType) {
+                                showToast("Por favor, selecione um Tipo de Ação.");
+                                return;
+                             }
+                    }
+                } catch (error) {
+                    console.error("Erro ao recolher dados do formulário:", error);
+                    showToast("Erro interno ao ler os campos do formulário.");
+                    return;
                 }
-                try { id ? await updateRecord('absence', id, data) : await addRecord('absence', data); showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`); closeModal(dom.absenceModal); } catch (error) { console.error("Erro ao salvar ação:", error); showToast('Erro ao salvar.'); }
+                // ===== FIM DA CORREÇÃO =====
+
+                try { 
+                    id ? await updateRecord('absence', id, data) : await addRecord('absence', data); 
+                    showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`); 
+                    closeModal(dom.absenceModal); 
+                } catch (error) { 
+                    console.error("Erro ao salvar ação:", error); 
+                    showToast('Erro ao salvar.'); 
+                }
             });
 
             dom.occurrencesListDiv.addEventListener('click', (e) => {
@@ -1217,6 +1312,16 @@
             document.getElementById('student-matricula-input').classList.remove('bg-gray-100');
             document.getElementById('cancel-edit-student-btn').classList.add('hidden');
         };
+        
+        const showLoginView = () => {
+            dom.registerView.classList.add('hidden');
+            dom.loginView.classList.remove('hidden');
+        };
+
+        const showRegisterView = () => {
+            dom.loginView.classList.add('hidden');
+            dom.registerView.classList.remove('hidden');
+        };
 
         // --- INICIALIZAÇÃO ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -1238,6 +1343,7 @@
                 if (user) {
                     state.userId = user.uid;
                     dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
+                    dom.loginScreen.classList.add('hidden');
                     dom.mainContent.classList.remove('hidden');
                     dom.userProfile.classList.remove('hidden');
                     await setupFirestoreListeners();
@@ -1249,28 +1355,43 @@
                     render();
                     dom.mainContent.classList.add('hidden');
                     dom.userProfile.classList.add('hidden');
+                    dom.loginScreen.classList.remove('hidden');
                 }
             });
 
-            const initializeAuthentication = async () => {
+            dom.loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
                 try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
+                    await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
-                    console.error("Falha na autenticação inicial:", error);
-                    document.body.innerHTML = `<div class="p-8 text-center text-red-700 bg-red-100"><h1>Erro de Autenticação</h1><p>Não foi possível iniciar a sessão. Por favor, recarregue a página.</p></div>`;
+                    console.error("Erro ao entrar:", error.code);
+                    showToast("Email ou senha inválidos.");
                 }
-            };
-            
-            initializeAuthentication();
+            });
+
+            dom.registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('register-email').value;
+                const password = document.getElementById('register-password').value;
+                try {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                } catch (error) {
+                    console.error("Erro ao registar:", error.code);
+                     if (error.code === 'auth/email-already-in-use') {
+                        showToast("Este email já está a ser utilizado.");
+                    } else if (error.code === 'auth/weak-password') {
+                        showToast("A sua senha é muito fraca.");
+                    } else {
+                        showToast("Erro ao criar a conta.");
+                    }
+                }
+            });
 
             dom.logoutBtn.addEventListener('click', async () => {
                 try {
                     await signOut(auth);
-                    // A página irá recarregar ou o onAuthStateChanged irá tratar da limpeza da UI.
                 } catch (error) {
                     console.error("Erro ao sair:", error);
                 }
