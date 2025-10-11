@@ -1026,6 +1026,79 @@
                 fieldsContainer.querySelectorAll('input[type="radio"]').forEach(el => el.checked = false);
             }
         };
+
+        const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
+            dom.absenceForm.reset();
+
+            const isEditing = !!data;
+            document.getElementById('absence-modal-title').innerText = isEditing ? 'Editar Ação de Busca Ativa' : 'Registar Ação de Busca Ativa';
+            document.getElementById('absence-id').value = isEditing ? data.id : '';
+
+            // Preencher dados do aluno
+            document.getElementById('absence-student-name').value = student.name || '';
+            document.getElementById('absence-student-class').value = student.class || '';
+            document.getElementById('absence-student-endereco').value = student.endereco || '';
+            document.getElementById('absence-student-contato').value = student.contato || '';
+
+            const finalActionType = forceActionType || determineNextActionForStudent(student.matricula);
+            document.getElementById('action-type').value = finalActionType;
+            document.getElementById('action-type-display').value = actionDisplayTitles[finalActionType] || '';
+            document.getElementById('action-type').dispatchEvent(new Event('change'));
+
+            // Lógica para persistir dados de faltas
+            const absenceFieldsContainer = dom.absenceForm.querySelector('.bg-gray-50');
+            const absenceInputs = absenceFieldsContainer.querySelectorAll('input');
+            const firstAttemptData = state.absences.find(a => a.studentId === student.matricula && a.actionType === 'tentativa_1');
+
+            if (finalActionType !== 'tentativa_1' && firstAttemptData) {
+                document.getElementById('absence-start-date').value = firstAttemptData.periodoFaltasStart || '';
+                document.getElementById('absence-end-date').value = firstAttemptData.periodoFaltasEnd || '';
+                document.getElementById('absence-count').value = firstAttemptData.absenceCount || '';
+                absenceInputs.forEach(input => input.readOnly = true);
+            } else {
+                absenceInputs.forEach(input => input.readOnly = false);
+            }
+            
+            // Preencher dados da ação se estiver editando
+            if (isEditing) {
+                document.getElementById('absence-start-date').value = data.periodoFaltasStart || '';
+                document.getElementById('absence-end-date').value = data.periodoFaltasEnd || '';
+                document.getElementById('absence-count').value = data.absenceCount || '';
+
+                switch (data.actionType) {
+                    case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
+                        document.getElementById('meeting-date').value = data.meetingDate || '';
+                        document.getElementById('meeting-time').value = data.meetingTime || '';
+                        document.getElementById('contact-date').value = data.contactDate || '';
+                        document.getElementById('contact-person').value = data.contactPerson || '';
+                        document.getElementById('contact-reason').value = data.contactReason || '';
+                        if(data.contactSucceeded) document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).checked = true;
+                        toggleFamilyContactFields(data.contactSucceeded === 'yes');
+                        if(data.contactReturned) document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`).checked = true;
+                        break;
+                    case 'visita':
+                        document.getElementById('visit-agent').value = data.visitAgent || '';
+                        document.getElementById('visit-date').value = data.visitDate || '';
+                        document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
+                        document.getElementById('visit-reason').value = data.visitReason || '';
+                        document.getElementById('visit-obs').value = data.visitObs || '';
+                        if(data.visitSucceeded) document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).checked = true;
+                        toggleVisitContactFields(data.visitSucceeded === 'yes');
+                        if (data.visitReturned) document.querySelector(`input[name="visit-returned"][value="${data.visitReturned}"]`).checked = true;
+                        break;
+                    case 'encaminhamento_ct':
+                        document.getElementById('ct-sent-date').value = data.ctSentDate || '';
+                        document.getElementById('ct-feedback').value = data.ctFeedback || '';
+                        if (data.ctReturned) document.querySelector(`input[name="ct-returned"][value="${data.ctReturned}"]`).checked = true;
+                        break;
+                    case 'analise':
+                        document.getElementById('ct-parecer').value = data.ctParecer || '';
+                        break;
+                }
+            }
+            
+            openModal(dom.absenceModal);
+        };
         
         const setupEventListeners = () => {
             dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
