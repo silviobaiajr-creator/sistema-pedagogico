@@ -370,10 +370,22 @@
                     <div id="group-visita" class="dynamic-field-group hidden space-y-4">
                         <div><label class="block text-sm">Nome do agente da visita:</label><input type="text" id="visit-agent" class="mt-1 block w-full border-gray-300 rounded-md"></div>
                         <div><label class="block text-sm">Dia da visita:</label><input type="date" id="visit-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                         <div><label class="block text-sm">Com quem falou?</label><input type="text" id="visit-contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                        <div><label class="block text-sm">Nome e justificativa do responsável:</label><textarea id="visit-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
-                        <div><span class="block text-sm">Estudante retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-returned" value="yes"> Sim</label> <label><input type="radio" name="visit-returned" value="no"> Não</label></div></div>
-                        <div><label class="block text-sm">Observações:</label><textarea id="visit-obs" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                         <fieldset id="visit-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
+                            <legend class="text-sm font-semibold text-gray-600 px-2">Detalhes do Contato</legend>
+                            <div>
+                                <span class="block text-sm">Conseguiu contato?</span>
+                                <div class="mt-2 space-x-4">
+                                    <label><input type="radio" name="visit-succeeded" value="yes"> Sim</label> 
+                                    <label><input type="radio" name="visit-succeeded" value="no"> Não</label>
+                                </div>
+                            </div>
+                            <div id="visit-contact-fields" class="space-y-4">
+                                <div><label class="block text-sm">Com quem falou?</label><input type="text" id="visit-contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Justificativa do responsável:</label><textarea id="visit-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                                <div><label class="block text-sm">Observações:</label><textarea id="visit-obs" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                                <div><span class="block text-sm">Estudante retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-returned" value="yes"> Sim</label> <label><input type="radio" name="visit-returned" value="no"> Não</label></div></div>
+                            </div>
+                        </fieldset>
                     </div>
                     <div id="group-encaminhamento_ct" class="dynamic-field-group hidden space-y-4">
                         <div><label class="block text-sm">Data do envio ao C.T.:</label><input type="date" id="ct-sent-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
@@ -887,7 +899,7 @@
             const findAction = (type) => studentActions.find(a => a.actionType === type) || {};
             const t1 = findAction('tentativa_1'), t2 = findAction('tentativa_2'), t3 = findAction('tentativa_3'), visita = findAction('visita'), ct = findAction('encaminhamento_ct'), dev = findAction('devolutiva_ct');
             
-            const faltasData = t1.periodoFaltasStart ? t1 : (visita.periodoFaltasStart ? visita : {});
+            const faltasData = t1.periodoFaltasStart ? t1 : (t2.periodoFaltasStart ? t2 : (t3.periodoFaltasStart ? t3 : (visita.periodoFaltasStart ? visita : {})));
 
             const fichaHTML = `
                 <div class="space-y-4 text-sm">
@@ -897,7 +909,7 @@
                     </div>
                     
                     <div class="border rounded-md p-3">
-                        <h4 class="font-semibold text-base mb-2">Sessão 1: Identificação</h4>
+                        <h4 class="font-semibold text-base mb-2">Identificação</h4>
                         <p><strong>Nome do aluno:</strong> ${studentData.name}</p>
                         <p><strong>Ano/Ciclo:</strong> ${studentData.class || ''}</p>
                         <p><strong>Endereço:</strong> ${formatText(studentData.endereco)}</p>
@@ -905,14 +917,14 @@
                     </div>
 
                     <div class="border rounded-md p-3">
-                         <h4 class="font-semibold text-base mb-2">Sessão 2: Faltas apuradas no período de:</h4>
+                         <h4 class="font-semibold text-base mb-2">Faltas apuradas no período de:</h4>
                          <p><strong>Data de início:</strong> ${formatDate(faltasData.periodoFaltasStart)}</p>
                          <p><strong>Data de fim:</strong> ${formatDate(faltasData.periodoFaltasEnd)}</p>
                          <p><strong>Nº de faltas:</strong> ${formatText(faltasData.absenceCount)}</p>
                     </div>
 
                     <div class="border rounded-md p-3 space-y-3">
-                        <h4 class="font-semibold text-base">Sessão 3: Tentativas de contato com o responsável pelo estudante (ligações, whatsApp ou carta ao responsável)</h4>
+                        <h4 class="font-semibold text-base">Tentativas de contato com o responsável pelo estudante (ligações, whatsApp ou carta ao responsável)</h4>
                         <div class="pl-4">
                             <p class="font-medium underline">1ª Tentativa:</p>
                             <p><strong>Conseguiu contato?</strong> ${t1.contactSucceeded === 'yes' ? 'Sim' : t1.contactSucceeded === 'no' ? 'Não' : ''}</p>
@@ -940,9 +952,10 @@
                     </div>
 
                     <div class="border rounded-md p-3 space-y-2">
-                        <h4 class="font-semibold text-base">Sessão 4: Contato in loco/Conversa com o responsável</h4>
+                        <h4 class="font-semibold text-base">Contato in loco/Conversa com o responsável</h4>
                         <p><strong>Nome do agente que realizou a visita:</strong> ${formatText(visita.visitAgent)}</p>
                         <p><strong>Dia da visita:</strong> ${formatDate(visita.visitDate)}</p>
+                        <p><strong>Conseguiu contato?</strong> ${visita.visitSucceeded === 'yes' ? 'Sim' : visita.visitSucceeded === 'no' ? 'Não' : ''}</p>
                         <p><strong>Com quem falou?</strong> ${formatText(visita.visitContactPerson)}</p>
                         <p><strong>Justificativa:</strong> ${formatText(visita.visitReason)}</p>
                         <p><strong>Aluno retornou?</strong> ${visita.visitReturned === 'yes' ? 'Sim' : visita.visitReturned === 'no' ? 'Não' : ''}</p>
@@ -950,14 +963,14 @@
                     </div>
 
                     <div class="border rounded-md p-3 space-y-2">
-                        <h4 class="font-semibold text-base">Sessão 5: Encaminhamento ao Conselho Tutelar</h4>
+                        <h4 class="font-semibold text-base">Encaminhamento ao Conselho Tutelar</h4>
                         <p><strong>Data de envio:</strong> ${formatDate(ct.ctSentDate)}</p>
                         <p><strong>Devolutiva:</strong> ${formatText(dev.ctFeedback)}</p>
                         <p><strong>Aluno retornou?</strong> ${dev.ctReturned === 'yes' ? 'Sim' : dev.ctReturned === 'no' ? 'Não' : ''}</p>
                     </div>
 
                      <div class="border rounded-md p-3 space-y-2">
-                        <h4 class="font-semibold text-base">Sessão 6: Análise</h4>
+                        <h4 class="font-semibold text-base">Análise</h4>
                         <p><strong>Parecer da BAE:</strong> ${formatText(dev.ctParecer)}</p>
                     </div>
                     
@@ -991,6 +1004,24 @@
             });
              // Limpar os campos se estiver desabilitado, exceto os botões de rádio
             if (!enable) {
+                fieldsContainer.querySelectorAll('input[type="text"], input[type="date"], textarea').forEach(el => el.value = '');
+                fieldsContainer.querySelectorAll('input[type="radio"]').forEach(el => el.checked = false);
+            }
+        };
+
+        const toggleVisitContactFields = (enable) => {
+            const fieldsContainer = document.getElementById('visit-contact-fields');
+            const inputs = fieldsContainer.querySelectorAll('input, textarea');
+            
+            inputs.forEach(input => {
+                input.disabled = !enable;
+                if (!enable) {
+                    input.classList.add('bg-gray-200', 'cursor-not-allowed');
+                } else {
+                    input.classList.remove('bg-gray-200', 'cursor-not-allowed');
+                }
+            });
+             if (!enable) {
                 fieldsContainer.querySelectorAll('input[type="text"], input[type="date"], textarea').forEach(el => el.value = '');
                 fieldsContainer.querySelectorAll('input[type="radio"]').forEach(el => el.checked = false);
             }
@@ -1094,6 +1125,8 @@
                             data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
                             data.visitReason = document.getElementById('visit-reason').value || null;
                             data.visitObs = document.getElementById('visit-obs').value || null;
+                             const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
+                            data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
                             const visitRadio = document.querySelector('input[name="visit-returned"]:checked');
                             data.visitReturned = visitRadio ? visitRadio.value : null;
                             break;
@@ -1197,6 +1230,8 @@
                                 document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
                                 document.getElementById('visit-reason').value = data.visitReason || '';
                                 document.getElementById('visit-obs').value = data.visitObs || '';
+                                if(data.visitSucceeded) document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).checked = true;
+                                toggleVisitContactFields(data.visitSucceeded === 'yes');
                                 if (data.visitReturned) document.querySelector(`input[name="visit-returned"][value="${data.visitReturned}"]`).checked = true;
                                 break;
                             case 'encaminhamento_ct':
@@ -1239,7 +1274,12 @@
                      toggleFamilyContactFields(false); // Desabilitar por padrão
                      const radioNo = document.querySelector('input[name="contact-succeeded"][value="no"]');
                      if (radioNo) radioNo.checked = true;
-                 } 
+                 } else if (action === 'visita') {
+                    document.getElementById('group-visita').classList.remove('hidden');
+                    toggleVisitContactFields(false); // Desabilitar por padrão
+                    const radioNo = document.querySelector('input[name="visit-succeeded"][value="no"]');
+                    if (radioNo) radioNo.checked = true;
+                 }
                  else if (action) { 
                      const group = document.getElementById(`group-${action}`); 
                      if (group) group.classList.remove('hidden');
@@ -1249,6 +1289,11 @@
              document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => {
                 radio.addEventListener('change', (e) => {
                     toggleFamilyContactFields(e.target.value === 'yes');
+                });
+            });
+            document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    toggleVisitContactFields(e.target.value === 'yes');
                 });
             });
 
