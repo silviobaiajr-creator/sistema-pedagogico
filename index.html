@@ -633,21 +633,36 @@
         
         const determineNextActionForStudent = (studentId) => {
             const sequence = ['tentativa_1', 'tentativa_2', 'tentativa_3', 'visita', 'encaminhamento_ct', 'analise'];
-            const studentActions = state.absences.filter(a => a.studentId === studentId);
-            const existingActionTypes = new Set(studentActions.map(a => a.actionType));
+            const studentActions = state.absences
+                .filter(a => a.studentId === studentId)
+                .sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
 
-            // NOVA LÓGICA: Se o processo foi encerrado com uma "Análise", recomeça.
-            if (existingActionTypes.has('analise')) {
-                return 'tentativa_1';
+            let lastAnaliseIndex = -1;
+            for (let i = studentActions.length - 1; i >= 0; i--) {
+                if (studentActions[i].actionType === 'analise') {
+                    lastAnaliseIndex = i;
+                    break;
+                }
+            }
+            
+            const currentCycleActions = studentActions.slice(lastAnaliseIndex + 1);
+            const existingActionTypes = new Set(currentCycleActions.map(a => a.actionType));
+
+            const hasReturnedInCurrentCycle = currentCycleActions.some(
+                a => a.contactReturned === 'yes' || a.visitReturned === 'yes' || a.ctReturned === 'yes'
+            );
+
+            if (hasReturnedInCurrentCycle && !existingActionTypes.has('analise')) {
+                return 'analise';
             }
 
             for (const action of sequence) {
                 if (!existingActionTypes.has(action)) {
-                    return action; // Retorna a primeira ação da sequência que ainda não foi realizada
+                    return action;
                 }
             }
-
-            return sequence[sequence.length - 1]; // Se todas já foram feitas, retorna a última
+            
+            return 'analise';
         };
 
         const shareContent = async (title, text) => {
