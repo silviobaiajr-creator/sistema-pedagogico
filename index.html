@@ -418,14 +418,20 @@
         import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendEmailVerification } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCDWtwnD_3V9En9qEEYtlP_dpOTvt-P9ks",
-            authDomain: "acompanhamento-vida-escolar.firebaseapp.com",
-            projectId: "acompanhamento-vida-escolar",
-            storageBucket: "acompanhamento-vida-escolar.appspot.com",
-            messagingSenderId: "315669308837",
-            appId: "1:315669308837:web:053497df9ceea4df5c4c9c"
-        };
+        const finalConfig = (typeof __firebase_config !== 'undefined' && __firebase_config !== '{}') 
+                ? JSON.parse(__firebase_config) 
+                : {
+                    apiKey: "AIzaSyCDWtwnD_3V9En9qEEYtlP_dpOTvt-P9ks",
+                    authDomain: "acompanhamento-vida-escolar.firebaseapp.com",
+                    projectId: "acompanhamento-vida-escolar",
+                    storageBucket: "acompanhamento-vida-escolar.appspot.com",
+                    messagingSenderId: "315669308837",
+                    appId: "1:315669308837:web:053497df9ceea4df5c4c9c"
+                };
+        
+        const app = initializeApp(finalConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
         
         const config = {
             schoolName: "Nome da Escola (Exemplo)",
@@ -440,7 +446,6 @@
             filterAbsences: '',
             activeTab: 'occurrences',
             recordToDelete: null,
-            db: null,
             userId: null,
             unsubscribeOccurrences: null,
             unsubscribeAbsences: null,
@@ -630,7 +635,7 @@
 
         const getStudentsDocRef = () => {
              const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-             return doc(db, `/artifacts/${appId}/public/data/school-data`, 'students');
+             return doc(db, `/artifacts/${appId}/public/data`, 'students');
         };
         
         const getLogsCollectionRef = () => {
@@ -1262,15 +1267,6 @@
 
         // --- INICIALIZAÇÃO ---
         document.addEventListener('DOMContentLoaded', () => {
-            const finalConfig = (typeof __firebase_config !== 'undefined' && __firebase_config !== '{}') 
-                ? JSON.parse(__firebase_config) 
-                : firebaseConfig;
-
-            if (Object.keys(finalConfig).length < 2) {
-                 document.getElementById('app').innerHTML = `<div class="text-center p-8 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg"><h2 class="font-bold text-lg">Configuração Incompleta do Firebase</h2><p class="mt-2">A configuração do Firebase não foi encontrada. Por favor, siga o guia de configuração para obter e colar as chaves do seu projeto Firebase no código.</p></div>`;
-                return;
-            }
-
             const app = initializeApp(finalConfig);
             const auth = getAuth(app);
             const db = getFirestore(app);
