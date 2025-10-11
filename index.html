@@ -798,7 +798,7 @@
                                     <p class="text-sm text-gray-500">ID do Processo: ${processId} - Início: ${formatDate(firstAction.createdAt?.toDate())}</p>
                                 </div>
                                 <div class="flex items-center space-x-4">
-                                     <button class="generate-ficha-btn-row bg-purple-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-purple-700 text-xs no-print" data-student-id="${student.matricula}">
+                                     <button class="generate-ficha-btn-row bg-purple-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-purple-700 text-xs no-print" data-student-id="${student.matricula}" data-process-id="${processId}">
                                         <i class="fas fa-file-invoice"></i> Ficha
                                     </button>
                                     <i class="fas fa-chevron-down transition-transform duration-300"></i>
@@ -979,9 +979,16 @@
             openModal(dom.reportViewModalBackdrop);
         };
         
-        const generateAndShowConsolidatedFicha = (studentId) => {
-            const studentActions = state.absences.filter(action => action.studentId === studentId).sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
-            if (studentActions.length === 0) return showToast('Nenhuma ação para este aluno.');
+        const generateAndShowConsolidatedFicha = (studentId, processId = null) => {
+            let studentActions = state.absences.filter(action => action.studentId === studentId);
+            
+            if (processId) {
+                studentActions = studentActions.filter(action => action.processId === processId);
+            }
+
+            studentActions.sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
+
+            if (studentActions.length === 0) return showToast('Nenhuma ação para este aluno neste processo.');
             const studentData = state.students.find(s => s.matricula === studentId);
 
             const findAction = (type) => studentActions.find(a => a.actionType === type) || {};
@@ -1368,9 +1375,10 @@
 
                 if(button) {
                     const studentId = button.dataset.studentId;
+                    const processId = button.closest('.process-header')?.dataset.processId;
                     if (button.classList.contains('generate-ficha-btn-row')) {
                         e.stopPropagation(); 
-                        generateAndShowConsolidatedFicha(studentId);
+                        generateAndShowConsolidatedFicha(studentId, processId);
                         return; 
                     }
 
