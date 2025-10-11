@@ -886,6 +886,8 @@
 
             const findAction = (type) => studentActions.find(a => a.actionType === type) || {};
             const t1 = findAction('tentativa_1'), t2 = findAction('tentativa_2'), t3 = findAction('tentativa_3'), visita = findAction('visita'), ct = findAction('encaminhamento_ct'), dev = findAction('devolutiva_ct');
+            
+            const faltasData = t1.periodoFaltasStart ? t1 : (visita.periodoFaltasStart ? visita : {});
 
             const fichaHTML = `
                 <div class="space-y-4 text-sm">
@@ -893,52 +895,69 @@
                         <h2 class="text-lg font-bold uppercase">${config.schoolName}</h2>
                         <h3 class="font-semibold mt-1">Ficha de Acompanhamento da Busca Ativa</h3>
                     </div>
+                    
                     <div class="border rounded-md p-3">
-                        <p><strong>Nome:</strong> ${studentData.name}</p>
+                        <h4 class="font-semibold text-base mb-2">Sessão 1: Identificação</h4>
+                        <p><strong>Nome do aluno:</strong> ${studentData.name}</p>
                         <p><strong>Ano/Ciclo:</strong> ${studentData.class || ''}</p>
+                        <p><strong>Endereço:</strong> ${formatText(studentData.endereco)}</p>
+                        <p><strong>Contato:</strong> ${formatText(studentData.contato)}</p>
+                    </div>
+
+                    <div class="border rounded-md p-3">
+                         <h4 class="font-semibold text-base mb-2">Sessão 2: Faltas apuradas no período de:</h4>
+                         <p><strong>Data de início:</strong> ${formatDate(faltasData.periodoFaltasStart)}</p>
+                         <p><strong>Data de fim:</strong> ${formatDate(faltasData.periodoFaltasEnd)}</p>
+                         <p><strong>Nº de faltas:</strong> ${formatText(faltasData.absenceCount)}</p>
                     </div>
 
                     <div class="border rounded-md p-3 space-y-3">
-                        <h4 class="font-semibold text-base">1) Tentativas de contato com o responsável pelo estudante (ligações, whatsApp ou carta ao responsável)</h4>
+                        <h4 class="font-semibold text-base">Sessão 3: Tentativas de contato com o responsável pelo estudante (ligações, whatsApp ou carta ao responsável)</h4>
                         <div class="pl-4">
-                            <p><strong>1º Contato:</strong> Dia ${formatDate(t1.contactDate)}</p>
-                            <p><strong>Com quem falou?</strong> ${formatText(t1.contactPerson)}</p>
+                            <p class="font-medium underline">1ª Tentativa:</p>
                             <p><strong>Conseguiu contato?</strong> ${t1.contactSucceeded === 'yes' ? 'Sim' : t1.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                            <p><strong>Dia do contato:</strong> ${formatDate(t1.contactDate)}</p>
+                            <p><strong>Com quem falou?</strong> ${formatText(t1.contactPerson)}</p>
                             <p><strong>Justificativa:</strong> ${formatText(t1.contactReason)}</p>
+                            <p><strong>Aluno retornou?</strong> ${t1.contactReturned === 'yes' ? 'Sim' : t1.contactReturned === 'no' ? 'Não' : ''}</p>
                         </div>
                         <div class="pl-4 border-t pt-2">
-                            <p><strong>2º Contato:</strong> Dia ${formatDate(t2.contactDate)}</p>
-                            <p><strong>Com quem falou?</strong> ${formatText(t2.contactPerson)}</p>
+                            <p class="font-medium underline">2ª Tentativa:</p>
                             <p><strong>Conseguiu contato?</strong> ${t2.contactSucceeded === 'yes' ? 'Sim' : t2.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                            <p><strong>Dia do contato:</strong> ${formatDate(t2.contactDate)}</p>
+                            <p><strong>Com quem falou?</strong> ${formatText(t2.contactPerson)}</p>
                             <p><strong>Justificativa:</strong> ${formatText(t2.contactReason)}</p>
+                            <p><strong>Aluno retornou?</strong> ${t2.contactReturned === 'yes' ? 'Sim' : t2.contactReturned === 'no' ? 'Não' : ''}</p>
                         </div>
                         <div class="pl-4 border-t pt-2">
-                            <p><strong>3º Contato:</strong> Dia ${formatDate(t3.contactDate)}</p>
-                             <p><strong>Com quem falou?</strong> ${formatText(t3.contactPerson)}</p>
+                            <p class="font-medium underline">3ª Tentativa:</p>
                             <p><strong>Conseguiu contato?</strong> ${t3.contactSucceeded === 'yes' ? 'Sim' : t3.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                            <p><strong>Dia do contato:</strong> ${formatDate(t3.contactDate)}</p>
+                            <p><strong>Com quem falou?</strong> ${formatText(t3.contactPerson)}</p>
                             <p><strong>Justificativa:</strong> ${formatText(t3.contactReason)}</p>
+                            <p><strong>Aluno retornou?</strong> ${t3.contactReturned === 'yes' ? 'Sim' : t3.contactReturned === 'no' ? 'Não' : ''}</p>
                         </div>
                     </div>
 
                     <div class="border rounded-md p-3 space-y-2">
-                        <h4 class="font-semibold text-base">2) Contato in loco/Conversa com o responsável</h4>
+                        <h4 class="font-semibold text-base">Sessão 4: Contato in loco/Conversa com o responsável</h4>
                         <p><strong>Nome do agente que realizou a visita:</strong> ${formatText(visita.visitAgent)}</p>
-                        <p><strong>Dia:</strong> ${formatDate(visita.visitDate)}</p>
+                        <p><strong>Dia da visita:</strong> ${formatDate(visita.visitDate)}</p>
                         <p><strong>Com quem falou?</strong> ${formatText(visita.visitContactPerson)}</p>
                         <p><strong>Justificativa:</strong> ${formatText(visita.visitReason)}</p>
-                        <p><strong>Retornou?</strong> ${visita.visitReturned === 'yes' ? 'Sim' : visita.visitReturned === 'no' ? 'Não' : ''}</p>
+                        <p><strong>Aluno retornou?</strong> ${visita.visitReturned === 'yes' ? 'Sim' : visita.visitReturned === 'no' ? 'Não' : ''}</p>
                         <p><strong>Observação:</strong> ${formatText(visita.visitObs)}</p>
                     </div>
 
                     <div class="border rounded-md p-3 space-y-2">
-                        <h4 class="font-semibold text-base">3) Encaminhamento ao Conselho Tutelar</h4>
-                        <p><strong>Data do envio:</strong> ${formatDate(ct.ctSentDate)}</p>
+                        <h4 class="font-semibold text-base">Sessão 5: Encaminhamento ao Conselho Tutelar</h4>
+                        <p><strong>Data de envio:</strong> ${formatDate(ct.ctSentDate)}</p>
                         <p><strong>Devolutiva:</strong> ${formatText(dev.ctFeedback)}</p>
-                        <p><strong>Retornou?</strong> ${dev.ctReturned === 'yes' ? 'Sim' : dev.ctReturned === 'no' ? 'Não' : ''}</p>
+                        <p><strong>Aluno retornou?</strong> ${dev.ctReturned === 'yes' ? 'Sim' : dev.ctReturned === 'no' ? 'Não' : ''}</p>
                     </div>
 
                      <div class="border rounded-md p-3 space-y-2">
-                        <h4 class="font-semibold text-base">4) Análise</h4>
+                        <h4 class="font-semibold text-base">Sessão 6: Análise</h4>
                         <p><strong>Parecer da BAE:</strong> ${formatText(dev.ctParecer)}</p>
                     </div>
                     
