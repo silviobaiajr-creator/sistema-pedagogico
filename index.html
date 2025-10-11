@@ -61,6 +61,11 @@
         .signature-block {
             display: none;
         }
+        .process-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
         @media print {
             body > div:not(.printable-area) {
                 display: none;
@@ -225,7 +230,7 @@
                         <h3 class="text-xl font-semibold text-gray-600">Nenhuma ação de busca ativa registada</h3>
                         <p class="text-gray-500 mt-1">Use a busca acima para registar uma nova ação.</p>
                     </div>
-                    <div id="absences-list" class="overflow-x-auto"></div>
+                    <div id="absences-list" class="space-y-4"></div>
                 </main>
             </div>
             
@@ -787,27 +792,35 @@
                     const student = state.students.find(s => s.matricula === firstAction.studentId);
                     if (!student) continue;
 
-                    html += `
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            <tr class="bg-indigo-50">
-                                <td colspan="4" class="px-6 py-3 text-left text-sm font-semibold text-indigo-800">
-                                    Processo para: ${student.name} (Início: ${formatDate(firstAction.createdAt?.toDate())})
-                                </td>
-                            </tr>
+                     html += `
+                        <div class="border rounded-lg overflow-hidden mb-4 bg-white">
+                            <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center" data-process-id="${processId}">
+                                <div>
+                                    <p class="font-semibold text-gray-800">${student.name}</p>
+                                    <p class="text-sm text-gray-500">Início do Processo: ${formatDate(firstAction.createdAt?.toDate())}</p>
+                                </div>
+                                <i class="fas fa-chevron-down transition-transform"></i>
+                            </div>
+                            <div class="process-content" id="content-${processId}">
+                                <div class="p-4 border-t">
+                                    <table class="min-w-full">
+                                        <thead class="sr-only">
+                                            <tr><th>Detalhes</th><th>Ações</th></tr>
+                                        </thead>
+                                        <tbody>
                     `;
 
                     actions.forEach(abs => {
                         const actionDate = abs.contactDate || abs.visitDate || abs.ctSentDate || (abs.createdAt && abs.createdAt.toDate().toISOString().split('T')[0]);
                         const returned = abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes';
                         html += `
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${student.name}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    ${actionDisplayTitles[abs.actionType] || 'N/A'}
-                                    ${returned ? '<span class="ml-2 text-green-600 font-semibold"><i class="fas fa-check-circle"></i> Aluno Retornou</span>' : ''}
+                            <tr class="border-b">
+                                <td class="py-3 pr-3">
+                                    <p class="font-medium text-gray-700">${actionDisplayTitles[abs.actionType] || 'N/A'}</p>
+                                    <p class="text-sm text-gray-500">Data: ${formatDate(actionDate)}</p>
+                                    ${returned ? '<p class="text-sm text-green-600 font-semibold"><i class="fas fa-check-circle"></i> Aluno Retornou</p>' : ''}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(actionDate)}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                <td class="py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
                                     <button class="view-absence-btn text-indigo-600 hover:text-indigo-900" data-id="${abs.id}" title="Ver Ação"><i class="fas fa-eye"></i></button>
                                     <button class="edit-absence-btn text-yellow-600 hover:text-yellow-900" data-id="${abs.id}" title="Editar Ação"><i class="fas fa-pencil-alt"></i></button>
                                     <button class="delete-absence-btn text-red-600 hover:text-red-900" data-id="${abs.id}" title="Excluir Ação"><i class="fas fa-trash"></i></button>
@@ -815,22 +828,10 @@
                             </tr>
                         `;
                     });
-                    html += `</tbody>`;
+                    html += `</tbody></table></div></div></div>`;
                 }
 
-                dom.absencesListDiv.innerHTML = `
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aluno(a)</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Detalhes da Ação</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
-                            </tr>
-                        </thead>
-                        ${html}
-                    </table>
-                `;
+                dom.absencesListDiv.innerHTML = html;
             }
         };
 
@@ -1341,6 +1342,40 @@
                 }
             });
 
+            dom.absencesListDiv.addEventListener('click', (e) => {
+                const target = e.target;
+                const header = target.closest('.process-header');
+                const button = target.closest('button');
+
+                if (header) {
+                    const processId = header.dataset.processId;
+                    const content = document.getElementById(`content-${processId}`);
+                    const icon = header.querySelector('i');
+                    if (content) {
+                        if (content.style.maxHeight) {
+                            content.style.maxHeight = null;
+                            icon.classList.remove('rotate-180');
+                        } else {
+                            content.style.maxHeight = content.scrollHeight + "px";
+                             icon.classList.add('rotate-180');
+                        }
+                    }
+                }
+
+                if(button) {
+                    const id = button.dataset.id;
+                    if (button.classList.contains('edit-absence-btn')) {
+                        const data = state.absences.find(a => a.id === id);
+                        const student = state.students.find(s => s.matricula === data.studentId);
+                        if (data && student) {
+                            openAbsenceModalForStudent(student, data.actionType, data);
+                        }
+                    }
+                    else if (button.classList.contains('delete-absence-btn')) { state.recordToDelete = { id, type: 'absence' }; openModal(dom.deleteConfirmModal); }
+                    else if (button.classList.contains('view-absence-btn')) { openFichaViewModal(id); }
+                }
+            });
+
             dom.occurrencesListDiv.addEventListener('click', (e) => {
                 const button = e.target.closest('button');
                 if (!button) return;
@@ -1366,21 +1401,6 @@
                 }
                 else if (button.classList.contains('delete-btn')) { state.recordToDelete = { id, type: 'occurrence' }; openModal(dom.deleteConfirmModal); }
                 else if (button.classList.contains('view-btn')) { openNotificationModal(id); }
-            });
-
-            dom.absencesListDiv.addEventListener('click', (e) => {
-                const button = e.target.closest('button');
-                if (!button) return;
-                const id = button.dataset.id;
-                if (button.classList.contains('edit-absence-btn')) {
-                    const data = state.absences.find(a => a.id === id);
-                    const student = state.students.find(s => s.matricula === data.studentId);
-                    if (data && student) {
-                        openAbsenceModalForStudent(student, data.actionType, data);
-                    }
-                }
-                else if (button.classList.contains('delete-absence-btn')) { state.recordToDelete = { id, type: 'absence' }; openModal(dom.deleteConfirmModal); }
-                else if (button.classList.contains('view-absence-btn')) { openFichaViewModal(id); }
             });
 
             document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
