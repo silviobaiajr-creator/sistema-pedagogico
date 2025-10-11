@@ -389,10 +389,10 @@
                     </div>
                     <div id="group-encaminhamento_ct" class="dynamic-field-group hidden space-y-4">
                         <div><label class="block text-sm">Data do envio ao C.T.:</label><input type="date" id="ct-sent-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                    </div>
-                    <div id="group-devolutiva_ct" class="dynamic-field-group hidden space-y-4">
-                        <div><label class="block text-sm">Devolutiva do C.T.:</label><textarea id="ct-feedback" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                         <div><label class="block text-sm">Devolutiva do C.T.:</label><textarea id="ct-feedback" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
                         <div><span class="block text-sm">Estudante retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="ct-returned" value="yes"> Sim</label> <label><input type="radio" name="ct-returned" value="no"> Não</label></div></div>
+                    </div>
+                    <div id="group-analise" class="dynamic-field-group hidden space-y-4">
                         <div><label class="block text-sm">Parecer da Busca Ativa Escolar (BAE):</label><textarea id="ct-parecer" rows="3" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
                     </div>
                 </div>
@@ -571,7 +571,7 @@
             tentativa_3: "3ª Tentativa de Contato",
             visita: "Visita In Loco",
             encaminhamento_ct: "Encaminhamento ao Conselho Tutelar",
-            devolutiva_ct: "Devolutiva do C.T. / Parecer Final"
+            analise: "Análise"
         };
 
         const formatDate = (dateString) => dateString ? new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '';
@@ -632,7 +632,7 @@
         };
         
         const determineNextActionForStudent = (studentId) => {
-            const sequence = ['tentativa_1', 'tentativa_2', 'tentativa_3', 'visita', 'encaminhamento_ct', 'devolutiva_ct'];
+            const sequence = ['tentativa_1', 'tentativa_2', 'tentativa_3', 'visita', 'encaminhamento_ct', 'analise'];
             const studentActions = state.absences.filter(a => a.studentId === studentId);
             const existingActionTypes = new Set(studentActions.map(a => a.actionType));
 
@@ -642,7 +642,7 @@
                 }
             }
 
-            return sequence[sequence.length - 1]; // Se todas já foram feitas, retorna a última (Parecer Final)
+            return sequence[sequence.length - 1]; // Se todas já foram feitas, retorna a última
         };
 
         const shareContent = async (title, text) => {
@@ -897,7 +897,7 @@
             const studentData = state.students.find(s => s.matricula === studentId);
 
             const findAction = (type) => studentActions.find(a => a.actionType === type) || {};
-            const t1 = findAction('tentativa_1'), t2 = findAction('tentativa_2'), t3 = findAction('tentativa_3'), visita = findAction('visita'), ct = findAction('encaminhamento_ct'), dev = findAction('devolutiva_ct');
+            const t1 = findAction('tentativa_1'), t2 = findAction('tentativa_2'), t3 = findAction('tentativa_3'), visita = findAction('visita'), ct = findAction('encaminhamento_ct'), analise = findAction('analise');
             
             const faltasData = t1.periodoFaltasStart ? t1 : (t2.periodoFaltasStart ? t2 : (t3.periodoFaltasStart ? t3 : (visita.periodoFaltasStart ? visita : {})));
 
@@ -965,13 +965,13 @@
                     <div class="border rounded-md p-3 space-y-2">
                         <h4 class="font-semibold text-base">Encaminhamento ao Conselho Tutelar</h4>
                         <p><strong>Data de envio:</strong> ${formatDate(ct.ctSentDate)}</p>
-                        <p><strong>Devolutiva:</strong> ${formatText(dev.ctFeedback)}</p>
-                        <p><strong>Aluno retornou?</strong> ${dev.ctReturned === 'yes' ? 'Sim' : dev.ctReturned === 'no' ? 'Não' : ''}</p>
+                        <p><strong>Devolutiva:</strong> ${formatText(ct.ctFeedback)}</p>
+                        <p><strong>Aluno retornou?</strong> ${ct.ctReturned === 'yes' ? 'Sim' : ct.ctReturned === 'no' ? 'Não' : ''}</p>
                     </div>
 
                      <div class="border rounded-md p-3 space-y-2">
                         <h4 class="font-semibold text-base">Análise</h4>
-                        <p><strong>Parecer da BAE:</strong> ${formatText(dev.ctParecer)}</p>
+                        <p><strong>Parecer da BAE:</strong> ${formatText(analise.ctParecer)}</p>
                     </div>
                     
                     <div class="signature-block pt-16 mt-8 space-y-12">
@@ -1132,11 +1132,11 @@
                             break;
                         case 'encaminhamento_ct':
                             data.ctSentDate = document.getElementById('ct-sent-date').value || null;
-                            break;
-                        case 'devolutiva_ct':
                             data.ctFeedback = document.getElementById('ct-feedback').value || null;
-                            const ctRadio = document.querySelector('input[name="ct-returned"]:checked');
+                             const ctRadio = document.querySelector('input[name="ct-returned"]:checked');
                             data.ctReturned = ctRadio ? ctRadio.value : null;
+                            break;
+                        case 'analise':
                             data.ctParecer = document.getElementById('ct-parecer').value || null;
                             break;
                         default:
@@ -1236,10 +1236,10 @@
                                 break;
                             case 'encaminhamento_ct':
                                 document.getElementById('ct-sent-date').value = data.ctSentDate || '';
-                                break;
-                            case 'devolutiva_ct':
                                 document.getElementById('ct-feedback').value = data.ctFeedback || '';
                                 if (data.ctReturned) document.querySelector(`input[name="ct-returned"][value="${data.ctReturned}"]`).checked = true;
+                                break;
+                            case 'analise':
                                 document.getElementById('ct-parecer').value = data.ctParecer || '';
                                 break;
                         }
