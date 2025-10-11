@@ -658,7 +658,7 @@
             if (existingProcessAction) {
                 processId = existingProcessAction.processId;
             } else {
-                const allProcessIdsForStudent = studentActions
+                const allProcessIdsForStudent = state.absences.filter(a => a.studentId === studentId)
                     .map(a => a.processId)
                     .filter(Boolean);
                 
