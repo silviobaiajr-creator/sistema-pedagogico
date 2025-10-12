@@ -958,66 +958,6 @@
             openModal(dom.fichaViewModalBackdrop);
         };
         
-        const generateAndShowOficio = (action, oficioNumber) => {
-            const student = state.students.find(s => s.matricula === action.studentId);
-            if (!student) {
-                showToast("Aluno não encontrado.");
-                return;
-            }
-
-            const processActions = state.absences
-                .filter(a => a.processId === action.processId && ['tentativa_1', 'tentativa_2', 'tentativa_3', 'visita'].includes(a.actionType))
-                .sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
-
-            const findAction = (type) => processActions.find(a => a.actionType === type) || {};
-            const t1 = findAction('tentativa_1'),
-                  t2 = findAction('tentativa_2'),
-                  t3 = findAction('tentativa_3'),
-                  visita = findAction('visita');
-            
-            const faltasData = t1.periodoFaltasStart ? t1 : (t2.periodoFaltasStart ? t2 : (t3.periodoFaltasStart ? visita.periodoFaltasStart ? visita : {}));
-
-            const today = new Date();
-            const formattedDate = today.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-
-            const anexoHTML = `
-                <div class="mt-8 border-t-2 border-dashed pt-6 page-break-before">
-                    <h3 class="text-center font-bold text-lg mb-4">ANEXO - Ficha de Acompanhamento da Busca Ativa (Resumo)</h3>
-                    <div class="space-y-4 text-sm">
-                        <div class="border rounded-md p-3"><h4 class="font-semibold text-base mb-2">Identificação</h4><p><strong>Nome do aluno:</strong> ${student.name}</p><p><strong>Ano/Ciclo:</strong> ${student.class || ''}</p></div>
-                        <div class="border rounded-md p-3"><h4 class="font-semibold text-base mb-2">Faltas apuradas no período de:</h4><p><strong>Data de início:</strong> ${formatDate(faltasData.periodoFaltasStart)}</p><p><strong>Data de fim:</strong> ${formatDate(faltasData.periodoFaltasEnd)}</p><p><strong>Nº de faltas:</strong> ${formatText(faltasData.absenceCount)}</p></div>
-                        <div class="border rounded-md p-3 space-y-3"><h4 class="font-semibold text-base">Tentativas de contato</h4>
-                            ${t1.id ? `<div class="pl-4"><p class="font-medium">1ª Tentativa (${formatDate(t1.contactDate)}): ${formatText(t1.contactReason)}</p></div>` : ''}
-                            ${t2.id ? `<div class="pl-4 pt-2 border-t"><p class="font-medium">2ª Tentativa (${formatDate(t2.contactDate)}): ${formatText(t2.contactReason)}</p></div>` : ''}
-                            ${t3.id ? `<div class="pl-4 pt-2 border-t"><p class="font-medium">3ª Tentativa (${formatDate(t3.contactDate)}): ${formatText(t3.contactReason)}</p></div>` : ''}
-                        </div>
-                        <div class="border rounded-md p-3 space-y-2"><h4 class="font-semibold text-base">Contato in loco/Conversa com o responsável</h4><p><strong>Dia da visita:</strong> ${formatDate(visita.visitDate)}</p><p><strong>Com quem falou:</strong> ${formatText(visita.visitContactPerson)}</p><p><strong>Justificativa:</strong> ${formatText(visita.visitReason)}</p><p><strong>Observação:</strong> ${formatText(visita.visitObs)}</p></div>
-                    </div>
-                </div>`;
-
-            const oficioHTML = `
-                <div class="space-y-6 text-sm">
-                    <div class="text-center"><h2 class="text-xl font-bold uppercase">${config.schoolName}</h2></div>
-                    <div class="mt-8"><p>Ofício Nº ${oficioNumber}/${today.getFullYear()}</p><p>${config.city}, ${formattedDate}.</p></div>
-                    <div class="mt-8"><p>Ao Conselho Tutelar,</p></div>
-                    <div class="mt-4"><p class="font-bold">Assunto: Encaminhamento do(a) aluno(a) ${student.name}</p></div>
-                    <div class="mt-4 text-justify leading-relaxed">
-                        <p>Prezados Conselheiros,</p>
-                        <p class="mt-4">Vimos por meio deste ofício encaminhar o caso do(a) aluno(a) <strong>${student.name}</strong>, regularmente matriculado(a) no(a) <strong>${student.class}</strong> desta unidade de ensino, sob a matrícula nº ${student.matricula}.</p>
-                        <p class="mt-4">O(A) estudante apresenta um quadro de infrequência escolar, com um total de <strong>${faltasData.absenceCount || 'N/A'}</strong> faltas registadas no período de ${formatPeriodo(faltasData.periodoFaltasStart, faltasData.periodoFaltasEnd)}. Informamos que foram realizadas todas as tentativas de contato e procedimentos internos de busca ativa, conforme detalhado na Ficha de Acompanhamento em anexo, sem que obtivéssemos o retorno do(a) aluno(a) às atividades escolares.</p>
-                        <p class="mt-4">Diante do exposto e esgotadas as providências de competência da escola, solicitamos o apoio e a intervenção deste Conselho Tutelar para garantir o direito à educação do(a) referido(a) aluno(a).</p>
-                        <p class="mt-4">Colocamo-nos à disposição para quaisquer esclarecimentos.</p>
-                        <p class="mt-6">Atenciosamente,</p>
-                    </div>
-                    <div class="pt-24 mt-24 text-center"><div class="border-t w-1/2 mx-auto border-gray-600"></div><p class="mt-1">Assinatura da Direção/Coordenação</p><p>${config.schoolName}</p></div>
-                    ${anexoHTML}
-                </div>`;
-
-            document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNumber}/${today.getFullYear()}`;
-            document.getElementById('report-view-content').innerHTML = oficioHTML;
-            openModal(dom.reportViewModalBackdrop);
-        };
-        
         const openReportGeneratorModal = (reportType) => {
             const records = reportType === 'occurrences' ? state.occurrences : state.absences;
             const studentIds = [...new Set(records.map(item => item.studentId))];
@@ -1865,4 +1805,3 @@
     </script>
 </body>
 </html>
-
