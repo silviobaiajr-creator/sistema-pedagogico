@@ -819,7 +819,7 @@
                         } else if (abs.actionType === 'visita') {
                              actionButtonHtml = `<button class="send-ct-btn text-blue-600 hover:text-blue-900" data-id="${abs.id}" title="Enviar ao Conselho Tutelar"><i class="fas fa-share-square fa-lg"></i></button>`;
                         } else {
-                            actionButtonHtml = `<button class="view-absence-btn text-gray-500 cursor-not-allowed" data-id="${abs.id}" title="Ver Detalhes"><i class="fas fa-eye fa-lg"></i></button>`;
+                            actionButtonHtml = `<span class="inline-block w-6 h-6"></span>`; // Placeholder for alignment
                         }
 
                         html += `
@@ -1371,7 +1371,7 @@
                 if (header && !button) { 
                      const processId = header.dataset.processId;
                     const content = document.getElementById(`content-${processId}`);
-                    const icon = header.querySelector('i');
+                    const icon = header.querySelector('i.fa-chevron-down');
                     if (content) {
                         if (content.style.maxHeight && content.style.maxHeight !== '0px') {
                             content.style.maxHeight = null;
@@ -1401,7 +1401,9 @@
                         }
                     }
                     else if (button.classList.contains('delete-absence-btn')) { state.recordToDelete = { id, type: 'absence' }; openModal(dom.deleteConfirmModal); }
-                    else if (button.classList.contains('view-absence-btn')) { openFichaViewModal(id); }
+                    else if (button.classList.contains('notification-btn')) { 
+                        openFichaViewModal(id);
+                    }
                 }
             });
 
