@@ -1440,8 +1440,6 @@
                 }
             });
             
-            document.getElementById('generate-report-btn').addEventListener('click', () => openReportGeneratorModal('occurrences'));
-
             document.getElementById('create-report-btn').addEventListener('click', () => {
                 const selectedStudentId = document.getElementById('student-select').value;
                 if (!selectedStudentId) return showToast('Por favor, selecione um aluno.');
