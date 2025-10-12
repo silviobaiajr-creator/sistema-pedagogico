@@ -815,11 +815,11 @@
                         
                         let actionButtonHtml = '';
                         if (abs.actionType.startsWith('tentativa')) {
-                            actionButtonHtml = `<button class="notification-btn text-indigo-600 hover:text-indigo-900" data-id="${abs.id}" title="Gerar Notificação"><i class="fas fa-file-alt fa-lg"></i></button>`;
+                            actionButtonHtml = `<button class="notification-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50" data-id="${abs.id}" title="Gerar Notificação">Notificação</button>`;
                         } else if (abs.actionType === 'visita') {
-                             actionButtonHtml = `<button class="send-ct-btn text-blue-600 hover:text-blue-900" data-id="${abs.id}" title="Enviar ao Conselho Tutelar"><i class="fas fa-share-square fa-lg"></i></button>`;
+                             actionButtonHtml = `<button class="send-ct-btn text-blue-600 hover:text-blue-900 text-xs font-semibold py-1 px-2 rounded-md bg-blue-50" data-id="${abs.id}" title="Enviar ao Conselho Tutelar">Enviar ao C.T.</button>`;
                         } else {
-                            actionButtonHtml = `<span class="inline-block w-6 h-6"></span>`; // Placeholder for alignment
+                            actionButtonHtml = `<span class="inline-block w-24"></span>`; // Placeholder for alignment
                         }
 
                         html += `
@@ -829,7 +829,7 @@
                                     <p class="text-sm text-gray-500">Data: ${formatDate(actionDate)}</p>
                                     ${returned ? '<p class="text-sm text-green-600 font-semibold mt-1"><i class="fas fa-check-circle"></i> Aluno Retornou</p>' : ''}
                                 </div>
-                                <div class="whitespace-nowrap text-right text-sm font-medium space-x-4">
+                                <div class="whitespace-nowrap text-right text-sm font-medium space-x-2 flex items-center">
                                     ${actionButtonHtml}
                                     <button class="edit-absence-btn text-yellow-600 hover:text-yellow-900" data-id="${abs.id}" title="Editar Ação"><i class="fas fa-pencil-alt fa-lg"></i></button>
                                     <button class="delete-absence-btn text-red-600 hover:text-red-900" data-id="${abs.id}" title="Excluir Ação"><i class="fas fa-trash fa-lg"></i></button>
@@ -1400,9 +1400,18 @@
                             openAbsenceModalForStudent(student, data.actionType, data);
                         }
                     }
-                    else if (button.classList.contains('delete-absence-btn')) { state.recordToDelete = { id, type: 'absence' }; openModal(dom.deleteConfirmModal); }
+                    else if (button.classList.contains('delete-absence-btn')) { 
+                        state.recordToDelete = { id, type: 'absence' }; 
+                        openModal(dom.deleteConfirmModal); 
+                    }
                     else if (button.classList.contains('notification-btn')) { 
                         openFichaViewModal(id);
+                    } else if (button.classList.contains('send-ct-btn')) {
+                        const oficioNumber = prompt("Por favor, insira o número do ofício:");
+                        if (oficioNumber) {
+                            const action = state.absences.find(a => a.id === id);
+                            generateAndShowOficio(action, oficioNumber);
+                        }
                     }
                 }
             });
