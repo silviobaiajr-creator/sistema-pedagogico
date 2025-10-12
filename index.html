@@ -1375,9 +1375,9 @@
 
                 if(button) {
                     const studentId = button.dataset.studentId;
-                    const processId = button.closest('.process-header')?.dataset.processId;
                     if (button.classList.contains('generate-ficha-btn-row')) {
-                        e.stopPropagation(); 
+                        e.stopPropagation();
+                        const processId = button.dataset.processId;
                         generateAndShowConsolidatedFicha(studentId, processId);
                         return; 
                     }
@@ -1427,6 +1427,8 @@
                     try { await deleteRecord(state.recordToDelete.type, state.recordToDelete.id); showToast('Registro excluído com sucesso.'); } catch (error) { console.error("Erro ao excluir:", error); showToast('Erro ao excluir.'); } finally { state.recordToDelete = null; closeModal(dom.deleteConfirmModal); }
                 }
             });
+            
+            document.getElementById('generate-report-btn').addEventListener('click', () => openReportGeneratorModal('occurrences'));
             
             document.getElementById('create-report-btn').addEventListener('click', () => {
                 const selectedStudentId = document.getElementById('student-select').value;
