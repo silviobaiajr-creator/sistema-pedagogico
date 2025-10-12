@@ -208,6 +208,8 @@
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-center sm:justify-between items-center">
                     <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
                 </div>
+                <!-- NEW: Alerts Panel -->
+                <div id="alerts-panel" class="mb-6"></div>
                 <main class="bg-white rounded-lg shadow-md p-4 sm:p-6">
                     <div class="mb-4">
                         <div class="relative">
@@ -358,12 +360,12 @@
                                 <div><label class="block text-sm">Dia do contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
                                 <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
                                 <div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
-                                <div>
-                                    <span class="block text-sm">O aluno retornou?</span>
-                                    <div class="mt-2 space-x-4">
-                                        <label><input type="radio" name="contact-returned" value="yes"> Sim</label> 
-                                        <label><input type="radio" name="contact-returned" value="no"> Não</label>
-                                    </div>
+                            </div>
+                            <div>
+                                <span class="block text-sm">O aluno retornou?</span>
+                                <div class="mt-2 space-x-4">
+                                    <label><input type="radio" name="contact-returned" value="yes"> Sim</label> 
+                                    <label><input type="radio" name="contact-returned" value="no"> Não</label>
                                 </div>
                             </div>
                         </fieldset>
@@ -384,8 +386,8 @@
                                 <div><label class="block text-sm">Com quem falou?</label><input type="text" id="visit-contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
                                 <div><label class="block text-sm">Justificativa do responsável:</label><textarea id="visit-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
                                 <div><label class="block text-sm">Observações:</label><textarea id="visit-obs" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
-                                <div><span class="block text-sm">Estudante retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-returned" value="yes"> Sim</label> <label><input type="radio" name="visit-returned" value="no"> Não</label></div></div>
                             </div>
+                            <div><span class="block text-sm">Estudante retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-returned" value="yes"> Sim</label> <label><input type="radio" name="visit-returned" value="no"> Não</label></div></div>
                         </fieldset>
                     </div>
                     <div id="group-encaminhamento_ct" class="dynamic-field-group hidden space-y-4">
@@ -564,6 +566,7 @@
             tabContentAbsences: document.getElementById('tab-content-absences'),
             searchOccurrences: document.getElementById('search-occurrences'),
             searchAbsences: document.getElementById('search-absences'),
+            alertsPanel: document.getElementById('alerts-panel'),
         };
 
         const actionDisplayTitles = {
@@ -753,9 +756,65 @@
                     </table>`;
             }
         };
+        
+        // NEW: Function to render the alerts panel
+        const renderAlertsPanel = () => {
+            const processes = Object.values(state.absences.reduce((acc, action) => {
+                const key = action.processId || `no-proc-${action.id}`;
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(action);
+                return acc;
+            }, {}));
+
+            let pendingContact = 0;
+            let pendingFeedback = 0;
+
+            processes.forEach(actions => {
+                const isConcluded = actions.some(a => a.actionType === 'analise');
+                if (isConcluded) return; // Skip concluded processes
+
+                const sortedActions = actions.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+                const lastAction = sortedActions[sortedActions.length - 1];
+
+                if (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded === undefined) {
+                    pendingContact++;
+                } else if (lastAction.actionType === 'visita' && lastAction.visitSucceeded === undefined) {
+                    pendingContact++;
+                } else if (lastAction.actionType === 'encaminhamento_ct' && !lastAction.ctFeedback) {
+                    pendingFeedback++;
+                }
+            });
+
+            if (pendingContact === 0 && pendingFeedback === 0) {
+                dom.alertsPanel.innerHTML = '';
+                return;
+            }
+            
+            let alertsHtml = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
+            if (pendingContact > 0) {
+                alertsHtml += `
+                    <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-r-lg" role="alert">
+                        <p class="font-bold"><i class="fas fa-phone-slash mr-2"></i>${pendingContact} Processo(s) Aguardando Contato</p>
+                        <p class="text-sm">Há processos de busca ativa que necessitam de registro de tentativa de contato ou visita.</p>
+                    </div>
+                `;
+            }
+            if (pendingFeedback > 0) {
+                alertsHtml += `
+                    <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-r-lg" role="alert">
+                        <p class="font-bold"><i class="fas fa-inbox mr-2"></i>${pendingFeedback} Processo(s) Aguardando Devolutiva do CT</p>
+                        <p class="text-sm">Há processos que foram encaminhados ao Conselho Tutelar e aguardam registro da devolutiva.</p>
+                    </div>
+                `;
+            }
+            alertsHtml += '</div>';
+            dom.alertsPanel.innerHTML = alertsHtml;
+        };
 
         const renderAbsences = () => {
             dom.loadingAbsences.classList.add('hidden');
+            renderAlertsPanel(); // NEW: Call alerts panel rendering
+
             const filtered = state.absences
                 .filter(a => {
                     const student = state.students.find(s => s.matricula === a.studentId);
@@ -790,7 +849,6 @@
                     const student = state.students.find(s => s.matricula === firstAction.studentId);
                     if (!student) continue;
 
-                    // NEW: Check if the process is concluded (has an 'analise' action)
                     const isConcluded = actions.some(a => a.actionType === 'analise');
                     const hasCtAction = actions.some(a => a.actionType === 'encaminhamento_ct');
 
@@ -822,18 +880,27 @@
                         if (abs.actionType.startsWith('tentativa')) {
                             actionButtonHtml = `<button class="notification-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50" data-id="${abs.id}" title="Gerar Notificação">Notificação</button>`;
                         } else if (abs.actionType === 'visita') {
-                            const disabled = isConcluded || hasCtAction; // Disable if concluded or CT already sent
+                            const disabled = isConcluded || hasCtAction;
                             actionButtonHtml = `<button class="send-ct-btn text-blue-600 hover:text-blue-900 text-xs font-semibold py-1 px-2 rounded-md bg-blue-50 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" title="${disabled ? 'Encaminhamento já realizado' : 'Enviar ao Conselho Tutelar'}" ${disabled ? 'disabled' : ''}>Enviar ao C.T.</button>`;
                         } else if (abs.actionType === 'encaminhamento_ct') {
                              if(abs.oficioNumber) {
                                 actionButtonHtml = `<button class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50" data-id="${abs.id}" title="Visualizar Ofício">Ver Ofício</button>`;
                             }
                         } else {
-                            actionButtonHtml = `<span class="inline-block w-24"></span>`; // Placeholder
+                            actionButtonHtml = `<span class="inline-block w-24"></span>`;
                         }
                         
+                        // NEW: Status rendering for each action
                         let statusHtml = '';
-                        if(abs.actionType === 'encaminhamento_ct') {
+                        if (abs.actionType.startsWith('tentativa')) {
+                            statusHtml = abs.contactSucceeded === 'yes' || abs.contactSucceeded === 'no'
+                                ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-check"></i> Contato Realizado</p>'
+                                : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Contato</p>';
+                        } else if (abs.actionType === 'visita') {
+                             statusHtml = abs.visitSucceeded === 'yes' || abs.visitSucceeded === 'no'
+                                ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-check"></i> Contato Realizado</p>'
+                                : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Contato</p>';
+                        } else if (abs.actionType === 'encaminhamento_ct') {
                             statusHtml = abs.ctFeedback 
                                 ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-inbox"></i> Devolutiva Recebida</p>'
                                 : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Devolutiva</p>';
@@ -850,7 +917,7 @@
                                 <div class="whitespace-nowrap text-right text-sm font-medium space-x-2 flex items-center">
                                     ${actionButtonHtml}
                                     <button class="edit-absence-btn text-yellow-600 hover:text-yellow-900 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" title="Editar Ação" ${isConcluded ? 'disabled' : ''}><i class="fas fa-pencil-alt fa-lg"></i></button>
-                                    <button class="delete-absence-btn text-red-600 hover:text-red-900 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" title="Excluir Ação" ${isConcluded ? 'disabled' : ''}><i class="fas fa-trash fa-lg"></i></button>
+                                    <button class="delete-absence-btn text-red-600 hover:text-red-900 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" data-action-type="${abs.actionType}" title="Excluir Ação" ${isConcluded ? 'disabled' : ''}><i class="fas fa-trash fa-lg"></i></button>
                                 </div>
                             </div>
                         `;
@@ -996,7 +1063,6 @@
         const generateAndShowOficio = (action, oficioNumber = null) => {
             if (!action) return showToast('Ação de origem não encontrada.');
             
-            // If oficioNumber is not provided, it means we are regenerating it from a saved record
             const finalOficioNumber = oficioNumber || action.oficioNumber;
             const finalOficioYear = action.oficioYear || new Date().getFullYear();
 
@@ -1214,41 +1280,32 @@
             openModal(dom.reportViewModalBackdrop);
         };
 
-        const toggleFamilyContactFields = (enable) => {
-            const fieldsContainer = document.getElementById('family-contact-fields');
-            const inputs = fieldsContainer.querySelectorAll('input, textarea');
-            
-            inputs.forEach(input => {
+        const toggleFamilyContactFields = (enable, fieldsContainer) => {
+            const detailFields = fieldsContainer.querySelectorAll('input[type="date"], input[type="text"], textarea');
+            detailFields.forEach(input => {
                 input.disabled = !enable;
+                input.required = enable; // NEW: Set required property
                 if (!enable) {
                     input.classList.add('bg-gray-200', 'cursor-not-allowed');
+                    input.value = '';
                 } else {
                     input.classList.remove('bg-gray-200', 'cursor-not-allowed');
                 }
             });
-            // Limpar os campos se estiver desabilitado, exceto os botões de rádio
-            if (!enable) {
-                fieldsContainer.querySelectorAll('input[type="text"], input[type="date"], textarea').forEach(el => el.value = '');
-                fieldsContainer.querySelectorAll('input[type="radio"]').forEach(el => el.checked = false);
-            }
         };
 
-        const toggleVisitContactFields = (enable) => {
-            const fieldsContainer = document.getElementById('visit-contact-fields');
-            const inputs = fieldsContainer.querySelectorAll('input, textarea');
-            
-            inputs.forEach(input => {
+        const toggleVisitContactFields = (enable, fieldsContainer) => {
+             const detailFields = fieldsContainer.querySelectorAll('input[type="text"], textarea');
+             detailFields.forEach(input => {
                 input.disabled = !enable;
+                input.required = enable; // NEW: Set required property
                 if (!enable) {
                     input.classList.add('bg-gray-200', 'cursor-not-allowed');
+                    input.value = '';
                 } else {
                     input.classList.remove('bg-gray-200', 'cursor-not-allowed');
                 }
             });
-            if (!enable) {
-                fieldsContainer.querySelectorAll('input[type="text"], input[type="date"], textarea').forEach(el => el.value = '');
-                fieldsContainer.querySelectorAll('input[type="radio"]').forEach(el => el.checked = false);
-            }
         };
 
         const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
@@ -1258,7 +1315,6 @@
             document.getElementById('absence-modal-title').innerText = isEditing ? 'Editar Ação de Busca Ativa' : 'Registar Ação de Busca Ativa';
             document.getElementById('absence-id').value = isEditing ? data.id : '';
 
-            // Preencher dados do aluno
             document.getElementById('absence-student-name').value = student.name || '';
             document.getElementById('absence-student-class').value = student.class || '';
             document.getElementById('absence-student-endereco').value = student.endereco || '';
@@ -1267,53 +1323,58 @@
             const { processId, currentCycleActions } = getStudentProcessInfo(student.matricula);
             document.getElementById('absence-process-id').value = data?.processId || processId;
 
-
-            const finalActionType = forceActionType || determineNextActionForStudent(student.matricula);
+            const finalActionType = forceActionType || (isEditing ? data.actionType : determineNextActionForStudent(student.matricula));
             document.getElementById('action-type').value = finalActionType;
             document.getElementById('action-type-display').value = actionDisplayTitles[finalActionType] || '';
             document.getElementById('action-type').dispatchEvent(new Event('change'));
 
-            // Lógica para persistir dados de faltas
             const absenceFieldsContainer = dom.absenceForm.querySelector('#absence-form > .bg-gray-50');
             const absenceInputs = absenceFieldsContainer.querySelectorAll('input');
-            
             const firstAbsenceRecordInCycle = currentCycleActions.find(a => a.periodoFaltasStart);
 
+            const readOnlyAbsenceData = (finalActionType !== 'tentativa_1' && !isEditing) || (isEditing && firstAbsenceRecordInCycle && data.id !== firstAbsenceRecordInCycle.id);
 
-            if (finalActionType !== 'tentativa_1' && firstAbsenceRecordInCycle) {
-                document.getElementById('absence-start-date').value = firstAbsenceRecordInCycle.periodoFaltasStart || '';
-                document.getElementById('absence-end-date').value = firstAbsenceRecordInCycle.periodoFaltasEnd || '';
-                document.getElementById('absence-count').value = firstAbsenceRecordInCycle.absenceCount || '';
+            if (readOnlyAbsenceData) {
+                const source = firstAbsenceRecordInCycle || data;
+                document.getElementById('absence-start-date').value = source.periodoFaltasStart || '';
+                document.getElementById('absence-end-date').value = source.periodoFaltasEnd || '';
+                document.getElementById('absence-count').value = source.absenceCount || '';
                 absenceInputs.forEach(input => input.readOnly = true);
             } else {
                 absenceInputs.forEach(input => input.readOnly = false);
             }
             
-            // Preencher dados da ação se estiver editando
             if (isEditing) {
-                document.getElementById('absence-start-date').value = data.periodoFaltasStart || firstAbsenceRecordInCycle?.periodoFaltasStart || '';
-                document.getElementById('absence-end-date').value = data.periodoFaltasEnd || firstAbsenceRecordInCycle?.periodoFaltasEnd || '';
-                document.getElementById('absence-count').value = data.absenceCount || firstAbsenceRecordInCycle?.absenceCount || '';
-
+                // Populate general absence data if not readonly
+                if (!readOnlyAbsenceData) {
+                    document.getElementById('absence-start-date').value = data.periodoFaltasStart || '';
+                    document.getElementById('absence-end-date').value = data.periodoFaltasEnd || '';
+                    document.getElementById('absence-count').value = data.absenceCount || '';
+                }
+                
                 switch (data.actionType) {
                     case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
                         document.getElementById('meeting-date').value = data.meetingDate || '';
                         document.getElementById('meeting-time').value = data.meetingTime || '';
+                        if(data.contactSucceeded) {
+                            document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).checked = true;
+                            document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).dispatchEvent(new Event('change')); // Trigger change
+                        }
                         document.getElementById('contact-date').value = data.contactDate || '';
                         document.getElementById('contact-person').value = data.contactPerson || '';
                         document.getElementById('contact-reason').value = data.contactReason || '';
-                        if(data.contactSucceeded) document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).checked = true;
-                        toggleFamilyContactFields(data.contactSucceeded === 'yes');
                         if(data.contactReturned) document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`).checked = true;
                         break;
                     case 'visita':
                         document.getElementById('visit-agent').value = data.visitAgent || '';
                         document.getElementById('visit-date').value = data.visitDate || '';
+                        if(data.visitSucceeded) {
+                            document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).checked = true;
+                            document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).dispatchEvent(new Event('change')); // Trigger change
+                        }
                         document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
                         document.getElementById('visit-reason').value = data.visitReason || '';
                         document.getElementById('visit-obs').value = data.visitObs || '';
-                        if(data.visitSucceeded) document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).checked = true;
-                        toggleVisitContactFields(data.visitSucceeded === 'yes');
                         if (data.visitReturned) document.querySelector(`input[name="visit-returned"][value="${data.visitReturned}"]`).checked = true;
                         break;
                     case 'encaminhamento_ct':
@@ -1325,6 +1386,10 @@
                         document.getElementById('ct-parecer').value = data.ctParecer || '';
                         break;
                 }
+            } else {
+                 // Reset fields for new entry
+                 toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
+                 toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
             }
             
             openModal(dom.absenceModal);
@@ -1337,7 +1402,6 @@
             dom.tabOccurrences.addEventListener('click', () => { state.activeTab = 'occurrences'; dom.tabOccurrences.classList.add('tab-active'); dom.tabAbsences.classList.remove('tab-active'); dom.tabContentOccurrences.classList.remove('hidden'); dom.tabContentAbsences.classList.add('hidden'); render(); });
             dom.tabAbsences.addEventListener('click', () => { state.activeTab = 'absences'; dom.tabAbsences.classList.add('tab-active'); dom.tabOccurrences.classList.remove('tab-active'); dom.tabContentAbsences.classList.remove('hidden'); dom.tabContentOccurrences.classList.add('hidden'); render(); });
 
-            // Listeners dos botões de partilha
             document.getElementById('share-btn').addEventListener('click', () => {
                 const title = document.getElementById('notification-title').textContent;
                 const content = document.getElementById('notification-content').innerText;
@@ -1392,6 +1456,14 @@
 
             dom.absenceForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
+                // NEW: Form Validation
+                const form = e.target;
+                if (!form.checkValidity()) {
+                    showToast('Por favor, preencha todos os campos obrigatórios.');
+                    form.reportValidity();
+                    return;
+                }
+                
                 const id = document.getElementById('absence-id').value;
                 const studentName = document.getElementById('absence-student-name').value.trim();
                 const student = state.students.find(s => s.name === studentName);
@@ -1416,22 +1488,26 @@
                         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
                             data.meetingDate = document.getElementById('meeting-date').value || null;
                             data.meetingTime = document.getElementById('meeting-time').value || null;
-                            data.contactDate = document.getElementById('contact-date').value || null;
-                            data.contactPerson = document.getElementById('contact-person').value || null;
-                            data.contactReason = document.getElementById('contact-reason').value || null;
                             const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
                             data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
+                            if (data.contactSucceeded === 'yes') {
+                                data.contactDate = document.getElementById('contact-date').value || null;
+                                data.contactPerson = document.getElementById('contact-person').value || null;
+                                data.contactReason = document.getElementById('contact-reason').value || null;
+                            }
                             const contactReturnedRadio = document.querySelector('input[name="contact-returned"]:checked');
                             data.contactReturned = contactReturnedRadio ? contactReturnedRadio.value : null;
                             break;
                         case 'visita':
                             data.visitAgent = document.getElementById('visit-agent').value || null;
                             data.visitDate = document.getElementById('visit-date').value || null;
-                            data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
-                            data.visitReason = document.getElementById('visit-reason').value || null;
-                            data.visitObs = document.getElementById('visit-obs').value || null;
                             const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
                             data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
+                             if (data.visitSucceeded === 'yes') {
+                                data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
+                                data.visitReason = document.getElementById('visit-reason').value || null;
+                                data.visitObs = document.getElementById('visit-obs').value || null;
+                            }
                             const visitRadio = document.querySelector('input[name="visit-returned"]:checked');
                             data.visitReturned = visitRadio ? visitRadio.value : null;
                             break;
@@ -1444,11 +1520,6 @@
                         case 'analise':
                             data.ctParecer = document.getElementById('ct-parecer').value || null;
                             break;
-                        default:
-                            if (!actionType) {
-                                showToast("Por favor, selecione um Tipo de Ação.");
-                                return;
-                            }
                     }
                 } catch (error) {
                     console.error("Erro ao recolher dados do formulário:", error);
@@ -1461,7 +1532,7 @@
                     if (isNewRecord) {
                         const newDocRef = await addRecord('absence', data);
                         data.id = newDocRef.id;
-                        state.absences.push(data); // Adicionar localmente para a verificação de retorno funcionar imediatamente
+                        state.absences.push(data);
                     } else {
                         await updateRecord('absence', id, data);
                     }
@@ -1503,15 +1574,15 @@
                 }
 
                 if(button) {
-                    const studentId = button.dataset.studentId;
+                    const id = button.dataset.id;
                     if (button.classList.contains('generate-ficha-btn-row')) {
                         e.stopPropagation();
+                        const studentId = button.dataset.studentId;
                         const processId = button.dataset.processId;
                         generateAndShowConsolidatedFicha(studentId, processId);
                         return; 
                     }
 
-                    const id = button.dataset.id;
                     if (button.classList.contains('edit-absence-btn')) {
                         const data = state.absences.find(a => a.id === id);
                         const student = state.students.find(s => s.matricula === data.studentId);
@@ -1522,9 +1593,19 @@
                     else if (button.classList.contains('delete-absence-btn')) { 
                         const actionToDelete = state.absences.find(a => a.id === id);
                         if (!actionToDelete) return;
-                        // NEW: Custom logic for cascade delete
+                        
+                        const sequence = ['tentativa_1', 'tentativa_2', 'tentativa_3', 'visita', 'encaminhamento_ct', 'analise'];
+                        const processActions = state.absences.filter(a => a.processId === actionToDelete.processId);
+                        const deleteIndex = sequence.indexOf(actionToDelete.actionType);
+                        const hasLaterAction = processActions.some(a => sequence.indexOf(a.actionType) > deleteIndex);
+
+                        if (hasLaterAction) {
+                            showToast("Ação não pode ser excluída. Por favor, exclua a etapa mais recente deste processo primeiro.");
+                            return;
+                        }
+
                         if (actionToDelete.actionType === 'encaminhamento_ct') {
-                             const analiseAction = state.absences.find(a => a.processId === actionToDelete.processId && a.actionType === 'analise');
+                             const analiseAction = processActions.find(a => a.actionType === 'analise');
                              document.getElementById('delete-confirm-message').textContent = 'Tem certeza? A etapa de Análise associada a este processo também será excluída. Esta ação não pode ser desfeita.';
                              state.recordToDelete = { type: 'absence-cascade', ctId: id, analiseId: analiseAction ? analiseAction.id : null };
                         } else {
@@ -1558,8 +1639,8 @@
                                 actionType: 'encaminhamento_ct',
                                 processId: processId,
                                 ctSentDate: new Date().toISOString().split('T')[0],
-                                oficioNumber: oficioNumber, // NEW: Save oficio number
-                                oficioYear: new Date().getFullYear(), // NEW: Save oficio year
+                                oficioNumber: oficioNumber,
+                                oficioYear: new Date().getFullYear(),
                                 periodoFaltasStart: firstActionWithAbsenceData?.periodoFaltasStart || null,
                                 periodoFaltasEnd: firstActionWithAbsenceData?.periodoFaltasEnd || null,
                                 absenceCount: firstActionWithAbsenceData?.absenceCount || null,
@@ -1604,14 +1685,16 @@
                         openModal(dom.occurrenceModal);
                     }
                 }
-                else if (button.classList.contains('delete-btn')) { state.recordToDelete = { type: 'occurrence', id: id }; openModal(dom.deleteConfirmModal); }
+                else if (button.classList.contains('delete-btn')) { 
+                    document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.';
+                    state.recordToDelete = { type: 'occurrence', id: id }; openModal(dom.deleteConfirmModal);
+                }
                 else if (button.classList.contains('view-btn')) { openNotificationModal(id); }
             });
 
             document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
                 if (state.recordToDelete) {
                     try {
-                        // NEW: Handle different delete types
                         if (state.recordToDelete.type === 'absence-cascade') {
                             const batch = writeBatch(state.db);
                             const ctRef = doc(getCollectionRef('absence'), state.recordToDelete.ctId);
@@ -1649,14 +1732,10 @@
                 document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
                 if (action.startsWith('tentativa')) { 
                     document.getElementById('group-tentativas').classList.remove('hidden');
-                    toggleFamilyContactFields(false); // Desabilitar por padrão
-                    const radioNo = document.querySelector('input[name="contact-succeeded"][value="no"]');
-                    if (radioNo) radioNo.checked = true;
+                    toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
                 } else if (action === 'visita') {
                     document.getElementById('group-visita').classList.remove('hidden');
-                    toggleVisitContactFields(false); // Desabilitar por padrão
-                    const radioNo = document.querySelector('input[name="visit-succeeded"][value="no"]');
-                    if (radioNo) radioNo.checked = true;
+                    toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
                 }
                 else if (action) { 
                     const group = document.getElementById(`group-${action}`); 
@@ -1666,12 +1745,12 @@
             
             document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => {
                 radio.addEventListener('change', (e) => {
-                    toggleFamilyContactFields(e.target.value === 'yes');
+                    toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'));
                 });
             });
             document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => {
                 radio.addEventListener('change', (e) => {
-                    toggleVisitContactFields(e.target.value === 'yes');
+                    toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'));
                 });
             });
 
