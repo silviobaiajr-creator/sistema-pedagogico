@@ -790,6 +790,10 @@
                     const student = state.students.find(s => s.matricula === firstAction.studentId);
                     if (!student) continue;
 
+                    // NEW: Check if the process is concluded (has an 'analise' action)
+                    const isConcluded = actions.some(a => a.actionType === 'analise');
+                    const hasCtAction = actions.some(a => a.actionType === 'encaminhamento_ct');
+
                     html += `
                         <div class="border rounded-lg overflow-hidden mb-4 bg-white shadow">
                             <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center" data-process-id="${processId}">
@@ -798,6 +802,7 @@
                                     <p class="text-sm text-gray-500">ID do Processo: ${processId} - Início: ${formatDate(firstAction.createdAt?.toDate())}</p>
                                 </div>
                                 <div class="flex items-center space-x-4">
+                                    ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : ''}
                                     <button class="generate-ficha-btn-row bg-purple-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-purple-700 text-xs no-print" data-student-id="${student.matricula}" data-process-id="${processId}">
                                         <i class="fas fa-file-invoice"></i> Ficha
                                     </button>
@@ -817,9 +822,21 @@
                         if (abs.actionType.startsWith('tentativa')) {
                             actionButtonHtml = `<button class="notification-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50" data-id="${abs.id}" title="Gerar Notificação">Notificação</button>`;
                         } else if (abs.actionType === 'visita') {
-                            actionButtonHtml = `<button class="send-ct-btn text-blue-600 hover:text-blue-900 text-xs font-semibold py-1 px-2 rounded-md bg-blue-50" data-id="${abs.id}" title="Enviar ao Conselho Tutelar">Enviar ao C.T.</button>`;
+                            const disabled = isConcluded || hasCtAction; // Disable if concluded or CT already sent
+                            actionButtonHtml = `<button class="send-ct-btn text-blue-600 hover:text-blue-900 text-xs font-semibold py-1 px-2 rounded-md bg-blue-50 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" title="${disabled ? 'Encaminhamento já realizado' : 'Enviar ao Conselho Tutelar'}" ${disabled ? 'disabled' : ''}>Enviar ao C.T.</button>`;
+                        } else if (abs.actionType === 'encaminhamento_ct') {
+                             if(abs.oficioNumber) {
+                                actionButtonHtml = `<button class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50" data-id="${abs.id}" title="Visualizar Ofício">Ver Ofício</button>`;
+                            }
                         } else {
-                            actionButtonHtml = `<span class="inline-block w-24"></span>`; // Placeholder for alignment
+                            actionButtonHtml = `<span class="inline-block w-24"></span>`; // Placeholder
+                        }
+                        
+                        let statusHtml = '';
+                        if(abs.actionType === 'encaminhamento_ct') {
+                            statusHtml = abs.ctFeedback 
+                                ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-inbox"></i> Devolutiva Recebida</p>'
+                                : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Devolutiva</p>';
                         }
 
                         html += `
@@ -828,11 +845,12 @@
                                     <p class="font-medium text-gray-700">${actionDisplayTitles[abs.actionType] || 'N/A'}</p>
                                     <p class="text-sm text-gray-500">Data: ${formatDate(actionDate)}</p>
                                     ${returned ? '<p class="text-sm text-green-600 font-semibold mt-1"><i class="fas fa-check-circle"></i> Aluno Retornou</p>' : ''}
+                                    ${statusHtml}
                                 </div>
                                 <div class="whitespace-nowrap text-right text-sm font-medium space-x-2 flex items-center">
                                     ${actionButtonHtml}
-                                    <button class="edit-absence-btn text-yellow-600 hover:text-yellow-900" data-id="${abs.id}" title="Editar Ação"><i class="fas fa-pencil-alt fa-lg"></i></button>
-                                    <button class="delete-absence-btn text-red-600 hover:text-red-900" data-id="${abs.id}" title="Excluir Ação"><i class="fas fa-trash fa-lg"></i></button>
+                                    <button class="edit-absence-btn text-yellow-600 hover:text-yellow-900 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" title="Editar Ação" ${isConcluded ? 'disabled' : ''}><i class="fas fa-pencil-alt fa-lg"></i></button>
+                                    <button class="delete-absence-btn text-red-600 hover:text-red-900 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" title="Excluir Ação" ${isConcluded ? 'disabled' : ''}><i class="fas fa-trash fa-lg"></i></button>
                                 </div>
                             </div>
                         `;
@@ -975,20 +993,24 @@
             openModal(dom.reportGeneratorModal);
         };
         
-        const generateAndShowOficio = (action, oficioNumber) => {
+        const generateAndShowOficio = (action, oficioNumber = null) => {
             if (!action) return showToast('Ação de origem não encontrada.');
             
+            // If oficioNumber is not provided, it means we are regenerating it from a saved record
+            const finalOficioNumber = oficioNumber || action.oficioNumber;
+            const finalOficioYear = action.oficioYear || new Date().getFullYear();
+
+            if (!finalOficioNumber) return showToast('Número do ofício não encontrado para este registro.');
+
             const student = state.students.find(s => s.matricula === action.studentId);
             if (!student) return showToast('Aluno não encontrado.');
 
-            // Get all actions for this specific process
             const processActions = state.absences
                 .filter(a => a.processId === action.processId)
                 .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
 
             if (processActions.length === 0) return showToast('Nenhuma ação encontrada para este processo.');
 
-            // Extract data from the process actions
             const firstActionWithAbsenceData = processActions.find(a => a.periodoFaltasStart);
             const visitAction = processActions.find(a => a.actionType === 'visita');
             const contactAttempts = processActions.filter(a => a.actionType.startsWith('tentativa'));
@@ -1015,7 +1037,7 @@
                     </div>
 
                     <div class="mt-8">
-                        <p class="font-bold text-base">OFÍCIO Nº ${String(oficioNumber).padStart(3, '0')}/${new Date().getFullYear()}</p>
+                        <p class="font-bold text-base">OFÍCIO Nº ${String(finalOficioNumber).padStart(3, '0')}/${finalOficioYear}</p>
                     </div>
 
                     <div class="mt-8">
@@ -1067,7 +1089,7 @@
                 </div>
             `;
 
-            document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNumber}`;
+            document.getElementById('report-view-title').textContent = `Ofício Nº ${finalOficioNumber}`;
             document.getElementById('report-view-content').innerHTML = oficioHTML;
             openModal(dom.reportViewModalBackdrop);
         };
@@ -1498,7 +1520,17 @@
                         }
                     }
                     else if (button.classList.contains('delete-absence-btn')) { 
-                        state.recordToDelete = { id, type: 'absence' }; 
+                        const actionToDelete = state.absences.find(a => a.id === id);
+                        if (!actionToDelete) return;
+                        // NEW: Custom logic for cascade delete
+                        if (actionToDelete.actionType === 'encaminhamento_ct') {
+                             const analiseAction = state.absences.find(a => a.processId === actionToDelete.processId && a.actionType === 'analise');
+                             document.getElementById('delete-confirm-message').textContent = 'Tem certeza? A etapa de Análise associada a este processo também será excluída. Esta ação não pode ser desfeita.';
+                             state.recordToDelete = { type: 'absence-cascade', ctId: id, analiseId: analiseAction ? analiseAction.id : null };
+                        } else {
+                             document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.';
+                             state.recordToDelete = { type: 'absence', id: id };
+                        }
                         openModal(dom.deleteConfirmModal); 
                     }
                     else if (button.classList.contains('notification-btn')) { 
@@ -1509,17 +1541,15 @@
                             const visitAction = state.absences.find(a => a.id === id);
                             if (!visitAction) return;
 
-                            // 1. Gera e mostra o ofício para impressão/envio
                             generateAndShowOficio(visitAction, oficioNumber); 
 
-                            // 2. Cria automaticamente o registro do próximo passo no banco de dados
                             const student = state.students.find(s => s.matricula === visitAction.studentId);
                             if (!student) return;
 
                             const { processId, currentCycleActions } = getStudentProcessInfo(student.matricula);
 
                             const alreadyExists = currentCycleActions.some(a => a.actionType === 'encaminhamento_ct');
-                            if (alreadyExists) return; // Não faz nada se o passo já foi registrado
+                            if (alreadyExists) return;
 
                             const firstActionWithAbsenceData = currentCycleActions.find(a => a.periodoFaltasStart);
                             
@@ -1528,6 +1558,8 @@
                                 actionType: 'encaminhamento_ct',
                                 processId: processId,
                                 ctSentDate: new Date().toISOString().split('T')[0],
+                                oficioNumber: oficioNumber, // NEW: Save oficio number
+                                oficioYear: new Date().getFullYear(), // NEW: Save oficio year
                                 periodoFaltasStart: firstActionWithAbsenceData?.periodoFaltasStart || null,
                                 periodoFaltasEnd: firstActionWithAbsenceData?.periodoFaltasEnd || null,
                                 absenceCount: firstActionWithAbsenceData?.absenceCount || null,
@@ -1539,6 +1571,11 @@
                                 console.error("Erro ao salvar o encaminhamento ao CT:", error);
                                 showToast("Erro ao salvar o encaminhamento automático.");
                             });
+                        }
+                    } else if (button.classList.contains('view-oficio-btn')) {
+                        const ctAction = state.absences.find(a => a.id === id);
+                        if (ctAction) {
+                            generateAndShowOficio(ctAction);
                         }
                     }
                 }
@@ -1567,13 +1604,35 @@
                         openModal(dom.occurrenceModal);
                     }
                 }
-                else if (button.classList.contains('delete-btn')) { state.recordToDelete = { id, type: 'occurrence' }; openModal(dom.deleteConfirmModal); }
+                else if (button.classList.contains('delete-btn')) { state.recordToDelete = { type: 'occurrence', id: id }; openModal(dom.deleteConfirmModal); }
                 else if (button.classList.contains('view-btn')) { openNotificationModal(id); }
             });
 
             document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
                 if (state.recordToDelete) {
-                    try { await deleteRecord(state.recordToDelete.type, state.recordToDelete.id); showToast('Registro excluído com sucesso.'); } catch (error) { console.error("Erro ao excluir:", error); showToast('Erro ao excluir.'); } finally { state.recordToDelete = null; closeModal(dom.deleteConfirmModal); }
+                    try {
+                        // NEW: Handle different delete types
+                        if (state.recordToDelete.type === 'absence-cascade') {
+                            const batch = writeBatch(state.db);
+                            const ctRef = doc(getCollectionRef('absence'), state.recordToDelete.ctId);
+                            batch.delete(ctRef);
+                            if (state.recordToDelete.analiseId) {
+                                const analiseRef = doc(getCollectionRef('absence'), state.recordToDelete.analiseId);
+                                batch.delete(analiseRef);
+                            }
+                            await batch.commit();
+                            showToast('Encaminhamento e Análise foram excluídos.');
+                        } else {
+                            await deleteRecord(state.recordToDelete.type, state.recordToDelete.id);
+                            showToast('Registro excluído com sucesso.');
+                        }
+                    } catch (error) {
+                        console.error("Erro ao excluir:", error);
+                        showToast('Erro ao excluir.');
+                    } finally {
+                        state.recordToDelete = null;
+                        closeModal(dom.deleteConfirmModal);
+                    }
                 }
             });
             
@@ -1933,5 +1992,4 @@
     </script>
 </body>
 </html>
-
 
