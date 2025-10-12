@@ -812,6 +812,16 @@
                     actions.forEach(abs => {
                         const actionDate = abs.contactDate || abs.visitDate || abs.ctSentDate || (abs.createdAt?.toDate() ? abs.createdAt.toDate().toISOString().split('T')[0] : '');
                         const returned = abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes';
+                        
+                        let actionButtonHtml = '';
+                        if (abs.actionType.startsWith('tentativa')) {
+                            actionButtonHtml = `<button class="notification-btn text-indigo-600 hover:text-indigo-900" data-id="${abs.id}" title="Gerar Notificação"><i class="fas fa-file-alt fa-lg"></i></button>`;
+                        } else if (abs.actionType === 'visita') {
+                             actionButtonHtml = `<button class="send-ct-btn text-blue-600 hover:text-blue-900" data-id="${abs.id}" title="Enviar ao Conselho Tutelar"><i class="fas fa-share-square fa-lg"></i></button>`;
+                        } else {
+                            actionButtonHtml = `<button class="view-absence-btn text-gray-500 cursor-not-allowed" data-id="${abs.id}" title="Ver Detalhes"><i class="fas fa-eye fa-lg"></i></button>`;
+                        }
+
                         html += `
                             <div class="flex justify-between items-start border-b last:border-b-0 pb-3">
                                 <div>
@@ -819,10 +829,10 @@
                                     <p class="text-sm text-gray-500">Data: ${formatDate(actionDate)}</p>
                                     ${returned ? '<p class="text-sm text-green-600 font-semibold mt-1"><i class="fas fa-check-circle"></i> Aluno Retornou</p>' : ''}
                                 </div>
-                                <div class="whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                    <button class="view-absence-btn text-indigo-600 hover:text-indigo-900" data-id="${abs.id}" title="Ver Ação"><i class="fas fa-eye"></i></button>
-                                    <button class="edit-absence-btn text-yellow-600 hover:text-yellow-900" data-id="${abs.id}" title="Editar Ação"><i class="fas fa-pencil-alt"></i></button>
-                                    <button class="delete-absence-btn text-red-600 hover:text-red-900" data-id="${abs.id}" title="Excluir Ação"><i class="fas fa-trash"></i></button>
+                                <div class="whitespace-nowrap text-right text-sm font-medium space-x-4">
+                                    ${actionButtonHtml}
+                                    <button class="edit-absence-btn text-yellow-600 hover:text-yellow-900" data-id="${abs.id}" title="Editar Ação"><i class="fas fa-pencil-alt fa-lg"></i></button>
+                                    <button class="delete-absence-btn text-red-600 hover:text-red-900" data-id="${abs.id}" title="Excluir Ação"><i class="fas fa-trash fa-lg"></i></button>
                                 </div>
                             </div>
                         `;
@@ -1427,8 +1437,6 @@
                     try { await deleteRecord(state.recordToDelete.type, state.recordToDelete.id); showToast('Registro excluído com sucesso.'); } catch (error) { console.error("Erro ao excluir:", error); showToast('Erro ao excluir.'); } finally { state.recordToDelete = null; closeModal(dom.deleteConfirmModal); }
                 }
             });
-            
-            document.getElementById('generate-report-btn').addEventListener('click', () => openReportGeneratorModal('occurrences'));
             
             document.getElementById('create-report-btn').addEventListener('click', () => {
                 const selectedStudentId = document.getElementById('student-select').value;
