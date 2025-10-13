@@ -96,13 +96,13 @@
             border: 2px solid white;
         }
         .spinner-overlay {
-            position: absolute;
+            position: fixed; /* Changed to fixed to cover the whole screen */
             inset: 0;
-            background-color: rgba(255, 255, 255, 0.7);
+            background-color: rgba(0, 0, 0, 0.5); /* Darker overlay */
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 60;
+            z-index: 100; /* Higher z-index */
         }
         @media print {
             body > div:not(.printable-area) {
@@ -146,10 +146,10 @@
 <body class="text-gray-800">
 
     <!-- NEW: Spinner Overlay for uploads -->
-    <div id="spinner-overlay" class="fixed inset-0 spinner-overlay hidden">
+    <div id="spinner-overlay" class="spinner-overlay hidden">
         <div class="text-center">
-            <i class="fas fa-spinner fa-spin fa-3x text-indigo-600"></i>
-            <p class="mt-2 text-gray-700 font-semibold">A enviar arquivos...</p>
+            <i class="fas fa-spinner fa-spin fa-3x text-white"></i>
+            <p class="mt-4 text-white font-semibold">A enviar arquivos...</p>
         </div>
     </div>
 
@@ -788,6 +788,31 @@
         };
 
         // MODIFIED: shareContent (no changes)
+        const enhanceTextForSharing = (title, text) => {
+            let enhancedText = text;
+
+            if (title.toLowerCase().includes('ocorrência')) {
+                enhancedText = `*📢 NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR 📢*\n\n${text}`;
+            } else if (title.toLowerCase().includes('relatório')) {
+                enhancedText = `*📋 RELATÓRIO DE OCORRÊNCIAS 📋*\n\n${text}`;
+            } else if (title.toLowerCase().includes('ficha')) {
+                enhancedText = `*📈 FICHA DE ACOMPANHAMENTO 📈*\n\n${text}`;
+            }
+
+            enhancedText = enhancedText.replace(/Aos Responsáveis/g, '👥 Aos Responsáveis');
+            enhancedText = enhancedText.replace(/Aluno\(a\):/g, '👤 Aluno(a):');
+            enhancedText = enhancedText.replace(/Turma:/g, '🏫 Turma:');
+            enhancedText = enhancedText.replace(/Data:/g, '🗓️ Data:');
+            enhancedText = enhancedText.replace(/Horário:/g, '⏰ Horário:');
+            enhancedText = enhancedText.replace(/Descrição:/g, '📝 Descrição:');
+            enhancedText = enhancedText.replace(/Providências da Escola:/g, '🏛️ Providências da Escola:');
+            enhancedText = enhancedText.replace(/Providências da Família:/g, '👨‍👩‍👧‍👦 Providências da Família:');
+
+            enhancedText += `\n\n-------------\n_Mensagem enviada pelo Sistema de Acompanhamento Pedagógico._`;
+
+            return enhancedText;
+        };
+        
         const shareContent = async (title, text) => {
             const enhancedText = enhanceTextForSharing(title, text);
             if (navigator.share) {
@@ -1596,21 +1621,27 @@
                 }
                 const actionType = document.getElementById('action-type').value;
                 const processId = document.getElementById('absence-process-id').value;
-                const data = { 
-                    studentId: student.matricula,
-                    actionType,
-                    processId
-                };
-
-                // NEW: Upload images
+                
+                // Handle image uploads before collecting other data
                 const newUploadedUrls = [];
                 for (const file of state.filesToUpload) {
                     const url = await uploadImage(file, processId);
-                    if(url) newUploadedUrls.push(url);
+                    if (url) {
+                        newUploadedUrls.push(url);
+                    } else {
+                        // If any upload fails, stop the process
+                        dom.spinnerOverlay.classList.add('hidden');
+                        showToast("Falha no upload de uma ou mais imagens. A ação não foi salva.");
+                        return;
+                    }
                 }
 
-                // Combine existing and new URLs
-                data.contactEvidences = [...state.existingEvidenceUrls, ...newUploadedUrls];
+                const data = { 
+                    studentId: student.matricula,
+                    actionType,
+                    processId,
+                    contactEvidences: [...state.existingEvidenceUrls, ...newUploadedUrls]
+                };
 
                 try {
                     data.periodoFaltasStart = document.getElementById('absence-start-date').value || null;
@@ -1631,10 +1662,9 @@
                                 data.contactPerson = document.getElementById('contact-person').value || null;
                                 data.contactReason = document.getElementById('contact-reason').value || null;
                             } else {
-                                // Clear contact details if contact failed
+                                // Clear contact details if contact failed, but keep evidences
                                 data.contactType = null;
                                 data.audioTranscription = null;
-                                data.contactEvidences = [];
                                 data.contactDate = null;
                                 data.contactPerson = null;
                                 data.contactReason = null;
