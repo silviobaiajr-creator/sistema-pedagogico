@@ -1587,52 +1587,48 @@
                     form.reportValidity();
                     return;
                 }
-                
+
                 dom.spinnerOverlay.classList.remove('hidden');
 
-                const id = document.getElementById('absence-id').value;
-                const studentName = document.getElementById('absence-student-name').value.trim();
-                const student = state.students.find(s => s.name === studentName);
-                if (!student) {
-                    showToast("Aluno inválido.");
-                    dom.spinnerOverlay.classList.add('hidden');
-                    return;
-                }
-                const actionType = document.getElementById('action-type').value;
-                const processId = document.getElementById('absence-process-id').value;
-                
-                // Handle image uploads before collecting other data
-                const newUploadedUrls = [];
-                for (const file of state.filesToUpload) {
-                    const url = await uploadImage(file, processId);
-                    if (url) {
-                        newUploadedUrls.push(url);
-                    } else {
-                        // If any upload fails, stop the process
-                        dom.spinnerOverlay.classList.add('hidden');
-                        showToast("Falha no upload de uma ou mais imagens. A ação não foi salva.");
-                        return;
-                    }
-                }
-
-                const data = { 
-                    studentId: student.matricula,
-                    actionType,
-                    processId,
-                    contactEvidences: [...state.existingEvidenceUrls, ...newUploadedUrls]
-                };
-
                 try {
+                    const id = document.getElementById('absence-id').value;
+                    const studentName = document.getElementById('absence-student-name').value.trim();
+                    const student = state.students.find(s => s.name === studentName);
+
+                    if (!student) {
+                        throw new Error("Aluno inválido.");
+                    }
+
+                    const actionType = document.getElementById('action-type').value;
+                    const processId = document.getElementById('absence-process-id').value;
+                    
+                    const newUploadedUrls = [];
+                    for (const file of state.filesToUpload) {
+                        const url = await uploadImage(file, processId);
+                        if (!url) {
+                            throw new Error("Falha no upload de uma ou mais imagens. A ação não foi salva.");
+                        }
+                        newUploadedUrls.push(url);
+                    }
+
+                    const data = { 
+                        studentId: student.matricula,
+                        actionType,
+                        processId,
+                        contactEvidences: [...state.existingEvidenceUrls, ...newUploadedUrls]
+                    };
+
                     data.periodoFaltasStart = document.getElementById('absence-start-date').value || null;
                     data.periodoFaltasEnd = document.getElementById('absence-end-date').value || null;
                     data.absenceCount = document.getElementById('absence-count').value || null;
 
                     switch (actionType) {
-                        case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
+                        case 'tentativa_1': case 'tentativa_2': case 'tentativa_3': {
                             data.meetingDate = document.getElementById('meeting-date').value || null;
                             data.meetingTime = document.getElementById('meeting-time').value || null;
                             const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
                             data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
+                            
                             if (data.contactSucceeded === 'yes') {
                                 const contactTypeRadio = document.querySelector('input[name="contact-type"]:checked');
                                 data.contactType = contactTypeRadio ? contactTypeRadio.value : null;
@@ -1641,10 +1637,11 @@
                                 data.contactPerson = document.getElementById('contact-person').value || null;
                                 data.contactReason = document.getElementById('contact-reason').value || null;
                             } else {
-                                // Clear contact details if contact failed, but keep evidences
                                 data.contactType = null;
                                 data.audioTranscription = null;
-                                data.contactEvidences = [];
+                                if (data.contactSucceeded === 'no') { // Only clear evidences if contact failed explicitly
+                                    data.contactEvidences = [];
+                                }
                                 data.contactDate = null;
                                 data.contactPerson = null;
                                 data.contactReason = null;
@@ -1652,7 +1649,8 @@
                             const contactReturnedRadio = document.querySelector('input[name="contact-returned"]:checked');
                             data.contactReturned = contactReturnedRadio ? contactReturnedRadio.value : null;
                             break;
-                        case 'visita':
+                        }
+                        case 'visita': {
                             const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
                             data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
                             data.visitAgent = document.getElementById('visit-agent').value || null;
@@ -1665,25 +1663,22 @@
                             const visitRadio = document.querySelector('input[name="visit-returned"]:checked');
                             data.visitReturned = visitRadio ? visitRadio.value : null;
                             break;
-                        case 'encaminhamento_ct':
+                        }
+                        case 'encaminhamento_ct': {
                             data.ctSentDate = document.getElementById('ct-sent-date').value || null;
                             data.ctFeedback = document.getElementById('ct-feedback').value || null;
                             const ctRadio = document.querySelector('input[name="ct-returned"]:checked');
                             data.ctReturned = ctRadio ? ctRadio.value : null;
                             break;
-                        case 'analise':
+                        }
+                        case 'analise': {
                             data.ctParecer = document.getElementById('ct-parecer').value || null;
                             break;
+                        }
                     }
-                } catch (error) {
-                    console.error("Erro ao recolher dados do formulário:", error);
-                    showToast("Erro interno ao ler os campos do formulário.");
-                    dom.spinnerOverlay.classList.add('hidden');
-                    return;
-                }
-
-                try {
-                    id ? await updateRecord('absence', id, data) : await addRecord('absence', data);
+                    
+                    await (id ? updateRecord('absence', id, data) : addRecord('absence', data));
+                    
                     showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
                     const studentReturned = (data.actionType.startsWith('tentativa') && data.contactReturned === 'yes') || (data.actionType === 'visita' && data.visitReturned === 'yes');
                     closeModal(dom.absenceModal);
@@ -1692,14 +1687,13 @@
                     }
                 } catch (error) { 
                     console.error("Erro ao salvar ação:", error); 
-                    showToast('Erro ao salvar.'); 
+                    showToast(error.message || 'Erro ao salvar.'); 
                 } finally {
                     dom.spinnerOverlay.classList.add('hidden');
                 }
             });
 
             // --- The rest of the event listeners ---
-            // (Most of these are heavily modified to handle the new logic)
             
             dom.absencesListDiv.addEventListener('click', (e) => {
                 const target = e.target;
