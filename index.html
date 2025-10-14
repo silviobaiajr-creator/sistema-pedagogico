@@ -66,44 +66,6 @@
             overflow: hidden;
             transition: max-height 0.3s ease-out;
         }
-        /* NEW: Styles for image previews */
-        .preview-image-container {
-            position: relative;
-            width: 80px;
-            height: 80px;
-        }
-        .preview-image {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            border-radius: 0.375rem;
-            border: 1px solid #d1d5db;
-        }
-        .remove-image-btn {
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            background-color: #ef4444;
-            color: white;
-            border-radius: 9999px;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 14px;
-            border: 2px solid white;
-        }
-        .spinner-overlay {
-            position: fixed; /* Changed to fixed to cover the whole screen */
-            inset: 0;
-            background-color: rgba(0, 0, 0, 0.5); /* Darker overlay */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 100; /* Higher z-index */
-        }
         @media print {
             body > div:not(.printable-area) {
                 display: none;
@@ -129,29 +91,10 @@
                 display: block !important;
                 page-break-inside: avoid;
             }
-            /* NEW: Print styles for evidence */
-            .evidence-print-container {
-                page-break-inside: avoid;
-            }
-            .evidence-print-image {
-                max-width: 150px;
-                max-height: 150px;
-                margin: 4px;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-            }
         }
     </style>
 </head>
 <body class="text-gray-800">
-
-    <!-- NEW: Spinner Overlay for uploads -->
-    <div id="spinner-overlay" class="spinner-overlay hidden">
-        <div class="text-center">
-            <i class="fas fa-spinner fa-spin fa-3x text-white"></i>
-            <p class="mt-4 text-white font-semibold">A enviar arquivos...</p>
-        </div>
-    </div>
 
     <div id="login-screen" class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
         <div class="w-full max-w-md">
@@ -265,6 +208,7 @@
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-center sm:justify-between items-center">
                     <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
                 </div>
+                <!-- NEW: Alerts Panel -->
                 <div id="alerts-panel" class="mb-6"></div>
                 <main class="bg-white rounded-lg shadow-md p-4 sm:p-6">
                     <div class="mb-4">
@@ -371,6 +315,14 @@
                         <label for="absence-student-class" class="block text-sm font-medium text-gray-700">Ano/Ciclo</label>
                         <input type="text" id="absence-student-class" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" readonly>
                     </div>
+                    <div class="md:col-span-2">
+                        <label for="absence-student-endereco" class="block text-sm font-medium text-gray-700">Endereço</label>
+                        <input type="text" id="absence-student-endereco" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" readonly>
+                    </div>
+                    <div>
+                        <label for="absence-student-contato" class="block text-sm font-medium text-gray-700">Contato</label>
+                        <input type="text" id="absence-student-contato" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" readonly>
+                    </div>
                 </div>
                 <div class="border rounded-md p-3 space-y-2 bg-gray-50">
                     <h5 class="text-sm font-semibold text-gray-600 px-2">Faltas apuradas no período de:</h5>
@@ -396,7 +348,7 @@
                         </fieldset>
 
                         <fieldset id="family-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
-                            <legend class="text-sm font-semibold text-gray-600 px-2">Detalhes do Contato</legend>
+                            <legend class="text-sm font-semibold text-gray-600 px-2">Família na escola</legend>
                             <div>
                                 <span class="block text-sm">Conseguiu contato?</span>
                                 <div class="mt-2 space-x-4">
@@ -404,31 +356,6 @@
                                     <label><input type="radio" name="contact-succeeded" value="no"> Não</label>
                                 </div>
                             </div>
-
-                            <!-- NEW: Contact type and evidence fields -->
-                            <div id="contact-details-fields" class="space-y-4 hidden">
-                                <div>
-                                    <label class="block text-sm font-medium">Forma de contato</label>
-                                    <div class="mt-2 space-x-4">
-                                        <label><input type="radio" name="contact-type" value="whatsapp"> WhatsApp</label>
-                                        <label><input type="radio" name="contact-type" value="ligacao"> Ligação</label>
-                                        <label><input type="radio" name="contact-type" value="presencial"> Presencial</label>
-                                    </div>
-                                </div>
-
-                                <div id="whatsapp-evidence-section" class="hidden space-y-4 pt-4 border-t">
-                                    <div>
-                                        <label class="block text-sm font-medium">Anexar prints da conversa</label>
-                                        <input type="file" id="contact-evidences-input" multiple accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-                                        <div id="evidences-preview" class="mt-4 flex flex-wrap gap-2"></div>
-                                    </div>
-                                    <div>
-                                        <label for="audio-transcription" class="block text-sm font-medium">Transcrição manual de áudio (opcional)</label>
-                                        <textarea id="audio-transcription" rows="3" class="mt-1 block w-full border-gray-300 rounded-md" placeholder="Digite aqui o conteúdo de áudios relevantes..."></textarea>
-                                    </div>
-                                </div>
-                            </div>
-
                             <div id="family-contact-fields" class="space-y-4">
                                 <div><label class="block text-sm">Dia do contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
                                 <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
@@ -447,7 +374,7 @@
                         <div><label class="block text-sm">Nome do agente da visita:</label><input type="text" id="visit-agent" class="mt-1 block w-full border-gray-300 rounded-md"></div>
                         <div><label class="block text-sm">Dia da visita:</label><input type="date" id="visit-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
                         <fieldset id="visit-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
-                            <legend class="text-sm font-semibold text-gray-600 px-2">Detalhes do Contato na Visita</legend>
+                            <legend class="text-sm font-semibold text-gray-600 px-2">Detalhes do Contato</legend>
                             <div>
                                 <span class="block text-sm">Conseguiu contato?</span>
                                 <div class="mt-2 space-x-4">
@@ -572,8 +499,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        // NEW: Import Firebase Storage modules
-        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
         // ************************************************************************************
         // CONFIGURAÇÃO DO FIREBASE
@@ -602,12 +527,9 @@
             activeTab: 'occurrences',
             recordToDelete: null,
             db: null,
-            storage: null, // NEW: State for storage instance
             userId: null,
             unsubscribeOccurrences: null,
-            unsubscribeAbsences: null,
-            filesToUpload: [], // NEW: Temporary state for new file uploads
-            existingEvidenceUrls: [], // NEW: State for existing files when editing
+            unsubscribeAbsences: null
         };
 
         const dom = {
@@ -645,7 +567,6 @@
             searchOccurrences: document.getElementById('search-occurrences'),
             searchAbsences: document.getElementById('search-absences'),
             alertsPanel: document.getElementById('alerts-panel'),
-            spinnerOverlay: document.getElementById('spinner-overlay'),
         };
 
         const actionDisplayTitles = {
@@ -689,36 +610,31 @@
             setTimeout(() => modalElement.classList.add('hidden'), 300);
         };
 
-        // NEW: Upload and Delete Image functions
-        async function uploadImage(file, processId) {
-            if (!file || !state.storage) return null;
-            const filePath = `processos/${processId}/${Date.now()}-${file.name}`;
-            const storageRef = ref(state.storage, filePath);
-            try {
-                const snapshot = await uploadBytes(storageRef, file);
-                const downloadURL = await getDownloadURL(snapshot.ref);
-                return downloadURL;
-            } catch (error) {
-                console.error("Erro no upload da imagem:", error);
-                showToast("Falha ao enviar uma imagem.");
-                return null;
-            }
-        }
+        const enhanceTextForSharing = (title, text) => {
+            let enhancedText = text;
 
-        async function deleteImage(fileUrl) {
-            if (!fileUrl || !state.storage) return;
-            try {
-                const storageRef = ref(state.storage, fileUrl);
-                await deleteObject(storageRef);
-            } catch (error) {
-                // Ignore 'object-not-found' error, as the file might have been deleted already
-                if (error.code !== 'storage/object-not-found') {
-                    console.error("Erro ao deletar imagem:", error);
-                    showToast("Erro ao remover uma das imagens antigas.");
-                }
+            if (title.toLowerCase().includes('ocorrência')) {
+                enhancedText = `*📢 NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR 📢*\n\n${text}`;
+            } else if (title.toLowerCase().includes('relatório')) {
+                enhancedText = `*📋 RELATÓRIO DE OCORRÊNCIAS 📋*\n\n${text}`;
+            } else if (title.toLowerCase().includes('ficha')) {
+                enhancedText = `*📈 FICHA DE ACOMPANHAMENTO 📈*\n\n${text}`;
             }
-        }
 
+            enhancedText = enhancedText.replace(/Aos Responsáveis/g, '👥 Aos Responsáveis');
+            enhancedText = enhancedText.replace(/Aluno\(a\):/g, '👤 Aluno(a):');
+            enhancedText = enhancedText.replace(/Turma:/g, '🏫 Turma:');
+            enhancedText = enhancedText.replace(/Data:/g, '🗓️ Data:');
+            enhancedText = enhancedText.replace(/Horário:/g, '⏰ Horário:');
+            enhancedText = enhancedText.replace(/Descrição:/g, '📝 Descrição:');
+            enhancedText = enhancedText.replace(/Providências da Escola:/g, '🏛️ Providências da Escola:');
+            enhancedText = enhancedText.replace(/Providências da Família:/g, '👨‍👩‍👧‍👦 Providências da Família:');
+
+            enhancedText += `\n\n-------------\n_Mensagem enviada pelo Sistema de Acompanhamento Pedagógico._`;
+
+            return enhancedText;
+        };
+        
         const getStudentProcessInfo = (studentId) => {
             const studentActions = state.absences
                 .filter(a => a.studentId === studentId)
@@ -757,7 +673,7 @@
                 processId
             };
         };
-        
+
         const determineNextActionForStudent = (studentId) => {
             const { currentCycleActions } = getStudentProcessInfo(studentId);
             const sequence = ['tentativa_1', 'tentativa_2', 'tentativa_3', 'visita', 'encaminhamento_ct', 'analise'];
@@ -780,31 +696,6 @@
             return 'analise'; // Fallback
         };
 
-        const enhanceTextForSharing = (title, text) => {
-            let enhancedText = text;
-
-            if (title.toLowerCase().includes('ocorrência')) {
-                enhancedText = `*📢 NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR 📢*\n\n${text}`;
-            } else if (title.toLowerCase().includes('relatório')) {
-                enhancedText = `*📋 RELATÓRIO DE OCORRÊNCIAS 📋*\n\n${text}`;
-            } else if (title.toLowerCase().includes('ficha')) {
-                enhancedText = `*📈 FICHA DE ACOMPANHAMENTO 📈*\n\n${text}`;
-            }
-
-            enhancedText = enhancedText.replace(/Aos Responsáveis/g, '👥 Aos Responsáveis');
-            enhancedText = enhancedText.replace(/Aluno\(a\):/g, '👤 Aluno(a):');
-            enhancedText = enhancedText.replace(/Turma:/g, '🏫 Turma:');
-            enhancedText = enhancedText.replace(/Data:/g, '🗓️ Data:');
-            enhancedText = enhancedText.replace(/Horário:/g, '⏰ Horário:');
-            enhancedText = enhancedText.replace(/Descrição:/g, '📝 Descrição:');
-            enhancedText = enhancedText.replace(/Providências da Escola:/g, '🏛️ Providências da Escola:');
-            enhancedText = enhancedText.replace(/Providências da Família:/g, '👨‍👩‍👧‍👦 Providências da Família:');
-
-            enhancedText += `\n\n-------------\n_Mensagem enviada pelo Sistema de Acompanhamento Pedagógico._`;
-
-            return enhancedText;
-        };
-        
         const shareContent = async (title, text) => {
             const enhancedText = enhanceTextForSharing(title, text);
             if (navigator.share) {
@@ -865,7 +756,8 @@
                     </table>`;
             }
         };
-
+        
+        // NEW: Function to render the alerts panel
         const renderAlertsPanel = () => {
             const processes = Object.values(state.absences.reduce((acc, action) => {
                 const key = action.processId || `no-proc-${action.id}`;
@@ -879,7 +771,7 @@
 
             processes.forEach(actions => {
                 const isConcluded = actions.some(a => a.actionType === 'analise');
-                if (isConcluded) return;
+                if (isConcluded) return; // Skip concluded processes
 
                 const sortedActions = actions.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
                 const lastAction = sortedActions[sortedActions.length - 1];
@@ -921,7 +813,7 @@
 
         const renderAbsences = () => {
             dom.loadingAbsences.classList.add('hidden');
-            renderAlertsPanel();
+            renderAlertsPanel(); // NEW: Call alerts panel rendering
 
             const filtered = state.absences
                 .filter(a => {
@@ -998,6 +890,7 @@
                             actionButtonHtml = `<span class="inline-block w-24"></span>`;
                         }
                         
+                        // NEW: Status rendering for each action
                         let statusHtml = '';
                         if (abs.actionType.startsWith('tentativa')) {
                             statusHtml = abs.contactSucceeded === 'yes' || abs.contactSucceeded === 'no'
@@ -1046,7 +939,7 @@
             if (state.activeTab === 'occurrences') renderOccurrences();
             else renderAbsences();
         };
-        
+
         const getStudentsDocRef = () => {
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             return doc(state.db, `/artifacts/${appId}/public/data/school-data`, 'students');
@@ -1148,6 +1041,23 @@
             document.getElementById('ficha-view-title').textContent = title;
             document.getElementById('ficha-view-content').innerHTML = contentHTML;
             openModal(dom.fichaViewModalBackdrop);
+        };
+        
+        const openReportGeneratorModal = (reportType) => {
+            const records = reportType === 'occurrences' ? state.occurrences : state.absences;
+            const studentIds = [...new Set(records.map(item => item.studentId))];
+            const studentsInRecords = state.students.filter(s => studentIds.includes(s.matricula)).sort((a,b) => a.name.localeCompare(b.name));
+
+            const select = document.getElementById('student-select');
+            
+            const title = reportType === 'occurrences' ? 'Gerar Relatório de Ocorrências' : 'Gerar Ficha Consolidada';
+            document.getElementById('report-generator-title').textContent = title;
+            dom.reportGeneratorModal.dataset.reportType = reportType;
+            
+            select.innerHTML = studentsInRecords.length > 0
+                ? '<option value="">Selecione um aluno...</option>' + studentsInRecords.map(s => `<option value="${s.matricula}">${s.name}</option>`).join('')
+                : '<option value="">Nenhum aluno com registros</option>';
+            openModal(dom.reportGeneratorModal);
         };
         
         const generateAndShowOficio = (action, oficioNumber = null) => {
@@ -1281,25 +1191,6 @@
             
             const faltasData = t1.periodoFaltasStart ? t1 : (t2.periodoFaltasStart ? t2 : (t3.periodoFaltasStart ? t3 : (visita.periodoFaltasStart ? visita : {})));
 
-            // NEW: Helper to generate evidence HTML
-            const generateEvidenceHtml = (action) => {
-                if (!action || (!action.contactEvidences && !action.audioTranscription)) return '';
-
-                let evidenceHtml = '<div class="mt-2 pt-2 border-t evidence-print-container">';
-                if(action.contactEvidences && action.contactEvidences.length > 0) {
-                    evidenceHtml += '<p class="font-medium mt-2">Evidências (Prints):</p><div class="flex flex-wrap gap-2 mt-1">';
-                    action.contactEvidences.forEach(url => {
-                        evidenceHtml += `<img src="${url}" class="evidence-print-image" alt="Evidência de contato">`;
-                    });
-                    evidenceHtml += '</div>';
-                }
-                if(action.audioTranscription) {
-                    evidenceHtml += `<p class="font-medium mt-2">Transcrição de Áudio:</p><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(action.audioTranscription)}</p>`;
-                }
-                evidenceHtml += '</div>';
-                return evidenceHtml;
-            };
-
             const fichaHTML = `
                 <div class="space-y-4 text-sm">
                     <div class="text-center border-b pb-4">
@@ -1323,40 +1214,38 @@
                     </div>
 
                     <div class="border rounded-md p-3 space-y-3">
-                        <h4 class="font-semibold text-base">Tentativas de contato com o responsável</h4>
+                        <h4 class="font-semibold text-base">Tentativas de contato com o responsável pelo estudante (ligações, whatsApp ou carta ao responsável)</h4>
                         <div class="pl-4">
                             <p class="font-medium underline">1ª Tentativa:</p>
+                            <p><strong>Conseguiu contato?</strong> ${t1.contactSucceeded === 'yes' ? 'Sim' : t1.contactSucceeded === 'no' ? 'Não' : ''}</p>
                             <p><strong>Dia do contato:</strong> ${formatDate(t1.contactDate)}</p>
-                            <p><strong>Forma de contato:</strong> ${formatText(t1.contactType)}</p>
                             <p><strong>Com quem falou?</strong> ${formatText(t1.contactPerson)}</p>
                             <p><strong>Justificativa:</strong> ${formatText(t1.contactReason)}</p>
                             <p><strong>Aluno retornou?</strong> ${t1.contactReturned === 'yes' ? 'Sim' : t1.contactReturned === 'no' ? 'Não' : ''}</p>
-                            ${generateEvidenceHtml(t1)}
                         </div>
                         <div class="pl-4 border-t pt-2">
                             <p class="font-medium underline">2ª Tentativa:</p>
+                            <p><strong>Conseguiu contato?</strong> ${t2.contactSucceeded === 'yes' ? 'Sim' : t2.contactSucceeded === 'no' ? 'Não' : ''}</p>
                             <p><strong>Dia do contato:</strong> ${formatDate(t2.contactDate)}</p>
-                            <p><strong>Forma de contato:</strong> ${formatText(t2.contactType)}</p>
                             <p><strong>Com quem falou?</strong> ${formatText(t2.contactPerson)}</p>
                             <p><strong>Justificativa:</strong> ${formatText(t2.contactReason)}</p>
                             <p><strong>Aluno retornou?</strong> ${t2.contactReturned === 'yes' ? 'Sim' : t2.contactReturned === 'no' ? 'Não' : ''}</p>
-                            ${generateEvidenceHtml(t2)}
                         </div>
                         <div class="pl-4 border-t pt-2">
                             <p class="font-medium underline">3ª Tentativa:</p>
+                            <p><strong>Conseguiu contato?</strong> ${t3.contactSucceeded === 'yes' ? 'Sim' : t3.contactSucceeded === 'no' ? 'Não' : ''}</p>
                             <p><strong>Dia do contato:</strong> ${formatDate(t3.contactDate)}</p>
-                            <p><strong>Forma de contato:</strong> ${formatText(t3.contactType)}</p>
                             <p><strong>Com quem falou?</strong> ${formatText(t3.contactPerson)}</p>
                             <p><strong>Justificativa:</strong> ${formatText(t3.contactReason)}</p>
                             <p><strong>Aluno retornou?</strong> ${t3.contactReturned === 'yes' ? 'Sim' : t3.contactReturned === 'no' ? 'Não' : ''}</p>
-                            ${generateEvidenceHtml(t3)}
                         </div>
                     </div>
 
                     <div class="border rounded-md p-3 space-y-2">
-                        <h4 class="font-semibold text-base">Visita In Loco</h4>
-                        <p><strong>Nome do agente:</strong> ${formatText(visita.visitAgent)}</p>
+                        <h4 class="font-semibold text-base">Contato in loco/Conversa com o responsável</h4>
+                        <p><strong>Nome do agente que realizou a visita:</strong> ${formatText(visita.visitAgent)}</p>
                         <p><strong>Dia da visita:</strong> ${formatDate(visita.visitDate)}</p>
+                        <p><strong>Conseguiu contato?</strong> ${visita.visitSucceeded === 'yes' ? 'Sim' : visita.visitSucceeded === 'no' ? 'Não' : ''}</p>
                         <p><strong>Com quem falou?</strong> ${formatText(visita.visitContactPerson)}</p>
                         <p><strong>Justificativa:</strong> ${formatText(visita.visitReason)}</p>
                         <p><strong>Aluno retornou?</strong> ${visita.visitReturned === 'yes' ? 'Sim' : visita.visitReturned === 'no' ? 'Não' : ''}</p>
@@ -1390,47 +1279,37 @@
             document.getElementById('report-view-content').innerHTML = fichaHTML;
             openModal(dom.reportViewModalBackdrop);
         };
-        
+
         const toggleFamilyContactFields = (enable, fieldsContainer) => {
             const detailFields = fieldsContainer.querySelectorAll('input[type="date"], input[type="text"], textarea');
             detailFields.forEach(input => {
                 input.disabled = !enable;
-                input.required = enable;
+                input.required = enable; // NEW: Set required property
                 if (!enable) {
                     input.classList.add('bg-gray-200', 'cursor-not-allowed');
+                    input.value = '';
                 } else {
                     input.classList.remove('bg-gray-200', 'cursor-not-allowed');
                 }
             });
-            if (!enable) { // Clear fields if disabled
-                detailFields.forEach(input => input.value = '');
-                document.getElementById('contact-details-fields').classList.add('hidden');
-                document.getElementById('whatsapp-evidence-section').classList.add('hidden');
-                document.querySelectorAll('input[name="contact-type"]').forEach(radio => radio.checked = false);
-            }
         };
 
         const toggleVisitContactFields = (enable, fieldsContainer) => {
              const detailFields = fieldsContainer.querySelectorAll('input[type="text"], textarea');
              detailFields.forEach(input => {
                 input.disabled = !enable;
-                input.required = enable;
+                input.required = enable; // NEW: Set required property
                 if (!enable) {
                     input.classList.add('bg-gray-200', 'cursor-not-allowed');
+                    input.value = '';
                 } else {
                     input.classList.remove('bg-gray-200', 'cursor-not-allowed');
                 }
             });
-            if (!enable) { // Clear fields if disabled
-                 detailFields.forEach(input => input.value = '');
-            }
         };
-        
+
         const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
             dom.absenceForm.reset();
-            state.filesToUpload = []; // Clear temporary files
-            state.existingEvidenceUrls = []; // Clear existing URLs
-            document.getElementById('evidences-preview').innerHTML = ''; // Clear preview area
 
             const isEditing = !!data;
             document.getElementById('absence-modal-title').innerText = isEditing ? 'Editar Ação de Busca Ativa' : 'Registar Ação de Busca Ativa';
@@ -1438,6 +1317,8 @@
 
             document.getElementById('absence-student-name').value = student.name || '';
             document.getElementById('absence-student-class').value = student.class || '';
+            document.getElementById('absence-student-endereco').value = student.endereco || '';
+            document.getElementById('absence-student-contato').value = student.contato || '';
             
             const { processId, currentCycleActions } = getStudentProcessInfo(student.matricula);
             document.getElementById('absence-process-id').value = data?.processId || processId;
@@ -1464,6 +1345,7 @@
             }
             
             if (isEditing) {
+                // Populate general absence data if not readonly
                 if (!readOnlyAbsenceData) {
                     document.getElementById('absence-start-date').value = data.periodoFaltasStart || '';
                     document.getElementById('absence-end-date').value = data.periodoFaltasEnd || '';
@@ -1476,16 +1358,7 @@
                         document.getElementById('meeting-time').value = data.meetingTime || '';
                         if(data.contactSucceeded) {
                             document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).checked = true;
-                            document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).dispatchEvent(new Event('change'));
-                        }
-                        if(data.contactType) {
-                            document.querySelector(`input[name="contact-type"][value="${data.contactType}"]`).checked = true;
-                            document.querySelector(`input[name="contact-type"][value="${data.contactType}"]`).dispatchEvent(new Event('change'));
-                        }
-                        document.getElementById('audio-transcription').value = data.audioTranscription || '';
-                        if(data.contactEvidences && data.contactEvidences.length > 0) {
-                            state.existingEvidenceUrls = [...data.contactEvidences];
-                            renderEvidencePreviews();
+                            document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).dispatchEvent(new Event('change')); // Trigger change
                         }
                         document.getElementById('contact-date').value = data.contactDate || '';
                         document.getElementById('contact-person').value = data.contactPerson || '';
@@ -1493,12 +1366,12 @@
                         if(data.contactReturned) document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`).checked = true;
                         break;
                     case 'visita':
-                         if(data.visitSucceeded) {
-                            document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).checked = true;
-                            document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).dispatchEvent(new Event('change'));
-                        }
                         document.getElementById('visit-agent').value = data.visitAgent || '';
                         document.getElementById('visit-date').value = data.visitDate || '';
+                        if(data.visitSucceeded) {
+                            document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).checked = true;
+                            document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).dispatchEvent(new Event('change')); // Trigger change
+                        }
                         document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
                         document.getElementById('visit-reason').value = data.visitReason || '';
                         document.getElementById('visit-obs').value = data.visitObs || '';
@@ -1514,6 +1387,7 @@
                         break;
                 }
             } else {
+                 // Reset fields for new entry
                  toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
                  toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
             }
@@ -1545,6 +1419,7 @@
                 const content = document.getElementById('ficha-view-content').innerText;
                 shareContent(title, content);
             });
+
 
             ['close-modal-btn', 'cancel-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.occurrenceModal)));
             ['close-absence-modal-btn', 'cancel-absence-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.absenceModal)));
@@ -1581,80 +1456,53 @@
 
             dom.absenceForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
+                // NEW: Form Validation
                 const form = e.target;
                 if (!form.checkValidity()) {
                     showToast('Por favor, preencha todos os campos obrigatórios.');
                     form.reportValidity();
                     return;
                 }
-
-                dom.spinnerOverlay.classList.remove('hidden');
+                
+                const id = document.getElementById('absence-id').value;
+                const studentName = document.getElementById('absence-student-name').value.trim();
+                const student = state.students.find(s => s.name === studentName);
+                if (!student) {
+                    showToast("Aluno inválido. Por favor, selecione um aluno da lista.");
+                    return;
+                }
+                const actionType = document.getElementById('action-type').value;
+                const processId = document.getElementById('absence-process-id').value;
+                const data = { 
+                    studentId: student.matricula,
+                    actionType,
+                    processId
+                };
 
                 try {
-                    const id = document.getElementById('absence-id').value;
-                    const studentName = document.getElementById('absence-student-name').value.trim();
-                    const student = state.students.find(s => s.name === studentName);
-
-                    if (!student) {
-                        throw new Error("Aluno inválido.");
-                    }
-
-                    const actionType = document.getElementById('action-type').value;
-                    const processId = document.getElementById('absence-process-id').value;
-                    
-                    const newUploadedUrls = [];
-                    for (const file of state.filesToUpload) {
-                        const url = await uploadImage(file, processId);
-                        if (!url) {
-                            throw new Error("Falha no upload de uma ou mais imagens. A ação não foi salva.");
-                        }
-                        newUploadedUrls.push(url);
-                    }
-
-                    const data = { 
-                        studentId: student.matricula,
-                        actionType,
-                        processId,
-                        contactEvidences: [...state.existingEvidenceUrls, ...newUploadedUrls]
-                    };
-
                     data.periodoFaltasStart = document.getElementById('absence-start-date').value || null;
                     data.periodoFaltasEnd = document.getElementById('absence-end-date').value || null;
                     data.absenceCount = document.getElementById('absence-count').value || null;
 
                     switch (actionType) {
-                        case 'tentativa_1': case 'tentativa_2': case 'tentativa_3': {
+                        case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
                             data.meetingDate = document.getElementById('meeting-date').value || null;
                             data.meetingTime = document.getElementById('meeting-time').value || null;
                             const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
                             data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
-                            
                             if (data.contactSucceeded === 'yes') {
-                                const contactTypeRadio = document.querySelector('input[name="contact-type"]:checked');
-                                data.contactType = contactTypeRadio ? contactTypeRadio.value : null;
-                                data.audioTranscription = document.getElementById('audio-transcription').value.trim() || null;
                                 data.contactDate = document.getElementById('contact-date').value || null;
                                 data.contactPerson = document.getElementById('contact-person').value || null;
                                 data.contactReason = document.getElementById('contact-reason').value || null;
-                            } else {
-                                data.contactType = null;
-                                data.audioTranscription = null;
-                                if (data.contactSucceeded === 'no') { // Only clear evidences if contact failed explicitly
-                                    data.contactEvidences = [];
-                                }
-                                data.contactDate = null;
-                                data.contactPerson = null;
-                                data.contactReason = null;
                             }
                             const contactReturnedRadio = document.querySelector('input[name="contact-returned"]:checked');
                             data.contactReturned = contactReturnedRadio ? contactReturnedRadio.value : null;
                             break;
-                        }
-                        case 'visita': {
-                            const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
-                            data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
+                        case 'visita':
                             data.visitAgent = document.getElementById('visit-agent').value || null;
                             data.visitDate = document.getElementById('visit-date').value || null;
+                            const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
+                            data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
                              if (data.visitSucceeded === 'yes') {
                                 data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
                                 data.visitReason = document.getElementById('visit-reason').value || null;
@@ -1663,38 +1511,48 @@
                             const visitRadio = document.querySelector('input[name="visit-returned"]:checked');
                             data.visitReturned = visitRadio ? visitRadio.value : null;
                             break;
-                        }
-                        case 'encaminhamento_ct': {
+                        case 'encaminhamento_ct':
                             data.ctSentDate = document.getElementById('ct-sent-date').value || null;
                             data.ctFeedback = document.getElementById('ct-feedback').value || null;
                             const ctRadio = document.querySelector('input[name="ct-returned"]:checked');
                             data.ctReturned = ctRadio ? ctRadio.value : null;
                             break;
-                        }
-                        case 'analise': {
+                        case 'analise':
                             data.ctParecer = document.getElementById('ct-parecer').value || null;
                             break;
-                        }
+                    }
+                } catch (error) {
+                    console.error("Erro ao recolher dados do formulário:", error);
+                    showToast("Erro interno ao ler os campos do formulário.");
+                    return;
+                }
+
+                try {
+                    const isNewRecord = !id;
+                    if (isNewRecord) {
+                        const newDocRef = await addRecord('absence', data);
+                        data.id = newDocRef.id;
+                        state.absences.push(data);
+                    } else {
+                        await updateRecord('absence', id, data);
                     }
                     
-                    await (id ? updateRecord('absence', id, data) : addRecord('absence', data));
-                    
                     showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
+                    
                     const studentReturned = (data.actionType.startsWith('tentativa') && data.contactReturned === 'yes') || (data.actionType === 'visita' && data.visitReturned === 'yes');
+
                     closeModal(dom.absenceModal);
+
                     if (studentReturned) {
                         setTimeout(() => openAbsenceModalForStudent(student, 'analise'), 350);
                     }
+
                 } catch (error) { 
                     console.error("Erro ao salvar ação:", error); 
-                    showToast(error.message || 'Erro ao salvar.'); 
-                } finally {
-                    dom.spinnerOverlay.classList.add('hidden');
+                    showToast('Erro ao salvar.'); 
                 }
             });
 
-            // --- The rest of the event listeners ---
-            
             dom.absencesListDiv.addEventListener('click', (e) => {
                 const target = e.target;
                 const header = target.closest('.process-header');
@@ -1749,10 +1607,10 @@
                         if (actionToDelete.actionType === 'encaminhamento_ct') {
                              const analiseAction = processActions.find(a => a.actionType === 'analise');
                              document.getElementById('delete-confirm-message').textContent = 'Tem certeza? A etapa de Análise associada a este processo também será excluída. Esta ação não pode ser desfeita.';
-                             state.recordToDelete = { type: 'absence-cascade', ctId: id, analiseId: analiseAction ? analiseAction.id : null, evidences: actionToDelete.contactEvidences || [] };
+                             state.recordToDelete = { type: 'absence-cascade', ctId: id, analiseId: analiseAction ? analiseAction.id : null };
                         } else {
                              document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.';
-                             state.recordToDelete = { type: 'absence', id: id, evidences: actionToDelete.contactEvidences || [] };
+                             state.recordToDelete = { type: 'absence', id: id };
                         }
                         openModal(dom.deleteConfirmModal); 
                     }
@@ -1836,12 +1694,7 @@
 
             document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
                 if (state.recordToDelete) {
-                    dom.spinnerOverlay.classList.remove('hidden');
                     try {
-                        if (state.recordToDelete.evidences && state.recordToDelete.evidences.length > 0) {
-                            await Promise.all(state.recordToDelete.evidences.map(url => deleteImage(url)));
-                        }
-
                         if (state.recordToDelete.type === 'absence-cascade') {
                             const batch = writeBatch(state.db);
                             const ctRef = doc(getCollectionRef('absence'), state.recordToDelete.ctId);
@@ -1862,7 +1715,6 @@
                     } finally {
                         state.recordToDelete = null;
                         closeModal(dom.deleteConfirmModal);
-                        dom.spinnerOverlay.classList.add('hidden');
                     }
                 }
             });
@@ -1880,8 +1732,10 @@
                 document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
                 if (action.startsWith('tentativa')) { 
                     document.getElementById('group-tentativas').classList.remove('hidden');
+                    toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
                 } else if (action === 'visita') {
                     document.getElementById('group-visita').classList.remove('hidden');
+                    toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
                 }
                 else if (action) { 
                     const group = document.getElementById(`group-${action}`); 
@@ -1891,35 +1745,15 @@
             
             document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => {
                 radio.addEventListener('change', (e) => {
-                    const succeeded = e.target.value === 'yes';
-                    toggleFamilyContactFields(succeeded, document.getElementById('family-contact-fields'));
-                    document.getElementById('contact-details-fields').classList.toggle('hidden', !succeeded);
+                    toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'));
                 });
             });
-
-            document.querySelectorAll('input[name="contact-type"]').forEach(radio => {
-                radio.addEventListener('change', (e) => {
-                    const isWhatsapp = e.target.value === 'whatsapp';
-                    document.getElementById('whatsapp-evidence-section').classList.toggle('hidden', !isWhatsapp);
-                });
-            });
-
             document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => {
                 radio.addEventListener('change', (e) => {
                     toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'));
                 });
             });
 
-            // NEW: Event listener for file input and preview rendering
-            document.getElementById('contact-evidences-input').addEventListener('change', (e) => {
-                for(const file of e.target.files) {
-                    state.filesToUpload.push(file);
-                }
-                renderEvidencePreviews();
-                e.target.value = ''; // Reset file input to allow re-selecting same files
-            });
-
-            // The rest of the event listeners for student management
             document.getElementById('manage-students-btn').addEventListener('click', () => {
                 renderStudentsList();
                 openModal(dom.studentsModal);
@@ -2020,48 +1854,6 @@
 
             document.getElementById('cancel-edit-student-btn').addEventListener('click', resetStudentForm);
         };
-        
-        // NEW: Function to render image previews in the modal
-        const renderEvidencePreviews = () => {
-            const previewContainer = document.getElementById('evidences-preview');
-            previewContainer.innerHTML = '';
-
-            // Render existing images
-            state.existingEvidenceUrls.forEach((url, index) => {
-                const div = document.createElement('div');
-                div.className = 'preview-image-container';
-                div.innerHTML = `<img src="${url}" class="preview-image"><button type="button" class="remove-image-btn" data-url="${url}" title="Remover">&times;</button>`;
-                previewContainer.appendChild(div);
-            });
-            
-            // Render new images to be uploaded
-            state.filesToUpload.forEach((file, index) => {
-                const div = document.createElement('div');
-                div.className = 'preview-image-container';
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    div.innerHTML = `<img src="${e.target.result}" class="preview-image"><button type="button" class="remove-image-btn" data-index="${index}" title="Remover">&times;</button>`;
-                };
-                reader.readAsDataURL(file);
-                previewContainer.appendChild(div);
-            });
-
-            // Add event listeners to remove buttons
-            previewContainer.querySelectorAll('.remove-image-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const url = e.target.dataset.url;
-                    const index = e.target.dataset.index;
-
-                    if(url) { // Removing an existing image
-                        state.existingEvidenceUrls = state.existingEvidenceUrls.filter(u => u !== url);
-                    }
-                    if(index) { // Removing a new file
-                        state.filesToUpload.splice(parseInt(index), 1);
-                    }
-                    renderEvidencePreviews();
-                });
-            });
-        };
 
         const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
             const input = document.getElementById(inputId);
@@ -2151,7 +1943,7 @@
                 btn.addEventListener('click', async (e) => {
                     const id = e.currentTarget.dataset.id;
                     const student = state.students.find(s => s.matricula === id);
-                    if (student && confirm(`Tem a certeza que quer remover o aluno "${student.name}"? Isso não removerá os registros de ocorrência ou busca ativa associados a ele.`)) {
+                    if (student && confirm(`Tem a certeza que quer remover o aluno "${student.name}"?`)) {
                         const updatedList = state.students.filter(s => s.matricula !== id);
                         try {
                             await setDoc(getStudentsDocRef(), { list: updatedList });
@@ -2200,7 +1992,6 @@
             const app = initializeApp(finalConfig);
             const auth = getAuth(app);
             state.db = getFirestore(app);
-            state.storage = getStorage(app); // NEW: Initialize storage
 
             onAuthStateChanged(auth, async user => {
                 detachFirestoreListeners();
@@ -2280,4 +2071,3 @@
     </script>
 </body>
 </html>
-
