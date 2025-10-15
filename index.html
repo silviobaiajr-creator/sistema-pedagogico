@@ -776,9 +776,9 @@
                 const sortedActions = actions.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
                 const lastAction = sortedActions[sortedActions.length - 1];
 
-                if (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded === undefined) {
+                if (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded === null) {
                     pendingContact++;
-                } else if (lastAction.actionType === 'visita' && lastAction.visitSucceeded === undefined) {
+                } else if (lastAction.actionType === 'visita' && lastAction.visitSucceeded === null) {
                     pendingContact++;
                 } else if (lastAction.actionType === 'encaminhamento_ct' && !lastAction.ctFeedback) {
                     pendingFeedback++;
@@ -874,7 +874,13 @@
                 
                     actions.forEach(abs => {
                         const actionDate = abs.contactDate || abs.visitDate || abs.ctSentDate || (abs.createdAt?.toDate() ? abs.createdAt.toDate().toISOString().split('T')[0] : '');
-                        const returned = abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes';
+                        
+                        let returnedHtml = '';
+                        if (abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes') {
+                            returnedHtml = '<p class="text-sm text-green-600 font-semibold mt-1"><i class="fas fa-check-circle"></i> Aluno Retornou</p>';
+                        } else if (abs.contactReturned === 'no' || abs.visitReturned === 'no' || abs.ctReturned === 'no') {
+                            returnedHtml = '<p class="text-sm text-red-600 font-semibold mt-1"><i class="fas fa-times-circle"></i> Aluno Não Retornou</p>';
+                        }
                         
                         let actionButtonHtml = '';
                         if (abs.actionType.startsWith('tentativa')) {
@@ -911,7 +917,7 @@
                                 <div>
                                     <p class="font-medium text-gray-700">${actionDisplayTitles[abs.actionType] || 'N/A'}</p>
                                     <p class="text-sm text-gray-500">Data: ${formatDate(actionDate)}</p>
-                                    ${returned ? '<p class="text-sm text-green-600 font-semibold mt-1"><i class="fas fa-check-circle"></i> Aluno Retornou</p>' : ''}
+                                    ${returnedHtml}
                                     ${statusHtml}
                                 </div>
                                 <div class="whitespace-nowrap text-right text-sm font-medium space-x-2 flex items-center">
@@ -1488,7 +1494,7 @@
                             data.meetingDate = document.getElementById('meeting-date').value || null;
                             data.meetingTime = document.getElementById('meeting-time').value || null;
                             const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
-                            data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : undefined;
+                            data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
                             if (data.contactSucceeded === 'yes') {
                                 data.contactDate = document.getElementById('contact-date').value || null;
                                 data.contactPerson = document.getElementById('contact-person').value || null;
@@ -1501,7 +1507,7 @@
                             data.visitAgent = document.getElementById('visit-agent').value || null;
                             data.visitDate = document.getElementById('visit-date').value || null;
                             const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
-                            data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : undefined;
+                            data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
                              if (data.visitSucceeded === 'yes') {
                                 data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
                                 data.visitReason = document.getElementById('visit-reason').value || null;
@@ -2070,8 +2076,8 @@
                 if (currentCycleActions.length > 0) {
                     const lastAction = currentCycleActions.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))[0];
                     
-                    const isPending = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded === undefined) ||
-                                      (lastAction.actionType === 'visita' && lastAction.visitSucceeded === undefined);
+                    const isPending = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded === null) ||
+                                      (lastAction.actionType === 'visita' && lastAction.visitSucceeded === null);
 
                     if (isPending) {
                         showToast(`Por favor, conclua a etapa anterior: "${actionDisplayTitles[lastAction.actionType]}"`);
@@ -2087,3 +2093,4 @@
     </script>
 </body>
 </html>
+
