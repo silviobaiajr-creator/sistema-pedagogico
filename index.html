@@ -1478,6 +1478,7 @@
                 }
                 const actionType = document.getElementById('action-type').value;
                 const processId = document.getElementById('absence-process-id').value;
+                
                 const data = { 
                     studentId: student.matricula,
                     actionType,
@@ -1495,10 +1496,15 @@
                             data.meetingTime = document.getElementById('meeting-time').value || null;
                             const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
                             data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
+                            
                             if (data.contactSucceeded === 'yes') {
                                 data.contactDate = document.getElementById('contact-date').value || null;
                                 data.contactPerson = document.getElementById('contact-person').value || null;
                                 data.contactReason = document.getElementById('contact-reason').value || null;
+                            } else {
+                                data.contactDate = null;
+                                data.contactPerson = null;
+                                data.contactReason = null;
                             }
                             const contactReturnedRadio = document.querySelector('input[name="contact-returned"]:checked');
                             data.contactReturned = contactReturnedRadio ? contactReturnedRadio.value : null;
@@ -1508,13 +1514,18 @@
                             data.visitDate = document.getElementById('visit-date').value || null;
                             const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
                             data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
-                             if (data.visitSucceeded === 'yes') {
+
+                            if (data.visitSucceeded === 'yes') {
                                 data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
                                 data.visitReason = document.getElementById('visit-reason').value || null;
                                 data.visitObs = document.getElementById('visit-obs').value || null;
+                            } else {
+                                data.visitContactPerson = null;
+                                data.visitReason = null;
+                                data.visitObs = null;
                             }
-                            const visitRadio = document.querySelector('input[name="visit-returned"]:checked');
-                            data.visitReturned = visitRadio ? visitRadio.value : null;
+                            const visitReturnedRadio = document.querySelector('input[name="visit-returned"]:checked');
+                            data.visitReturned = visitReturnedRadio ? visitReturnedRadio.value : null;
                             break;
                         case 'encaminhamento_ct':
                             data.ctSentDate = document.getElementById('ct-sent-date').value || null;
@@ -1533,13 +1544,10 @@
                 }
 
                 try {
-                    const isNewRecord = !id;
-                    if (isNewRecord) {
-                        const newDocRef = await addRecord('absence', data);
-                        data.id = newDocRef.id;
-                        state.absences.push(data);
-                    } else {
+                    if (id) {
                         await updateRecord('absence', id, data);
+                    } else {
+                        await addRecord('absence', data);
                     }
                     
                     showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
@@ -2093,5 +2101,6 @@
     </script>
 </body>
 </html>
+
 
 
