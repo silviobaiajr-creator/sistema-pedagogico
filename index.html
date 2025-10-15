@@ -142,6 +142,7 @@
 
     <div id="main-content" class="hidden">
         <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
+            <!-- Cabeçalho -->
             <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg flex flex-col sm:flex-row justify-between sm:items-center gap-4 text-center sm:text-left">
                 <div>
                     <h1 class="text-2xl sm:text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
@@ -160,6 +161,7 @@
                 </div>
             </header>
 
+            <!-- Abas de Navegação -->
             <div class="mb-6 border-b border-gray-200">
                 <nav class="flex -mb-px space-x-2 sm:space-x-6" aria-label="Tabs">
                     <button id="tab-occurrences" class="text-center flex-1 sm:flex-none whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm tab-active">
@@ -171,6 +173,7 @@
                 </nav>
             </div>
 
+            <!-- Conteúdo das Abas -->
             <div id="tab-content-occurrences">
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-center sm:justify-between items-center">
                     <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Registros de Ocorrências</h2>
@@ -205,6 +208,7 @@
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-center sm:justify-between items-center">
                     <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
                 </div>
+                <!-- NEW: Alerts Panel -->
                 <div id="alerts-panel" class="mb-6"></div>
                 <main class="bg-white rounded-lg shadow-md p-4 sm:p-6">
                     <div class="mb-4">
@@ -233,6 +237,7 @@
         </div>
     </div>
 
+    <!-- Modals -->
     <div id="occurrence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -345,9 +350,9 @@
                         <fieldset id="family-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
                             <legend class="text-sm font-semibold text-gray-600 px-2">Família na escola</legend>
                             <div>
-                                <span class="block text-sm">Conseguiu contato? <span class="text-red-500">*</span></span>
+                                <span class="block text-sm">Conseguiu contato?</span>
                                 <div class="mt-2 space-x-4">
-                                    <label><input type="radio" name="contact-succeeded" value="yes" required> Sim</label> 
+                                    <label><input type="radio" name="contact-succeeded" value="yes"> Sim</label> 
                                     <label><input type="radio" name="contact-succeeded" value="no"> Não</label>
                                 </div>
                             </div>
@@ -371,9 +376,9 @@
                         <fieldset id="visit-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
                             <legend class="text-sm font-semibold text-gray-600 px-2">Detalhes do Contato</legend>
                             <div>
-                                <span class="block text-sm">Conseguiu contato? <span class="text-red-500">*</span></span>
+                                <span class="block text-sm">Conseguiu contato?</span>
                                 <div class="mt-2 space-x-4">
-                                    <label><input type="radio" name="visit-succeeded" value="yes" required> Sim</label> 
+                                    <label><input type="radio" name="visit-succeeded" value="yes"> Sim</label> 
                                     <label><input type="radio" name="visit-succeeded" value="no"> Não</label>
                                 </div>
                             </div>
@@ -408,6 +413,7 @@
                 <button id="close-students-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <div class="p-6 flex-grow overflow-y-auto space-y-6">
+                <!-- Formulário para Adicionar/Editar Aluno -->
                 <div class="bg-gray-50 p-4 rounded-lg border">
                     <h4 id="student-form-title" class="text-lg font-semibold mb-2">Adicionar Novo Aluno</h4>
                     <form id="student-form" class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
@@ -447,6 +453,7 @@
                     </form>
                 </div>
                 
+                <!-- Lista de Alunos -->
                 <div>
                     <h4 class="text-lg font-semibold mb-2">Alunos Registados</h4>
                     <div id="students-list-container" class="border rounded-lg overflow-hidden">
@@ -460,12 +467,14 @@
                                     </tr>
                                 </thead>
                                 <tbody id="students-list-table" class="bg-white divide-y divide-gray-200">
-                                    </tbody>
+                                    <!-- Alunos serão inseridos aqui -->
+                                </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
 
+                <!-- Importação CSV -->
                 <div class="border-t pt-6">
                     <h4 class="text-lg font-semibold mb-2">Importar em Massa</h4>
                     <p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`, `turma`, `endereco`, `contato`, `resp1`, `resp2`. Isto **substituirá** a lista de alunos atual.</p>
@@ -485,6 +494,7 @@
     <div id="delete-confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="p-6"><div class="text-center"><i class="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i><h3 class="text-lg font-semibold text-gray-800">Confirmar Exclusão</h3><p id="delete-confirm-message" class="mt-2 text-sm text-gray-500">Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.</p></div></div><div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg"><button type="button" id="confirm-delete-btn" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">Excluir</button><button type="button" id="cancel-delete-btn" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">Cancelar</button></div></div></div>
     <div id="toast-notification" class="fixed bottom-5 right-5 bg-gray-800 text-white py-3 px-5 rounded-lg shadow-lg transform translate-y-20 opacity-0 z-50"><p id="toast-message"></p></div>
 
+    <!-- Firebase and App Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -1446,7 +1456,6 @@
 
             dom.absenceForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                // NEW: Form Validation
                 const form = e.target;
                 if (!form.checkValidity()) {
                     showToast('Por favor, preencha todos os campos obrigatórios.');
@@ -1479,7 +1488,7 @@
                             data.meetingDate = document.getElementById('meeting-date').value || null;
                             data.meetingTime = document.getElementById('meeting-time').value || null;
                             const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
-                            data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
+                            data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : undefined;
                             if (data.contactSucceeded === 'yes') {
                                 data.contactDate = document.getElementById('contact-date').value || null;
                                 data.contactPerson = document.getElementById('contact-person').value || null;
@@ -1492,7 +1501,7 @@
                             data.visitAgent = document.getElementById('visit-agent').value || null;
                             data.visitDate = document.getElementById('visit-date').value || null;
                             const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
-                            data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
+                            data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : undefined;
                              if (data.visitSucceeded === 'yes') {
                                 data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
                                 data.visitReason = document.getElementById('visit-reason').value || null;
@@ -2055,6 +2064,23 @@
             }); 
 
             setupAutocomplete('search-absences', 'absence-student-suggestions', (student) => {
+                // NOVA LÓGICA DE VALIDAÇÃO
+                const { currentCycleActions } = getStudentProcessInfo(student.matricula);
+
+                if (currentCycleActions.length > 0) {
+                    const lastAction = currentCycleActions.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))[0];
+                    
+                    const isPending = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded === undefined) ||
+                                      (lastAction.actionType === 'visita' && lastAction.visitSucceeded === undefined);
+
+                    if (isPending) {
+                        showToast(`Por favor, conclua a etapa anterior: "${actionDisplayTitles[lastAction.actionType]}"`);
+                        openAbsenceModalForStudent(student, lastAction.actionType, lastAction);
+                        return;
+                    }
+                }
+
+                // Fluxo normal se não houver pendências
                 openAbsenceModalForStudent(student);
             });
         });
