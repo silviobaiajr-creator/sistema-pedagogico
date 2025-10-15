@@ -884,8 +884,8 @@
                             actionButtonHtml = `<button class="send-ct-btn text-blue-600 hover:text-blue-900 text-xs font-semibold py-1 px-2 rounded-md bg-blue-50 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" title="${disabled ? 'Encaminhamento já realizado' : 'Enviar ao Conselho Tutelar'}" ${disabled ? 'disabled' : ''}>Enviar ao C.T.</button>`;
                         } else if (abs.actionType === 'encaminhamento_ct') {
                              if(abs.oficioNumber) {
-                                actionButtonHtml = `<button class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50" data-id="${abs.id}" title="Visualizar Ofício">Ver Ofício</button>`;
-                            }
+                                 actionButtonHtml = `<button class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50" data-id="${abs.id}" title="Visualizar Ofício">Ver Ofício</button>`;
+                             }
                         } else {
                             actionButtonHtml = `<span class="inline-block w-24"></span>`;
                         }
@@ -1310,11 +1310,14 @@
 
         const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
             dom.absenceForm.reset();
-
+        
+            // Reset all conditional required attributes to start fresh
+            dom.absenceForm.querySelectorAll('input, textarea').forEach(el => el.required = false);
+        
             const isEditing = !!data;
             document.getElementById('absence-modal-title').innerText = isEditing ? 'Editar Ação de Busca Ativa' : 'Registar Ação de Busca Ativa';
             document.getElementById('absence-id').value = isEditing ? data.id : '';
-
+        
             document.getElementById('absence-student-name').value = student.name || '';
             document.getElementById('absence-student-class').value = student.class || '';
             document.getElementById('absence-student-endereco').value = student.endereco || '';
@@ -1322,18 +1325,25 @@
             
             const { processId, currentCycleActions } = getStudentProcessInfo(student.matricula);
             document.getElementById('absence-process-id').value = data?.processId || processId;
-
+        
             const finalActionType = forceActionType || (isEditing ? data.actionType : determineNextActionForStudent(student.matricula));
             document.getElementById('action-type').value = finalActionType;
             document.getElementById('action-type-display').value = actionDisplayTitles[finalActionType] || '';
             document.getElementById('action-type').dispatchEvent(new Event('change'));
-
+        
             const absenceFieldsContainer = dom.absenceForm.querySelector('#absence-form > .bg-gray-50');
             const absenceInputs = absenceFieldsContainer.querySelectorAll('input');
             const firstAbsenceRecordInCycle = currentCycleActions.find(a => a.periodoFaltasStart);
-
+        
             const readOnlyAbsenceData = (finalActionType !== 'tentativa_1' && !isEditing) || (isEditing && firstAbsenceRecordInCycle && data.id !== firstAbsenceRecordInCycle.id);
-
+        
+            // Set required status for absence period fields
+            if (!readOnlyAbsenceData) {
+                document.getElementById('absence-start-date').required = true;
+                document.getElementById('absence-end-date').required = true;
+                document.getElementById('absence-count').required = true;
+            }
+        
             if (readOnlyAbsenceData) {
                 const source = firstAbsenceRecordInCycle || data;
                 document.getElementById('absence-start-date').value = source.periodoFaltasStart || '';
@@ -1342,6 +1352,25 @@
                 absenceInputs.forEach(input => input.readOnly = true);
             } else {
                 absenceInputs.forEach(input => input.readOnly = false);
+            }
+            
+            // Set required status for dynamic fields based on action type
+            switch (finalActionType) {
+                case 'tentativa_1':
+                case 'tentativa_2':
+                case 'tentativa_3':
+                    document.getElementById('meeting-date').required = true;
+                    document.getElementById('meeting-time').required = true;
+                    // For radio buttons, only one in the group needs 'required'
+                    document.querySelector('input[name="contact-succeeded"][value="yes"]').required = true;
+                    document.querySelector('input[name="contact-returned"][value="yes"]').required = true;
+                    break;
+                case 'visita':
+                    document.getElementById('visit-agent').required = true;
+                    document.getElementById('visit-date').required = true;
+                    document.querySelector('input[name="visit-succeeded"][value="yes"]').required = true;
+                    document.querySelector('input[name="visit-returned"][value="yes"]').required = true;
+                    break;
             }
             
             if (isEditing) {
@@ -2071,3 +2100,4 @@
     </script>
 </body>
 </html>
+```
