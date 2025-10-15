@@ -325,12 +325,12 @@
                     </div>
                 </div>
                 <div class="border rounded-md p-3 space-y-2 bg-gray-50">
-                    <h5 class="text-sm font-semibold text-gray-600 px-2">Faltas apuradas no período de: <span class="text-red-500">*</span></h5>
+                    <h5 class="text-sm font-semibold text-gray-600 px-2">Faltas apuradas no período de:</h5>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div><label for="absence-start-date" class="block text-sm">Início</label><input type="date" id="absence-start-date" required class="mt-1 block w-full border-gray-300 rounded-md"></div>
-                        <div><label for="absence-end-date" class="block text-sm">Fim</label><input type="date" id="absence-end-date" required class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                        <div><label for="absence-start-date" class="block text-sm">Início</label><input type="date" id="absence-start-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                        <div><label for="absence-end-date" class="block text-sm">Fim</label><input type="date" id="absence-end-date" class="mt-1 block w-full border-gray-300 rounded-md"></div>
                     </div>
-                    <div class="pt-2"><label for="absence-count" class="block text-sm">Nº de faltas</label><input type="number" id="absence-count" required class="mt-1 block w-full border-gray-300 rounded-md"></div>
+                    <div class="pt-2"><label for="absence-count" class="block text-sm">Nº de faltas</label><input type="number" id="absence-count" class="mt-1 block w-full border-gray-300 rounded-md"></div>
                 </div>
                 <div>
                     <label for="action-type-display" class="block text-sm font-medium text-gray-700">Tipo de Ação</label>
@@ -340,10 +340,10 @@
                 <div id="dynamic-fields-container" class="space-y-4">
                     <div id="group-tentativas" class="dynamic-field-group hidden space-y-4">
                         <fieldset class="border rounded-md p-3 space-y-2 bg-gray-50">
-                            <legend class="text-sm font-semibold text-gray-600 px-2">Data e horário para notificação <span class="text-red-500">*</span></legend>
+                            <legend class="text-sm font-semibold text-gray-600 px-2">Data e horário para notificação</legend>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div><label for="meeting-date" class="block text-sm">Data do Comparecimento</label><input type="date" id="meeting-date" required class="mt-1 w-full border-gray-300 rounded-md"></div>
-                                <div><label for="meeting-time" class="block text-sm">Horário do Comparecimento</label><input type="time" id="meeting-time" required class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label for="meeting-date" class="block text-sm">Data do Comparecimento</label><input type="date" id="meeting-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label for="meeting-time" class="block text-sm">Horário do Comparecimento</label><input type="time" id="meeting-time" class="mt-1 w-full border-gray-300 rounded-md"></div>
                             </div>
                         </fieldset>
 
@@ -498,7 +498,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query, getDoc, writeBatch, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ************************************************************************************
         // CONFIGURAÇÃO DO FIREBASE
@@ -776,9 +776,9 @@
                 const sortedActions = actions.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
                 const lastAction = sortedActions[sortedActions.length - 1];
 
-                if (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded === null) {
+                if (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded === undefined) {
                     pendingContact++;
-                } else if (lastAction.actionType === 'visita' && lastAction.visitSucceeded === null) {
+                } else if (lastAction.actionType === 'visita' && lastAction.visitSucceeded === undefined) {
                     pendingContact++;
                 } else if (lastAction.actionType === 'encaminhamento_ct' && !lastAction.ctFeedback) {
                     pendingFeedback++;
@@ -874,13 +874,7 @@
                 
                     actions.forEach(abs => {
                         const actionDate = abs.contactDate || abs.visitDate || abs.ctSentDate || (abs.createdAt?.toDate() ? abs.createdAt.toDate().toISOString().split('T')[0] : '');
-                        
-                        let returnedHtml = '';
-                        if (abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes') {
-                            returnedHtml = '<p class="text-sm text-green-600 font-semibold mt-1"><i class="fas fa-check-circle"></i> Aluno Retornou</p>';
-                        } else if (abs.contactReturned === 'no' || abs.visitReturned === 'no' || abs.ctReturned === 'no') {
-                            returnedHtml = '<p class="text-sm text-red-600 font-semibold mt-1"><i class="fas fa-times-circle"></i> Aluno Não Retornou</p>';
-                        }
+                        const returned = abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes';
                         
                         let actionButtonHtml = '';
                         if (abs.actionType.startsWith('tentativa')) {
@@ -917,7 +911,7 @@
                                 <div>
                                     <p class="font-medium text-gray-700">${actionDisplayTitles[abs.actionType] || 'N/A'}</p>
                                     <p class="text-sm text-gray-500">Data: ${formatDate(actionDate)}</p>
-                                    ${returnedHtml}
+                                    ${returned ? '<p class="text-sm text-green-600 font-semibold mt-1"><i class="fas fa-check-circle"></i> Aluno Retornou</p>' : ''}
                                     ${statusHtml}
                                 </div>
                                 <div class="whitespace-nowrap text-right text-sm font-medium space-x-2 flex items-center">
@@ -1462,6 +1456,7 @@
 
             dom.absenceForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
+                // NEW: Form Validation
                 const form = e.target;
                 if (!form.checkValidity()) {
                     showToast('Por favor, preencha todos os campos obrigatórios.');
@@ -1476,73 +1471,82 @@
                     showToast("Aluno inválido. Por favor, selecione um aluno da lista.");
                     return;
                 }
-
                 const actionType = document.getElementById('action-type').value;
-                
-                // Objeto para armazenar apenas os dados que serão salvos.
-                const dataToSave = {};
+                const processId = document.getElementById('absence-process-id').value;
+                const data = { 
+                    studentId: student.matricula,
+                    actionType,
+                    processId
+                };
 
-                // Coleta de dados baseada na ação atual.
                 try {
-                    if (actionType.startsWith('tentativa')) {
-                        const contactSucceeded = document.querySelector('input[name="contact-succeeded"]:checked')?.value || null;
-                        dataToSave.contactSucceeded = contactSucceeded;
-                        dataToSave.meetingDate = document.getElementById('meeting-date').value || null;
-                        dataToSave.meetingTime = document.getElementById('meeting-time').value || null;
-                        dataToSave.contactReturned = document.querySelector('input[name="contact-returned"]:checked')?.value || null;
-                        if (contactSucceeded === 'yes') {
-                            dataToSave.contactDate = document.getElementById('contact-date').value || null;
-                            dataToSave.contactPerson = document.getElementById('contact-person').value || null;
-                            dataToSave.contactReason = document.getElementById('contact-reason').value || null;
-                        }
-                    } else if (actionType === 'visita') {
-                        const visitSucceeded = document.querySelector('input[name="visit-succeeded"]:checked')?.value || null;
-                        dataToSave.visitSucceeded = visitSucceeded;
-                        dataToSave.visitAgent = document.getElementById('visit-agent').value || null;
-                        dataToSave.visitDate = document.getElementById('visit-date').value || null;
-                        dataToSave.visitReturned = document.querySelector('input[name="visit-returned"]:checked')?.value || null;
-                        if (visitSucceeded === 'yes') {
-                            dataToSave.visitContactPerson = document.getElementById('visit-contact-person').value || null;
-                            dataToSave.visitReason = document.getElementById('visit-reason').value || null;
-                            dataToSave.visitObs = document.getElementById('visit-obs').value || null;
-                        }
-                    } else if (actionType === 'encaminhamento_ct') {
-                        dataToSave.ctSentDate = document.getElementById('ct-sent-date').value || null;
-                        dataToSave.ctFeedback = document.getElementById('ct-feedback').value || null;
-                        dataToSave.ctReturned = document.querySelector('input[name="ct-returned"]:checked')?.value || null;
-                    } else if (actionType === 'analise') {
-                        dataToSave.ctParecer = document.getElementById('ct-parecer').value || null;
-                    }
+                    data.periodoFaltasStart = document.getElementById('absence-start-date').value || null;
+                    data.periodoFaltasEnd = document.getElementById('absence-end-date').value || null;
+                    data.absenceCount = document.getElementById('absence-count').value || null;
 
+                    switch (actionType) {
+                        case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
+                            data.meetingDate = document.getElementById('meeting-date').value || null;
+                            data.meetingTime = document.getElementById('meeting-time').value || null;
+                            const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
+                            data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
+                            if (data.contactSucceeded === 'yes') {
+                                data.contactDate = document.getElementById('contact-date').value || null;
+                                data.contactPerson = document.getElementById('contact-person').value || null;
+                                data.contactReason = document.getElementById('contact-reason').value || null;
+                            }
+                            const contactReturnedRadio = document.querySelector('input[name="contact-returned"]:checked');
+                            data.contactReturned = contactReturnedRadio ? contactReturnedRadio.value : null;
+                            break;
+                        case 'visita':
+                            data.visitAgent = document.getElementById('visit-agent').value || null;
+                            data.visitDate = document.getElementById('visit-date').value || null;
+                            const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
+                            data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
+                             if (data.visitSucceeded === 'yes') {
+                                data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
+                                data.visitReason = document.getElementById('visit-reason').value || null;
+                                data.visitObs = document.getElementById('visit-obs').value || null;
+                            }
+                            const visitRadio = document.querySelector('input[name="visit-returned"]:checked');
+                            data.visitReturned = visitRadio ? visitRadio.value : null;
+                            break;
+                        case 'encaminhamento_ct':
+                            data.ctSentDate = document.getElementById('ct-sent-date').value || null;
+                            data.ctFeedback = document.getElementById('ct-feedback').value || null;
+                            const ctRadio = document.querySelector('input[name="ct-returned"]:checked');
+                            data.ctReturned = ctRadio ? ctRadio.value : null;
+                            break;
+                        case 'analise':
+                            data.ctParecer = document.getElementById('ct-parecer').value || null;
+                            break;
+                    }
                 } catch (error) {
                     console.error("Erro ao recolher dados do formulário:", error);
                     showToast("Erro interno ao ler os campos do formulário.");
                     return;
                 }
 
-                // Salvar os dados
                 try {
-                    if (id) { // Editando um registro existente
-                        await updateRecord('absence', id, dataToSave);
-                    } else { // Criando um novo registro
-                        // Adicionar informações base apenas na criação
-                        dataToSave.studentId = student.matricula;
-                        dataToSave.actionType = actionType;
-                        dataToSave.processId = document.getElementById('absence-process-id').value;
-                        dataToSave.periodoFaltasStart = document.getElementById('absence-start-date').value || null;
-                        dataToSave.periodoFaltasEnd = document.getElementById('absence-end-date').value || null;
-                        dataToSave.absenceCount = document.getElementById('absence-count').value || null;
-                        await addRecord('absence', dataToSave);
+                    const isNewRecord = !id;
+                    if (isNewRecord) {
+                        const newDocRef = await addRecord('absence', data);
+                        data.id = newDocRef.id;
+                        state.absences.push(data);
+                    } else {
+                        await updateRecord('absence', id, data);
                     }
                     
                     showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
                     
-                    const studentReturned = dataToSave.contactReturned === 'yes' || dataToSave.visitReturned === 'yes';
+                    const studentReturned = (data.actionType.startsWith('tentativa') && data.contactReturned === 'yes') || (data.actionType === 'visita' && data.visitReturned === 'yes');
+
                     closeModal(dom.absenceModal);
 
                     if (studentReturned) {
                         setTimeout(() => openAbsenceModalForStudent(student, 'analise'), 350);
                     }
+
                 } catch (error) { 
                     console.error("Erro ao salvar ação:", error); 
                     showToast('Erro ao salvar.'); 
@@ -2061,23 +2065,6 @@
             }); 
 
             setupAutocomplete('search-absences', 'absence-student-suggestions', (student) => {
-                // NOVA LÓGICA DE VALIDAÇÃO
-                const { currentCycleActions } = getStudentProcessInfo(student.matricula);
-
-                if (currentCycleActions.length > 0) {
-                    const lastAction = currentCycleActions.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))[0];
-                    
-                    const isPending = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded === null) ||
-                                      (lastAction.actionType === 'visita' && lastAction.visitSucceeded === null);
-
-                    if (isPending) {
-                        showToast(`Por favor, conclua a etapa anterior: "${actionDisplayTitles[lastAction.actionType]}"`);
-                        openAbsenceModalForStudent(student, lastAction.actionType, lastAction);
-                        return;
-                    }
-                }
-
-                // Fluxo normal se não houver pendências
                 openAbsenceModalForStudent(student);
             });
         });
