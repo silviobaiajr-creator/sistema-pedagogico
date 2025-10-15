@@ -498,7 +498,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query, getDoc, writeBatch, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ************************************************************************************
         // CONFIGURAÇÃO DO FIREBASE
@@ -957,7 +957,7 @@
             return collection(state.db, `/artifacts/${appId}/public/data/${collectionName}`);
         };
         const addRecord = (type, data) => addDoc(getCollectionRef(type), { ...data, createdAt: serverTimestamp() });
-        const updateRecord = (type, id, data) => setDoc(doc(getCollectionRef(type), id), data, { merge: true });
+        const updateRecord = (type, id, data) => updateDoc(doc(getCollectionRef(type), id), data);
         const deleteRecord = (type, id) => deleteDoc(doc(getCollectionRef(type), id));
 
         const setupFirestoreListeners = async () => {
@@ -1476,75 +1476,65 @@
                     showToast("Aluno inválido. Por favor, selecione um aluno da lista.");
                     return;
                 }
-                const actionType = document.getElementById('action-type').value;
-                const processId = document.getElementById('absence-process-id').value;
-                
-                const data = { 
-                    studentId: student.matricula,
-                    actionType,
-                    processId
-                };
 
+                // Initialize data object with all potential fields to ensure clean updates
+                const data = {};
+                const actionType = document.getElementById('action-type').value;
+
+                // Collect data based on actionType
                 try {
+                    // Always collect base data
+                    data.studentId = student.matricula;
+                    data.actionType = actionType;
+                    data.processId = document.getElementById('absence-process-id').value;
                     data.periodoFaltasStart = document.getElementById('absence-start-date').value || null;
                     data.periodoFaltasEnd = document.getElementById('absence-end-date').value || null;
                     data.absenceCount = document.getElementById('absence-count').value || null;
 
-                    switch (actionType) {
-                        case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
-                            data.meetingDate = document.getElementById('meeting-date').value || null;
-                            data.meetingTime = document.getElementById('meeting-time').value || null;
-                            const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
-                            data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
-                            
-                            if (data.contactSucceeded === 'yes') {
-                                data.contactDate = document.getElementById('contact-date').value || null;
-                                data.contactPerson = document.getElementById('contact-person').value || null;
-                                data.contactReason = document.getElementById('contact-reason').value || null;
-                            } else {
-                                data.contactDate = null;
-                                data.contactPerson = null;
-                                data.contactReason = null;
-                            }
-                            const contactReturnedRadio = document.querySelector('input[name="contact-returned"]:checked');
-                            data.contactReturned = contactReturnedRadio ? contactReturnedRadio.value : null;
-                            break;
-                        case 'visita':
-                            data.visitAgent = document.getElementById('visit-agent').value || null;
-                            data.visitDate = document.getElementById('visit-date').value || null;
-                            const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
-                            data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
-
-                            if (data.visitSucceeded === 'yes') {
-                                data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
-                                data.visitReason = document.getElementById('visit-reason').value || null;
-                                data.visitObs = document.getElementById('visit-obs').value || null;
-                            } else {
-                                data.visitContactPerson = null;
-                                data.visitReason = null;
-                                data.visitObs = null;
-                            }
-                            const visitReturnedRadio = document.querySelector('input[name="visit-returned"]:checked');
-                            data.visitReturned = visitReturnedRadio ? visitReturnedRadio.value : null;
-                            break;
-                        case 'encaminhamento_ct':
-                            data.ctSentDate = document.getElementById('ct-sent-date').value || null;
-                            data.ctFeedback = document.getElementById('ct-feedback').value || null;
-                            const ctRadio = document.querySelector('input[name="ct-returned"]:checked');
-                            data.ctReturned = ctRadio ? ctRadio.value : null;
-                            break;
-                        case 'analise':
-                            data.ctParecer = document.getElementById('ct-parecer').value || null;
-                            break;
+                    if (actionType.startsWith('tentativa')) {
+                        const contactSucceeded = document.querySelector('input[name="contact-succeeded"]:checked')?.value || null;
+                        data.contactSucceeded = contactSucceeded;
+                        data.meetingDate = document.getElementById('meeting-date').value || null;
+                        data.meetingTime = document.getElementById('meeting-time').value || null;
+                        data.contactReturned = document.querySelector('input[name="contact-returned"]:checked')?.value || null;
+                        if (contactSucceeded === 'yes') {
+                            data.contactDate = document.getElementById('contact-date').value || null;
+                            data.contactPerson = document.getElementById('contact-person').value || null;
+                            data.contactReason = document.getElementById('contact-reason').value || null;
+                        } else {
+                            data.contactDate = null; data.contactPerson = null; data.contactReason = null;
+                        }
+                    } else if (actionType === 'visita') {
+                        const visitSucceeded = document.querySelector('input[name="visit-succeeded"]:checked')?.value || null;
+                        data.visitSucceeded = visitSucceeded;
+                        data.visitAgent = document.getElementById('visit-agent').value || null;
+                        data.visitDate = document.getElementById('visit-date').value || null;
+                        data.visitReturned = document.querySelector('input[name="visit-returned"]:checked')?.value || null;
+                        if (visitSucceeded === 'yes') {
+                            data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
+                            data.visitReason = document.getElementById('visit-reason').value || null;
+                            data.visitObs = document.getElementById('visit-obs').value || null;
+                        } else {
+                            data.visitContactPerson = null; data.visitReason = null; data.visitObs = null;
+                        }
+                    } else if (actionType === 'encaminhamento_ct') {
+                        data.ctSentDate = document.getElementById('ct-sent-date').value || null;
+                        data.ctFeedback = document.getElementById('ct-feedback').value || null;
+                        data.ctReturned = document.querySelector('input[name="ct-returned"]:checked')?.value || null;
+                    } else if (actionType === 'analise') {
+                        data.ctParecer = document.getElementById('ct-parecer').value || null;
                     }
                 } catch (error) {
                     console.error("Erro ao recolher dados do formulário:", error);
                     showToast("Erro interno ao ler os campos do formulário.");
                     return;
                 }
-
+                
+                // Save data
                 try {
                     if (id) {
+                        // When updating, we send the whole data object for the current action
+                        // updateDoc will only change the fields present in the data object
                         await updateRecord('absence', id, data);
                     } else {
                         await addRecord('absence', data);
@@ -1553,13 +1543,11 @@
                     showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
                     
                     const studentReturned = (data.actionType.startsWith('tentativa') && data.contactReturned === 'yes') || (data.actionType === 'visita' && data.visitReturned === 'yes');
-
                     closeModal(dom.absenceModal);
 
                     if (studentReturned) {
                         setTimeout(() => openAbsenceModalForStudent(student, 'analise'), 350);
                     }
-
                 } catch (error) { 
                     console.error("Erro ao salvar ação:", error); 
                     showToast('Erro ao salvar.'); 
@@ -2101,6 +2089,7 @@
     </script>
 </body>
 </html>
+
 
 
 
