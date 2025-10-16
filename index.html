@@ -834,14 +834,12 @@
                 }
 
                 if (returnStatus !== 'all') {
-                    // CORREÇÃO: Encontra a última ação que tenha uma informação sobre o retorno do aluno.
                     const lastActionWithReturnInfo = [...actions].reverse().find(a => 
                         (a.contactReturned !== undefined && a.contactReturned !== null) ||
                         (a.visitReturned !== undefined && a.visitReturned !== null) ||
                         (a.ctReturned !== undefined && a.ctReturned !== null)
                     );
 
-                    // Se nenhuma ação no processo tem informação de retorno, o processo não deve corresponder aos filtros 'returned' ou 'not_returned'.
                     if (!lastActionWithReturnInfo) {
                         if (returnStatus === 'returned' || returnStatus === 'not_returned') return false;
                     } else {
@@ -2157,5 +2155,4 @@
     </script>
 </body>
 </html>
-
 
