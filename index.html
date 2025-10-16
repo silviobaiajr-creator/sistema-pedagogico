@@ -809,30 +809,45 @@
 
             const filteredGroupKeys = Object.keys(groupedByProcess).filter(processId => {
                 const actions = groupedByProcess[processId];
+                actions.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+                
                 const { processStatus, pendingAction, returnStatus } = state.filtersAbsences;
 
                 const isConcluded = actions.some(a => a.actionType === 'analise');
                 if (processStatus === 'in_progress' && isConcluded) return false;
                 if (processStatus === 'concluded' && !isConcluded) return false;
 
+                const lastAction = actions[actions.length - 1];
                 if (pendingAction !== 'all') {
-                    const lastAction = [...actions].sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)).pop();
+                    if (isConcluded) return false;
+
                     if (pendingAction === 'pending_contact') {
                         const isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded === undefined) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded === undefined);
-                        if (!isPendingContact || isConcluded) return false;
+                        if (!isPendingContact) return false;
                     }
                     if (pendingAction === 'pending_feedback') {
                         const hasCtAction = actions.some(a => a.actionType === 'encaminhamento_ct');
-                        const hasFeedback = actions.some(a => a.actionType === 'encaminhamento_ct' && !!a.ctFeedback);
-                        if (!hasCtAction || hasFeedback || isConcluded) return false;
+                        const ctAction = actions.find(a => a.actionType === 'encaminhamento_ct');
+                        const isPendingFeedback = hasCtAction && !ctAction.ctFeedback;
+                        if (!isPendingFeedback) return false;
                     }
                 }
 
-                const hasReturned = actions.some(a => a.contactReturned === 'yes' || a.visitReturned === 'yes' || a.ctReturned === 'yes');
-                const hasNotReturned = actions.some(a => a.contactReturned === 'no' || a.visitReturned === 'no' || a.ctReturned === 'no');
+                if (returnStatus !== 'all') {
+                    let lastReturnStatus = null;
+                    for (let i = actions.length - 1; i >= 0; i--) {
+                        const action = actions[i];
+                        const currentReturnStatus = action.contactReturned || action.visitReturned || action.ctReturned;
+                        if (currentReturnStatus !== undefined && currentReturnStatus !== null) {
+                            lastReturnStatus = currentReturnStatus;
+                            break;
+                        }
+                    }
 
-                if (returnStatus === 'returned' && !hasReturned) return false;
-                if (returnStatus === 'not_returned' && !hasNotReturned) return false;
+                    if (returnStatus === 'returned' && lastReturnStatus !== 'yes') return false;
+                    if (returnStatus === 'not_returned' && lastReturnStatus !== 'no') return false;
+                    if ((returnStatus === 'returned' || returnStatus === 'not_returned') && lastReturnStatus === null) return false;
+                }
                 
                 return true;
             });
