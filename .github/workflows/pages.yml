@@ -1,0 +1,40 @@
+# Nome do fluxo de trabalho
+name: Deploy simple HTML to GitHub Pages
+
+# Este 'manual' é executado sempre que há uma alteração no ramo 'main'
+on:
+  push:
+    branches: ["main"]
+
+# Permite que a Action escreva na secção de 'deployments' do seu repositório
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Tarefas a serem executadas
+jobs:
+  # A única tarefa que precisamos é a de 'deploy' (publicação)
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      # Passo 1: Descarrega o seu código (o index.html) para o ambiente da Action
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      # Passo 2: Prepara o ficheiro para ser publicado
+      # Como o nosso projeto é só um HTML, não há 'build'.
+      # Este passo simplesmente pega em tudo o que está na pasta principal.
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Carrega a pasta raiz do projeto
+          path: '.'
+          
+      # Passo 3: Publica o ficheiro no seu site do GitHub Pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
