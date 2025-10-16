@@ -1284,7 +1284,7 @@
             const detailFields = fieldsContainer.querySelectorAll('input[type="date"], input[type="text"], textarea');
             detailFields.forEach(input => {
                 input.disabled = !enable;
-                input.required = enable; // NEW: Set required property
+                input.required = enable;
                 if (!enable) {
                     input.classList.add('bg-gray-200', 'cursor-not-allowed');
                     input.value = '';
@@ -1298,7 +1298,7 @@
              const detailFields = fieldsContainer.querySelectorAll('input[type="text"], textarea');
              detailFields.forEach(input => {
                 input.disabled = !enable;
-                input.required = enable; // NEW: Set required property
+                input.required = enable;
                 if (!enable) {
                     input.classList.add('bg-gray-200', 'cursor-not-allowed');
                     input.value = '';
@@ -1311,7 +1311,6 @@
         const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
             dom.absenceForm.reset();
         
-            // Reset all conditional required attributes to start fresh
             dom.absenceForm.querySelectorAll('input, textarea').forEach(el => el.required = false);
         
             const isEditing = !!data;
@@ -1337,7 +1336,6 @@
         
             const readOnlyAbsenceData = (finalActionType !== 'tentativa_1' && !isEditing) || (isEditing && firstAbsenceRecordInCycle && data.id !== firstAbsenceRecordInCycle.id);
         
-            // Set required status for absence period fields
             if (!readOnlyAbsenceData) {
                 document.getElementById('absence-start-date').required = true;
                 document.getElementById('absence-end-date').required = true;
@@ -1354,27 +1352,20 @@
                 absenceInputs.forEach(input => input.readOnly = false);
             }
             
-            // Set required status for dynamic fields based on action type
             switch (finalActionType) {
                 case 'tentativa_1':
                 case 'tentativa_2':
                 case 'tentativa_3':
                     document.getElementById('meeting-date').required = true;
                     document.getElementById('meeting-time').required = true;
-                    // For radio buttons, only one in the group needs 'required'
-                    document.querySelector('input[name="contact-succeeded"][value="yes"]').required = true;
-                    document.querySelector('input[name="contact-returned"][value="yes"]').required = true;
                     break;
                 case 'visita':
                     document.getElementById('visit-agent').required = true;
                     document.getElementById('visit-date').required = true;
-                    document.querySelector('input[name="visit-succeeded"][value="yes"]').required = true;
-                    document.querySelector('input[name="visit-returned"][value="yes"]').required = true;
                     break;
             }
             
             if (isEditing) {
-                // Populate general absence data if not readonly
                 if (!readOnlyAbsenceData) {
                     document.getElementById('absence-start-date').value = data.periodoFaltasStart || '';
                     document.getElementById('absence-end-date').value = data.periodoFaltasEnd || '';
@@ -1387,7 +1378,7 @@
                         document.getElementById('meeting-time').value = data.meetingTime || '';
                         if(data.contactSucceeded) {
                             document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).checked = true;
-                            document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).dispatchEvent(new Event('change')); // Trigger change
+                            document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).dispatchEvent(new Event('change'));
                         }
                         document.getElementById('contact-date').value = data.contactDate || '';
                         document.getElementById('contact-person').value = data.contactPerson || '';
@@ -1399,7 +1390,7 @@
                         document.getElementById('visit-date').value = data.visitDate || '';
                         if(data.visitSucceeded) {
                             document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).checked = true;
-                            document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).dispatchEvent(new Event('change')); // Trigger change
+                            document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).dispatchEvent(new Event('change'));
                         }
                         document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
                         document.getElementById('visit-reason').value = data.visitReason || '';
@@ -1416,7 +1407,6 @@
                         break;
                 }
             } else {
-                 // Reset fields for new entry
                  toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
                  toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
             }
@@ -1485,7 +1475,6 @@
 
             dom.absenceForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                // NEW: Form Validation
                 const form = e.target;
                 if (!form.checkValidity()) {
                     showToast('Por favor, preencha todos os campos obrigatórios.');
@@ -2094,10 +2083,38 @@
             }); 
 
             setupAutocomplete('search-absences', 'absence-student-suggestions', (student) => {
+                const { currentCycleActions } = getStudentProcessInfo(student.matricula);
+
+                if (currentCycleActions.length > 0) {
+                    const lastAction = currentCycleActions[currentCycleActions.length - 1];
+                    let isPending = false;
+
+                    // Ação de tentativa pendente
+                    if (lastAction.actionType.startsWith('tentativa')) {
+                        if (lastAction.contactSucceeded === undefined || lastAction.contactSucceeded === null || lastAction.contactReturned === undefined || lastAction.contactReturned === null) {
+                            isPending = true;
+                        }
+                    } 
+                    // Ação de visita pendente
+                    else if (lastAction.actionType === 'visita') {
+                        if (lastAction.visitSucceeded === undefined || lastAction.visitSucceeded === null || lastAction.visitReturned === undefined || lastAction.visitReturned === null) {
+                            isPending = true;
+                        }
+                    }
+
+                    if (isPending) {
+                        showToast("Complete a etapa anterior para poder prosseguir.");
+                        // Abre a ação pendente em modo de edição
+                        openAbsenceModalForStudent(student, lastAction.actionType, lastAction);
+                        return; // Impede a criação de uma nova ação
+                    }
+                }
+
+                // Se nenhuma etapa estiver pendente, abre uma nova ação
                 openAbsenceModalForStudent(student);
             });
         });
     </script>
 </body>
 </html>
-```
+
