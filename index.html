@@ -1049,17 +1049,16 @@
         const openFichaViewModal = (id) => {
             const record = state.absences.find(abs => abs.id === id);
             if (!record) return showToast('Registro não encontrado.');
-            const student = state.students.find(s => s.matricula === record.studentId) || {name: 'Aluno Removido', class: 'N/A', endereco: '', resp1: '', resp2: ''};
+            const student = state.students.find(s => s.matricula === record.studentId) || {name: 'Aluno Removido', class: 'N/A', endereco: '', resp1: '', resp2: '', contato: ''};
             
             const attemptLabels = { tentativa_1: "primeira", tentativa_2: "segunda", tentativa_3: "terceira" };
-            let title = actionDisplayTitles[record.actionType] || 'Documento de Busca Ativa';
+            let title = "Notificação de Baixa Frequência";
             
             let body = '';
             const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
 
             switch (record.actionType) {
                 case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
-                    title = 'Notificação de Baixa Frequência';
                     body = `
                         <p class="mt-4 text-justify">Prezados(as) Responsáveis, <strong>${responsaveis}</strong>,</p>
                         <p class="mt-4 text-justify">
@@ -1080,9 +1079,13 @@
                     `;
                     break;
                 case 'visita':
+                    title = actionDisplayTitles[record.actionType];
                     body = `<p class="mt-4">Notificamos que na data de <strong>${formatDate(record.visitDate)}</strong>, o agente escolar <strong>${formatText(record.visitAgent)}</strong> realizou uma visita domiciliar.</p><p class="mt-2"><strong>Justificativa do responsável:</strong> ${formatText(record.visitReason)}</p>`;
                     break;
-                default: body = `<p class="mt-4">Registro de ação administrativa referente à busca ativa do(a) aluno(a).</p>`; break;
+                default: 
+                    title = actionDisplayTitles[record.actionType] || 'Documento de Busca Ativa';
+                    body = `<p class="mt-4">Registro de ação administrativa referente à busca ativa do(a) aluno(a).</p>`; 
+                    break;
             }
 
             const contentHTML = `
@@ -1095,7 +1098,7 @@
                         <p><strong>Aluno(a):</strong> ${student.name}</p>
                         <p><strong>Turma:</strong> ${student.class || ''}</p>
                         <p><strong>Endereço:</strong> ${formatText(student.endereco)}</p>
-                        <p><strong>Responsável(eis):</strong> ${responsaveis || 'Não informado'}</p>
+                        <p><strong>Contato:</strong> ${formatText(student.contato)}</p>
                     </div>
                     <div class="text-justify">${body}</div>
                     <div class="border-t pt-16 mt-16">
