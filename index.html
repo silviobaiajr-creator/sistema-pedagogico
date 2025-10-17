@@ -177,14 +177,9 @@
             <div id="tab-content-occurrences">
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-center sm:justify-between items-center">
                     <h2 id="occurrences-title" class="text-xl sm:text-2xl font-semibold text-gray-700">Registros de Ocorrências</h2>
-                    <div class="flex gap-2 sm:gap-4 flex-wrap justify-center">
-                        <button id="generate-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300 text-sm">
-                            <i class="fas fa-file-invoice mr-2"></i>Relatório
-                        </button>
-                    </div>
                 </div>
-                <!-- Filters for Occurrences -->
-                <div id="occurrence-filters" class="mb-6 bg-gray-50 p-4 rounded-lg border flex flex-wrap gap-4 items-center">
+                 <!-- Filters for Occurrences -->
+                 <div id="occurrence-filters" class="mb-6 bg-gray-50 p-4 rounded-lg border flex flex-wrap gap-4 items-center">
                     <h3 class="text-md font-semibold text-gray-700 w-full sm:w-auto">Filtrar por Período:</h3>
                     <div class="flex-1 min-w-[150px]">
                         <label for="occurrence-start-date" class="text-sm font-medium text-gray-600">De</label>
@@ -295,6 +290,19 @@
                         <label for="student-class" class="block text-sm font-medium text-gray-700">Turma</label>
                         <input type="text" id="student-class" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100" readonly required>
                     </div>
+                </div>
+                 <div>
+                    <label for="occurrence-type" class="block text-sm font-medium text-gray-700">Tipo de Ocorrência</label>
+                    <select id="occurrence-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                        <option value="">Selecione um tipo...</option>
+                        <option value="Agressão (Física)">Agressão (Física)</option>
+                        <option value="Agressão (Verbal)">Agressão (Verbal)</option>
+                        <option value="Indisciplina / Comportamento Inadequado">Indisciplina / Comportamento Inadequado</option>
+                        <option value="Bullying">Bullying</option>
+                        <option value="Dano ao Patrimônio">Dano ao Patrimônio</option>
+                        <option value="Uso inadequado de telemóvel/eletrónicos">Uso inadequado de telemóvel/eletrónicos</option>
+                        <option value="Outros">Outros</option>
+                    </select>
                 </div>
                 <div>
                     <label for="occurrence-date" class="block text-sm font-medium text-gray-700">Data da Ocorrência</label>
@@ -819,6 +827,9 @@
                                 <p class="text-sm text-gray-500">${occurrences.length} Ocorrência(s) registrada(s)</p>
                             </div>
                             <div class="flex items-center space-x-4">
+                                <button class="generate-student-report-btn bg-purple-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-purple-700 text-xs no-print" data-student-id="${student.matricula}">
+                                    <i class="fas fa-file-invoice"></i> Relatório
+                                </button>
                                 <i class="fas fa-chevron-down transition-transform duration-300"></i>
                             </div>
                         </div>
@@ -828,6 +839,7 @@
                                     <thead class="bg-gray-50">
                                         <tr>
                                             <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
                                             <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Descrição (início)</th>
                                             <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Ações</th>
                                         </tr>
@@ -839,6 +851,7 @@
                     html += `
                         <tr>
                             <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${formatDate(occ.date)}</td>
+                            <td class="px-4 py-2 text-sm text-gray-700">${occ.occurrenceType || 'N/A'}</td>
                             <td class="px-4 py-2 text-sm text-gray-700">${occ.description.substring(0, 50)}...</td>
                             <td class="px-4 py-2 whitespace-nowrap text-right text-sm font-medium space-x-2">
                                 <button class="view-btn text-indigo-600 hover:text-indigo-900" data-id="${occ.id}" title="Ver Notificação"><i class="fas fa-eye"></i></button>
@@ -1105,6 +1118,7 @@
                     <div class="pt-4"><p class="mb-2"><strong>Aos Responsáveis (${responsaveis}) pelo(a) aluno(a):</strong></p><p class="text-lg font-semibold">${formatText(student.name)}</p><p class="text-gray-600"><strong>Turma:</strong> ${formatText(student.class)}</p></div>
                     <p class="text-justify">Prezados(as), vimos por meio desta notificá-los sobre uma ocorrência disciplinar envolvendo o(a) aluno(a) supracitado(a), registrada em <strong>${formatDate(data.date)}</strong>.</p>
                     <div class="border-t pt-4 space-y-4">
+                        <div><h4 class="font-semibold mb-1">Tipo:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md">${formatText(data.occurrenceType)}</p></div>
                         <div><h4 class="font-semibold mb-1">Descrição:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
                         <div><h4 class="font-semibold mb-1">Pessoas Envolvidas:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.involved)}</p></div>
                         <div><h4 class="font-semibold mb-1">Providências da Escola:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.actionsTakenSchool)}</p></div>
@@ -1309,7 +1323,7 @@
             const studentData = state.students.find(s => s.matricula === studentId);
             const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-            const reportHTML = `<div class="space-y-6 text-sm"><div class="text-center border-b pb-4"><h2 class="text-xl font-bold uppercase">${config.schoolName}</h2><h3 class="text-lg font-semibold mt-2">RELATÓRIO DE OCORRÊNCIAS</h3></div><div class="pt-4 text-left"><p><strong>ALUNO(A):</strong> ${studentData.name}</p><p><strong>TURMA:</strong> ${studentData.class}</p><p><strong>DATA:</strong> ${currentDate}</p></div>${studentOccurrences.map((occ, index) => `<div class="border-t pt-4 mt-4"><h4 class="font-semibold mb-2 text-base">OCORRÊNCIA ${index + 1} - Data: ${formatDate(occ.date)}</h4><div class="pl-4 border-l-2 border-gray-200 space-y-2"><div><p class="font-medium">Descrição:</p><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(occ.description)}</p></div><div><p class="font-medium">Providências da Escola:</p><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(occ.actionsTakenSchool)}</p></div></div></div>`).join('')}<div class="border-t pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Assinatura da Coordenação</p></div></div></div>`;
+            const reportHTML = `<div class="space-y-6 text-sm"><div class="text-center border-b pb-4"><h2 class="text-xl font-bold uppercase">${config.schoolName}</h2><h3 class="text-lg font-semibold mt-2">RELATÓRIO DE OCORRÊNCIAS</h3></div><div class="pt-4 text-left"><p><strong>ALUNO(A):</strong> ${studentData.name}</p><p><strong>TURMA:</strong> ${studentData.class}</p><p><strong>DATA:</strong> ${currentDate}</p></div>${studentOccurrences.map((occ, index) => `<div class="border-t pt-4 mt-4"><h4 class="font-semibold mb-2 text-base">OCORRÊNCIA ${index + 1} - Data: ${formatDate(occ.date)}</h4><div class="pl-4 border-l-2 border-gray-200 space-y-2"><div><p class="font-medium">Tipo:</p><p class="text-gray-700 bg-gray-50 p-2 rounded-md">${formatText(occ.occurrenceType)}</p></div><div><p class="font-medium">Descrição:</p><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(occ.description)}</p></div><div><p class="font-medium">Providências da Escola:</p><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(occ.actionsTakenSchool)}</p></div></div></div>`).join('')}<div class="border-t pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Assinatura da Coordenação</p></div></div></div>`;
             
             document.getElementById('report-view-title').textContent = "Relatório de Ocorrências";
             document.getElementById('report-view-content').innerHTML = reportHTML;
@@ -1630,6 +1644,7 @@
                 const data = { 
                     studentId: student.matricula,
                     date: document.getElementById('occurrence-date').value, 
+                    occurrenceType: document.getElementById('occurrence-type').value,
                     description: document.getElementById('description').value.trim(), 
                     involved: document.getElementById('involved').value.trim(), 
                     actionsTakenSchool: document.getElementById('actions-taken-school').value.trim(), 
@@ -1874,7 +1889,7 @@
                     return;
                 }
                 
-                if (header && !button) { 
+                if (header && !button && !target.closest('button')) { 
                     const studentId = header.dataset.studentIdOcc;
                     const content = document.getElementById(`content-occ-${studentId}`);
                     const icon = header.querySelector('i.fa-chevron-down');
@@ -1891,6 +1906,12 @@
                 }
 
                 if (button) {
+                    const studentId = button.dataset.studentId;
+                    if(button.classList.contains('generate-student-report-btn')){
+                        generateAndShowReport(studentId);
+                        return;
+                    }
+
                     const id = button.dataset.id;
                     if (button.classList.contains('edit-btn')) {
                         const data = state.occurrences.find(o => o.id === id);
@@ -1901,6 +1922,7 @@
                             document.getElementById('occurrence-id').value = data.id || '';
                             document.getElementById('student-name').value = student.name || '';
                             document.getElementById('student-class').value = student.class || '';
+                            document.getElementById('occurrence-type').value = data.occurrenceType || '';
                             document.getElementById('occurrence-date').value = data.date || '';
                             document.getElementById('description').value = data.description || '';
                             document.getElementById('involved').value = data.involved || '';
