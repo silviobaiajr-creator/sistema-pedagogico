@@ -774,7 +774,7 @@
                                 const studentClass = student ? student.class : 'N/A';
                                 return `
                                 <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${studentName}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><span class="cursor-pointer hover:underline new-occurrence-from-history-btn" data-student-id="${student.matricula}">${studentName}</span></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">${studentClass}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(occ.date)}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
@@ -883,7 +883,7 @@
                         <div class="border rounded-lg overflow-hidden mb-4 bg-white shadow">
                             <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center" data-process-id="${processId}">
                                 <div>
-                                    <p class="font-semibold text-gray-800">${student.name}</p>
+                                    <p class="font-semibold text-gray-800 cursor-pointer hover:underline new-action-from-history-btn" data-student-id="${student.matricula}">${student.name}</p>
                                     <p class="text-sm text-gray-500">ID do Processo: ${processId} - Início: ${formatDate(firstAction.createdAt?.toDate())}</p>
                                 </div>
                                 <div class="flex items-center space-x-4">
@@ -1620,6 +1620,17 @@
                 const target = e.target;
                 const header = target.closest('.process-header');
                 const button = target.closest('button');
+                const studentNameP = target.closest('.new-action-from-history-btn');
+
+                if (studentNameP && !button) {
+                    e.stopPropagation();
+                    const studentId = studentNameP.dataset.studentId;
+                    const student = state.students.find(s => s.matricula === studentId);
+                    if (student) {
+                        handleNewAbsenceAction(student);
+                    }
+                    return;
+                }
 
                 if (header && !button) { 
                     const processId = header.dataset.processId;
@@ -1727,32 +1738,42 @@
 
             dom.occurrencesListDiv.addEventListener('click', (e) => {
                 const button = e.target.closest('button');
-                if (!button) return;
-                const id = button.dataset.id;
-                if (button.classList.contains('edit-btn')) {
-                    const data = state.occurrences.find(o => o.id === id);
-                    const student = state.students.find(s => s.matricula === data.studentId);
-                    if (data && student) {
-                        dom.occurrenceForm.reset();
-                        document.getElementById('modal-title').innerText = 'Editar Registro de Ocorrência';
-                        document.getElementById('occurrence-id').value = data.id || '';
-                        document.getElementById('student-name').value = student.name || '';
-                        document.getElementById('student-class').value = student.class || '';
-                        document.getElementById('occurrence-date').value = data.date || '';
-                        document.getElementById('description').value = data.description || '';
-                        document.getElementById('involved').value = data.involved || '';
-                        document.getElementById('actions-taken-school').value = data.actionsTakenSchool || '';
-                        document.getElementById('actions-taken-family').value = data.actionsTakenFamily || '';
-                        document.getElementById('meeting-date-occurrence').value = data.meetingDate || '';
-                        document.getElementById('meeting-time-occurrence').value = data.meetingTime || '';
-                        openModal(dom.occurrenceModal);
+                if (button) {
+                    const id = button.dataset.id;
+                    if (button.classList.contains('edit-btn')) {
+                        const data = state.occurrences.find(o => o.id === id);
+                        const student = state.students.find(s => s.matricula === data.studentId);
+                        if (data && student) {
+                            dom.occurrenceForm.reset();
+                            document.getElementById('modal-title').innerText = 'Editar Registro de Ocorrência';
+                            document.getElementById('occurrence-id').value = data.id || '';
+                            document.getElementById('student-name').value = student.name || '';
+                            document.getElementById('student-class').value = student.class || '';
+                            document.getElementById('occurrence-date').value = data.date || '';
+                            document.getElementById('description').value = data.description || '';
+                            document.getElementById('involved').value = data.involved || '';
+                            document.getElementById('actions-taken-school').value = data.actionsTakenSchool || '';
+                            document.getElementById('actions-taken-family').value = data.actionsTakenFamily || '';
+                            document.getElementById('meeting-date-occurrence').value = data.meetingDate || '';
+                            document.getElementById('meeting-time-occurrence').value = data.meetingTime || '';
+                            openModal(dom.occurrenceModal);
+                        }
+                    }
+                    else if (button.classList.contains('delete-btn')) { 
+                        document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.';
+                        state.recordToDelete = { type: 'occurrence', id: id }; openModal(dom.deleteConfirmModal);
+                    }
+                    else if (button.classList.contains('view-btn')) { openNotificationModal(id); }
+                }
+
+                const studentNameSpan = e.target.closest('.new-occurrence-from-history-btn');
+                if (studentNameSpan) {
+                    const studentId = studentNameSpan.dataset.studentId;
+                    const student = state.students.find(s => s.matricula === studentId);
+                    if (student) {
+                        openOccurrenceModalForStudent(student);
                     }
                 }
-                else if (button.classList.contains('delete-btn')) { 
-                    document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.';
-                    state.recordToDelete = { type: 'occurrence', id: id }; openModal(dom.deleteConfirmModal);
-                }
-                else if (button.classList.contains('view-btn')) { openNotificationModal(id); }
             });
 
             document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
@@ -1916,6 +1937,51 @@
             });
 
             document.getElementById('cancel-edit-student-btn').addEventListener('click', resetStudentForm);
+        };
+
+        const openOccurrenceModalForStudent = (student) => {
+            dom.occurrenceForm.reset();
+            document.getElementById('occurrence-id').value = '';
+            document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
+            document.getElementById('student-name').value = student.name;
+            document.getElementById('student-class').value = student.class;
+            document.getElementById('occurrence-date').valueAsDate = new Date();
+            openModal(dom.occurrenceModal);
+        };
+
+        const handleNewAbsenceAction = (student) => {
+            const { currentCycleActions } = getStudentProcessInfo(student.matricula);
+
+            if (currentCycleActions.length > 0) {
+                const lastAction = currentCycleActions[currentCycleActions.length - 1];
+                let isPending = false;
+                let pendingActionMessage = "Complete a etapa anterior para poder prosseguir.";
+
+                if (lastAction.actionType.startsWith('tentativa')) {
+                    if (lastAction.contactSucceeded == null || lastAction.contactReturned == null) {
+                        isPending = true;
+                    }
+                } 
+                else if (lastAction.actionType === 'visita') {
+                    if (lastAction.visitSucceeded == null || lastAction.visitReturned == null) {
+                        isPending = true;
+                    }
+                }
+                else if (lastAction.actionType === 'encaminhamento_ct') {
+                    if (lastAction.ctFeedback == null || lastAction.ctReturned == null) {
+                        isPending = true;
+                        pendingActionMessage = "Preencha a devolutiva e o status de retorno do CT para poder analisar o processo.";
+                    }
+                }
+
+                if (isPending) {
+                    showToast(pendingActionMessage);
+                    openAbsenceModalForStudent(student, lastAction.actionType, lastAction);
+                    return; 
+                }
+            }
+
+            openAbsenceModalForStudent(student);
         };
 
         const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
@@ -2118,48 +2184,11 @@
             setupEventListeners();
             
             setupAutocomplete('search-occurrences', 'occurrence-student-suggestions', (student) => {
-                dom.occurrenceForm.reset();
-                document.getElementById('occurrence-id').value = '';
-                document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
-                document.getElementById('student-name').value = student.name;
-                document.getElementById('student-class').value = student.class;
-                document.getElementById('occurrence-date').valueAsDate = new Date();
-                openModal(dom.occurrenceModal);
+                openOccurrenceModalForStudent(student);
             }); 
 
             setupAutocomplete('search-absences', 'absence-student-suggestions', (student) => {
-                const { currentCycleActions } = getStudentProcessInfo(student.matricula);
-
-                if (currentCycleActions.length > 0) {
-                    const lastAction = currentCycleActions[currentCycleActions.length - 1];
-                    let isPending = false;
-                    let pendingActionMessage = "Complete a etapa anterior para poder prosseguir.";
-
-                    if (lastAction.actionType.startsWith('tentativa')) {
-                        if (lastAction.contactSucceeded == null || lastAction.contactReturned == null) {
-                            isPending = true;
-                        }
-                    } 
-                    else if (lastAction.actionType === 'visita') {
-                        if (lastAction.visitSucceeded == null || lastAction.visitReturned == null) {
-                            isPending = true;
-                        }
-                    }
-                    else if (lastAction.actionType === 'encaminhamento_ct') {
-                        if (lastAction.ctFeedback == null || lastAction.ctReturned == null) {
-                            isPending = true;
-                            pendingActionMessage = "Preencha a devolutiva e o status de retorno do CT para poder analisar o processo.";
-                        }
-                    }
-
-                    if (isPending) {
-                        showToast(pendingActionMessage);
-                        openAbsenceModalForStudent(student, lastAction.actionType, lastAction);
-                        return; 
-                    }
-                }
-
-                openAbsenceModalForStudent(student);
+                handleNewAbsenceAction(student);
             });
         });
     </script>
