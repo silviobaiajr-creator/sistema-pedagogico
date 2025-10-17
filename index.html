@@ -822,7 +822,7 @@
                     if (isConcluded) return false;
 
                     if (pendingAction === 'pending_contact') {
-                        const isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded === undefined) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded === undefined);
+                        const isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null);
                         if (!isPendingContact) return false;
                     }
                     if (pendingAction === 'pending_feedback') {
@@ -1306,7 +1306,7 @@
                 </div>`;
             document.getElementById('report-view-title').textContent = "Ficha Consolidada de Busca Ativa";
             document.getElementById('report-view-content').innerHTML = fichaHTML;
-            openModal(dom.reportViewModalBackdrop);
+            openModal(dom.fichaViewModalBackdrop);
         };
 
         const toggleFamilyContactFields = (enable, fieldsContainer) => {
@@ -1391,6 +1391,9 @@
                 case 'visita':
                     document.getElementById('visit-agent').required = true;
                     document.getElementById('visit-date').required = true;
+                    break;
+                case 'encaminhamento_ct':
+                    document.getElementById('ct-sent-date').required = true;
                     break;
             }
             
@@ -2130,20 +2133,27 @@
                 if (currentCycleActions.length > 0) {
                     const lastAction = currentCycleActions[currentCycleActions.length - 1];
                     let isPending = false;
+                    let pendingActionMessage = "Complete a etapa anterior para poder prosseguir.";
 
                     if (lastAction.actionType.startsWith('tentativa')) {
-                        if (lastAction.contactSucceeded === undefined || lastAction.contactSucceeded === null || lastAction.contactReturned === undefined || lastAction.contactReturned === null) {
+                        if (lastAction.contactSucceeded == null || lastAction.contactReturned == null) {
                             isPending = true;
                         }
                     } 
                     else if (lastAction.actionType === 'visita') {
-                        if (lastAction.visitSucceeded === undefined || lastAction.visitSucceeded === null || lastAction.visitReturned === undefined || lastAction.visitReturned === null) {
+                        if (lastAction.visitSucceeded == null || lastAction.visitReturned == null) {
                             isPending = true;
+                        }
+                    }
+                    else if (lastAction.actionType === 'encaminhamento_ct') {
+                        if (lastAction.ctFeedback == null || lastAction.ctReturned == null) {
+                            isPending = true;
+                            pendingActionMessage = "Preencha a devolutiva e o status de retorno do CT para poder analisar o processo.";
                         }
                     }
 
                     if (isPending) {
-                        showToast("Complete a etapa anterior para poder prosseguir.");
+                        showToast(pendingActionMessage);
                         openAbsenceModalForStudent(student, lastAction.actionType, lastAction);
                         return; 
                     }
@@ -2155,3 +2165,4 @@
     </script>
 </body>
 </html>
+
