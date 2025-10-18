@@ -1,18 +1,33 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <!-- ============================================================================== -->
+    <!-- SEÇÃO 1: CABEÇALHO (HEAD) - CONFIGURAÇÕES, ESTILOS E SCRIPTS EXTERNOS        -->
+    <!-- ============================================================================== -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Acompanhamento Pedagógico</title>
+
+    <!-- Framework de CSS para um design rápido e responsivo -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Biblioteca de ícones (ex: ícone de usuários, lixeira, lápis) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    
+    <!-- Fonte personalizada do Google Fonts para uma melhor aparência do texto -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Biblioteca para ler arquivos CSV (usado na importação de alunos) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <!-- SEÇÃO 1.1: ESTILOS PERSONALIZADOS (CSS) -->
+    <!-- Estilos específicos que complementam o Tailwind CSS -->
     <style>
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
+            font-family: 'Inter', sans-serif; /* Define a fonte padrão da página */
+            background-color: #f3f4f6; /* Cor de fundo suave */
         }
+        /* Efeitos de transição para as janelas (modais) */
         .modal-backdrop {
             background-color: rgba(0,0,0,0.5);
             transition: opacity 0.3s ease-in-out;
@@ -20,6 +35,7 @@
         .modal-content {
             transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
         }
+        /* Efeitos para a notificação "toast" (alerta rápido) */
         #toast-notification {
             transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
         }
@@ -27,19 +43,23 @@
             transform: translateY(0);
             opacity: 1;
         }
+        /* Estilo para a aba de navegação ativa */
         .tab-active {
             border-color: #4f46e5;
             color: #4f46e5;
             background-color: #eef2ff;
         }
+        /* Estilo visual para os campos dinâmicos do formulário */
         .dynamic-field-group {
             border-left: 2px solid #e5e7eb;
             padding-left: 1rem;
             margin-top: 1rem;
         }
+        /* Estilo "zebrado" para as tabelas (melhora a leitura) */
         tbody tr:nth-child(even) {
             background-color: #f9fafb;
         }
+        /* Estilo para o container de sugestões de autocompletar */
         .autocomplete-suggestions {
             position: absolute;
             background-color: white;
@@ -58,18 +78,24 @@
         .suggestion-item:hover {
             background-color: #eef2ff;
         }
+        /* Bloco de assinaturas, visível apenas na impressão */
         .signature-block {
             display: none;
         }
+        /* Estilo para o conteúdo expansível (acordeão) */
         .process-content {
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s ease-out;
         }
+        /* SEÇÃO 1.2: ESTILOS PARA IMPRESSÃO */
+        /* Regras que se aplicam apenas quando o usuário tenta imprimir a página */
         @media print {
+            /* Esconde tudo que não for a área de impressão */
             body > div:not(.printable-area) {
                 display: none;
             }
+            /* Formata a área de impressão para ocupar a página toda */
             .printable-area, .printable-area .modal-content {
                 display: block !important;
                 position: static !important;
@@ -82,23 +108,32 @@
                 background-color: white !important;
             }
             .printable-area .overflow-y-auto {
-                overflow: visible !important;
+                overflow: visible !important; /* Mostra todo o conteúdo */
             }
+            /* Esconde elementos que não devem aparecer na impressão (botões, etc) */
             .no-print {
                 display: none !important;
             }
+            /* Mostra o bloco de assinaturas na impressão */
             .signature-block {
                 display: block !important;
-                page-break-inside: avoid;
+                page-break-inside: avoid; /* Tenta não quebrar o bloco no meio da página */
             }
         }
     </style>
 </head>
 <body class="text-gray-800">
 
+    <!-- ============================================================================== -->
+    <!-- SEÇÃO 2: ESTRUTURA VISUAL (BODY) - O QUE O USUÁRIO VÊ NA TELA                -->
+    <!-- ============================================================================== -->
+
+    <!-- SEÇÃO 2.1: TELA DE LOGIN E REGISTRO -->
+    <!-- Esta tela é a primeira coisa que o usuário vê. Fica visível até o login ser feito. -->
     <div id="login-screen" class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
         <div class="w-full max-w-md">
             <div class="bg-white p-8 rounded-2xl shadow-lg">
+                <!-- Formulário de Login -->
                 <div id="login-view">
                     <h1 class="text-3xl font-bold text-gray-800 mb-2 text-center">Entrar</h1>
                     <p class="text-gray-500 mb-8 text-center">Aceda à sua conta para continuar.</p>
@@ -118,6 +153,7 @@
                     </p>
                 </div>
 
+                <!-- Formulário de Registro (inicialmente oculto) -->
                 <div id="register-view" class="hidden">
                     <h1 class="text-3xl font-bold text-gray-800 mb-2 text-center">Criar Conta</h1>
                     <p class="text-gray-500 mb-8 text-center">Crie uma nova conta para usar o sistema.</p>
@@ -140,6 +176,8 @@
         </div>
     </div>
 
+    <!-- SEÇÃO 2.2: CONTEÚDO PRINCIPAL DA APLICAÇÃO -->
+    <!-- Esta parte fica oculta até o usuário fazer o login. -->
     <div id="main-content" class="hidden">
         <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
             <!-- Cabeçalho -->
@@ -542,8 +580,11 @@
     <div id="delete-confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="p-6"><div class="text-center"><i class="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i><h3 class="text-lg font-semibold text-gray-800">Confirmar Exclusão</h3><p id="delete-confirm-message" class="mt-2 text-sm text-gray-500">Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.</p></div></div><div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg"><button type="button" id="confirm-delete-btn" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">Excluir</button><button type="button" id="cancel-delete-btn" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">Cancelar</button></div></div></div>
     <div id="toast-notification" class="fixed bottom-5 right-5 bg-gray-800 text-white py-3 px-5 rounded-lg shadow-lg transform translate-y-20 opacity-0 z-50"><p id="toast-message"></p></div>
 
-    <!-- Firebase and App Script -->
+    <!-- ============================================================================== -->
+    <!-- SEÇÃO 3: LÓGICA DA APLICAÇÃO (JAVASCRIPT)                                      -->
+    <!-- ============================================================================== -->
     <script type="module">
+        // Importa as funções necessárias das bibliotecas do Firebase.
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, setDoc, deleteDoc, onSnapshot, collection, serverTimestamp, query, getDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -997,7 +1038,7 @@
                             actionButtonHtml = `<button class="send-ct-btn text-blue-600 hover:text-blue-900 text-xs font-semibold py-1 px-2 rounded-md bg-blue-50 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" title="${disabled ? 'Encaminhamento já realizado' : 'Enviar ao Conselho Tutelar'}" ${disabled ? 'disabled' : ''}>Enviar ao C.T.</button>`;
                         } else if (abs.actionType === 'encaminhamento_ct') {
                              if(abs.oficioNumber) {
-                                 actionButtonHtml = `<button class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50" data-id="${abs.id}" title="Visualizar Ofício">Ver Ofício</button>`;
+                                  actionButtonHtml = `<button class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50" data-id="${abs.id}" title="Visualizar Ofício">Ver Ofício</button>`;
                              }
                         } else {
                             actionButtonHtml = `<span class="inline-block w-24"></span>`;
@@ -1566,8 +1607,8 @@
                         break;
                 }
             } else {
-                 toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
-                 toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
+                  toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
+                  toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
             }
             
             openModal(dom.absenceModal);
@@ -2359,3 +2400,4 @@
     </script>
 </body>
 </html>
+
