@@ -875,33 +875,20 @@ for (const studentId of sortedGroupKeys) {
                 </div>
             </div>
             <div class="process-content" id="content-occ-${student.matricula}">
-                <div class="p-4 border-t border-gray-200">
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Descrição (início)</th>
-                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                ${occurrences.map(occ => `
-                                    <tr>
-                                        <td class="px-4 py-2 text-sm text-gray-500">${formatDate(occ.date)}</td>
-                                        <td class="px-4 py-2 text-sm text-gray-700">${occ.occurrenceType || 'N/A'}</td>
-                                        <td class="px-4 py-2 text-sm text-gray-700">${occ.description.substring(0, 50)}...</td>
-                                        <td class="px-4 py-2 text-right text-sm font-medium space-x-2">
-                                            <button class="view-btn text-indigo-600 hover:text-indigo-900" data-id="${occ.id}" title="Ver Notificação"><i class="fas fa-eye"></i></button>
-                                            <button class="edit-btn text-yellow-600 hover:text-yellow-900" data-id="${occ.id}" title="Editar"><i class="fas fa-pencil-alt"></i></button>
-                                            <button class="delete-btn text-red-600 hover:text-red-900" data-id="${occ.id}" title="Excluir"><i class="fas fa-trash"></i></button>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="border-t border-gray-200 divide-y divide-gray-200">
+                    ${occurrences.map(occ => `
+                        <div class="flex justify-between items-start py-3 px-4 hover:bg-gray-50 transition-colors duration-150">
+                            <div>
+                                <p class="font-medium text-gray-800">${occ.occurrenceType || 'N/A'}</p>
+                                <p class="text-sm text-gray-500">Data: ${formatDate(occ.date)}</p>
+                            </div>
+                            <div class="whitespace-nowrap text-right text-sm font-medium space-x-2 flex items-center pl-4">
+                                <button class="view-btn text-indigo-600 hover:text-indigo-900 p-1 rounded-full hover:bg-indigo-100" data-id="${occ.id}" title="Ver Notificação"><i class="fas fa-eye"></i></button>
+                                <button class="edit-btn text-yellow-600 hover:text-yellow-900 p-1 rounded-full hover:bg-yellow-100" data-id="${occ.id}" title="Editar"><i class="fas fa-pencil-alt"></i></button>
+                                <button class="delete-btn text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-100" data-id="${occ.id}" title="Excluir"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    `).join('')}
                 </div>
             </div>
         </div>
@@ -2396,5 +2383,6 @@ for (const studentId of sortedGroupKeys) {
     </script>
 </body>
 </html>
+
 
 
