@@ -178,14 +178,14 @@
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-center sm:justify-between items-center">
                     <h2 id="occurrences-title" class="text-xl sm:text-2xl font-semibold text-gray-700">Registros de Ocorrências</h2>
                 </div>
-                 <!-- Filters for Occurrences -->
-                 <div id="occurrence-filters" class="mb-6 bg-gray-50 p-4 rounded-lg border flex flex-wrap gap-4 items-center">
-                    <h3 class="text-md font-semibold text-gray-700 w-full sm:w-auto">Filtrar por Período:</h3>
-                    <div class="flex-1 min-w-[150px]">
+                <!-- Filters for Occurrences -->
+                <div id="occurrence-filters" class="mb-6 bg-gray-50 p-4 rounded-lg border flex flex-col sm:flex-row gap-4 items-center">
+                    <h3 class="text-md font-semibold text-gray-700">Filtrar por Período:</h3>
+                    <div class="w-full sm:flex-1">
                         <label for="occurrence-start-date" class="text-sm font-medium text-gray-600">De</label>
                         <input type="date" id="occurrence-start-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
                     </div>
-                    <div class="flex-1 min-w-[150px]">
+                    <div class="w-full sm:flex-1">
                         <label for="occurrence-end-date" class="text-sm font-medium text-gray-600">Até</label>
                         <input type="date" id="occurrence-end-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
                     </div>
@@ -854,7 +854,7 @@
                             <td class="px-4 py-2 text-sm text-gray-700">${occ.occurrenceType || 'N/A'}</td>
                             <td class="px-4 py-2 text-sm text-gray-700">${occ.description.substring(0, 50)}...</td>
                             <td class="px-4 py-2 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                <button class="view-btn text-indigo-600 hover:text-indigo-900" data-id="${occ.id}" title="Ver Notificação"><i class="fas fa-eye"></i></button>
+                                <button class="notification-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50" data-id="${occ.id}" title="Gerar Notificação">Notificação</button>
                                 <button class="edit-btn text-yellow-600 hover:text-yellow-900" data-id="${occ.id}" title="Editar"><i class="fas fa-pencil-alt"></i></button>
                                 <button class="delete-btn text-red-600 hover:text-red-900" data-id="${occ.id}" title="Excluir"><i class="fas fa-trash"></i></button>
                             </td>
@@ -2359,4 +2359,5 @@
     </script>
 </body>
 </html>
+
 
