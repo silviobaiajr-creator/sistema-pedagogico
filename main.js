@@ -1,16 +1,18 @@
 // ARQUIVO: main.js
-// Responsabilidade: Ponto de entrada. Orquestra todos os outros módulos.
-// Configura os listeners de eventos e a autenticação.
+// RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra todos os outros
+// módulos, configura os listeners de eventos e a autenticação do usuário.
 
-// Importações dos Serviços do Firebase
+// --- Importações dos Módulos ---
+
+// Serviços do Firebase para autenticação e banco de dados
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { onSnapshot, query, writeBatch, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { onSnapshot, query, writeBatch, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// Importações dos nossos módulos
-import { auth, db } from './firebase.js';
-import { state, dom } from './state.js';
-import { showToast, closeModal, shareContent } from './utils.js';
-import { loadStudents, getCollectionRef, addRecord, updateRecord, deleteRecord, getStudentsDocRef } from './firestore.js';
+// Módulos internos da aplicação
+import { auth, db } from './firebase.js'; // Configuração do Firebase
+import { state, dom } from './state.js'; // Estado global e elementos do DOM
+import { showToast, closeModal, shareContent } from './utils.js'; // Funções utilitárias
+import { loadStudents, getCollectionRef, addRecord, updateRecord, deleteRecord, getStudentsDocRef } from './firestore.js'; // Interação com o Firestore
 import { 
     render, 
     renderStudentsList, 
@@ -23,51 +25,56 @@ import {
     generateAndShowConsolidatedFicha,
     generateAndShowOficio,
     openAbsenceModalForStudent,
-    openReportGeneratorModal,
     showLoginView,
     showRegisterView,
     resetStudentForm,
     toggleFamilyContactFields,
     toggleVisitContactFields,
     generateAndShowGeneralReport
-} from './ui.js';
-import { setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import * as logic from './logic.js';
+} from './ui.js'; // Funções de interface do usuário
+import * as logic from './logic.js'; // Lógica de negócio
 
+// --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
-// --- INICIALIZAÇÃO ---
+// Evento que dispara quando o HTML da página foi completamente carregado
 document.addEventListener('DOMContentLoaded', () => {
     
-    state.db = db;
+    state.db = db; // Armazena a instância do banco de dados no estado global
 
+    // Observador do estado de autenticação do Firebase
     onAuthStateChanged(auth, async user => {
-        detachFirestoreListeners();
+        detachFirestoreListeners(); // Garante que listeners antigos sejam removidos ao trocar de usuário
+        
         if (user) {
+            // Se o usuário está LOGADO
             state.userId = user.uid;
             dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
-            dom.loginScreen.classList.add('hidden');
-            dom.mainContent.classList.remove('hidden');
+            dom.loginScreen.classList.add('hidden'); // Esconde a tela de login
+            dom.mainContent.classList.remove('hidden'); // Mostra o conteúdo principal
             dom.userProfile.classList.remove('hidden');
             
             try {
-                await loadStudents();
-                renderStudentsList();
-                setupFirestoreListeners();
+                await loadStudents(); // Carrega a lista de alunos do Firestore
+                renderStudentsList(); // Renderiza a lista de alunos no modal de gerenciamento
+                setupFirestoreListeners(); // Ativa os listeners para ouvir mudanças no banco em tempo real
             } catch (error) {
                 showToast(error.message);
             }
 
         } else {
+            // Se o usuário está DESLOGADO
             state.userId = null;
             state.students = [];
             state.occurrences = [];
             state.absences = [];
-            render();
+            render(); // Limpa a tela
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
         }
     });
+
+    // --- Formulários de Autenticação ---
 
     dom.loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -89,43 +96,39 @@ document.addEventListener('DOMContentLoaded', () => {
             await createUserWithEmailAndPassword(auth, email, password);
         } catch (error) {
             console.error("Erro ao registar:", error.code);
-            if (error.code === 'auth/email-already-in-use') {
-                showToast("Este email já está a ser utilizado.");
-            } else if (error.code === 'auth/weak-password') {
-                showToast("A sua senha é muito fraca.");
-            } else {
-                showToast("Erro ao criar a conta.");
-            }
+            const message = error.code === 'auth/email-already-in-use' ? "Este email já está a ser utilizado."
+                          : error.code === 'auth/weak-password' ? "A sua senha é muito fraca."
+                          : "Erro ao criar a conta.";
+            showToast(message);
         }
     });
 
-    dom.logoutBtn.addEventListener('click', async () => {
-        try {
-            await signOut(auth);
-        } catch (error) {
-            console.error("Erro ao sair:", error);
-        }
-    });
+    dom.logoutBtn.addEventListener('click', () => signOut(auth).catch(error => console.error("Erro ao sair:", error)));
 
+    // Configuração de todos os outros eventos da página
     setupEventListeners();
     
+    // Configuração dos campos de busca com autocompletar
     setupAutocomplete('search-occurrences', 'occurrence-student-suggestions', openOccurrenceModalForStudent); 
     setupAutocomplete('search-absences', 'absence-student-suggestions', handleNewAbsenceAction);
 });
 
 
-// --- LISTENERS DO FIREBASE ---
+// --- LISTENERS DO FIREBASE (SINCRONIZAÇÃO EM TEMPO REAL) ---
+
 function setupFirestoreListeners() {
     if (!state.userId) return;
 
     if (state.unsubscribeOccurrences) state.unsubscribeOccurrences();
-    state.unsubscribeOccurrences = onSnapshot(query(getCollectionRef('occurrence')), (snapshot) => {
+    const occurrencesQuery = query(getCollectionRef('occurrence'));
+    state.unsubscribeOccurrences = onSnapshot(occurrencesQuery, (snapshot) => {
         state.occurrences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if (state.activeTab === 'occurrences') render();
     }, (error) => console.error("Erro ao buscar ocorrências:", error));
 
     if (state.unsubscribeAbsences) state.unsubscribeAbsences();
-    state.unsubscribeAbsences = onSnapshot(query(getCollectionRef('absence')), (snapshot) => {
+    const absencesQuery = query(getCollectionRef('absence'));
+    state.unsubscribeAbsences = onSnapshot(absencesQuery, (snapshot) => {
         state.absences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if (state.activeTab === 'absences') render();
     }, (error) => console.error("Erro ao buscar ações:", error));
@@ -139,7 +142,8 @@ function detachFirestoreListeners() {
 };
 
 
-// --- CONFIGURAÇÃO DE EVENTOS (CLICKS, SUBMITS) ---
+// --- CONFIGURAÇÃO DE EVENTOS DA UI (CLICKS, SUBMITS, ETC.) ---
+
 function setupEventListeners() {
     // --- Navegação e Abas ---
     dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
@@ -170,13 +174,13 @@ function setupEventListeners() {
     document.getElementById('ficha-print-btn').addEventListener('click', () => window.print());
 
     // --- Fechamento de Modais ---
-    ['close-modal-btn', 'cancel-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.occurrenceModal)));
-    ['close-absence-modal-btn', 'cancel-absence-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.absenceModal)));
-    ['close-report-generator-btn', 'cancel-report-generator-btn'].forEach(id => document.getElementById(id).addEventListener('click', () => closeModal(dom.reportGeneratorModal)));
-    document.getElementById('close-notification-btn').addEventListener('click', () => closeModal(dom.notificationModalBackdrop));
-    document.getElementById('close-report-view-btn').addEventListener('click', () => closeModal(dom.reportViewModalBackdrop));
-    document.getElementById('close-ficha-view-btn').addEventListener('click', () => closeModal(dom.fichaViewModalBackdrop));
-    document.getElementById('cancel-delete-btn').addEventListener('click', () => closeModal(dom.deleteConfirmModal));
+    ['close-modal-btn', 'cancel-btn'].forEach(id => document.getElementById(id)?.addEventListener('click', () => closeModal(dom.occurrenceModal)));
+    ['close-absence-modal-btn', 'cancel-absence-btn'].forEach(id => document.getElementById(id)?.addEventListener('click', () => closeModal(dom.absenceModal)));
+    ['close-report-generator-btn', 'cancel-report-generator-btn'].forEach(id => document.getElementById(id)?.addEventListener('click', () => closeModal(dom.reportGeneratorModal)));
+    document.getElementById('close-notification-btn')?.addEventListener('click', () => closeModal(dom.notificationModalBackdrop));
+    document.getElementById('close-report-view-btn')?.addEventListener('click', () => closeModal(dom.reportViewModalBackdrop));
+    document.getElementById('close-ficha-view-btn')?.addEventListener('click', () => closeModal(dom.fichaViewModalBackdrop));
+    document.getElementById('cancel-delete-btn')?.addEventListener('click', () => closeModal(dom.deleteConfirmModal));
 
     // --- Filtros ---
     dom.occurrenceStartDate.addEventListener('change', (e) => { state.filtersOccurrences.startDate = e.target.value; render(); });
@@ -208,7 +212,7 @@ function setupEventListeners() {
             meetingTime: document.getElementById('meeting-time-occurrence').value || null
         };
         try { 
-            id ? await updateRecord('occurrence', id, data) : await addRecord('occurrence', data); 
+            await (id ? updateRecord('occurrence', id, data) : addRecord('occurrence', data)); 
             showToast(`Ocorrência ${id ? 'atualizada' : 'registada'} com sucesso!`); 
             closeModal(dom.occurrenceModal); 
         } catch (error) { console.error("Erro:", error); showToast('Erro ao salvar.'); }
@@ -418,16 +422,20 @@ function setupEventListeners() {
 };
 
 // --- FUNÇÃO CENTRALIZADA PARA LISTENERS DE LISTA ---
+// Esta função utiliza 'event delegation' para gerenciar os cliques de forma eficiente.
 function setupListClickListeners() {
     
     // Listener para a lista de OCORRÊNCIAS
     dom.occurrencesListDiv.addEventListener('click', (e) => {
         const target = e.target;
         const header = target.closest('.process-header');
+        
+        // A SOLUÇÃO: Em vez de verificar 'e.target', encontramos o <button> mais próximo.
+        // Isso funciona mesmo que o usuário clique no ícone <i> dentro do botão.
         const button = target.closest('button');
 
         if (button) { // Ação prioritária: clique em botão
-            e.stopPropagation();
+            e.stopPropagation(); // Impede que o clique se propague para o header (acordeão)
             const id = button.dataset.id;
             const studentId = button.dataset.studentId;
 
@@ -472,7 +480,7 @@ function setupListClickListeners() {
              return;
         }
 
-        // Ação fallback: expandir/recolher
+        // Ação fallback: expandir/recolher o acordeão
         if (header) {
             const studentId = header.dataset.studentIdOcc;
             const content = document.getElementById(`content-occ-${studentId}`);
@@ -480,12 +488,12 @@ function setupListClickListeners() {
             if (content) {
                 const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px';
                 content.style.maxHeight = isHidden ? `${content.scrollHeight}px` : null;
-                icon.classList.toggle('rotate-180', isHidden);
+                icon?.classList.toggle('rotate-180', isHidden);
             }
         }
     });
 
-    // Listener para a lista de BUSCA ATIVA
+    // Listener para a lista de BUSCA ATIVA (mesma lógica de `closest('button')`)
     dom.absencesListDiv.addEventListener('click', (e) => {
         const target = e.target;
         const header = target.closest('.process-header');
@@ -574,9 +582,8 @@ function setupListClickListeners() {
             if (content) {
                 const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px';
                 content.style.maxHeight = isHidden ? `${content.scrollHeight}px` : null;
-                icon.classList.toggle('rotate-180', isHidden);
+                icon?.classList.toggle('rotate-180', isHidden);
             }
         }
     });
 }
-
