@@ -28,7 +28,8 @@ import {
     showRegisterView,
     resetStudentForm,
     toggleFamilyContactFields,
-    toggleVisitContactFields
+    toggleVisitContactFields,
+    generateAndShowGeneralReport // IMPORTAÇÃO ADICIONADA
 } from './ui.js';
 import { setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import * as logic from './logic.js';
@@ -223,6 +224,11 @@ function setupEventListeners() {
     document.getElementById('filter-return-status').addEventListener('change', (e) => {
         state.filtersAbsences.returnStatus = e.target.value;
         render();
+    });
+    
+    // --- NOVO LISTENER para o botão de Relatório Geral ---
+    dom.generalReportBtn.addEventListener('click', () => {
+        generateAndShowGeneralReport();
     });
 
     // --- Formulário de Ocorrência ---
@@ -468,22 +474,63 @@ function setupEventListeners() {
         }
     });
 
-    // --- Clicks na Lista de Ocorrências ---
+    // --- SUBSTITUA o listener de dom.occurrencesListDiv por este código corrigido ---
     dom.occurrencesListDiv.addEventListener('click', (e) => {
         const target = e.target;
-        const button = target.closest('button');
-        const header = target.closest('.process-header');
-        const studentNameSpan = target.closest('.new-occurrence-from-history-btn');
 
-        if (studentNameSpan && !button) {
+        // Verifica se o clique foi no nome do aluno para abrir um novo registro
+        const newOccurrenceTrigger = target.closest('.new-occurrence-from-history-btn');
+        if (newOccurrenceTrigger) {
             e.stopPropagation();
-            const studentId = studentNameSpan.dataset.studentId;
+            const studentId = newOccurrenceTrigger.dataset.studentId;
             const student = state.students.find(s => s.matricula === studentId);
             if (student) openOccurrenceModalForStudent(student);
-            return;
+            return; // Ação tratada
         }
-        
-        if (header && !button && !target.closest('button')) { 
+
+        // Verifica se o clique foi em algum botão
+        const button = target.closest('button');
+        if (button) {
+            e.stopPropagation(); // Impede que o clique se propague para o header
+            const id = button.dataset.id;
+            const studentId = button.dataset.studentId;
+
+            if (button.classList.contains('generate-student-report-btn')) {
+                if (studentId) generateAndShowReport(studentId);
+            } else if (button.classList.contains('edit-btn')) {
+                const data = state.occurrences.find(o => o.id === id);
+                if (data) {
+                    const student = state.students.find(s => s.matricula === data.studentId);
+                    if (student) {
+                        dom.occurrenceForm.reset();
+                        document.getElementById('modal-title').innerText = 'Editar Registro de Ocorrência';
+                        document.getElementById('occurrence-id').value = data.id || '';
+                        document.getElementById('student-name').value = student.name || '';
+                        document.getElementById('student-class').value = student.class || '';
+                        document.getElementById('occurrence-type').value = data.occurrenceType || '';
+                        document.getElementById('occurrence-date').value = data.date || '';
+                        document.getElementById('description').value = data.description || '';
+                        document.getElementById('involved').value = data.involved || '';
+                        document.getElementById('actions-taken-school').value = data.actionsTakenSchool || '';
+                        document.getElementById('actions-taken-family').value = data.actionsTakenFamily || '';
+                        document.getElementById('meeting-date-occurrence').value = data.meetingDate || '';
+                        document.getElementById('meeting-time-occurrence').value = data.meetingTime || '';
+                        openModal(dom.occurrenceModal);
+                    }
+                }
+            } else if (button.classList.contains('delete-btn')) {
+                document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.';
+                state.recordToDelete = { type: 'occurrence', id: id };
+                openModal(dom.deleteConfirmModal);
+            } else if (button.classList.contains('view-btn')) {
+                openNotificationModal(id);
+            }
+            return; // Ação tratada
+        }
+
+        // Se não foi em um elemento específico, trata como clique no header para expandir/recolher
+        const header = target.closest('.process-header');
+        if (header) {
             const studentId = header.dataset.studentIdOcc;
             const content = document.getElementById(`content-occ-${studentId}`);
             const icon = header.querySelector('i.fa-chevron-down');
@@ -495,45 +542,6 @@ function setupEventListeners() {
                     content.style.maxHeight = content.scrollHeight + "px";
                     icon.classList.add('rotate-180');
                 }
-            }
-            return;
-        }
-
-        if (button) {
-            const studentId = button.dataset.studentId;
-            if(button.classList.contains('generate-student-report-btn')){
-                generateAndShowReport(studentId);
-                return;
-            }
-
-            const id = button.dataset.id;
-            if (button.classList.contains('edit-btn')) {
-                const data = state.occurrences.find(o => o.id === id);
-                const student = state.students.find(s => s.matricula === data.studentId);
-                if (data && student) {
-                    dom.occurrenceForm.reset();
-                    document.getElementById('modal-title').innerText = 'Editar Registro de Ocorrência';
-                    document.getElementById('occurrence-id').value = data.id || '';
-                    document.getElementById('student-name').value = student.name || '';
-                    document.getElementById('student-class').value = student.class || '';
-                    document.getElementById('occurrence-type').value = data.occurrenceType || '';
-                    document.getElementById('occurrence-date').value = data.date || '';
-                    document.getElementById('description').value = data.description || '';
-                    document.getElementById('involved').value = data.involved || '';
-                    document.getElementById('actions-taken-school').value = data.actionsTakenSchool || '';
-                    document.getElementById('actions-taken-family').value = data.actionsTakenFamily || '';
-                    document.getElementById('meeting-date-occurrence').value = data.meetingDate || '';
-                    document.getElementById('meeting-time-occurrence').value = data.meetingTime || '';
-                    openModal(dom.occurrenceModal);
-                }
-            }
-            else if (button.classList.contains('delete-btn')) { 
-                document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.';
-                state.recordToDelete = { type: 'occurrence', id: id }; 
-                openModal(dom.deleteConfirmModal);
-            }
-            else if (button.classList.contains('view-btn')) { 
-                openNotificationModal(id); 
             }
         }
     });
@@ -705,3 +713,4 @@ function setupEventListeners() {
 
     document.getElementById('cancel-edit-student-btn').addEventListener('click', resetStudentForm);
 };
+
