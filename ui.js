@@ -18,13 +18,13 @@ export const actionDisplayTitles = {
     analise: "Análise"
 };
 
-export const renderOccurrences = () => {
-    dom.loadingOccurrences.classList.add('hidden');
-    
-    let filtered = state.occurrences.filter(o => {
+// FUNÇÃO AUXILIAR ADICIONADA para obter ocorrências com base nos filtros
+export const getFilteredOccurrences = () => {
+    return state.occurrences.filter(o => {
         const student = state.students.find(s => s.matricula === o.studentId);
-        const nameMatch = student && student.name.toLowerCase().startsWith(state.filterOccurrences.toLowerCase());
+        if (!student) return false;
         
+        const nameMatch = student.name.toLowerCase().startsWith(state.filterOccurrences.toLowerCase());
         if (!nameMatch) return false;
 
         const { startDate, endDate } = state.filtersOccurrences;
@@ -33,6 +33,132 @@ export const renderOccurrences = () => {
 
         return true;
     });
+};
+
+// NOVA FUNÇÃO ADICIONADA para criar e exibir o relatório geral
+export const generateAndShowGeneralReport = () => {
+    const filteredOccurrences = getFilteredOccurrences();
+    if (filteredOccurrences.length === 0) {
+        return showToast('Nenhuma ocorrência encontrada para os filtros selecionados.');
+    }
+
+    const { startDate, endDate } = state.filtersOccurrences;
+    const filterTerm = state.filterOccurrences;
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    // Agregação de dados para o resumo
+    const studentIds = [...new Set(filteredOccurrences.map(occ => occ.studentId))];
+    const occurrencesByType = filteredOccurrences.reduce((acc, occ) => {
+        const type = occ.occurrenceType || 'Não especificado';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+    }, {});
+    const sortedTypes = Object.entries(occurrencesByType).sort((a, b) => b[1] - a[1]);
+
+    const groupedByStudent = filteredOccurrences.reduce((acc, occ) => {
+        if (!acc[occ.studentId]) {
+            acc[occ.studentId] = [];
+        }
+        acc[occ.studentId].push(occ);
+        return acc;
+    }, {});
+
+    // Geração do HTML do relatório
+    const reportHTML = `
+        <div class="space-y-8 text-sm font-sans">
+            <!-- Cabeçalho -->
+            <div class="text-center border-b-2 border-gray-200 pb-4">
+                <h2 class="text-2xl font-bold uppercase text-gray-800">${config.schoolName}</h2>
+                <h3 class="text-xl font-semibold text-gray-700 mt-2">Relatório Geral de Ocorrências</h3>
+                <p class="text-gray-500 mt-1">Gerado em: ${currentDate}</p>
+            </div>
+
+            <!-- Resumo -->
+            <div class="border rounded-lg p-4 bg-gray-50">
+                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                    <div>
+                        <p class="text-2xl font-bold text-indigo-600">${filteredOccurrences.length}</p>
+                        <p class="text-xs font-medium text-gray-500 uppercase">Total de Ocorrências</p>
+                    </div>
+                    <div>
+                        <p class="text-2xl font-bold text-indigo-600">${studentIds.length}</p>
+                        <p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos</p>
+                    </div>
+                    <div>
+                        <p class="text-lg font-bold text-indigo-600">${sortedTypes.length > 0 ? sortedTypes[0][0] : 'N/A'}</p>
+                        <p class="text-xs font-medium text-gray-500 uppercase">Principal Tipo de Ocorrência</p>
+                    </div>
+                </div>
+                ${(startDate || endDate || filterTerm) ? `
+                <div class="mt-4 border-t pt-3 text-xs text-gray-600">
+                    <p><strong>Filtros Aplicados:</strong></p>
+                    <ul class="list-disc list-inside ml-2">
+                        ${startDate ? `<li>Período de: <strong>${formatDate(startDate)}</strong></li>` : ''}
+                        ${endDate ? `<li>Período até: <strong>${formatDate(endDate)}</strong></li>` : ''}
+                        ${filterTerm ? `<li>Busca por aluno: <strong>"${formatText(filterTerm)}"</strong></li>` : ''}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+            
+            <!-- Seção de Detalhes -->
+            <div>
+                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes das Ocorrências</h4>
+                <div class="space-y-6">
+                ${Object.keys(groupedByStudent).sort((a, b) => {
+                    const studentA = state.students.find(s => s.matricula === a)?.name || '';
+                    const studentB = state.students.find(s => s.matricula === b)?.name || '';
+                    return studentA.localeCompare(studentB);
+                }).map(studentId => {
+                    const occurrences = groupedByStudent[studentId].sort((a, b) => new Date(a.date) - new Date(b.date));
+                    const student = state.students.find(s => s.matricula === studentId);
+                    if (!student) return '';
+
+                    return `
+                    <div class="border rounded-lg overflow-hidden break-inside-avoid">
+                        <div class="bg-gray-100 p-3">
+                            <p class="font-bold text-gray-800">${student.name}</p>
+                            <p class="text-xs text-gray-600">Turma: ${student.class} | ${occurrences.length} ocorrência(s)</p>
+                        </div>
+                        <div class="divide-y divide-gray-200">
+                            ${occurrences.map(occ => `
+                                <div class="p-3 grid grid-cols-4 gap-4 items-start">
+                                    <div class="col-span-1">
+                                        <p class="font-semibold text-gray-600">${formatDate(occ.date)}</p>
+                                    </div>
+                                    <div class="col-span-3">
+                                        <p class="font-semibold text-gray-800">${formatText(occ.occurrenceType)}</p>
+                                        <p class="text-xs text-gray-600 mt-1 whitespace-pre-wrap">${formatText(occ.description)}</p>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    `;
+                }).join('')}
+                </div>
+            </div>
+
+            <!-- Rodapé para Impressão -->
+            <div class="signature-block pt-16 mt-8">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="mt-1 text-sm">Assinatura da Gestão Escolar</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('report-view-title').textContent = "Relatório Geral de Ocorrências";
+    document.getElementById('report-view-content').innerHTML = reportHTML;
+    openModal(dom.reportViewModalBackdrop);
+};
+
+export const renderOccurrences = () => {
+    dom.loadingOccurrences.classList.add('hidden');
+    
+    let filtered = getFilteredOccurrences(); // USANDO A NOVA FUNÇÃO
     
     dom.occurrencesTitle.textContent = `Exibindo ${filtered.length} Registro(s) de Ocorrências`;
 
@@ -922,3 +1048,4 @@ export const showRegisterView = () => {
     dom.loginView.classList.add('hidden');
     dom.registerView.classList.remove('hidden');
 };
+
