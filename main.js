@@ -26,7 +26,9 @@ import {
     openReportGeneratorModal,
     showLoginView,
     showRegisterView,
-    resetStudentForm
+    resetStudentForm,
+    toggleFamilyContactFields,
+    toggleVisitContactFields
 } from './ui.js';
 import { setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
