@@ -58,5 +58,6 @@ export const dom = {
     occurrencesTitle: document.getElementById('occurrences-title'),
     occurrenceStartDate: document.getElementById('occurrence-start-date'),
     occurrenceEndDate: document.getElementById('occurrence-end-date'),
+    generalReportBtn: document.getElementById('general-report-btn'),
 };
 
