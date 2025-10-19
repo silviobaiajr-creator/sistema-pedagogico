@@ -11,7 +11,8 @@ import { onSnapshot, query, writeBatch, doc, setDoc } from "https://www.gstatic.
 // Módulos internos da aplicação
 import { auth, db } from './firebase.js'; // Configuração do Firebase
 import { state, dom } from './state.js'; // Estado global e elementos do DOM
-import { showToast, closeModal, shareContent } from './utils.js'; // Funções utilitárias
+// CORREÇÃO: A função 'openModal' foi adicionada à importação.
+import { showToast, closeModal, shareContent, openModal } from './utils.js'; // Funções utilitárias
 import { loadStudents, getCollectionRef, addRecord, updateRecord, deleteRecord, getStudentsDocRef } from './firestore.js'; // Interação com o Firestore
 import { 
     render, 
@@ -587,3 +588,4 @@ function setupListClickListeners() {
         }
     });
 }
+
