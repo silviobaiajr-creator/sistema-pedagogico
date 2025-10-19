@@ -1,39 +1,3 @@
-// ARQUIVO: ui.js (Revisão Geral + Logs)
-// Responsabilidade: Todas as funções que manipulam a UI.
-
-import { state, dom } from './state.js';
-import { config } from './firebase.js';
-import { getStudentProcessInfo, determineNextActionForStudent } from './logic.js';
-import { formatDate, formatTime, formatText, formatPeriodo, showToast, openModal, closeModal } from './utils.js';
-import { getStudentsDocRef, addRecord } from './firestore.js';
-import { setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import Papa from "https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js";
-
-// --- Constantes e Funções de Renderização (sem alterações lógicas grandes aqui) ---
-
-export const actionDisplayTitles = {
-    // ... (sem alterações)
-    tentativa_1: "1ª Tentativa de Contato",
-    tentativa_2: "2ª Tentativa de Contato",
-    tentativa_3: "3ª Tentativa de Contato",
-    visita: "Visita In Loco",
-    encaminhamento_ct: "Encaminhamento ao Conselho Tutelar",
-    analise: "Análise"
-};
-
-// ... (renderOccurrences, renderAbsences, render - sem alterações lógicas relevantes para o bug) ...
-// Adicionadas verificações de existência de elementos DOM para robustez
-
-export const renderOccurrences = () => {
-    // Verifica se o elemento existe antes de tentar modificá-lo
-    if (!dom.loadingOccurrences || !dom.occurrencesTitle || !dom.emptyStateOccurrences || !dom.occurrencesListDiv) {
-        console.error("[ui.js] Elementos do DOM para ocorrências não encontrados!");
-        return;
-    }
-    dom.loadingOccurrences.classList.add('hidden');
-
-    let filtered = state.occurrences.filter(o => {
-        const student = state.students.find(s => s.matricula === o.studentId);
         const nameMatch = student?.name?.toLowerCase().startsWith(state.filterOccurrences.toLowerCase());
         if (!nameMatch) return false;
         const { startDate, endDate } = state.filtersOccurrences;
