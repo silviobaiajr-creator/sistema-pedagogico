@@ -315,4 +315,607 @@ export const openFichaViewModal = (id) => {
     let title = "Notificação de Baixa Frequência";
     
     let body = '';
-    const respons
+    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+
+    switch (record.actionType) {
+        case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
+            body = `
+                <p class="mt-4 text-justify">Prezados(as) Responsáveis, <strong>${responsaveis}</strong>,</p>
+                <p class="mt-4 text-justify">
+                    Vimos por meio desta notificar que o(a) estudante supracitado(a) acumulou <strong>${formatText(record.absenceCount)} faltas</strong> no período ${formatPeriodo(record.periodoFaltasStart, record.periodoFaltasEnd)}, 
+                    configurando baixa frequência escolar. Esta é a <strong>${attemptLabels[record.actionType]} tentativa de contato</strong> realizada pela escola.
+                </p>
+                <p class="mt-4 text-justify bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
+                    Ressaltamos que, conforme a Lei de Diretrizes e Bases da Educação Nacional (LDB - Lei 9.394/96) e o Estatuto da Criança e do Adolescente (ECA - Lei 8.069/90), 
+                    é dever da família zelar pela frequência do(a) estudante à escola. A persistência das faltas implicará no acionamento do Conselho Tutelar para as devidas providências.
+                </p>
+                <p class="mt-4 text-justify">
+                    Diante do exposto, solicitamos o comparecimento de um(a) responsável na <strong>coordenação pedagógica</strong> desta unidade escolar para tratarmos do assunto na data e horário abaixo:
+                </p>
+                <div class="mt-4 p-3 bg-gray-100 rounded-md text-center">
+                    <p><strong>Data:</strong> ${formatDate(record.meetingDate)}</p>
+                    <p><strong>Horário:</strong> ${formatTime(record.meetingTime)}</p>
+                </div>
+            `;
+            break;
+        case 'visita':
+            title = actionDisplayTitles[record.actionType];
+            body = `<p class="mt-4">Notificamos que na data de <strong>${formatDate(record.visitDate)}</strong>, o agente escolar <strong>${formatText(record.visitAgent)}</strong> realizou uma visita domiciliar.</p><p class="mt-2"><strong>Justificativa do responsável:</strong> ${formatText(record.visitReason)}</p>`;
+            break;
+        default: 
+            title = actionDisplayTitles[record.actionType] || 'Documento de Busca Ativa';
+            body = `<p class="mt-4">Registro de ação administrativa referente à busca ativa do(a) aluno(a).</p>`; 
+            break;
+    }
+
+    const contentHTML = `
+        <div class="space-y-6 text-sm text-gray-800">
+            <div class="text-center border-b pb-4">
+                <h2 class="text-lg font-bold uppercase">${config.schoolName}</h2>
+                <h3 class="font-semibold mt-1 uppercase">${title}</h3>
+            </div>
+            <div class="pt-4">
+                <p><strong>Aluno(a):</strong> ${student.name}</p>
+                <p><strong>Turma:</strong> ${student.class || ''}</p>
+                <p><strong>Endereço:</strong> ${formatText(student.endereco)}</p>
+                <p><strong>Contato:</strong> ${formatText(student.contato)}</p>
+            </div>
+            <div class="text-justify">${body}</div>
+            <div class="border-t pt-16 mt-16">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="text-center mt-1">Ciente do Responsável</p>
+                </div>
+            </div>
+        </div>`;
+
+    document.getElementById('ficha-view-title').textContent = title;
+    document.getElementById('ficha-view-content').innerHTML = contentHTML;
+    openModal(dom.fichaViewModalBackdrop);
+};
+
+export const openReportGeneratorModal = (reportType) => {
+    const records = reportType === 'occurrences' ? state.occurrences : state.absences;
+    const studentIds = [...new Set(records.map(item => item.studentId))];
+    const studentsInRecords = state.students.filter(s => studentIds.includes(s.matricula)).sort((a,b) => a.name.localeCompare(b.name));
+
+    const select = document.getElementById('student-select');
+    
+    const title = reportType === 'occurrences' ? 'Gerar Relatório de Ocorrências' : 'Gerar Ficha Consolidada';
+    document.getElementById('report-generator-title').textContent = title;
+    dom.reportGeneratorModal.dataset.reportType = reportType;
+    
+    select.innerHTML = studentsInRecords.length > 0
+        ? '<option value="">Selecione um aluno...</option>' + studentsInRecords.map(s => `<option value="${s.matricula}">${s.name}</option>`).join('')
+        : '<option value="">Nenhum aluno com registros</option>';
+    openModal(dom.reportGeneratorModal);
+};
+
+export const generateAndShowOficio = (action, oficioNumber = null) => {
+    if (!action) return showToast('Ação de origem não encontrada.');
+    
+    const finalOficioNumber = oficioNumber || action.oficioNumber;
+    const finalOficioYear = action.oficioYear || new Date().getFullYear();
+
+    if (!finalOficioNumber) return showToast('Número do ofício não encontrado para este registro.');
+
+    const student = state.students.find(s => s.matricula === action.studentId);
+    if (!student) return showToast('Aluno não encontrado.');
+
+    const processActions = state.absences
+        .filter(a => a.processId === action.processId)
+        .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+
+    if (processActions.length === 0) return showToast('Nenhuma ação encontrada para este processo.');
+
+    const firstActionWithAbsenceData = processActions.find(a => a.periodoFaltasStart);
+    const visitAction = processActions.find(a => a.actionType === 'visita');
+    const contactAttempts = processActions.filter(a => a.actionType.startsWith('tentativa'));
+    
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+
+    let attemptsSummary = contactAttempts.map((attempt, index) => {
+        return `
+            <p class="ml-4">- <strong>${index + 1}ª Tentativa (${formatDate(attempt.contactDate || attempt.createdAt?.toDate())}):</strong> 
+            ${attempt.contactSucceeded === 'yes' 
+                ? `Contato realizado com ${formatText(attempt.contactPerson)}. Justificativa: ${formatText(attempt.contactReason)}.` 
+                : 'Não foi possível estabelecer contato.'}
+            </p>
+        `;
+    }).join('');
+    if (!attemptsSummary) attemptsSummary = "<p class='ml-4'>Nenhuma tentativa de contato registrada.</p>";
+
+    const oficioHTML = `
+        <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+            <div class="text-center">
+                <p class="font-bold uppercase">${config.schoolName}</p>
+                <p>${config.city}, ${currentDate}.</p>
+            </div>
+
+            <div class="mt-8">
+                <p class="font-bold text-base">OFÍCIO Nº ${String(finalOficioNumber).padStart(3, '0')}/${finalOficioYear}</p>
+            </div>
+
+            <div class="mt-8">
+                <p><strong>Ao</strong></p>
+                <p><strong>Conselho Tutelar</strong></p>
+                <p><strong>Nesta</strong></p>
+            </div>
+
+            <div class="mt-8">
+                <p><strong>Assunto:</strong> Encaminhamento de aluno infrequente.</p>
+            </div>
+
+            <div class="mt-8 text-justify">
+                <p class="indent-8">Prezados(as) Conselheiros(as),</p>
+                <p class="mt-4 indent-8">
+                    Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>,
+                    regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino,
+                    filho(a) de <strong>${responsaveis}</strong>, residente no endereço: ${formatText(student.endereco)}.
+                </p>
+                <p class="mt-4 indent-8">
+                    O(A) referido(a) aluno(a) apresenta um número de <strong>${firstActionWithAbsenceData?.absenceCount || '(não informado)'} faltas</strong>,
+                    apuradas no período de ${formatPeriodo(firstActionWithAbsenceData?.periodoFaltasStart, firstActionWithAbsenceData?.periodoFaltasEnd)}.
+                </p>
+                <p class="mt-4 indent-8">
+                    Informamos que a escola esgotou as tentativas de contato com a família, conforme descrito abaixo:
+                </p>
+                <div class="mt-2">${attemptsSummary}</div>
+                <p class="mt-4 indent-8">
+                    Adicionalmente, foi realizada uma visita in loco em <strong>${formatDate(visitAction?.visitDate)}</strong> pelo agente escolar <strong>${formatText(visitAction?.visitAgent)}</strong>.
+                    Durante a visita, ${visitAction?.visitSucceeded === 'yes' 
+                        ? `foi possível conversar com ${formatText(visitAction?.visitContactPerson)}, que justificou a ausência devido a: ${formatText(visitAction?.visitReason)}.`
+                        : 'não foi possível localizar ou contatar os responsáveis.'}
+                </p>
+                <p class="mt-4 indent-8">
+                    Diante do exposto e considerando o que preceitua o Art. 56 do Estatuto da Criança e do Adolescente (ECA), solicitamos as devidas providências deste Conselho para garantir o direito à educação do(a) aluno(a).
+                </p>
+            </div>
+
+            <div class="mt-12 text-center">
+                <p>Atenciosamente,</p>
+            </div>
+            
+            <div class="signature-block pt-16 mt-8 space-y-12">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="mt-1">Diretor(a)</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('report-view-title').textContent = `Ofício Nº ${finalOficioNumber}`;
+    document.getElementById('report-view-content').innerHTML = oficioHTML;
+    openModal(dom.reportViewModalBackdrop);
+};
+
+export const generateAndShowReport = (studentId) => {
+    const studentOccurrences = state.occurrences.filter(occ => occ.studentId === studentId).sort((a, b) => new Date(a.date) - new Date(b.date));
+    if (studentOccurrences.length === 0) return showToast('Nenhuma ocorrência para este aluno.');
+
+    const studentData = state.students.find(s => s.matricula === studentId);
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    const reportHTML = `<div class="space-y-6 text-sm"><div class="text-center border-b pb-4"><h2 class="text-xl font-bold uppercase">${config.schoolName}</h2><h3 class="text-lg font-semibold mt-2">RELATÓRIO DE OCORRÊNCIAS</h3></div><div class="pt-4 text-left"><p><strong>ALUNO(A):</strong> ${studentData.name}</p><p><strong>TURMA:</strong> ${studentData.class}</p><p><strong>DATA:</strong> ${currentDate}</p></div>${studentOccurrences.map((occ, index) => `<div class="border-t pt-4 mt-4"><h4 class="font-semibold mb-2 text-base">OCORRÊNCIA ${index + 1} - Data: ${formatDate(occ.date)}</h4><div class="pl-4 border-l-2 border-gray-200 space-y-2"><div><p class="font-medium">Tipo:</p><p class="text-gray-700 bg-gray-50 p-2 rounded-md">${formatText(occ.occurrenceType)}</p></div><div><p class="font-medium">Descrição:</p><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(occ.description)}</p></div><div><p class="font-medium">Providências da Escola:</p><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(occ.actionsTakenSchool)}</p></div></div></div>`).join('')}<div class="border-t pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Assinatura da Coordenação</p></div></div></div>`;
+    
+    document.getElementById('report-view-title').textContent = "Relatório de Ocorrências";
+    document.getElementById('report-view-content').innerHTML = reportHTML;
+    openModal(dom.reportViewModalBackdrop);
+};
+
+export const generateAndShowConsolidatedFicha = (studentId, processId = null) => {
+    let studentActions = state.absences.filter(action => action.studentId === studentId);
+    
+    if (processId) {
+        studentActions = studentActions.filter(action => action.processId === processId);
+    }
+
+    studentActions.sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
+
+    if (studentActions.length === 0) return showToast('Nenhuma ação para este aluno neste processo.');
+    const studentData = state.students.find(s => s.matricula === studentId);
+
+    const findAction = (type) => studentActions.find(a => a.actionType === type) || {};
+    const t1 = findAction('tentativa_1'), t2 = findAction('tentativa_2'), t3 = findAction('tentativa_3'), visita = findAction('visita'), ct = findAction('encaminhamento_ct'), analise = findAction('analise');
+    
+    const faltasData = t1.periodoFaltasStart ? t1 : (t2.periodoFaltasStart ? t2 : (t3.periodoFaltasStart ? t3 : (visita.periodoFaltasStart ? visita : {})));
+
+    const fichaHTML = `
+        <div class="space-y-4 text-sm">
+            <div class="text-center border-b pb-4">
+                <h2 class="text-lg font-bold uppercase">${config.schoolName}</h2>
+                <h3 class="font-semibold mt-1">Ficha de Acompanhamento da Busca Ativa</h3>
+            </div>
+            
+            <div class="border rounded-md p-3">
+                <h4 class="font-semibold text-base mb-2">Identificação</h4>
+                <p><strong>Nome do aluno:</strong> ${studentData.name}</p>
+                <p><strong>Ano/Ciclo:</strong> ${studentData.class || ''}</p>
+                <p><strong>Endereço:</strong> ${formatText(studentData.endereco)}</p>
+                <p><strong>Contato:</strong> ${formatText(studentData.contato)}</p>
+            </div>
+
+            <div class="border rounded-md p-3">
+                <h4 class="font-semibold text-base mb-2">Faltas apuradas no período de:</h4>
+                <p><strong>Data de início:</strong> ${formatDate(faltasData.periodoFaltasStart)}</p>
+                <p><strong>Data de fim:</strong> ${formatDate(faltasData.periodoFaltasEnd)}</p>
+                <p><strong>Nº de faltas:</strong> ${formatText(faltasData.absenceCount)}</p>
+            </div>
+
+            <div class="border rounded-md p-3 space-y-3">
+                <h4 class="font-semibold text-base">Tentativas de contato com o responsável pelo estudante (ligações, whatsApp ou carta ao responsável)</h4>
+                <div class="pl-4">
+                    <p class="font-medium underline">1ª Tentativa:</p>
+                    <p><strong>Conseguiu contato?</strong> ${t1.contactSucceeded === 'yes' ? 'Sim' : t1.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                    <p><strong>Dia do contato:</strong> ${formatDate(t1.contactDate)}</p>
+                    <p><strong>Com quem falou?</strong> ${formatText(t1.contactPerson)}</p>
+                    <p><strong>Justificativa:</strong> ${formatText(t1.contactReason)}</p>
+                    <p><strong>Aluno retornou?</strong> ${t1.contactReturned === 'yes' ? 'Sim' : t1.contactReturned === 'no' ? 'Não' : ''}</p>
+                </div>
+                <div class="pl-4 border-t pt-2">
+                    <p class="font-medium underline">2ª Tentativa:</p>
+                    <p><strong>Conseguiu contato?</strong> ${t2.contactSucceeded === 'yes' ? 'Sim' : t2.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                    <p><strong>Dia do contato:</strong> ${formatDate(t2.contactDate)}</p>
+                    <p><strong>Com quem falou?</strong> ${formatText(t2.contactPerson)}</p>
+                    <p><strong>Justificativa:</strong> ${formatText(t2.contactReason)}</p>
+                    <p><strong>Aluno retornou?</strong> ${t2.contactReturned === 'yes' ? 'Sim' : t2.contactReturned === 'no' ? 'Não' : ''}</p>
+                </div>
+                <div class="pl-4 border-t pt-2">
+                    <p class="font-medium underline">3ª Tentativa:</p>
+                    <p><strong>Conseguiu contato?</strong> ${t3.contactSucceeded === 'yes' ? 'Sim' : t3.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                    <p><strong>Dia do contato:</strong> ${formatDate(t3.contactDate)}</p>
+                    <p><strong>Com quem falou?</strong> ${formatText(t3.contactPerson)}</p>
+                    <p><strong>Justificativa:</strong> ${formatText(t3.contactReason)}</p>
+                    <p><strong>Aluno retornou?</strong> ${t3.contactReturned === 'yes' ? 'Sim' : t3.contactReturned === 'no' ? 'Não' : ''}</p>
+                </div>
+            </div>
+
+            <div class="border rounded-md p-3 space-y-2">
+                <h4 class="font-semibold text-base">Contato in loco/Conversa com o responsável</h4>
+                <p><strong>Nome do agente que realizou a visita:</strong> ${formatText(visita.visitAgent)}</p>
+                <p><strong>Dia da visita:</strong> ${formatDate(visita.visitDate)}</p>
+                <p><strong>Conseguiu contato?</strong> ${visita.visitSucceeded === 'yes' ? 'Sim' : visita.visitSucceeded === 'no' ? 'Não' : ''}</p>
+                <p><strong>Com quem falou?</strong> ${formatText(visita.visitContactPerson)}</p>
+                <p><strong>Justificativa:</strong> ${formatText(visita.visitReason)}</p>
+                <p><strong>Aluno retornou?</strong> ${visita.visitReturned === 'yes' ? 'Sim' : visita.visitReturned === 'no' ? 'Não' : ''}</p>
+                <p><strong>Observação:</strong> ${formatText(visita.visitObs)}</p>
+            </div>
+
+            <div class="border rounded-md p-3 space-y-2">
+                <h4 class="font-semibold text-base">Encaminhamento ao Conselho Tutelar</h4>
+                <p><strong>Data de envio:</strong> ${formatDate(ct.ctSentDate)}</p>
+                <p><strong>Devolutiva:</strong> ${formatText(ct.ctFeedback)}</p>
+                <p><strong>Aluno retornou?</strong> ${ct.ctReturned === 'yes' ? 'Sim' : ct.ctReturned === 'no' ? 'Não' : ''}</p>
+            </div>
+
+            <div class="border rounded-md p-3 space-y-2">
+                <h4 class="font-semibold text-base">Análise</h4>
+                <p><strong>Parecer da BAE:</strong> ${formatText(analise.ctParecer)}</p>
+            </div>
+            
+            <div class="signature-block pt-16 mt-8 space-y-12">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="mt-1">Diretor(a)</p>
+                </div>
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="mt-1">Coordenador(a) Pedagógico(a)</p>
+                </div>
+            </div>
+        </div>`;
+    document.getElementById('report-view-title').textContent = "Ficha Consolidada de Busca Ativa";
+    document.getElementById('report-view-content').innerHTML = fichaHTML;
+    openModal(dom.reportViewModalBackdrop);
+};
+
+export const toggleFamilyContactFields = (enable, fieldsContainer) => {
+    const detailFields = fieldsContainer.querySelectorAll('input[type="date"], input[type="text"], textarea');
+    detailFields.forEach(input => {
+        input.disabled = !enable;
+        input.required = enable;
+        if (!enable) {
+            input.classList.add('bg-gray-200', 'cursor-not-allowed');
+            input.value = '';
+        } else {
+            input.classList.remove('bg-gray-200', 'cursor-not-allowed');
+        }
+    });
+};
+
+export const toggleVisitContactFields = (enable, fieldsContainer) => {
+     const detailFields = fieldsContainer.querySelectorAll('input[type="text"], textarea');
+     detailFields.forEach(input => {
+        input.disabled = !enable;
+        input.required = enable;
+        if (!enable) {
+            input.classList.add('bg-gray-200', 'cursor-not-allowed');
+            input.value = '';
+        } else {
+            input.classList.remove('bg-gray-200', 'cursor-not-allowed');
+        }
+    });
+};
+
+export const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
+    dom.absenceForm.reset();
+
+    dom.absenceForm.querySelectorAll('input, textarea').forEach(el => el.required = false);
+
+    const isEditing = !!data;
+    document.getElementById('absence-modal-title').innerText = isEditing ? 'Editar Ação de Busca Ativa' : 'Registar Ação de Busca Ativa';
+    document.getElementById('absence-id').value = isEditing ? data.id : '';
+
+    document.getElementById('absence-student-name').value = student.name || '';
+    document.getElementById('absence-student-class').value = student.class || '';
+    document.getElementById('absence-student-endereco').value = student.endereco || '';
+    document.getElementById('absence-student-contato').value = student.contato || '';
+    
+    const { processId, currentCycleActions } = getStudentProcessInfo(student.matricula);
+    document.getElementById('absence-process-id').value = data?.processId || processId;
+
+    const finalActionType = forceActionType || (isEditing ? data.actionType : determineNextActionForStudent(student.matricula));
+    document.getElementById('action-type').value = finalActionType;
+    document.getElementById('action-type-display').value = actionDisplayTitles[finalActionType] || '';
+    document.getElementById('action-type').dispatchEvent(new Event('change'));
+
+    const absenceFieldsContainer = dom.absenceForm.querySelector('#absence-form > .bg-gray-50');
+    const absenceInputs = absenceFieldsContainer.querySelectorAll('input');
+    const firstAbsenceRecordInCycle = currentCycleActions.find(a => a.periodoFaltasStart);
+
+    const readOnlyAbsenceData = (finalActionType !== 'tentativa_1' && !isEditing) || (isEditing && firstAbsenceRecordInCycle && data.id !== firstAbsenceRecordInCycle.id);
+
+    if (!readOnlyAbsenceData) {
+        document.getElementById('absence-start-date').required = true;
+        document.getElementById('absence-end-date').required = true;
+        document.getElementById('absence-count').required = true;
+    }
+
+    if (readOnlyAbsenceData) {
+        const source = firstAbsenceRecordInCycle || data;
+        document.getElementById('absence-start-date').value = source.periodoFaltasStart || '';
+        document.getElementById('absence-end-date').value = source.periodoFaltasEnd || '';
+        document.getElementById('absence-count').value = source.absenceCount || '';
+        absenceInputs.forEach(input => input.readOnly = true);
+    } else {
+        absenceInputs.forEach(input => input.readOnly = false);
+    }
+    
+    switch (finalActionType) {
+        case 'tentativa_1':
+        case 'tentativa_2':
+        case 'tentativa_3':
+            document.getElementById('meeting-date').required = true;
+            document.getElementById('meeting-time').required = true;
+            break;
+        case 'visita':
+            document.getElementById('visit-agent').required = true;
+            document.getElementById('visit-date').required = true;
+            break;
+        case 'encaminhamento_ct':
+            document.getElementById('ct-sent-date').required = true;
+            break;
+    }
+    
+    if (isEditing) {
+        if (!readOnlyAbsenceData) {
+            document.getElementById('absence-start-date').value = data.periodoFaltasStart || '';
+            document.getElementById('absence-end-date').value = data.periodoFaltasEnd || '';
+            document.getElementById('absence-count').value = data.absenceCount || '';
+        }
+        
+        switch (data.actionType) {
+            case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
+                document.getElementById('meeting-date').value = data.meetingDate || '';
+                document.getElementById('meeting-time').value = data.meetingTime || '';
+                if(data.contactSucceeded) {
+                    document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).checked = true;
+                    document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).dispatchEvent(new Event('change'));
+                }
+                document.getElementById('contact-date').value = data.contactDate || '';
+                document.getElementById('contact-person').value = data.contactPerson || '';
+                document.getElementById('contact-reason').value = data.contactReason || '';
+                if(data.contactReturned) document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`).checked = true;
+                break;
+            case 'visita':
+                document.getElementById('visit-agent').value = data.visitAgent || '';
+                document.getElementById('visit-date').value = data.visitDate || '';
+                if(data.visitSucceeded) {
+                    document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).checked = true;
+                    document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).dispatchEvent(new Event('change'));
+                }
+                document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
+                document.getElementById('visit-reason').value = data.visitReason || '';
+                document.getElementById('visit-obs').value = data.visitObs || '';
+                if (data.visitReturned) document.querySelector(`input[name="visit-returned"][value="${data.visitReturned}"]`).checked = true;
+                break;
+            case 'encaminhamento_ct':
+                document.getElementById('ct-sent-date').value = data.ctSentDate || '';
+                document.getElementById('ct-feedback').value = data.ctFeedback || '';
+                if (data.ctReturned) document.querySelector(`input[name="ct-returned"][value="${data.ctReturned}"]`).checked = true;
+                break;
+            case 'analise':
+                document.getElementById('ct-parecer').value = data.ctParecer || '';
+                break;
+        }
+    } else {
+          toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
+          toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
+    }
+    
+    openModal(dom.absenceModal);
+};
+
+export const openOccurrenceModalForStudent = (student) => {
+    dom.occurrenceForm.reset();
+    document.getElementById('occurrence-id').value = '';
+    document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
+    document.getElementById('student-name').value = student.name;
+    document.getElementById('student-class').value = student.class;
+    document.getElementById('occurrence-date').valueAsDate = new Date();
+    openModal(dom.occurrenceModal);
+};
+
+export const handleNewAbsenceAction = (student) => {
+    const { currentCycleActions } = getStudentProcessInfo(student.matricula);
+
+    if (currentCycleActions.length > 0) {
+        const lastAction = currentCycleActions[currentCycleActions.length - 1];
+        let isPending = false;
+        let pendingActionMessage = "Complete a etapa anterior para poder prosseguir.";
+
+        if (lastAction.actionType.startsWith('tentativa')) {
+            if (lastAction.contactSucceeded == null || lastAction.contactReturned == null) {
+                isPending = true;
+            }
+        } 
+        else if (lastAction.actionType === 'visita') {
+            if (lastAction.visitSucceeded == null || lastAction.visitReturned == null) {
+                isPending = true;
+            }
+        }
+        else if (lastAction.actionType === 'encaminhamento_ct') {
+            if (lastAction.ctFeedback == null || lastAction.ctReturned == null) {
+                isPending = true;
+                pendingActionMessage = "Preencha a devolutiva e o status de retorno do CT para poder analisar o processo.";
+            }
+        }
+
+        if (isPending) {
+            showToast(pendingActionMessage);
+            openAbsenceModalForStudent(student, lastAction.actionType, lastAction);
+            return; 
+        }
+    }
+
+    openAbsenceModalForStudent(student);
+};
+
+export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
+    const input = document.getElementById(inputId);
+    const suggestionsContainer = document.getElementById(suggestionsId);
+    
+    input.addEventListener('input', () => {
+        const value = input.value.toLowerCase();
+        if (inputId === 'search-occurrences') state.filterOccurrences = value;
+        if (inputId === 'search-absences') state.filterAbsences = value;
+        render();
+        suggestionsContainer.innerHTML = '';
+        if (!value) {
+            suggestionsContainer.classList.add('hidden');
+            return;
+        }
+        
+        const filteredStudents = state.students.filter(s => s.name.toLowerCase().startsWith(value)).slice(0, 5);
+        
+        if (filteredStudents.length > 0) {
+            suggestionsContainer.classList.remove('hidden');
+            filteredStudents.forEach(student => {
+                const item = document.createElement('div');
+                item.classList.add('suggestion-item');
+                item.textContent = student.name;
+                item.addEventListener('click', () => {
+                    if (onSelectCallback) {
+                        onSelectCallback(student);
+                    } 
+                    input.value = '';
+                    if (inputId === 'search-occurrences') state.filterOccurrences = '';
+                    if (inputId === 'search-absences') state.filterAbsences = '';
+                    render();
+                    suggestionsContainer.classList.add('hidden');
+                });
+                suggestionsContainer.appendChild(item);
+            });
+        } else {
+            suggestionsContainer.classList.add('hidden');
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!suggestionsContainer.contains(e.target) && e.target !== input) {
+            suggestionsContainer.classList.add('hidden');
+        }
+    });
+};
+
+export const renderStudentsList = () => {
+    const tableBody = document.getElementById('students-list-table');
+    tableBody.innerHTML = '';
+    state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="px-4 py-2 text-sm text-gray-900">${student.name}</td>
+            <td class="px-4 py-2 text-sm text-gray-500">${student.class}</td>
+            <td class="px-4 py-2 text-right text-sm space-x-2">
+                <button class="edit-student-btn text-yellow-600 hover:text-yellow-900" data-id="${student.matricula}"><i class="fas fa-pencil-alt"></i></button>
+                <button class="delete-student-btn text-red-600 hover:text-red-900" data-id="${student.matricula}"><i class="fas fa-trash"></i></button>
+            </td>
+        `;
+        tableBody.appendChild(row);
+    });
+    
+    // Adiciona os listeners AQUI, pois os botões acabaram de ser criados
+    // Isso é importante. A função que CRIA os botões também é responsável
+    // por fazê-los funcionar.
+    
+    document.querySelectorAll('.edit-student-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.dataset.id;
+            const student = state.students.find(s => s.matricula === id);
+            if (student) {
+                document.getElementById('student-form-title').textContent = 'Editar Aluno';
+                document.getElementById('student-id-input').value = student.matricula;
+                document.getElementById('student-matricula-input').value = student.matricula;
+                document.getElementById('student-matricula-input').readOnly = true;
+                document.getElementById('student-matricula-input').classList.add('bg-gray-100');
+                document.getElementById('student-name-input').value = student.name;
+                document.getElementById('student-class-input').value = student.class;
+                document.getElementById('student-endereco-input').value = student.endereco || '';
+                document.getElementById('student-contato-input').value = student.contato || '';
+                document.getElementById('student-resp1-input').value = student.resp1;
+                document.getElementById('student-resp2-input').value = student.resp2;
+                document.getElementById('cancel-edit-student-btn').classList.remove('hidden');
+            }
+        });
+    });
+
+    document.querySelectorAll('.delete-student-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const id = e.currentTarget.dataset.id;
+            const student = state.students.find(s => s.matricula === id);
+            if (student && confirm(`Tem a certeza que quer remover o aluno "${student.name}"?`)) {
+                const updatedList = state.students.filter(s => s.matricula !== id);
+                try {
+                    await setDoc(getStudentsDocRef(), { list: updatedList });
+                    state.students = updatedList;
+                    renderStudentsList(); // Re-renderiza a lista
+                    showToast("Aluno removido com sucesso.");
+                } catch(error) {
+                    console.error("Erro ao remover aluno:", error);
+                    showToast("Erro ao remover aluno.");
+                }
+            }
+        });
+    });
+};
+
+export const resetStudentForm = () => {
+    document.getElementById('student-form-title').textContent = 'Adicionar Novo Aluno';
+    document.getElementById('student-form').reset();
+    document.getElementById('student-id-input').value = '';
+    document.getElementById('student-matricula-input').readOnly = false;
+    document.getElementById('student-matricula-input').classList.remove('bg-gray-100');
+    document.getElementById('cancel-edit-student-btn').classList.add('hidden');
+};
+
+export const showLoginView = () => {
+    dom.registerView.classList.add('hidden');
+    dom.loginView.classList.remove('hidden');
+};
+
+export const showRegisterView = () => {
+    dom.loginView.classList.add('hidden');
+    dom.registerView.classList.remove('hidden');
+};
