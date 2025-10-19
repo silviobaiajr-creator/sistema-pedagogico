@@ -1,1 +1,102 @@
 
+/* ============================================================================== */
+/* ARQUIVO: style.css                                                             */
+/* TODO O SEU CÓDIGO DE DESIGN ESTÁ AQUI                                          */
+/* ============================================================================== */
+body {
+    font-family: 'Inter', sans-serif; /* Define a fonte padrão da página */
+    background-color: #f3f4f6; /* Cor de fundo suave */
+}
+/* Efeitos de transição para as janelas (modais) */
+.modal-backdrop {
+    background-color: rgba(0,0,0,0.5);
+    transition: opacity 0.3s ease-in-out;
+}
+.modal-content {
+    transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+}
+/* Efeitos para a notificação "toast" (alerta rápido) */
+#toast-notification {
+    transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
+}
+#toast-notification.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+/* Estilo para a aba de navegação ativa */
+.tab-active {
+    border-color: #4f46e5;
+    color: #4f46e5;
+    background-color: #eef2ff;
+}
+/* Estilo visual para os campos dinâmicos do formulário */
+.dynamic-field-group {
+    border-left: 2px solid #e5e7eb;
+    padding-left: 1rem;
+    margin-top: 1rem;
+}
+/* Estilo "zebrado" para as tabelas (melhora a leitura) */
+tbody tr:nth-child(even) {
+    background-color: #f9fafb;
+}
+/* Estilo para o container de sugestões de autocompletar */
+.autocomplete-suggestions {
+    position: absolute;
+    background-color: white;
+    border: 1px solid #d1d5db;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    max-height: 150px;
+    overflow-y: auto;
+    z-index: 10;
+    width: 100%;
+}
+.suggestion-item {
+    padding: 0.5rem;
+    cursor: pointer;
+}
+.suggestion-item:hover {
+    background-color: #eef2ff;
+}
+/* Bloco de assinaturas, visível apenas na impressão */
+.signature-block {
+    display: none;
+}
+/* Estilo para o conteúdo expansível (acordeão) */
+.process-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+/* SEÇÃO 1.2: ESTILOS PARA IMPRESSÃO */
+/* Regras que se aplicam apenas quando o usuário tenta imprimir a página */
+@media print {
+    /* Esconde tudo que não for a área de impressão */
+    body > div:not(.printable-area) {
+        display: none;
+    }
+    /* Formata a área de impressão para ocupar a página toda */
+    .printable-area, .printable-area .modal-content {
+        display: block !important;
+        position: static !important;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        box-shadow: none;
+        border: none;
+        transform: none !important;
+        background-color: white !important;
+    }
+    .printable-area .overflow-y-auto {
+        overflow: visible !important; /* Mostra todo o conteúdo */
+    }
+    /* Esconde elementos que não devem aparecer na impressão (botões, etc) */
+    .no-print {
+        display: none !important;
+    }
+    /* Mostra o bloco de assinaturas na impressão */
+    .signature-block {
+        display: block !important;
+        page-break-inside: avoid; /* Tenta não quebrar o bloco no meio da página */
+    }
+}
