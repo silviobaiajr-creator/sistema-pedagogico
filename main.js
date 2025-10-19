@@ -19,13 +19,11 @@ import {
     showLoginView,
     showRegisterView,
     resetStudentForm,
-    // Novas funções de UI importadas
     openOccurrenceEditorModal,
     handleDeleteOccurrenceClick,
     showOccurrenceRecord,
     showNotificationResponsible,
     generateNotificationResponsibleHTML,
-    // Funções de UI da Busca Ativa (do código original)
     openAbsenceModalForStudent,
     handleNewAbsenceAction,
     generateAndShowConsolidatedFicha,
@@ -66,18 +64,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    //
+    // --- CORREÇÃO: Lógica de Login/Registo restaurada para a versão original e robusta ---
+    //
     dom.loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
         try {
-            await signInWithEmailAndPassword(auth, dom.loginForm['login-email'].value, dom.loginForm['login-password'].value);
-        } catch (error) { showToast("Email ou senha inválidos."); }
+            await signInWithEmailAndPassword(auth, email, password);
+        } catch (error) {
+            console.error("Erro ao entrar:", error.code);
+            showToast("Email ou senha inválidos.");
+        }
     });
 
     dom.registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const email = document.getElementById('register-email').value;
+        const password = document.getElementById('register-password').value;
         try {
-            await createUserWithEmailAndPassword(auth, dom.registerForm['register-email'].value, dom.registerForm['register-password'].value);
+            await createUserWithEmailAndPassword(auth, email, password);
         } catch (error) {
+            console.error("Erro ao registar:", error.code);
             const message = error.code === 'auth/email-already-in-use' ? "Este email já está a ser utilizado."
                           : error.code === 'auth/weak-password' ? "A sua senha é muito fraca."
                           : "Erro ao criar a conta.";
@@ -259,10 +268,10 @@ function setupEventListeners() {
             resp2: document.getElementById('student-resp2-input').value.trim()
         };
         
-        if (id) { // Editando
+        if (id) {
             const index = updatedList.findIndex(s => s.matricula === id);
             if (index > -1) updatedList[index] = studentData;
-        } else { // Adicionando
+        } else {
             if (updatedList.some(s => s.matricula === matricula)) return showToast("Erro: Matrícula já existe.");
             updatedList.push(studentData);
         }
@@ -279,7 +288,6 @@ function setupEventListeners() {
     });
     document.getElementById('cancel-edit-student-btn').addEventListener('click', resetStudentForm);
 
-    // Inicia a função principal que "ouve" os cliques nas listas
     setupListClickListeners();
 };
 
@@ -290,7 +298,6 @@ function setupEventListeners() {
 
 function setupListClickListeners() {
     
-    // --- Listener para a lista de OCORRÊNCIAS ---
     dom.occurrencesListDiv.addEventListener('click', async (e) => {
         const target = e.target;
         
@@ -324,7 +331,7 @@ function setupListClickListeners() {
                     await updateOccurrenceRecord(id, {}, "Ata para arquivo impressa");
                     break;
                 case 'generate-notification':
-                    state.lastSavedOccurrenceId = id; // Garante que o ID está disponível para o 'share'
+                    state.lastSavedOccurrenceId = id;
                     document.querySelector('#notification-responsible-modal-backdrop').dataset.id = id;
                     showNotificationResponsible(id);
                     await updateOccurrenceRecord(id, { status: 'Aguardando Assinatura' }, "Notificação gerada para responsável");
@@ -351,7 +358,6 @@ function setupListClickListeners() {
         }
     });
 
-    // --- Listener para a lista de BUSCA ATIVA (Código Original Restaurado) ---
     dom.absencesListDiv.addEventListener('click', (e) => {
         const target = e.target;
         const header = target.closest('.process-header');
@@ -388,7 +394,6 @@ function setupListClickListeners() {
                     const visitAction = state.absences.find(a => a.id === id);
                     if (visitAction) {
                         generateAndShowOficio(visitAction, oficioNumber);
-                        // ... (lógica para criar registo de encaminhamento)
                     }
                 }
             } else if (button.classList.contains('view-oficio-btn')) {
