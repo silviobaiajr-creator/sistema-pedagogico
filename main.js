@@ -26,9 +26,12 @@ import {
     openReportGeneratorModal,
     showLoginView,
     showRegisterView,
-    resetStudentForm
+    resetStudentForm,
+    toggleFamilyContactFields,
+    toggleVisitContactFields
 } from './ui.js';
 import { setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import * as logic from './logic.js';
 
 
 // --- INICIALIZAÇÃO ---
@@ -577,12 +580,10 @@ function setupEventListeners() {
     document.getElementById('action-type').addEventListener('change', (e) => {
         const action = e.target.value;
         document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
-        if (action.startsWith('tentativa')) { 
+        if (action.startsWith('tentativa')) {
             document.getElementById('group-tentativas').classList.remove('hidden');
-            ui.toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
         } else if (action === 'visita') {
             document.getElementById('group-visita').classList.remove('hidden');
-            ui.toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
         }
         else if (action) { 
             const group = document.getElementById(`group-${action}`); 
@@ -591,12 +592,12 @@ function setupEventListeners() {
     });
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
-            ui.toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'));
+            toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'));
         });
     });
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
-            ui.toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'));
+            toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'));
         });
     });
 
