@@ -697,6 +697,9 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
         case 'encaminhamento_ct':
             document.getElementById('ct-sent-date').required = true;
             break;
+        case 'analise':
+            document.getElementById('ct-parecer').required = true;
+            break;
     }
     
     if (isEditing) {
