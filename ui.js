@@ -919,4 +919,3 @@ export const showRegisterView = () => {
     dom.loginView.classList.add('hidden');
     dom.registerView.classList.remove('hidden');
 };
-
