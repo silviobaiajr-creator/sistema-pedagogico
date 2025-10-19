@@ -1,13 +1,15 @@
-
 /* ============================================================================== */
 /* ARQUIVO: style.css                                                             */
 /* TODO O SEU CÓDIGO DE DESIGN ESTÁ AQUI                                          */
 /* ============================================================================== */
+
+/* --- ESTILOS GERAIS E FONTES --- */
 body {
     font-family: 'Inter', sans-serif; /* Define a fonte padrão da página */
     background-color: #f3f4f6; /* Cor de fundo suave */
 }
-/* Efeitos de transição para as janelas (modais) */
+
+/* --- EFEITOS DE TRANSIÇÃO PARA MODAIS --- */
 .modal-backdrop {
     background-color: rgba(0,0,0,0.5);
     transition: opacity 0.3s ease-in-out;
@@ -15,7 +17,8 @@ body {
 .modal-content {
     transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
 }
-/* Efeitos para a notificação "toast" (alerta rápido) */
+
+/* --- NOTIFICAÇÃO TOAST --- */
 #toast-notification {
     transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
 }
@@ -23,23 +26,18 @@ body {
     transform: translateY(0);
     opacity: 1;
 }
-/* Estilo para a aba de navegação ativa */
+
+/* --- ESTILOS DE NAVEGAÇÃO E TABELAS --- */
 .tab-active {
     border-color: #4f46e5;
     color: #4f46e5;
     background-color: #eef2ff;
 }
-/* Estilo visual para os campos dinâmicos do formulário */
-.dynamic-field-group {
-    border-left: 2px solid #e5e7eb;
-    padding-left: 1rem;
-    margin-top: 1rem;
-}
-/* Estilo "zebrado" para as tabelas (melhora a leitura) */
 tbody tr:nth-child(even) {
-    background-color: #f9fafb;
+    background-color: #f9fafb; /* Estilo "zebrado" */
 }
-/* Estilo para o container de sugestões de autocompletar */
+
+/* --- AUTOCOMPLETAR --- */
 .autocomplete-suggestions {
     position: absolute;
     background-color: white;
@@ -48,7 +46,7 @@ tbody tr:nth-child(even) {
     border-radius: 0 0 0.375rem 0.375rem;
     max-height: 150px;
     overflow-y: auto;
-    z-index: 10;
+    z-index: 20; /* Aumentado para ficar sobre outros elementos */
     width: 100%;
 }
 .suggestion-item {
@@ -58,45 +56,121 @@ tbody tr:nth-child(even) {
 .suggestion-item:hover {
     background-color: #eef2ff;
 }
-/* Bloco de assinaturas, visível apenas na impressão */
-.signature-block {
-    display: none;
-}
-/* Estilo para o conteúdo expansível (acordeão) */
+
+/* ============================================================================== */
+/* SEÇÃO 1: NOVOS ESTILOS PARA O FLUXO DE OCORRÊNCIAS                             */
+/* ============================================================================== */
+
+/* --- CONTEÚDO EXPANSÍVEL (ACORDEÃO) --- */
 .process-content {
     max-height: 0;
     overflow: hidden;
-    transition: max-height 0.3s ease-out;
+    transition: max-height 0.4s ease-in-out;
 }
-/* SEÇÃO 1.2: ESTILOS PARA IMPRESSÃO */
-/* Regras que se aplicam apenas quando o usuário tenta imprimir a página */
+
+/* --- BOTÕES DE AÇÃO NA LISTA DE OCORRÊNCIAS --- */
+.action-btn-main {
+    font-size: 0.875rem; /* 14px */
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    transition: background-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.action-btn-secondary {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    background-color: #f3f4f6; /* bg-gray-100 */
+    border: 1px solid #d1d5db; /* border-gray-300 */
+    color: #4b5563; /* text-gray-600 */
+    transition: background-color 0.2s;
+}
+.action-btn-secondary:hover {
+    background-color: #e5e7eb; /* bg-gray-200 */
+}
+.menu-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    color: #374151; /* text-gray-700 */
+    cursor: pointer;
+}
+.menu-item:hover {
+    background-color: #f3f4f6; /* bg-gray-100 */
+    color: #111827; /* text-gray-900 */
+}
+
+/* ============================================================================== */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO                                                */
+/* Regras que se aplicam apenas quando o utilizador tenta imprimir a página.      */
+/* ============================================================================== */
 @media print {
-    /* Esconde tudo que não for a área de impressão */
-    body > div:not(.printable-area) {
-        display: none;
+    /* Esconde tudo que não está na área de impressão designada */
+    body > *:not(.printable-area) {
+        display: none !important;
     }
-    /* Formata a área de impressão para ocupar a página toda */
+    
+    /* Garante que a área de impressão ocupe toda a página */
     .printable-area, .printable-area .modal-content {
         display: block !important;
         position: static !important;
-        width: 100%;
-        height: auto;
-        max-height: none;
-        box-shadow: none;
-        border: none;
+        width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+        box-shadow: none !important;
+        border: none !important;
         transform: none !important;
         background-color: white !important;
+        padding: 0 !important;
+        margin: 0 !important;
     }
+    
+    /* Mostra todo o conteúdo que poderia estar com scroll */
     .printable-area .overflow-y-auto {
-        overflow: visible !important; /* Mostra todo o conteúdo */
+        overflow: visible !important;
+        height: auto !important;
     }
-    /* Esconde elementos que não devem aparecer na impressão (botões, etc) */
+    
+    /* Esconde elementos que não devem aparecer na impressão (botões, etc.) */
     .no-print {
         display: none !important;
     }
-    /* Mostra o bloco de assinaturas na impressão */
+
+    /* Garante que o conteúdo impresso não tenha margens desnecessárias */
+    #occurrence-record-content, #notification-responsible-content {
+        padding: 1cm !important; /* Margem de impressão padrão */
+    }
+
+    /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO --- */
+    
+    /* Bloco de assinaturas, visível apenas na impressão */
     .signature-block {
         display: block !important;
         page-break-inside: avoid; /* Tenta não quebrar o bloco no meio da página */
+    }
+    
+    .signature-line {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 60%;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .signature-text {
+        border-top: 1px solid #374151; /* Linha de assinatura */
+        width: 100%;
+        padding-top: 0.25rem;
+        text-align: center;
+        font-weight: 600;
+    }
+
+    .signature-role {
+        font-size: 0.75rem; /* 12px */
+        color: #4b5563; /* text-gray-600 */
     }
 }
