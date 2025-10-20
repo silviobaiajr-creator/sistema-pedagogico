@@ -1,6 +1,8 @@
 // ARQUIVO: main.js
 // RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra todos os outros
 // módulos, configura os listeners de eventos e a autenticação do usuário.
+// ATUALIZAÇÃO: Lógica de salvar ocorrências modificada para incluir auditoria e
+// gestão de histórico de status.
 
 // --- Importações dos Módulos ---
 
@@ -11,9 +13,9 @@ import { onSnapshot, query, writeBatch, doc, setDoc } from "https://www.gstatic.
 // Módulos internos da aplicação
 import { auth, db } from './firebase.js'; // Configuração do Firebase
 import { state, dom } from './state.js'; // Estado global e elementos do DOM
-// CORREÇÃO: A função 'openModal' foi adicionada à importação.
 import { showToast, closeModal, shareContent, openModal } from './utils.js'; // Funções utilitárias
-import { loadStudents, getCollectionRef, addRecord, updateRecord, deleteRecord, getStudentsDocRef } from './firestore.js'; // Interação com o Firestore
+// NOVO: A função 'updateOccurrenceRecord' foi adicionada à importação.
+import { loadStudents, getCollectionRef, addRecord, updateRecord, deleteRecord, getStudentsDocRef, updateOccurrenceRecord } from './firestore.js'; // Interação com o Firestore
 import { 
     render, 
     renderStudentsList, 
@@ -37,38 +39,38 @@ import * as logic from './logic.js'; // Lógica de negócio
 
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
-// Evento que dispara quando o HTML da página foi completamente carregado
 document.addEventListener('DOMContentLoaded', () => {
     
-    state.db = db; // Armazena a instância do banco de dados no estado global
+    state.db = db;
 
-    // Observador do estado de autenticação do Firebase
     onAuthStateChanged(auth, async user => {
-        detachFirestoreListeners(); // Garante que listeners antigos sejam removidos ao trocar de usuário
+        detachFirestoreListeners();
         
         if (user) {
-            // Se o usuário está LOGADO
             state.userId = user.uid;
+            // NOVO: Armazena o email do utilizador no estado global para fácil acesso.
+            state.userEmail = user.email; 
             dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
-            dom.loginScreen.classList.add('hidden'); // Esconde a tela de login
-            dom.mainContent.classList.remove('hidden'); // Mostra o conteúdo principal
+            dom.loginScreen.classList.add('hidden');
+            dom.mainContent.classList.remove('hidden');
             dom.userProfile.classList.remove('hidden');
             
             try {
-                await loadStudents(); // Carrega a lista de alunos do Firestore
-                renderStudentsList(); // Renderiza a lista de alunos no modal de gerenciamento
-                setupFirestoreListeners(); // Ativa os listeners para ouvir mudanças no banco em tempo real
+                await loadStudents();
+                renderStudentsList();
+                setupFirestoreListeners();
             } catch (error) {
                 showToast(error.message);
             }
 
         } else {
-            // Se o usuário está DESLOGADO
             state.userId = null;
+            // NOVO: Limpa o email do utilizador ao sair.
+            state.userEmail = null; 
             state.students = [];
             state.occurrences = [];
             state.absences = [];
-            render(); // Limpa a tela
+            render();
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
@@ -106,10 +108,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     dom.logoutBtn.addEventListener('click', () => signOut(auth).catch(error => console.error("Erro ao sair:", error)));
 
-    // Configuração de todos os outros eventos da página
     setupEventListeners();
     
-    // Configuração dos campos de busca com autocompletar
     setupAutocomplete('search-occurrences', 'occurrence-student-suggestions', openOccurrenceModalForStudent); 
     setupAutocomplete('search-absences', 'absence-student-suggestions', handleNewAbsenceAction);
 });
@@ -194,6 +194,9 @@ function setupEventListeners() {
     dom.generalReportBtn.addEventListener('click', generateAndShowGeneralReport);
 
     // --- Formulário de Ocorrência (Salvar/Editar) ---
+    // =================================================================================
+    // GRANDE ATUALIZAÇÃO NESTE BLOCO
+    // =================================================================================
     dom.occurrenceForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('occurrence-id').value;
@@ -201,10 +204,13 @@ function setupEventListeners() {
         const student = state.students.find(s => s.name === studentName);
         if (!student) return showToast("Aluno inválido. Por favor, selecione um aluno da lista.");
         
+        // NOVO: Coleta os dados do formulário, incluindo o novo campo de status.
         const data = { 
             studentId: student.matricula,
             date: document.getElementById('occurrence-date').value, 
             occurrenceType: document.getElementById('occurrence-type').value,
+            // NOVO: Coleta o status. O campo será adicionado ao HTML no próximo passo.
+            status: document.getElementById('occurrence-status').value, 
             description: document.getElementById('description').value.trim(), 
             involved: document.getElementById('involved').value.trim(), 
             actionsTakenSchool: document.getElementById('actions-taken-school').value.trim(), 
@@ -212,12 +218,38 @@ function setupEventListeners() {
             meetingDate: document.getElementById('meeting-date-occurrence').value || null, 
             meetingTime: document.getElementById('meeting-time-occurrence').value || null
         };
+        
         try { 
-            await (id ? updateRecord('occurrence', id, data) : addRecord('occurrence', data)); 
-            showToast(`Ocorrência ${id ? 'atualizada' : 'registada'} com sucesso!`); 
+            if (id) {
+                // LÓGICA DE ATUALIZAÇÃO (EDIÇÃO)
+                const originalOccurrence = state.occurrences.find(o => o.id === id);
+                let historyAction = "Dados da ocorrência atualizados."; // Mensagem padrão
+
+                // Verifica se o status mudou para criar uma mensagem de histórico mais específica.
+                if (originalOccurrence && originalOccurrence.status !== data.status) {
+                    historyAction = `Status alterado de "${originalOccurrence.status}" para "${data.status}".`;
+                }
+                
+                // USA A NOVA FUNÇÃO: 'updateOccurrenceRecord' para salvar a edição,
+                // passando o 'id', os 'dados', a 'ação do histórico' e o 'email do utilizador'.
+                await updateOccurrenceRecord(id, data, historyAction, state.userEmail);
+                showToast('Ocorrência atualizada com sucesso!');
+
+            } else {
+                // LÓGICA DE CRIAÇÃO (NOVO REGISTO)
+                // Usa a função 'addRecord' passando os 'dados' e o 'email do utilizador'.
+                await addRecord('occurrence', data, state.userEmail); 
+                showToast('Ocorrência registada com sucesso!'); 
+            }
             closeModal(dom.occurrenceModal); 
-        } catch (error) { console.error("Erro:", error); showToast('Erro ao salvar.'); }
+        } catch (error) { 
+            console.error("Erro ao salvar ocorrência:", error); 
+            showToast('Erro ao salvar.'); 
+        }
     });
+    // =================================================================================
+    // FIM DA ATUALIZAÇÃO
+    // =================================================================================
 
     // --- Formulário de Busca Ativa (Salvar/Editar) ---
     dom.absenceForm.addEventListener('submit', async (e) => {
@@ -275,7 +307,8 @@ function setupEventListeners() {
         }
 
         try {
-            await (id ? updateRecord('absence', id, data) : addRecord('absence', data));
+            // NOVO: Adiciona o email do utilizador ao salvar a ação de busca ativa.
+            await (id ? updateRecord('absence', id, data, state.userEmail) : addRecord('absence', data, state.userEmail));
             showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
             closeModal(dom.absenceModal);
             
@@ -423,20 +456,16 @@ function setupEventListeners() {
 };
 
 // --- FUNÇÃO CENTRALIZADA PARA LISTENERS DE LISTA ---
-// Esta função utiliza 'event delegation' para gerenciar os cliques de forma eficiente.
 function setupListClickListeners() {
     
-    // Listener para a lista de OCORRÊNCIAS
     dom.occurrencesListDiv.addEventListener('click', (e) => {
         const target = e.target;
         const header = target.closest('.process-header');
         
-        // A SOLUÇÃO: Em vez de verificar 'e.target', encontramos o <button> mais próximo.
-        // Isso funciona mesmo que o usuário clique no ícone <i> dentro do botão.
         const button = target.closest('button');
 
-        if (button) { // Ação prioritária: clique em botão
-            e.stopPropagation(); // Impede que o clique se propague para o header (acordeão)
+        if (button) {
+            e.stopPropagation();
             const id = button.dataset.id;
             const studentId = button.dataset.studentId;
 
@@ -449,6 +478,8 @@ function setupListClickListeners() {
                     document.getElementById('occurrence-id').value = data.id;
                     document.getElementById('student-name').value = student.name;
                     document.getElementById('student-class').value = student.class;
+                    // NOVO: Preenche o campo de status ao editar.
+                    document.getElementById('occurrence-status').value = data.status || 'Pendente';
                     document.getElementById('occurrence-type').value = data.occurrenceType || '';
                     document.getElementById('occurrence-date').value = data.date || '';
                     document.getElementById('description').value = data.description || '';
@@ -471,7 +502,6 @@ function setupListClickListeners() {
             return;
         }
         
-        // Ação secundária: clique no nome do aluno para novo registro
         const newOccurrenceTrigger = target.closest('.new-occurrence-from-history-btn');
         if (newOccurrenceTrigger) {
              e.stopPropagation();
@@ -481,7 +511,6 @@ function setupListClickListeners() {
              return;
         }
 
-        // Ação fallback: expandir/recolher o acordeão
         if (header) {
             const studentId = header.dataset.studentIdOcc;
             const content = document.getElementById(`content-occ-${studentId}`);
@@ -494,7 +523,6 @@ function setupListClickListeners() {
         }
     });
 
-    // Listener para a lista de BUSCA ATIVA (mesma lógica de `closest('button')`)
     dom.absencesListDiv.addEventListener('click', (e) => {
         const target = e.target;
         const header = target.closest('.process-header');
@@ -553,7 +581,8 @@ function setupListClickListeners() {
                             periodoFaltasEnd: firstActionWithAbsenceData?.periodoFaltasEnd || null,
                             absenceCount: firstActionWithAbsenceData?.absenceCount || null,
                         };
-                        addRecord('absence', dataForCtAction)
+                        // NOVO: Adiciona o email do utilizador ao salvar o encaminhamento automático.
+                        addRecord('absence', dataForCtAction, state.userEmail)
                           .then(() => showToast("Registro de 'Encaminhamento ao CT' salvo automaticamente."))
                           .catch(err => showToast("Erro ao salvar o encaminhamento automático."));
                     }
