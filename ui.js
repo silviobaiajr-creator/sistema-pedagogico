@@ -517,6 +517,94 @@ export const openReportGeneratorModal = (reportType) => {
     openModal(dom.reportGeneratorModal);
 };
 
+// ==============================================================================
+// FUNÇÃO ADICIONADA: generateNotificationResponsibleHTML
+// Responsabilidade: Gerar o conteúdo HTML para a notificação dos responsáveis.
+// Esta função estava em falta e a ser chamada, causando o erro que impedia
+// a aplicação de funcionar.
+// ==============================================================================
+export const generateNotificationResponsibleHTML = (occurrence) => {
+    if (!occurrence) return '<p>Erro: Dados da ocorrência não encontrados.</p>';
+    
+    const student = state.students.find(s => s.matricula === occurrence.studentId) || { name: 'Aluno Removido', class: 'N/A', resp1: '', resp2: '' };
+    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+    const schoolName = config.schoolName || 'Nossa Escola';
+
+    return `
+        <div class="space-y-6 text-sm font-sans" style="color: #333;">
+            <!-- Cabeçalho do Documento -->
+            <div class="text-center border-b-2 border-gray-200 pb-4">
+                <h2 class="text-xl font-bold uppercase text-gray-800">${schoolName}</h2>
+                <h3 class="text-lg font-semibold text-gray-700 mt-2">NOTIFICAÇÃO AOS RESPONSÁVEIS</h3>
+            </div>
+
+            <!-- Corpo da Notificação -->
+            <div class="pt-4">
+                <p class="mb-2"><strong>Aos Responsáveis (${responsaveis || 'Não informado'}) pelo(a) aluno(a):</strong></p>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <p class="text-lg font-semibold">${formatText(student.name)}</p>
+                    <p class="text-gray-600"><strong>Turma:</strong> ${formatText(student.class)}</p>
+                </div>
+            </div>
+
+            <p class="text-justify leading-relaxed">
+                Prezados(as), vimos por meio desta notificá-los sobre uma ocorrência disciplinar envolvendo o(a) aluno(a) supracitado(a), 
+                registrada em <strong>${formatDate(occurrence.date)}</strong>. A colaboração entre a escola e a família é fundamental 
+                para o desenvolvimento e bem-estar dos nossos estudantes.
+            </p>
+
+            <!-- Detalhes da Ocorrência -->
+            <div class="border-t border-gray-200 pt-4 space-y-4">
+                <div>
+                    <h4 class="font-semibold mb-1 text-gray-700">Tipo de Ocorrência:</h4>
+                    <p class="text-gray-800 bg-gray-50 p-2 rounded-md">${formatText(occurrence.occurrenceType)}</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold mb-1 text-gray-700">Descrição dos Fatos:</h4>
+                    <p class="text-gray-800 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(occurrence.description)}</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold mb-1 text-gray-700">Providências tomadas pela Escola:</h4>
+                    <p class="text-gray-800 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(occurrence.actionsTakenSchool)}</p>
+                </div>
+            </div>
+
+            <!-- Convocação para Reunião (se houver) -->
+            ${(occurrence.meetingDate) ? `
+            <div class="mt-4 text-justify">
+                <p>
+                    Para dialogarmos sobre o ocorrido e alinharmos as próximas ações, solicitamos o comparecimento de um(a) responsável 
+                    na coordenação pedagógica para uma reunião na data e horário abaixo:
+                </p>
+                <div class="mt-2 p-3 bg-indigo-50 text-indigo-800 rounded-md text-center font-semibold text-base">
+                    <p><strong>Data:</strong> ${formatDate(occurrence.meetingDate)}</p>
+                    <p><strong>Horário:</strong> ${formatTime(occurrence.meetingTime)}</p>
+                </div>
+            </div>
+            ` : `
+            <div class="mt-4 text-justify">
+                <p>
+                    Solicitamos que entrem em contato com a coordenação pedagógica para agendar uma reunião para dialogarmos sobre o ocorrido.
+                </p>
+            </div>
+            `}
+
+            <!-- Assinaturas -->
+            <div class="signature-block pt-16 mt-16 space-y-12">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="mt-1 text-sm">Ciente do Responsável</p>
+                </div>
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="mt-1 text-sm">Assinatura da Gestão Escolar</p>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+
 export const generateAndShowOficio = (action, oficioNumber = null) => {
     if (!action) return showToast('Ação de origem não encontrada.');
     
