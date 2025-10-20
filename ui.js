@@ -31,6 +31,16 @@ export const getFilteredOccurrences = () => {
         if (startDate && o.date < startDate) return false;
         if (endDate && o.date > endDate) return false;
 
+        // Filtro por tipo
+        if (state.filtersOccurrences.type !== 'all' && o.occurrenceType !== state.filtersOccurrences.type) {
+            return false;
+        }
+
+        // Filtro por status
+        if (state.filtersOccurrences.status !== 'all' && o.status !== state.filtersOccurrences.status) {
+            return false;
+        }
+
         return true;
     });
 };
@@ -520,8 +530,6 @@ export const openReportGeneratorModal = (reportType) => {
 // ==============================================================================
 // FUNÇÃO ADICIONADA: generateNotificationResponsibleHTML
 // Responsabilidade: Gerar o conteúdo HTML para a notificação dos responsáveis.
-// Esta função estava em falta e a ser chamada, causando o erro que impedia
-// a aplicação de funcionar.
 // ==============================================================================
 export const generateNotificationResponsibleHTML = (occurrence) => {
     if (!occurrence) return '<p>Erro: Dados da ocorrência não encontrados.</p>';
@@ -603,7 +611,6 @@ export const generateNotificationResponsibleHTML = (occurrence) => {
         </div>
     `;
 };
-
 
 export const generateAndShowOficio = (action, oficioNumber = null) => {
     if (!action) return showToast('Ação de origem não encontrada.');
@@ -975,6 +982,108 @@ export const openOccurrenceModalForStudent = (student) => {
     openModal(dom.occurrenceModal);
 };
 
+// FUNÇÕES EM FALTA QUE ESTAVAM SENDO CHAMADAS NO MAIN.JS
+export const openOccurrenceEditorModal = (id) => {
+    const occurrence = state.occurrences.find(o => o.id === id);
+    if (!occurrence) return;
+    
+    const student = state.students.find(s => s.matricula === occurrence.studentId);
+    if (!student) return;
+    
+    document.getElementById('occurrence-id').value = occurrence.id;
+    document.getElementById('modal-title').textContent = 'Editar Ocorrência';
+    document.getElementById('student-name').value = student.name;
+    document.getElementById('student-class').value = student.class;
+    document.getElementById('occurrence-date').value = occurrence.date;
+    document.getElementById('occurrence-type').value = occurrence.occurrenceType || '';
+    document.getElementById('description').value = occurrence.description || '';
+    document.getElementById('involved').value = occurrence.involved || '';
+    document.getElementById('actions-taken-school').value = occurrence.actionsTakenSchool || '';
+    document.getElementById('actions-taken-family').value = occurrence.actionsTakenFamily || '';
+    document.getElementById('meeting-date-occurrence').value = occurrence.meetingDate || '';
+    document.getElementById('meeting-time-occurrence').value = occurrence.meetingTime || '';
+    
+    openModal(dom.occurrenceModal);
+};
+
+export const handleDeleteOccurrenceClick = (id) => {
+    state.recordToDelete = { type: 'occurrence', id: id };
+    openModal(dom.deleteConfirmModal);
+};
+
+export const showOccurrenceRecord = (id) => {
+    const occurrence = state.occurrences.find(o => o.id === id);
+    if (!occurrence) return;
+    
+    const student = state.students.find(s => s.matricula === occurrence.studentId) || { name: 'Aluno não encontrado', class: 'N/A' };
+    
+    const contentHTML = `
+        <div class="space-y-6 text-sm">
+            <div class="text-center border-b pb-4">
+                <h2 class="text-xl font-bold uppercase">${config.schoolName}</h2>
+                <h3 class="text-lg font-semibold mt-2">ATA DE OCORRÊNCIA</h3>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p><strong>Aluno:</strong> ${student.name}</p>
+                    <p><strong>Turma:</strong> ${student.class}</p>
+                </div>
+                <div>
+                    <p><strong>Data da Ocorrência:</strong> ${formatDate(occurrence.date)}</p>
+                    <p><strong>Tipo:</strong> ${occurrence.occurrenceType}</p>
+                </div>
+            </div>
+            
+            <div>
+                <h4 class="font-semibold mb-2">Descrição:</h4>
+                <p class="whitespace-pre-wrap bg-gray-50 p-3 rounded">${occurrence.description}</p>
+            </div>
+            
+            ${occurrence.involved ? `
+            <div>
+                <h4 class="font-semibold mb-2">Envolvidos:</h4>
+                <p>${occurrence.involved}</p>
+            </div>
+            ` : ''}
+            
+            ${occurrence.actionsTakenSchool ? `
+            <div>
+                <h4 class="font-semibold mb-2">Providências da Escola:</h4>
+                <p class="whitespace-pre-wrap">${occurrence.actionsTakenSchool}</p>
+            </div>
+            ` : ''}
+            
+            ${occurrence.actionsTakenFamily ? `
+            <div>
+                <h4 class="font-semibold mb-2">Providências da Família:</h4>
+                <p class="whitespace-pre-wrap">${occurrence.actionsTakenFamily}</p>
+            </div>
+            ` : ''}
+            
+            <div class="signature-block mt-8">
+                <div class="text-center">
+                    <div class="border-t border-gray-400 mt-16"></div>
+                    <p class="mt-2">Assinatura do Responsável</p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('occurrence-record-content').innerHTML = contentHTML;
+    openModal(dom.occurrenceRecordModalBackdrop);
+};
+
+export const showNotificationResponsible = (id) => {
+    const occurrence = state.occurrences.find(o => o.id === id);
+    if (!occurrence) return;
+    
+    const contentHTML = generateNotificationResponsibleHTML(occurrence);
+    document.getElementById('notification-responsible-content').innerHTML = contentHTML;
+    document.getElementById('notification-responsible-modal-backdrop').dataset.id = id;
+    openModal(dom.notificationResponsibleModalBackdrop);
+};
+
 export const handleNewAbsenceAction = (student) => {
     const { currentCycleActions } = getStudentProcessInfo(student.matricula);
 
@@ -1136,4 +1245,3 @@ export const showRegisterView = () => {
     dom.loginView.classList.add('hidden');
     dom.registerView.classList.remove('hidden');
 };
-
