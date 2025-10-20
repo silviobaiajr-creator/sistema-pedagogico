@@ -1,6 +1,8 @@
 // ARQUIVO: ui.js
 // Responsabilidade: Todas as funções que manipulam a UI (desenhar,
 // abrir modais, gerar HTML).
+// ATUALIZAÇÃO: Adicionada a exibição de status, um botão de histórico
+// e a lógica para o modal de histórico de ocorrências.
 
 import { state, dom } from './state.js';
 import { config } from './firebase.js';
@@ -17,6 +19,66 @@ export const actionDisplayTitles = {
     encaminhamento_ct: "Encaminhamento ao Conselho Tutelar",
     analise: "Análise"
 };
+
+// NOVO: FUNÇÃO AUXILIAR para gerar o "selo" de status com cores.
+const getStatusBadge = (status) => {
+    const statusMap = {
+        'Pendente': 'bg-yellow-100 text-yellow-800',
+        'Em Análise': 'bg-blue-100 text-blue-800',
+        'Resolvido': 'bg-green-100 text-green-800',
+        'Cancelado': 'bg-gray-100 text-gray-800'
+    };
+    const colorClasses = statusMap[status] || 'bg-gray-100 text-gray-800';
+    return `<span class="text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full ${colorClasses}">${status || 'N/A'}</span>`;
+};
+
+// NOVO: FUNÇÃO para abrir e popular o modal de histórico de uma ocorrência.
+export const openHistoryModal = (occurrenceId) => {
+    const occurrence = state.occurrences.find(o => o.id === occurrenceId);
+    if (!occurrence) return showToast('Registo de ocorrência não encontrado.');
+
+    const student = state.students.find(s => s.matricula === occurrence.studentId);
+    const history = [...(occurrence.history || [])]; // Cria uma cópia para não alterar o estado
+    history.sort((a, b) => {
+        const timeA = a.timestamp.seconds ? a.timestamp.toMillis() : new Date(a.timestamp).getTime();
+        const timeB = b.timestamp.seconds ? b.timestamp.toMillis() : new Date(b.timestamp).getTime();
+        return timeB - timeA; // Ordena do mais recente para o mais antigo
+    });
+
+    const historyHTML = history.length > 0
+        ? history.map(entry => {
+            const timestamp = entry.timestamp.seconds ? new Date(entry.timestamp.seconds * 1000) : new Date(entry.timestamp);
+            const formattedDate = timestamp.toLocaleDateString('pt-BR');
+            const formattedTime = timestamp.toLocaleTimeString('pt-BR');
+            
+            return `
+            <div class="flex items-start space-x-4 py-3">
+                <div class="flex-shrink-0">
+                    <div class="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center">
+                        <i class="fas fa-history text-gray-500"></i>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-gray-800">${entry.action}</p>
+                    <p class="text-xs text-gray-500">
+                        Por: ${entry.user || 'Sistema'} em ${formattedDate} às ${formattedTime}
+                    </p>
+                </div>
+            </div>
+            `;
+        }).join('')
+        : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para esta ocorrência.</p>';
+
+    document.getElementById('history-view-title').textContent = `Histórico da Ocorrência`;
+    document.getElementById('history-view-subtitle').innerHTML = `
+        <strong>Aluno:</strong> ${student?.name || 'N/A'}<br>
+        <strong>Data:</strong> ${formatDate(occurrence.date)}
+    `;
+    document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
+    
+    openModal(document.getElementById('history-view-modal-backdrop'));
+};
+
 
 // FUNÇÃO AUXILIAR ADICIONADA para obter ocorrências com base nos filtros
 export const getFilteredOccurrences = () => {
@@ -158,7 +220,7 @@ export const generateAndShowGeneralReport = () => {
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
     
-    let filtered = getFilteredOccurrences(); // USANDO A NOVA FUNÇÃO
+    let filtered = getFilteredOccurrences();
     
     dom.occurrencesTitle.textContent = `Exibindo ${filtered.length} Registro(s) de Ocorrências`;
 
@@ -211,9 +273,11 @@ export const renderOccurrences = () => {
                             <div class="flex justify-between items-start py-3 px-4 hover:bg-gray-50 transition-colors duration-150">
                                 <div>
                                     <p class="font-medium text-gray-800">${occ.occurrenceType || 'N/A'}</p>
-                                    <p class="text-sm text-gray-500">Data: ${formatDate(occ.date)}</p>
+                                    <p class="text-sm text-gray-500 mb-1">Data: ${formatDate(occ.date)}</p>
+                                    ${getStatusBadge(occ.status)}
                                 </div>
                                 <div class="whitespace-nowrap text-right text-sm font-medium space-x-2 flex items-center pl-4">
+                                    <button class="history-btn text-gray-500 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100" data-id="${occ.id}" title="Ver Histórico"><i class="fas fa-history"></i></button>
                                     <button class="view-btn text-indigo-600 hover:text-indigo-900 p-1 rounded-full hover:bg-indigo-100" data-id="${occ.id}" title="Ver Notificação"><i class="fas fa-eye"></i></button>
                                     <button class="edit-btn text-yellow-600 hover:text-yellow-900 p-1 rounded-full hover:bg-yellow-100" data-id="${occ.id}" title="Editar"><i class="fas fa-pencil-alt"></i></button>
                                     <button class="delete-btn text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-100" data-id="${occ.id}" title="Excluir"><i class="fas fa-trash"></i></button>
@@ -229,6 +293,10 @@ export const renderOccurrences = () => {
 };
 
 export const renderAbsences = () => {
+    // ... (O restante do arquivo permanece o mesmo)
+    // NOTE: O código a seguir é o original, sem alterações,
+    // para manter a funcionalidade da aba "Busca Ativa".
+    
     dom.loadingAbsences.classList.add('hidden');
 
     const searchFiltered = state.absences
@@ -884,6 +952,9 @@ export const openOccurrenceModalForStudent = (student) => {
     document.getElementById('student-name').value = student.name;
     document.getElementById('student-class').value = student.class;
     document.getElementById('occurrence-date').valueAsDate = new Date();
+    // NOVO: Define o status padrão ao criar uma nova ocorrência.
+    // Esta linha irá funcionar após a atualização do 'index.html'.
+    document.getElementById('occurrence-status').value = 'Pendente';
     openModal(dom.occurrenceModal);
 };
 
@@ -985,10 +1056,6 @@ export const renderStudentsList = () => {
         tableBody.appendChild(row);
     });
     
-    // Adiciona os listeners AQUI, pois os botões acabaram de ser criados
-    // Isso é importante. A função que CRIA os botões também é responsável
-    // por fazê-los funcionar.
-    
     document.querySelectorAll('.edit-student-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const id = e.currentTarget.dataset.id;
@@ -1019,7 +1086,7 @@ export const renderStudentsList = () => {
                 try {
                     await setDoc(getStudentsDocRef(), { list: updatedList });
                     state.students = updatedList;
-                    renderStudentsList(); // Re-renderiza a lista
+                    renderStudentsList();
                     showToast("Aluno removido com sucesso.");
                 } catch(error) {
                     console.error("Erro ao remover aluno:", error);
