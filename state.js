@@ -13,7 +13,6 @@ export const state = {
     filtersOccurrences: { 
         startDate: null, 
         endDate: null,
-        // NOVO: Filtros por tipo e status
         type: 'all', 
         status: 'all' 
     },
@@ -29,7 +28,6 @@ export const state = {
     // Controlo da UI
     activeTab: 'occurrences',
     recordToDelete: null,
-    // NOVO: Guarda o ID da última ocorrência salva para usar nas "Ações Rápidas"
     lastSavedOccurrenceId: null,
 
     // Configuração do Firebase (será preenchida pelo main.js)
@@ -82,7 +80,6 @@ export const dom = {
     // Filtros de Ocorrências
     occurrenceStartDate: document.getElementById('occurrence-start-date'),
     occurrenceEndDate: document.getElementById('occurrence-end-date'),
-    // NOVO: Referências para os novos filtros de ocorrências
     filterOccurrenceType: document.getElementById('filter-occurrence-type'),
     filterOccurrenceStatus: document.getElementById('filter-occurrence-status'),
 
@@ -92,13 +89,11 @@ export const dom = {
     studentsModal: document.getElementById('students-modal'),
     deleteConfirmModal: document.getElementById('delete-confirm-modal'),
     
-    // 
-    // ***************************************************************
-    // ** NOVO: Referências aos novos modais do fluxo de ocorrências **
-    // ***************************************************************
-    //
+    // Novos modais do fluxo de ocorrências
     postSaveActionsModal: document.getElementById('post-save-actions-modal'),
     occurrenceRecordModalBackdrop: document.getElementById('occurrence-record-modal-backdrop'),
     notificationResponsibleModalBackdrop: document.getElementById('notification-responsible-modal-backdrop'),
+    
+    // Modal de relatório (se existir)
+    reportViewModalBackdrop: document.getElementById('report-view-modal-backdrop') || { classList: { add: () => {}, remove: () => {} } }
 };
-
