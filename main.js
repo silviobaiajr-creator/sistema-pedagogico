@@ -2,6 +2,7 @@
 // ARQUIVO: main.js
 // RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra todos os outros
 // módulos, configura os listeners de eventos e a autenticação do usuário.
+// ATUALIZAÇÃO: Corrigida a captura dos valores de email e senha nos formulários.
 // =================================================================================
 
 // --- MÓDulos IMPORTADOS ---
@@ -158,22 +159,26 @@ function setupEventListeners() {
 // Funções de Autenticação
 async function handleLogin(e) {
     e.preventDefault();
-    const email = dom.loginForm.email.value;
-    const password = dom.loginForm.password.value;
+    // CORREÇÃO: Usar getElementById para garantir a captura correta dos valores.
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
     try {
         await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
+        console.error("Erro de Login:", error);
         showToast("Email ou senha inválidos.");
     }
 }
 
 async function handleRegister(e) {
     e.preventDefault();
-    const email = dom.registerForm.email.value;
-    const password = dom.registerForm.password.value;
+    // CORREÇÃO: Usar getElementById para garantir a captura correta dos valores.
+    const email = document.getElementById('register-email').value;
+    const password = document.getElementById('register-password').value;
     try {
         await createUserWithEmailAndPassword(auth, email, password);
     } catch (error) {
+        console.error("Erro de Registo:", error);
         showToast(getAuthErrorMessage(error.code));
     }
 }
@@ -635,4 +640,3 @@ function toggleAccordion(header, typeSuffix) {
         icon?.classList.toggle('rotate-180', isHidden);
     }
 }
-
