@@ -3,6 +3,7 @@
 // RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra todos os outros
 // módulos, configura os listeners de eventos e a autenticação do usuário.
 // ATUALIZAÇÃO: Corrigida a captura dos valores de email e senha nos formulários.
+// ATUALIZAÇÃO 2: Status da ocorrência agora é automático.
 // =================================================================================
 
 // --- MÓDulos IMPORTADOS ---
@@ -210,15 +211,27 @@ async function handleOccurrenceSubmit(e) {
     const student = state.students.find(s => s.name === studentName);
     if (!student) return showToast("Aluno inválido. Por favor, selecione um aluno da lista.");
     
+    // --- INÍCIO DA MODIFICAÇÃO ---
+    // 1. Obter os valores das providências
+    const actionsSchool = document.getElementById('actions-taken-school').value.trim();
+    const actionsFamily = document.getElementById('actions-taken-family').value.trim();
+
+    // 2. Calcular o status automaticamente
+    // Se AMBOS (escola E família) estiverem preenchidos, o status é 'Resolvido'.
+    // Caso contrário (se UM ou AMBOS estiverem em branco), o status é 'Pendente'.
+    const newStatus = (actionsSchool && actionsFamily) ? 'Resolvido' : 'Pendente';
+    // --- FIM DA MODIFICAÇÃO ---
+
     const data = { 
         studentId: student.matricula,
         date: document.getElementById('occurrence-date').value, 
         occurrenceType: document.getElementById('occurrence-type').value,
-        status: document.getElementById('occurrence-status').value, 
+        // status: document.getElementById('occurrence-status').value, // <-- REMOVIDO
+        status: newStatus, // <-- ADICIONADO (Status automático)
         description: document.getElementById('description').value.trim(), 
         involved: document.getElementById('involved').value.trim(), 
-        actionsTakenSchool: document.getElementById('actions-taken-school').value.trim(), 
-        actionsTakenFamily: document.getElementById('actions-taken-family').value.trim(), 
+        actionsTakenSchool: actionsSchool, // <-- Usar a variável
+        actionsTakenFamily: actionsFamily, // <-- Usar a variável
         meetingDate: document.getElementById('meeting-date-occurrence').value || null, 
         meetingTime: document.getElementById('meeting-time-occurrence').value || null
     };
@@ -226,10 +239,13 @@ async function handleOccurrenceSubmit(e) {
     try { 
         if (id) {
             const original = state.occurrences.find(o => o.id === id);
+            // A função getOccurrenceHistoryMessage já compara o status original com o novo 'data.status'
             const historyAction = getOccurrenceHistoryMessage(original, data);
             await updateOccurrenceRecord(id, data, historyAction, state.userEmail);
             showToast('Ocorrência atualizada com sucesso!');
         } else {
+            // addRecord do firestore.js define 'Pendente', mas aqui podemos sobrescrever
+            // se o usuário já preencheu tudo na criação.
             await addRecord('occurrence', data, state.userEmail); 
             showToast('Ocorrência registada com sucesso!'); 
         }
@@ -537,7 +553,7 @@ function handleEditOccurrence(id) {
         document.getElementById('occurrence-id').value = data.id;
         document.getElementById('student-name').value = student.name;
         document.getElementById('student-class').value = student.class;
-        document.getElementById('occurrence-status').value = data.status || 'Pendente';
+        // document.getElementById('occurrence-status').value = data.status || 'Pendente'; // <-- REMOVIDO
         document.getElementById('occurrence-type').value = data.occurrenceType || '';
         document.getElementById('occurrence-date').value = data.date || '';
         document.getElementById('description').value = data.description || '';
