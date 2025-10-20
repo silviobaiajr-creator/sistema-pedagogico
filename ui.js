@@ -3,6 +3,7 @@
 // abrir modais, gerar HTML).
 // ATUALIZAÇÃO: Adicionada a exibição de status, um botão de histórico
 // e a lógica para o modal de histórico de ocorrências.
+// ATUALIZAÇÃO 2: Removida a definição manual de status da ocorrência.
 
 import { state, dom } from './state.js';
 import { config } from './firebase.js';
@@ -128,14 +129,12 @@ export const generateAndShowGeneralReport = () => {
     // Geração do HTML do relatório
     const reportHTML = `
         <div class="space-y-8 text-sm font-sans">
-            <!-- Cabeçalho -->
             <div class="text-center border-b-2 border-gray-200 pb-4">
                 <h2 class="text-2xl font-bold uppercase text-gray-800">${config.schoolName}</h2>
                 <h3 class="text-xl font-semibold text-gray-700 mt-2">Relatório Geral de Ocorrências</h3>
                 <p class="text-gray-500 mt-1">Gerado em: ${currentDate}</p>
             </div>
 
-            <!-- Resumo -->
             <div class="border rounded-lg p-4 bg-gray-50">
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
@@ -164,7 +163,6 @@ export const generateAndShowGeneralReport = () => {
                 ` : ''}
             </div>
             
-            <!-- Seção de Detalhes -->
             <div>
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes das Ocorrências</h4>
                 <div class="space-y-6">
@@ -202,7 +200,6 @@ export const generateAndShowGeneralReport = () => {
                 </div>
             </div>
 
-            <!-- Rodapé para Impressão -->
             <div class="signature-block pt-16 mt-8">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
@@ -952,9 +949,10 @@ export const openOccurrenceModalForStudent = (student) => {
     document.getElementById('student-name').value = student.name;
     document.getElementById('student-class').value = student.class;
     document.getElementById('occurrence-date').valueAsDate = new Date();
-    // NOVO: Define o status padrão ao criar uma nova ocorrência.
-    // Esta linha irá funcionar após a atualização do 'index.html'.
-    document.getElementById('occurrence-status').value = 'Pendente';
+    // --- INÍCIO DA MODIFICAÇÃO ---
+    // A linha abaixo foi removida, pois o status agora é automático (definido no main.js).
+    // document.getElementById('occurrence-status').value = 'Pendente';
+    // --- FIM DA MODIFKAÇÃO ---
     openModal(dom.occurrenceModal);
 };
 
