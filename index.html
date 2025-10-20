@@ -185,17 +185,13 @@
                     <div><label for="student-name" class="block text-sm font-medium">Aluno(a)</label><input type="text" id="student-name" class="mt-1 block w-full bg-gray-100" required readonly></div>
                     <div><label for="student-class" class="block text-sm font-medium">Turma</label><input type="text" id="student-class" class="mt-1 block w-full bg-gray-100" readonly required></div>
                 </div>
-                <!-- NOVO CAMPO: Status da Ocorrência -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div class="sm:col-span-2"><label for="occurrence-type" class="block text-sm font-medium">Tipo</label><select id="occurrence-type" class="mt-1 block w-full" required><option value="">Selecione...</option><option>Agressão (Física)</option><option>Agressão (Verbal)</option><option>Indisciplina</option><option>Bullying</option><option>Dano ao Patrimônio</option><option>Outros</option></select></div>
-                    <div><label for="occurrence-status" class="block text-sm font-medium">Status</label><select id="occurrence-status" class="mt-1 block w-full" required><option>Pendente</option><option>Em Análise</option><option>Resolvido</option><option>Cancelado</option></select></div>
-                </div>
-                <div><label for="occurrence-date" class="block text-sm font-medium">Data</label><input type="date" id="occurrence-date" class="mt-1 block w-full" required></div>
-                <div><label for="description" class="block text-sm font-medium">Descrição</label><textarea id="description" rows="4" class="mt-1 block w-full" required></textarea></div>
-                <div><label for="involved" class="block text-sm font-medium">Envolvidos</label><input type="text" id="involved" class="mt-1 block w-full" placeholder="Ex: Outros alunos, professores..."></div>
-                <div><label for="actions-taken-school" class="block text-sm font-medium">Providências (Escola)</label><textarea id="actions-taken-school" rows="3" class="mt-1 block w-full"></textarea></div>
-                <div><label for="actions-taken-family" class="block text-sm font-medium">Providências (Família)</label><textarea id="actions-taken-family" rows="3" class="mt-1 block w-full"></textarea></div>
-                <div class="pt-4 border-t"><h4 class="text-md font-semibold text-gray-600">Reunião (Opcional)</h4><div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2"><div><label for="meeting-date-occurrence" class="block text-sm font-medium">Data</label><input type="date" id="meeting-date-occurrence" class="mt-1 w-full"></div><div><label for="meeting-time-occurrence" class="block text-sm font-medium">Horário</label><input type="time" id="meeting-time-occurrence" class="mt-1 w-full"></div></div></div>
+                <div><label for="occurrence-type" class="block text-sm font-medium">Tipo de Ocorrência</label><select id="occurrence-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="">Selecione um tipo...</option><option value="Agressão (Física)">Agressão (Física)</option><option value="Agressão (Verbal)">Agressão (Verbal)</option><option value="Indisciplina / Comportamento Inadequado">Indisciplina / Comportamento Inadequado</option><option value="Bullying">Bullying</option><option value="Dano ao Patrimônio">Dano ao Patrimônio</option><option value="Uso inadequado de telemóvel/eletrónicos">Uso inadequado de telemóvel/eletrónicos</option><option value="Outros">Outros</option></select></div>
+                <div><label for="occurrence-date" class="block text-sm font-medium">Data da Ocorrência</label><input type="date" id="occurrence-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required></div>
+                <div><label for="description" class="block text-sm font-medium">Descrição da Ocorrência</label><textarea id="description" rows="4" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required></textarea></div>
+                <div><label for="involved" class="block text-sm font-medium">Pessoas Envolvidas</label><input type="text" id="involved" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: Outros alunos, professores..."></div>
+                <div><label for="actions-taken-school" class="block text-sm font-medium">Providências da Escola</label><textarea id="actions-taken-school" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: Conversa com o aluno, contato com os pais..."></textarea></div>
+                <div><label for="actions-taken-family" class="block text-sm font-medium">Providências da Família</label><textarea id="actions-taken-family" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: Acompanhamento, diálogo..."></textarea></div>
+                <div class="pt-4 border-t"><h4 class="text-md font-semibold text-gray-600">Convocação para Reunião (Opcional)</h4><div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2"><div><label for="meeting-date-occurrence" class="block text-sm font-medium">Data do Comparecimento</label><input type="date" id="meeting-date-occurrence" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label for="meeting-time-occurrence" class="block text-sm font-medium">Horário do Comparecimento</label><input type="time" id="meeting-time-occurrence" class="mt-1 w-full border-gray-300 rounded-md"></div></div></div>
                 <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar</button></div>
             </form>
         </div>
@@ -243,7 +239,7 @@
     <div id="report-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3><button id="close-report-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="report-view-content" class="p-8 overflow-y-auto bg-white"></div><div class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 no-print"><button id="report-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="report-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
     <div id="ficha-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="ficha-view-title" class="text-xl font-semibold">Documento</h3><button id="close-ficha-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="ficha-view-content" class="p-8 overflow-y-auto bg-white"></div><div class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 no-print"><button id="ficha-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="ficha-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
     
-    <!-- NOVO MODAL: Visualização de Histórico de Ocorrência -->
+    <!-- Modal: Visualização de Histórico de Ocorrência -->
     <div id="history-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center flex-shrink-0">
@@ -253,9 +249,7 @@
                 </div>
                 <button id="close-history-view-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
-            <div id="history-view-content" class="p-6 overflow-y-auto bg-white">
-                <!-- Conteúdo do histórico será injetado aqui pelo ui.js -->
-            </div>
+            <div id="history-view-content" class="p-6 overflow-y-auto bg-white"></div>
         </div>
     </div>
 
@@ -273,3 +267,4 @@
 
 </body>
 </html>
+
