@@ -37,6 +37,10 @@ import {
 // ==============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    // A verificação de configuração agora existe em firebase.js, então
+    // se o 'auth' for nulo, o código não prosseguirá.
+    if (!auth) return;
+
     state.db = db;
     
     onAuthStateChanged(auth, async user => {
@@ -64,9 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    //
-    // --- CORREÇÃO: Lógica de Login/Registo restaurada para a versão original e robusta ---
-    //
+    // --- Lógica de Login/Registo com TRATAMENTO DE ERROS MELHORADO ---
     dom.loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('login-email').value;
@@ -74,8 +76,25 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await signInWithEmailAndPassword(auth, email, password);
         } catch (error) {
-            console.error("Erro ao entrar:", error.code);
-            showToast("Email ou senha inválidos.");
+            console.error("Erro ao entrar:", error.code, error.message);
+            let message = "Ocorreu um erro ao tentar entrar.";
+            switch (error.code) {
+                case 'auth/user-not-found':
+                case 'auth/wrong-password':
+                case 'auth/invalid-credential':
+                    message = "Email ou senha inválidos. Por favor, tente novamente.";
+                    break;
+                case 'auth/invalid-email':
+                    message = "O formato do email é inválido.";
+                    break;
+                case 'auth/network-request-failed':
+                    message = "Erro de rede. Verifique sua conexão com a internet.";
+                    break;
+                default:
+                    message = "Ocorreu um erro de configuração ou de servidor. Verifique o console para mais detalhes.";
+                    break;
+            }
+            showToast(message);
         }
     });
 
@@ -86,10 +105,25 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await createUserWithEmailAndPassword(auth, email, password);
         } catch (error) {
-            console.error("Erro ao registar:", error.code);
-            const message = error.code === 'auth/email-already-in-use' ? "Este email já está a ser utilizado."
-                          : error.code === 'auth/weak-password' ? "A sua senha é muito fraca."
-                          : "Erro ao criar a conta.";
+            console.error("Erro ao registar:", error.code, error.message);
+            let message = "Ocorreu um erro ao criar a conta.";
+            switch (error.code) {
+                case 'auth/email-already-in-use':
+                    message = "Este email já está a ser utilizado por outra conta.";
+                    break;
+                case 'auth/weak-password':
+                    message = "A senha é muito fraca. Use pelo menos 6 caracteres.";
+                    break;
+                case 'auth/invalid-email':
+                    message = "O formato do email é inválido.";
+                    break;
+                case 'auth/operation-not-allowed':
+                    message = "O registo por email/senha não está ativado. Contacte o administrador.";
+                    break;
+                default:
+                    message = "Ocorreu um erro de configuração ou de servidor. Verifique o console para mais detalhes.";
+                    break;
+            }
             showToast(message);
         }
     });
