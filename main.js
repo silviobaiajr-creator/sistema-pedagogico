@@ -26,9 +26,9 @@ import {
     handleNewAbsenceAction,
     generateAndShowConsolidatedFicha,
     generateAndShowOficio,
-    openFichaViewModal
+    openFichaViewModal,
+    generateAndShowGeneralReport
 } from './ui.js';
-
 
 // ==============================================================================
 // SEÇÃO 1: INICIALIZAÇÃO E AUTENTICAÇÃO
@@ -62,15 +62,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    //
-    // --- CORREÇÃO: Lógica de Login/Registo restaurada para a versão original e robusta ---
-    //
+    // --- Lógica de Login/Registro ---
     dom.loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('login-email').value;
         const password = document.getElementById('login-password').value;
         try {
             await signInWithEmailAndPassword(auth, email, password);
+            showToast('Login realizado com sucesso!');
         } catch (error) {
             console.error("Erro ao entrar:", error.code);
             showToast("Email ou senha inválidos.");
@@ -83,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const password = document.getElementById('register-password').value;
         try {
             await createUserWithEmailAndPassword(auth, email, password);
+            showToast('Conta criada com sucesso!');
         } catch (error) {
             console.error("Erro ao registar:", error.code);
             const message = error.code === 'auth/email-already-in-use' ? "Este email já está a ser utilizado."
@@ -92,7 +92,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    dom.logoutBtn.addEventListener('click', () => signOut(auth));
+    dom.logoutBtn.addEventListener('click', () => {
+        signOut(auth);
+        showToast('Sessão terminada.');
+    });
+    
     dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
     dom.showLoginViewBtn.addEventListener('click', showLoginView);
 
@@ -100,7 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setupAutocomplete('search-occurrences', 'occurrence-student-suggestions', openOccurrenceModalForStudent); 
     setupAutocomplete('search-absences', 'absence-student-suggestions', handleNewAbsenceAction);
 });
-
 
 // ==============================================================================
 // SEÇÃO 2: LISTENERS DO FIRESTORE (TEMPO REAL)
@@ -122,15 +125,14 @@ function setupFirestoreListeners() {
         state.absences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if (state.activeTab === 'absences') render();
     }, (error) => console.error("Erro ao buscar ações de busca ativa:", error));
-};
+}
 
 function detachFirestoreListeners() {
     if (state.unsubscribeOccurrences) state.unsubscribeOccurrences();
     if (state.unsubscribeAbsences) state.unsubscribeAbsences();
     state.unsubscribeOccurrences = null;
     state.unsubscribeAbsences = null;
-};
-
+}
 
 // ==============================================================================
 // SEÇÃO 3: CONFIGURAÇÃO DE EVENTOS GERAIS DA UI
@@ -146,6 +148,7 @@ function setupEventListeners() {
         dom.tabContentAbsences.classList.add('hidden');
         render();
     });
+    
     dom.tabAbsences.addEventListener('click', () => {
         state.activeTab = 'absences';
         dom.tabAbsences.classList.add('tab-active');
@@ -155,21 +158,42 @@ function setupEventListeners() {
         render();
     });
 
+    // --- Botão de Relatório Geral ---
+    document.getElementById('general-report-btn').addEventListener('click', () => {
+        generateAndShowGeneralReport();
+    });
+
     // --- Fechamento de Modais ---
-    document.getElementById('close-modal-btn')?.addEventListener('click', () => closeModal(dom.occurrenceModal));
-    document.getElementById('cancel-btn')?.addEventListener('click', () => closeModal(dom.occurrenceModal));
-    document.getElementById('close-students-modal-btn')?.addEventListener('click', () => closeModal(dom.studentsModal));
-    document.getElementById('cancel-delete-btn')?.addEventListener('click', () => closeModal(dom.deleteConfirmModal));
-    document.getElementById('close-occurrence-record-btn')?.addEventListener('click', () => closeModal(dom.occurrenceRecordModalBackdrop));
-    document.getElementById('close-notification-responsible-btn')?.addEventListener('click', () => closeModal(dom.notificationResponsibleModalBackdrop));
+    document.getElementById('close-modal-btn').addEventListener('click', () => closeModal(dom.occurrenceModal));
+    document.getElementById('cancel-btn').addEventListener('click', () => closeModal(dom.occurrenceModal));
+    document.getElementById('close-students-modal-btn').addEventListener('click', () => closeModal(dom.studentsModal));
+    document.getElementById('cancel-delete-btn').addEventListener('click', () => closeModal(dom.deleteConfirmModal));
+    document.getElementById('close-occurrence-record-btn').addEventListener('click', () => closeModal(dom.occurrenceRecordModalBackdrop));
+    document.getElementById('close-notification-responsible-btn').addEventListener('click', () => closeModal(dom.notificationResponsibleModalBackdrop));
+    document.getElementById('close-absence-modal-btn').addEventListener('click', () => closeModal(dom.absenceModal));
     
     // --- Filtros de Ocorrências ---
-    dom.filterOccurrenceType.addEventListener('change', (e) => { state.filtersOccurrences.type = e.target.value; render(); });
-    dom.filterOccurrenceStatus.addEventListener('change', (e) => { state.filtersOccurrences.status = e.target.value; render(); });
-    dom.occurrenceStartDate.addEventListener('change', (e) => { state.filtersOccurrences.startDate = e.target.value; render(); });
-    dom.occurrenceEndDate.addEventListener('change', (e) => { state.filtersOccurrences.endDate = e.target.value; render(); });
+    dom.filterOccurrenceType.addEventListener('change', (e) => { 
+        state.filtersOccurrences.type = e.target.value; 
+        render(); 
+    });
+    
+    dom.filterOccurrenceStatus.addEventListener('change', (e) => { 
+        state.filtersOccurrences.status = e.target.value; 
+        render(); 
+    });
+    
+    dom.occurrenceStartDate.addEventListener('change', (e) => { 
+        state.filtersOccurrences.startDate = e.target.value; 
+        render(); 
+    });
+    
+    dom.occurrenceEndDate.addEventListener('change', (e) => { 
+        state.filtersOccurrences.endDate = e.target.value; 
+        render(); 
+    });
 
-    // --- Formulário de Ocorrência com Novo Fluxo ---
+    // --- Formulário de Ocorrência ---
     dom.occurrenceForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('occurrence-id').value;
@@ -201,7 +225,10 @@ function setupEventListeners() {
                 closeModal(dom.occurrenceModal);
                 openModal(dom.postSaveActionsModal);
             }
-        } catch (error) { console.error("Erro ao salvar:", error); showToast('Erro ao salvar.'); }
+        } catch (error) { 
+            console.error("Erro ao salvar:", error); 
+            showToast('Erro ao salvar.'); 
+        }
     });
 
     // --- Listeners para o Modal de Ações Rápidas ---
@@ -212,6 +239,7 @@ function setupEventListeners() {
         await updateOccurrenceRecord(id, {}, "Ata para arquivo impressa");
         closeModal(dom.postSaveActionsModal);
     });
+    
     document.getElementById('action-generate-notification').addEventListener('click', async () => {
         const id = state.lastSavedOccurrenceId;
         if (!id) return;
@@ -219,11 +247,13 @@ function setupEventListeners() {
         await updateOccurrenceRecord(id, { status: 'Aguardando Assinatura' }, "Notificação gerada para responsável");
         closeModal(dom.postSaveActionsModal);
     });
+    
     document.getElementById('action-close').addEventListener('click', () => closeModal(dom.postSaveActionsModal));
 
     // --- Listeners para os Modais de Documentos ---
     document.getElementById('print-record-btn').addEventListener('click', () => window.print());
     document.getElementById('print-notification-btn').addEventListener('click', () => window.print());
+    
     document.getElementById('share-notification-btn').addEventListener('click', () => {
         const occurrenceId = state.lastSavedOccurrenceId || document.querySelector('#notification-responsible-modal-backdrop[data-id]')?.dataset.id;
         const occ = state.occurrences.find(o => o.id === occurrenceId);
@@ -250,7 +280,11 @@ function setupEventListeners() {
     });
 
     // --- Gestão de Alunos ---
-    document.getElementById('manage-students-btn').addEventListener('click', () => { renderStudentsList(); openModal(dom.studentsModal); });
+    document.getElementById('manage-students-btn').addEventListener('click', () => { 
+        renderStudentsList(); 
+        openModal(dom.studentsModal); 
+    });
+    
     document.getElementById('student-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('student-id-input').value;
@@ -283,14 +317,20 @@ function setupEventListeners() {
             resetStudentForm();
             showToast(`Aluno ${id ? 'atualizado' : 'adicionado'} com sucesso.`);
         } catch(error) {
+            console.error("Erro ao salvar aluno:", error);
             showToast("Erro ao salvar dados do aluno.");
         }
     });
+    
     document.getElementById('cancel-edit-student-btn').addEventListener('click', resetStudentForm);
 
-    setupListClickListeners();
-};
+    // --- Upload de CSV ---
+    document.getElementById('upload-csv-btn').addEventListener('click', () => {
+        showToast('Funcionalidade de importação CSV em desenvolvimento');
+    });
 
+    setupListClickListeners();
+}
 
 // ==============================================================================
 // SEÇÃO 4: LISTENER CENTRALIZADO PARA CLIQUES NAS LISTAS
@@ -302,59 +342,40 @@ function setupListClickListeners() {
         const target = e.target;
         
         const header = target.closest('.process-header');
-        if (header && !target.closest('[data-action]')) {
-            const id = header.dataset.occurrenceId;
-            const content = document.getElementById(`content-occ-${id}`);
+        if (header && header.dataset.studentIdOcc) {
+            const studentId = header.dataset.studentIdOcc;
+            const content = document.getElementById(`content-occ-${studentId}`);
             const icon = header.querySelector('i.fa-chevron-down');
             if (content) {
-                const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px';
-                content.style.maxHeight = isHidden ? `${content.scrollHeight}px` : null;
+                const isHidden = content.style.maxHeight === '0px' || !content.style.maxHeight;
+                content.style.maxHeight = isHidden ? `${content.scrollHeight}px` : '0px';
                 icon?.classList.toggle('rotate-180', isHidden);
             }
             return;
         }
 
-        const actionTarget = target.closest('[data-action]');
-        if (actionTarget) {
-            e.preventDefault();
-            e.stopPropagation();
+        const viewBtn = target.closest('.view-btn');
+        const editBtn = target.closest('.edit-btn');
+        const deleteBtn = target.closest('.delete-btn');
+        const newOccurrenceBtn = target.closest('.new-occurrence-from-history-btn');
+        const generateReportBtn = target.closest('.generate-student-report-btn');
 
-            const { action, id, status } = actionTarget.dataset;
-            
-            if (action !== 'toggle-menu') {
-                document.querySelectorAll('[id^="menu-"]').forEach(menu => menu.classList.add('hidden'));
-            }
-
-            switch (action) {
-                case 'print-record':
-                    showOccurrenceRecord(id);
-                    await updateOccurrenceRecord(id, {}, "Ata para arquivo impressa");
-                    break;
-                case 'generate-notification':
-                    state.lastSavedOccurrenceId = id;
-                    document.querySelector('#notification-responsible-modal-backdrop').dataset.id = id;
-                    showNotificationResponsible(id);
-                    await updateOccurrenceRecord(id, { status: 'Aguardando Assinatura' }, "Notificação gerada para responsável");
-                    break;
-                case 'toggle-menu':
-                    const menu = document.getElementById(`menu-${id}`);
-                    menu?.classList.toggle('hidden');
-                    break;
-                case 'edit':
-                    openOccurrenceEditorModal(id);
-                    break;
-                case 'delete':
-                    handleDeleteOccurrenceClick(id);
-                    break;
-                case 'set-status':
-                    try {
-                        await updateOccurrenceRecord(id, { status: status }, `Status alterado para "${status}"`);
-                        showToast(`Status atualizado para "${status}"!`);
-                    } catch {
-                        showToast("Erro ao atualizar status.");
-                    }
-                    break;
-            }
+        if (viewBtn) {
+            const id = viewBtn.dataset.id;
+            showOccurrenceRecord(id);
+        } else if (editBtn) {
+            const id = editBtn.dataset.id;
+            openOccurrenceEditorModal(id);
+        } else if (deleteBtn) {
+            const id = deleteBtn.dataset.id;
+            handleDeleteOccurrenceClick(id);
+        } else if (newOccurrenceBtn) {
+            const studentId = newOccurrenceBtn.dataset.studentId;
+            const student = state.students.find(s => s.matricula === studentId);
+            if (student) openOccurrenceModalForStudent(student);
+        } else if (generateReportBtn) {
+            const studentId = generateReportBtn.dataset.studentId;
+            generateAndShowConsolidatedFicha(studentId);
         }
     });
 
@@ -414,16 +435,15 @@ function setupListClickListeners() {
             return;
         }
 
-        if (header) {
+        if (header && header.dataset.processId) {
             const processId = header.dataset.processId;
             const content = document.getElementById(`content-${processId}`);
             const icon = header.querySelector('i.fa-chevron-down');
             if (content) {
-                const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px';
-                content.style.maxHeight = isHidden ? `${content.scrollHeight}px` : null;
+                const isHidden = content.style.maxHeight === '0px' || !content.style.maxHeight;
+                content.style.maxHeight = isHidden ? `${content.scrollHeight}px` : '0px';
                 icon?.classList.toggle('rotate-180', isHidden);
             }
         }
     });
 }
-
