@@ -1,5 +1,6 @@
 // ARQUIVO: firestore.js
 // RESPONSABILIDADE: Funções de comunicação com a base de dados (CRUD - Criar, Ler, Atualizar, Excluir).
+// ATUALIZAÇÃO: Funções modificadas para incluir auditoria (userEmail).
 
 import { doc, addDoc, setDoc, deleteDoc, collection, serverTimestamp, query, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db } from './firebase.js';
@@ -30,13 +31,18 @@ export const getCollectionRef = (type) => {
 
 /**
  * Adiciona um novo registo à base de dados.
- * Para ocorrências, adiciona automaticamente os campos de status e histórico.
+ * Para ocorrências, adiciona automaticamente os campos de status e histórico com auditoria.
  * @param {string} type - O tipo de coleção ('occurrence' ou 'absence').
  * @param {object} data - Os dados do registo a serem salvos.
+ * @param {string} userEmail - O email do utilizador que está a criar o registo.
  * @returns {Promise<DocumentReference>} A referência do documento criado.
  */
-export const addRecord = (type, data) => {
-    let finalData = { ...data, createdAt: serverTimestamp() };
+export const addRecord = (type, data, userEmail = 'sistema') => {
+    let finalData = { 
+        ...data, 
+        createdAt: serverTimestamp(),
+        createdBy: userEmail // NOVO: Campo de auditoria
+    };
 
     // Se o registo for uma ocorrência, inicializa com os novos campos
     if (type === 'occurrence') {
@@ -46,7 +52,7 @@ export const addRecord = (type, data) => {
             history: [
                 {
                     action: 'Ocorrência registada',
-                    // Usamos a data do cliente para o timestamp inicial para consistência imediata na UI
+                    user: userEmail, // NOVO: Auditoria no histórico
                     timestamp: new Date() 
                 }
             ]
@@ -57,25 +63,29 @@ export const addRecord = (type, data) => {
 };
 
 /**
- * Atualiza um registo de ocorrência, adicionando uma nova entrada ao histórico.
+ * Atualiza um registo de ocorrência, adicionando uma nova entrada ao histórico com auditoria.
  * Ideal para ações como mudar o status ou registar uma impressão.
  * @param {string} id - O ID da ocorrência a ser atualizada.
  * @param {object} dataToUpdate - Os campos a serem atualizados (ex: { status: 'Concluído' }).
  * @param {string} historyAction - A descrição da ação para o histórico (ex: "Status alterado para Concluído").
+ * @param {string} userEmail - O email do utilizador que está a realizar a ação.
  * @returns {Promise<void>}
  */
-export const updateOccurrenceRecord = (id, dataToUpdate, historyAction) => {
+export const updateOccurrenceRecord = (id, dataToUpdate, historyAction, userEmail = 'sistema') => {
     const occurrenceRef = doc(getCollectionRef('occurrence'), id);
     
     // Cria a nova entrada de histórico
     const newHistoryEntry = {
         action: historyAction,
+        user: userEmail, // NOVO: Auditoria no histórico
         timestamp: new Date()
     };
     
     // Prepara o objeto de atualização, usando arrayUnion para adicionar ao array de histórico
     const finalUpdateData = {
         ...dataToUpdate,
+        updatedAt: serverTimestamp(), // NOVO: Campo de auditoria
+        updatedBy: userEmail,       // NOVO: Campo de auditoria
         history: arrayUnion(newHistoryEntry)
     };
 
@@ -90,12 +100,19 @@ export const updateOccurrenceRecord = (id, dataToUpdate, historyAction) => {
  * @param {string} type - O tipo de coleção.
  * @param {string} id - O ID do documento.
  * @param {object} data - Os dados a serem mesclados.
+ * @param {string} userEmail - O email do utilizador que está a atualizar.
  * @returns {Promise<void>}
  */
-export const updateRecord = (type, id, data) => {
+export const updateRecord = (type, id, data, userEmail = 'sistema') => {
+    const dataToMerge = {
+        ...data,
+        updatedAt: serverTimestamp(), // NOVO: Campo de auditoria
+        updatedBy: userEmail        // NOVO: Campo de auditoria
+    };
+    
     // Usamos setDoc com 'merge: true' para garantir que não sobrescrevemos campos
-    // que não estão no formulário, como o array de histórico.
-    return setDoc(doc(getCollectionRef(type), id), data, { merge: true });
+    // que não estão no formulário, como o array de histórico (se existir).
+    return setDoc(doc(getCollectionRef(type), id), dataToMerge, { merge: true });
 };
 
 
@@ -125,4 +142,3 @@ export const loadStudents = async () => {
         throw new Error("Erro ao carregar a lista de alunos.");
     }
 };
-
