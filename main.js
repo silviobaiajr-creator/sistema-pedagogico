@@ -2,31 +2,31 @@
 // ARQUIVO: main.js
 // RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra todos os outros
 // módulos, configura os listeners de eventos e a autenticação do usuário.
-// ATUALIZAÇÃO: Corrigida a captura dos valores de email e senha nos formulários.
-// ATUALIZAÇÃO 2: Status da ocorrência agora é automático.
+// ATUALIZAÇÃO GERAL: O fluxo de ocorrências foi reescrito para lidar com
+// a criação/edição de incidentes coletivos, geração do `occurrenceGroupId`,
+// lógica de status baseada no campo "Parecer" e os novos filtros.
 // =================================================================================
 
-// --- MÓDulos IMPORTADOS ---
+// --- MÓDULOS IMPORTADOS ---
 
 // Serviços do Firebase para autenticação e banco de dados
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { onSnapshot, query, writeBatch, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { onSnapshot, query, writeBatch, doc, setDoc, where, getDocs, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Módulos internos da aplicação
 import { auth, db } from './firebase.js';
 import { state, dom } from './state.js';
 import { showToast, closeModal, shareContent, openModal } from './utils.js';
-import { loadStudents, getCollectionRef, addRecord, updateRecord, deleteRecord, updateOccurrenceRecord, getStudentsDocRef } from './firestore.js';
+import { loadStudents, getCollectionRef, addRecord, updateRecord, deleteRecord, getStudentsDocRef } from './firestore.js';
 import { 
     render, 
     renderStudentsList, 
-    openOccurrenceModalForStudent,
+    openOccurrenceModal,
     handleNewAbsenceAction,
     setupAutocomplete,
     openNotificationModal,
     openHistoryModal,
     openFichaViewModal,
-    generateAndShowReport,
     generateAndShowConsolidatedFicha,
     generateAndShowOficio,
     openAbsenceModalForStudent,
@@ -36,7 +36,7 @@ import {
     toggleFamilyContactFields,
     toggleVisitContactFields,
     generateAndShowGeneralReport,
-    actionDisplayTitles
+    getFilteredOccurrences
 } from './ui.js';
 import * as logic from './logic.js';
 
@@ -55,15 +55,14 @@ document.addEventListener('DOMContentLoaded', () => {
             state.userEmail = user.email; // Armazena o email para auditoria
             dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
             
-            // Exibe a UI principal e esconde a de login
             dom.loginScreen.classList.add('hidden');
             dom.mainContent.classList.remove('hidden');
             dom.userProfile.classList.remove('hidden');
             
             try {
-                await loadStudents(); // Carrega a lista de alunos do Firestore
-                setupFirestoreListeners(); // Configura a sincronização em tempo real
-                render(); // Renderiza a UI inicial
+                await loadStudents();
+                setupFirestoreListeners();
+                render();
             } catch (error) {
                 showToast(error.message);
             }
@@ -75,7 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
             state.occurrences = [];
             state.absences = [];
             
-            // Exibe a UI de login e esconde a principal
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
@@ -83,11 +81,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Configura todos os event listeners da aplicação
     setupEventListeners();
     
-    // Inicia a funcionalidade de autocompletar para as barras de busca
-    setupAutocomplete('search-occurrences', 'occurrence-student-suggestions', openOccurrenceModalForStudent); 
+    // Configura autocomplete apenas para a Busca Ativa, pois Ocorrências agora tem um botão dedicado.
     setupAutocomplete('search-absences', 'absence-student-suggestions', handleNewAbsenceAction);
 });
 
@@ -119,37 +115,50 @@ function detachFirestoreListeners() {
 // --- CONFIGURAÇÃO CENTRAL DE EVENTOS DA UI ---
 
 function setupEventListeners() {
+    // Autenticação
     dom.loginForm.addEventListener('submit', handleLogin);
     dom.registerForm.addEventListener('submit', handleRegister);
     dom.logoutBtn.addEventListener('click', () => signOut(auth));
     dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
     dom.showLoginViewBtn.addEventListener('click', showLoginView);
     
+    // Navegação por Abas
     dom.tabOccurrences.addEventListener('click', () => switchTab('occurrences'));
     dom.tabAbsences.addEventListener('click', () => switchTab('absences'));
 
+    // Submissão de Formulários
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
 
+    // Fechar Modais
     setupModalCloseButtons();
 
+    // --- Ocorrências: Novos Listeners ---
+    document.getElementById('add-occurrence-btn').addEventListener('click', () => openOccurrenceModal());
+    dom.searchOccurrences.addEventListener('input', (e) => { state.filterOccurrences = e.target.value; render(); });
     dom.occurrenceStartDate.addEventListener('change', (e) => { state.filtersOccurrences.startDate = e.target.value; render(); });
     dom.occurrenceEndDate.addEventListener('change', (e) => { state.filtersOccurrences.endDate = e.target.value; render(); });
+    document.getElementById('occurrence-filter-type').addEventListener('change', (e) => { state.filtersOccurrences.type = e.target.value; render(); });
+    document.getElementById('occurrence-filter-status').addEventListener('change', (e) => { state.filtersOccurrences.status = e.target.value; render(); });
+    dom.generalReportBtn.addEventListener('click', generateAndShowGeneralReport);
+
+    // --- Busca Ativa: Listeners Originais ---
     document.getElementById('filter-process-status').addEventListener('change', (e) => { state.filtersAbsences.processStatus = e.target.value; render(); });
     document.getElementById('filter-pending-action').addEventListener('change', (e) => { state.filtersAbsences.pendingAction = e.target.value; render(); });
     document.getElementById('filter-return-status').addEventListener('change', (e) => { state.filtersAbsences.returnStatus = e.target.value; render(); });
-    dom.generalReportBtn.addEventListener('click', generateAndShowGeneralReport);
     
+    // Gerenciamento de Alunos
     document.getElementById('manage-students-btn').addEventListener('click', () => { renderStudentsList(); openModal(dom.studentsModal); });
     document.getElementById('upload-csv-btn').addEventListener('click', handleCsvUpload);
     document.getElementById('student-form').addEventListener('submit', handleStudentFormSubmit);
     document.getElementById('cancel-edit-student-btn').addEventListener('click', resetStudentForm);
 
+    // Ações nas Listas
     setupListClickListeners();
 
+    // Ações em Modais
     document.getElementById('confirm-delete-btn').addEventListener('click', handleDeleteConfirmation);
     document.getElementById('create-report-btn').addEventListener('click', handleReportGeneration);
-
     document.getElementById('action-type').addEventListener('change', (e) => handleActionTypeChange(e.target.value));
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
@@ -160,11 +169,8 @@ function setupEventListeners() {
 // Funções de Autenticação
 async function handleLogin(e) {
     e.preventDefault();
-    // CORREÇÃO: Usar getElementById para garantir a captura correta dos valores.
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
     try {
-        await signInWithEmailAndPassword(auth, email, password);
+        await signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value);
     } catch (error) {
         console.error("Erro de Login:", error);
         showToast("Email ou senha inválidos.");
@@ -173,11 +179,8 @@ async function handleLogin(e) {
 
 async function handleRegister(e) {
     e.preventDefault();
-    // CORREÇÃO: Usar getElementById para garantir a captura correta dos valores.
-    const email = document.getElementById('register-email').value;
-    const password = document.getElementById('register-password').value;
     try {
-        await createUserWithEmailAndPassword(auth, email, password);
+        await createUserWithEmailAndPassword(auth, document.getElementById('register-email').value, document.getElementById('register-password').value);
     } catch (error) {
         console.error("Erro de Registo:", error);
         showToast(getAuthErrorMessage(error.code));
@@ -204,53 +207,102 @@ function switchTab(tabName) {
 }
 
 // Submissão de Formulários
+/**
+ * REESCRITO: Lida com o salvamento de ocorrências (criação e edição).
+ */
 async function handleOccurrenceSubmit(e) {
     e.preventDefault();
-    const id = document.getElementById('occurrence-id').value;
-    const studentName = document.getElementById('student-name').value.trim();
-    const student = state.students.find(s => s.name === studentName);
-    if (!student) return showToast("Aluno inválido. Por favor, selecione um aluno da lista.");
+    const groupId = document.getElementById('occurrence-group-id').value;
     
-    // --- INÍCIO DA MODIFICAÇÃO ---
-    // 1. Obter os valores das providências
-    const actionsSchool = document.getElementById('actions-taken-school').value.trim();
-    const actionsFamily = document.getElementById('actions-taken-family').value.trim();
-
-    // 2. Calcular o status automaticamente
-    // Se AMBOS (escola E família) estiverem preenchidos, o status é 'Resolvido'.
-    // Caso contrário (se UM ou AMBOS estiverem em branco), o status é 'Pendente'.
-    const newStatus = (actionsSchool && actionsFamily) ? 'Resolvido' : 'Pendente';
-    // --- FIM DA MODIFICAÇÃO ---
-
+    if (state.selectedStudents.size === 0) {
+        return showToast("Selecione pelo menos um aluno.");
+    }
+    
+    const parecer = document.getElementById('occurrence-parecer').value.trim();
+    const newStatus = parecer ? 'Finalizada' : 'Pendente';
+    
     const data = { 
-        studentId: student.matricula,
         date: document.getElementById('occurrence-date').value, 
         occurrenceType: document.getElementById('occurrence-type').value,
-        // status: document.getElementById('occurrence-status').value, // <-- REMOVIDO
-        status: newStatus, // <-- ADICIONADO (Status automático)
+        status: newStatus,
         description: document.getElementById('description').value.trim(), 
-        involved: document.getElementById('involved').value.trim(), 
-        actionsTakenSchool: actionsSchool, // <-- Usar a variável
-        actionsTakenFamily: actionsFamily, // <-- Usar a variável
+        actionsTakenSchool: document.getElementById('actions-taken-school').value.trim(), 
+        actionsTakenFamily: document.getElementById('actions-taken-family').value.trim(), 
         meetingDate: document.getElementById('meeting-date-occurrence').value || null, 
-        meetingTime: document.getElementById('meeting-time-occurrence').value || null
+        meetingTime: document.getElementById('meeting-time-occurrence').value || null,
+        parecer: parecer || null
     };
-    
+
     try { 
-        if (id) {
-            const original = state.occurrences.find(o => o.id === id);
-            // A função getOccurrenceHistoryMessage já compara o status original com o novo 'data.status'
-            const historyAction = getOccurrenceHistoryMessage(original, data);
-            await updateOccurrenceRecord(id, data, historyAction, state.userEmail);
+        if (groupId) {
+            // --- MODO DE EDIÇÃO ---
+            const originalIncident = getFilteredOccurrences().get(groupId);
+            if (!originalIncident) throw new Error("Incidente original não encontrado.");
+
+            const historyAction = getOccurrenceHistoryMessage(originalIncident.records[0], data);
+            
+            const batch = writeBatch(db);
+            const studentIdsInvolved = [...state.selectedStudents.keys()];
+
+            // Atualiza ou cria registros para os alunos selecionados
+            for (const studentId of studentIdsInvolved) {
+                const existingRecord = originalIncident.records.find(r => r.studentId === studentId);
+                const recordData = { ...data, studentId, occurrenceGroupId: groupId };
+
+                if (existingRecord) {
+                    const recordRef = doc(getCollectionRef('occurrence'), existingRecord.id);
+                    batch.update(recordRef, recordData);
+                } else {
+                    const newRecordRef = doc(collection(db, getCollectionRef('occurrence').path));
+                    batch.set(newRecordRef, { ...recordData, history: originalIncident.records[0].history || [] });
+                }
+            }
+
+            // Deleta registros de alunos que foram removidos
+            const originalStudentIds = originalIncident.records.map(r => r.studentId);
+            const removedStudentIds = originalStudentIds.filter(id => !studentIdsInvolved.includes(id));
+            for (const studentId of removedStudentIds) {
+                const recordToDelete = originalIncident.records.find(r => r.studentId === studentId);
+                if (recordToDelete) {
+                    batch.delete(doc(getCollectionRef('occurrence'), recordToDelete.id));
+                }
+            }
+            
+            // Adiciona a ação ao histórico de todos os registros que permanecerão
+            const recordsToUpdateHistory = await getDocs(query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', groupId)));
+            recordsToUpdateHistory.docs.forEach(docSnapshot => {
+                 if (studentIdsInvolved.includes(docSnapshot.data().studentId)) {
+                    const newHistoryEntry = { action: historyAction, user: state.userEmail, timestamp: new Date() };
+                    const currentHistory = docSnapshot.data().history || [];
+                    batch.update(docSnapshot.ref, { history: [...currentHistory, newHistoryEntry] });
+                 }
+            });
+
+
+            await batch.commit();
             showToast('Ocorrência atualizada com sucesso!');
         } else {
-            // addRecord do firestore.js define 'Pendente', mas aqui podemos sobrescrever
-            // se o usuário já preencheu tudo na criação.
-            await addRecord('occurrence', data, state.userEmail); 
+            // --- MODO DE CRIAÇÃO ---
+            const newGroupId = `OCC-${Date.now()}`;
+            const batch = writeBatch(db);
+            
+            const newHistoryEntry = {
+                action: 'Incidente registado',
+                user: state.userEmail,
+                timestamp: new Date()
+            };
+
+            for (const studentId of state.selectedStudents.keys()) {
+                const newRecordRef = doc(collection(getCollectionRef('occurrence')));
+                const recordData = { ...data, studentId, occurrenceGroupId: newGroupId, history: [newHistoryEntry] };
+                batch.set(newRecordRef, recordData);
+            }
+            await batch.commit();
             showToast('Ocorrência registada com sucesso!'); 
         }
         closeModal(dom.occurrenceModal); 
     } catch (error) { 
+        console.error("Erro ao salvar ocorrência:", error);
         showToast('Erro ao salvar ocorrência.'); 
     }
 }
@@ -361,10 +413,17 @@ async function handleStudentFormSubmit(e) {
 // Ações (Excluir, Gerar Relatório)
 async function handleDeleteConfirmation() {
     if (!state.recordToDelete) return;
-    const { type, id, ctId, analiseId } = state.recordToDelete;
-    
+    const { type, id } = state.recordToDelete;
     try {
-        if (type === 'absence-cascade') {
+        if (type === 'occurrence') {
+            const q = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', id));
+            const querySnapshot = await getDocs(q);
+            const batch = writeBatch(db);
+            querySnapshot.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            showToast('Incidente e todos os registros associados foram excluídos.');
+        } else if (type === 'absence-cascade') {
+            const { ctId, analiseId } = state.recordToDelete;
             const batch = writeBatch(db);
             batch.delete(doc(getCollectionRef('absence'), ctId));
             if (analiseId) batch.delete(doc(getCollectionRef('absence'), analiseId));
@@ -374,20 +433,20 @@ async function handleDeleteConfirmation() {
             await deleteRecord(type, id);
             showToast('Registro excluído com sucesso.');
         }
-    } catch (error) {
-        showToast('Erro ao excluir.');
-    } finally {
-        state.recordToDelete = null;
-        closeModal(dom.deleteConfirmModal);
-    }
+    } catch (error) { showToast('Erro ao excluir.'); console.error(error); } finally { state.recordToDelete = null; closeModal(dom.deleteConfirmModal); }
 }
 
 function handleReportGeneration() {
     const studentId = document.getElementById('student-select').value;
     if (!studentId) return showToast('Por favor, selecione um aluno.');
     const reportType = dom.reportGeneratorModal.dataset.reportType;
-    if (reportType === 'occurrences') generateAndShowReport(studentId);
-    else generateAndShowConsolidatedFicha(studentId);
+    if (reportType === 'occurrences') {
+        // A lógica de relatório de ocorrência individual foi removida,
+        // pois o Relatório Geral agora pode ser filtrado por aluno.
+        showToast("Use o Relatório Geral e o filtro de aluno para gerar relatórios individuais.");
+    } else {
+        generateAndShowConsolidatedFicha(studentId);
+    }
     closeModal(dom.reportGeneratorModal);
 }
 
@@ -396,7 +455,10 @@ function getOccurrenceHistoryMessage(original, updated) {
     if (original && original.status !== updated.status) {
         return `Status alterado de "${original.status}" para "${updated.status}".`;
     }
-    return "Dados da ocorrência atualizados.";
+    if (original && original.parecer !== updated.parecer && updated.parecer) {
+        return `Parecer adicionado/atualizado.`;
+    }
+    return "Dados do incidente foram atualizados.";
 }
 
 function getAbsenceFormData() {
@@ -481,7 +543,6 @@ function setupModalCloseButtons() {
         }
     }
 
-    // Ações de Compartilhar e Imprimir
     document.getElementById('share-btn').addEventListener('click', () => shareContent(document.getElementById('notification-title').textContent, document.getElementById('notification-content').innerText));
     document.getElementById('report-share-btn').addEventListener('click', () => shareContent(document.getElementById('report-view-title').textContent, document.getElementById('report-view-content').innerText));
     document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
@@ -491,32 +552,18 @@ function setupModalCloseButtons() {
 }
 
 function setupListClickListeners() {
-    // Listener para a lista de ocorrências
     dom.occurrencesListDiv.addEventListener('click', (e) => {
         const button = e.target.closest('button');
         if (button) {
             e.stopPropagation();
-            const id = button.dataset.id;
-            if (button.classList.contains('edit-btn')) handleEditOccurrence(id);
-            else if (button.classList.contains('delete-btn')) handleDelete('occurrence', id);
-            else if (button.classList.contains('view-btn')) openNotificationModal(id);
-            else if (button.classList.contains('history-btn')) openHistoryModal(id);
-            else if (button.classList.contains('generate-student-report-btn')) generateAndShowReport(button.dataset.studentId);
-            return;
+            const groupId = button.dataset.groupId;
+            if (button.classList.contains('edit-btn')) handleEditOccurrence(groupId);
+            else if (button.classList.contains('delete-btn')) handleDelete('occurrence', groupId);
+            else if (button.classList.contains('view-btn')) openNotificationModal(groupId);
+            else if (button.classList.contains('history-btn')) openHistoryModal(groupId);
         }
-        
-        const newOccurrenceTrigger = e.target.closest('.new-occurrence-from-history-btn');
-        if (newOccurrenceTrigger) {
-             e.stopPropagation();
-             handleNewOccurrenceFromHistory(newOccurrenceTrigger.dataset.studentId);
-             return;
-        }
-
-        const header = e.target.closest('.process-header');
-        if (header) toggleAccordion(header, 'occ');
     });
 
-    // Listener para a lista de busca ativa
     dom.absencesListDiv.addEventListener('click', (e) => {
         const button = e.target.closest('button');
         if (button) {
@@ -539,42 +586,24 @@ function setupListClickListeners() {
         }
         
         const header = e.target.closest('.process-header');
-        if (header) toggleAccordion(header, '');
+        if (header) toggleAccordion(header);
     });
 }
 
-// --- Funções de Manipulação de Eventos das Listas ---
-function handleEditOccurrence(id) {
-    const data = state.occurrences.find(o => o.id === id);
-    const student = data ? state.students.find(s => s.matricula === data.studentId) : null;
-    if (student) {
-        dom.occurrenceForm.reset();
-        document.getElementById('modal-title').innerText = 'Editar Registro de Ocorrência';
-        document.getElementById('occurrence-id').value = data.id;
-        document.getElementById('student-name').value = student.name;
-        document.getElementById('student-class').value = student.class;
-        // document.getElementById('occurrence-status').value = data.status || 'Pendente'; // <-- REMOVIDO
-        document.getElementById('occurrence-type').value = data.occurrenceType || '';
-        document.getElementById('occurrence-date').value = data.date || '';
-        document.getElementById('description').value = data.description || '';
-        document.getElementById('involved').value = data.involved || '';
-        document.getElementById('actions-taken-school').value = data.actionsTakenSchool || '';
-        document.getElementById('actions-taken-family').value = data.actionsTakenFamily || '';
-        document.getElementById('meeting-date-occurrence').value = data.meetingDate || '';
-        document.getElementById('meeting-time-occurrence').value = data.meetingTime || '';
-        openModal(dom.occurrenceModal);
+// Funções de Manipulação de Eventos das Listas
+function handleEditOccurrence(groupId) {
+    const incident = getFilteredOccurrences().get(groupId);
+    if (incident) {
+        openOccurrenceModal(incident);
+    } else {
+        showToast('Incidente não encontrado para edição.');
     }
 }
 
 function handleDelete(type, id) {
-    document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.';
+    document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este incidente e todos os seus registros? Esta ação não pode ser desfeita.';
     state.recordToDelete = { type, id };
     openModal(dom.deleteConfirmModal);
-}
-
-function handleNewOccurrenceFromHistory(studentId) {
-    const student = state.students.find(s => s.matricula === studentId);
-    if (student) openOccurrenceModalForStudent(student);
 }
 
 function handleEditAbsence(id) {
@@ -646,9 +675,9 @@ function handleNewAbsenceFromHistory(studentId) {
     if (student) handleNewAbsenceAction(student);
 }
 
-function toggleAccordion(header, typeSuffix) {
-    const id = typeSuffix === 'occ' ? header.dataset.studentIdOcc : header.dataset.processId;
-    const content = document.getElementById(`content-${typeSuffix ? `${typeSuffix}-` : ''}${id}`);
+function toggleAccordion(header) {
+    const id = header.dataset.processId;
+    const content = document.getElementById(`content-${id}`);
     const icon = header.querySelector('i.fa-chevron-down');
     if (content) {
         const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px';
@@ -656,3 +685,4 @@ function toggleAccordion(header, typeSuffix) {
         icon?.classList.toggle('rotate-180', isHidden);
     }
 }
+
