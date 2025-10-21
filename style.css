@@ -1,8 +1,8 @@
 /* ============================================================================== */
 /* ARQUIVO: style.css                                                             */
 /* TODO O SEU CÓDIGO DE DESIGN ESTÁ AQUI                                          */
-/* ATUALIZAÇÃO: Adicionados estilos para o novo componente de seleção de         */
-/* múltiplos alunos (tags).                                                       */
+/* ATUALIZAÇÃO: Adicionados estilos para o novo menu de ações "kebab" (Item 10)   */
+/* para melhorar a usabilidade e organização dos botões.                          */
 /* ============================================================================== */
 
 /* --- ESTILOS GERAIS E FONTES --- */
@@ -97,7 +97,7 @@ tbody tr:nth-child(even) {
     transition: max-height 0.4s ease-in-out;
 }
 
-/* --- BOTÕES DE AÇÃO NA LISTA DE OCORRÊNCIAS --- */
+/* --- BOTÕES DE AÇÃO E NOVO MENU KEBAB (Item 10) --- */
 .action-btn-main {
     font-size: 0.875rem; /* 14px */
     padding: 0.5rem 1rem;
@@ -119,6 +119,18 @@ tbody tr:nth-child(even) {
 .action-btn-secondary:hover {
     background-color: #e5e7eb; /* bg-gray-200 */
 }
+
+/* Estilos para o menu dropdown */
+.kebab-menu-container {
+    position: relative;
+    display: inline-block;
+}
+
+.kebab-menu-dropdown {
+    /* A visibilidade é controlada por JS/Tailwind, mas definimos a base aqui */
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+
 .menu-item {
     display: flex;
     align-items: center;
@@ -126,10 +138,16 @@ tbody tr:nth-child(even) {
     font-size: 0.875rem;
     color: #374151; /* text-gray-700 */
     cursor: pointer;
+    transition: background-color 0.15s ease-in-out;
 }
 .menu-item:hover {
     background-color: #f3f4f6; /* bg-gray-100 */
     color: #111827; /* text-gray-900 */
+}
+/* Estilo para ações perigosas, como excluir */
+.menu-item-danger:hover {
+    background-color: #fee2e2; /* red-100 */
+    color: #991b1b; /* red-800 */
 }
 
 /* ============================================================================== */
@@ -169,7 +187,10 @@ tbody tr:nth-child(even) {
     }
 
     /* Garante que o conteúdo impresso não tenha margens desnecessárias */
-    #occurrence-record-content, #notification-responsible-content {
+    #occurrence-record-content, 
+    #notification-content,
+    #report-view-content,
+    #ficha-view-content {
         padding: 1cm !important; /* Margem de impressão padrão */
     }
 
@@ -201,5 +222,10 @@ tbody tr:nth-child(even) {
     .signature-role {
         font-size: 0.75rem; /* 12px */
         color: #4b5563; /* text-gray-600 */
+    }
+
+    /* Evita quebras de página ruins em elementos comuns */
+    .break-inside-avoid {
+        page-break-inside: avoid;
     }
 }
