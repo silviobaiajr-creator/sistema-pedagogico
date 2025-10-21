@@ -2,12 +2,13 @@
 // ARQUIVO: main.js
 // RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra todos os outros
 // módulos, configura os listeners de eventos e a autenticação do usuário.
-// ATUALIZAÇÃO GERAL: O fluxo de ocorrências foi reescrito para lidar com
-// a criação/edição de incidentes coletivos, geração do `occurrenceGroupId`,
-// lógica de status baseada no campo "Parecer" e os novos filtros.
+// ATUALIZAÇÃO GERAL (Conforme Análise):
+// 1. O listener de evento para o botão 'view-btn' (olho) foi modificado
+//    para chamar a nova função `openStudentSelectionModal`, permitindo a
+//    geração de notificações individuais.
 // =================================================================================
 
-// --- MÓDULOS IMPORTADOS ---
+// --- MÓDulos IMPORTADOS ---
 
 // Serviços do Firebase para autenticação e banco de dados
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -24,7 +25,7 @@ import {
     openOccurrenceModal,
     handleNewAbsenceAction,
     setupAutocomplete,
-    openNotificationModal,
+    openStudentSelectionModal, // ATUALIZADO: Importa a nova função do modal de seleção
     openHistoryModal,
     openFichaViewModal,
     generateAndShowConsolidatedFicha,
@@ -83,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setupEventListeners();
     
-    // Configura autocomplete apenas para a Busca Ativa, pois Ocorrências agora tem um botão dedicado.
+    // Configura autocomplete apenas para a Busca Ativa.
     setupAutocomplete('search-absences', 'absence-student-suggestions', handleNewAbsenceAction);
 });
 
@@ -133,7 +134,7 @@ function setupEventListeners() {
     // Fechar Modais
     setupModalCloseButtons();
 
-    // --- Ocorrências: Novos Listeners ---
+    // --- Ocorrências: Listeners ---
     document.getElementById('add-occurrence-btn').addEventListener('click', () => openOccurrenceModal());
     dom.searchOccurrences.addEventListener('input', (e) => { state.filterOccurrences = e.target.value; render(); });
     dom.occurrenceStartDate.addEventListener('change', (e) => { state.filtersOccurrences.startDate = e.target.value; render(); });
@@ -142,7 +143,7 @@ function setupEventListeners() {
     document.getElementById('occurrence-filter-status').addEventListener('change', (e) => { state.filtersOccurrences.status = e.target.value; render(); });
     dom.generalReportBtn.addEventListener('click', generateAndShowGeneralReport);
 
-    // --- Busca Ativa: Listeners Originais ---
+    // --- Busca Ativa: Listeners ---
     document.getElementById('filter-process-status').addEventListener('change', (e) => { state.filtersAbsences.processStatus = e.target.value; render(); });
     document.getElementById('filter-pending-action').addEventListener('change', (e) => { state.filtersAbsences.pendingAction = e.target.value; render(); });
     document.getElementById('filter-return-status').addEventListener('change', (e) => { state.filtersAbsences.returnStatus = e.target.value; render(); });
@@ -207,9 +208,6 @@ function switchTab(tabName) {
 }
 
 // Submissão de Formulários
-/**
- * REESCRITO: Lida com o salvamento de ocorrências (criação e edição).
- */
 async function handleOccurrenceSubmit(e) {
     e.preventDefault();
     const groupId = document.getElementById('occurrence-group-id').value;
@@ -441,8 +439,6 @@ function handleReportGeneration() {
     if (!studentId) return showToast('Por favor, selecione um aluno.');
     const reportType = dom.reportGeneratorModal.dataset.reportType;
     if (reportType === 'occurrences') {
-        // A lógica de relatório de ocorrência individual foi removida,
-        // pois o Relatório Geral agora pode ser filtrado por aluno.
         showToast("Use o Relatório Geral e o filtro de aluno para gerar relatórios individuais.");
     } else {
         generateAndShowConsolidatedFicha(studentId);
@@ -559,7 +555,8 @@ function setupListClickListeners() {
             const groupId = button.dataset.groupId;
             if (button.classList.contains('edit-btn')) handleEditOccurrence(groupId);
             else if (button.classList.contains('delete-btn')) handleDelete('occurrence', groupId);
-            else if (button.classList.contains('view-btn')) openNotificationModal(groupId);
+            // ATUALIZADO: Chama o novo modal de seleção em vez da notificação direta.
+            else if (button.classList.contains('view-btn')) openStudentSelectionModal(groupId);
             else if (button.classList.contains('history-btn')) openHistoryModal(groupId);
         }
     });
@@ -685,4 +682,3 @@ function toggleAccordion(header) {
         icon?.classList.toggle('rotate-180', isHidden);
     }
 }
-
