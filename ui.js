@@ -3,14 +3,26 @@
 // RESPONSABILIDADE: Todas as funções que manipulam a UI (desenhar,
 // abrir modais, gerar HTML).
 // ATUALIZAÇÃO GERAL (Conforme Análise):
-// 1. Corrigida a lógica de abertura do modal de ocorrências (`openOccurrenceModal`)
-//    para popular corretamente os alunos durante a edição e consertar o salvamento.
-// 2. Adicionada a funcionalidade de notificação individual, com um modal de
-//    seleção de aluno (`openStudentSelectionModal`).
+// 1. (Item 1) `openIndividualNotificationModal`: Totalmente reescrita para ser uma
+//    notificação formal, com legislação, data de envio e remoção de campos sensíveis.
+// 2. (Item 2, 9) `openOccurrenceModal` e `openAbsenceModalForStudent`: Atualizadas
+//    para popular os novos campos de contato (tipo, data) no modo de edição.
+// 3. (Item 3, 4, 10) `renderOccurrences`: Botão "Olho" trocado por "Notificação".
+//    Adicionado botão "Gerar Ata" (Item 4) e botões secundários movidos
+//    para um menu "..." (kebab) (Item 10).
+// 4. (Item 4) Nova função: `openOccurrenceRecordModal` (Ata Formal para impressão).
+// 5. (Item 5) Todos os relatórios/fichas incluem agora o Logo da Escola.
+// 6. (Item 6) `renderAbsences` atualizada com botão "Histórico" no menu "...".
+// 7. (Item 6) Nova função: `openAbsenceHistoryModal`.
+// 8. (Item 7) `generateAndShowGeneralReport`: Reesctruturado com layout "dashboard",
+//    placeholders para gráficos e inclusão de campos de providências.
+// 9. (Item 10) `renderAbsences`: Botões secundários movidos para menu "...".
+// 10. (Item 11) Nova função: `generateAndShowBuscaAtivaReport` (Relatório Geral de BA).
 // =================================================================================
 
 import { state, dom } from './state.js';
-import { config } from './firebase.js';
+// ATUALIZADO: Assumindo que 'config' virá do 'state.js' futuramente
+// import { config } from './firebase.js'; 
 import { getStudentProcessInfo, determineNextActionForStudent } from './logic.js';
 import { formatDate, formatTime, formatText, formatPeriodo, showToast, openModal, closeModal } from './utils.js';
 import { getStudentsDocRef } from './firestore.js';
@@ -22,9 +34,8 @@ import { setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-fires
 // =================================================================================
 
 /**
- * ATUALIZADO: Gerencia a UI do componente de seleção de múltiplos alunos ("Tag Input").
- * Esta função agora apenas RENDERIZA o estado atual de `state.selectedStudents`,
- * que é definido pela função que a chama (`openOccurrenceModal`).
+ * (Inalterado)
+ * Gerencia a UI do componente de seleção de múltiplos alunos ("Tag Input").
  * @param {HTMLInputElement} inputElement - O campo de texto para pesquisar alunos.
  * @param {HTMLDivElement} suggestionsElement - O container para exibir as sugestões.
  * @param {HTMLDivElement} tagsContainerElement - O container onde as "tags" dos alunos selecionados serão exibidas.
@@ -98,7 +109,8 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 
 
 /**
- * ATUALIZADO: Gera o "selo" de status com novas cores e o status "Finalizada".
+ * (Inalterado)
+ * Gera o "selo" de status com novas cores e o status "Finalizada".
  * @param {string} status - O status da ocorrência.
  * @returns {string} HTML do selo de status.
  */
@@ -114,13 +126,17 @@ const getStatusBadge = (status) => {
 
 
 /**
- * REESCRITO: Filtra as ocorrências com base nos novos filtros de status, tipo e aluno.
+ * (Inalterado)
+ * Filtra as ocorrências com base nos novos filtros de status, tipo e aluno.
  * @returns {Map<string, object>} Um Map onde a chave é o `occurrenceGroupId` e o valor é um objeto do incidente.
  */
 export const getFilteredOccurrences = () => {
     // 1. Agrupa todas as ocorrências por `occurrenceGroupId`.
     const groupedByIncident = state.occurrences.reduce((acc, occ) => {
-        const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
+        // ATUALIZADO: Lógica de ID de grupo (Item 8 - Preparação)
+        // Usa o occurrenceGroupId. Se não existir, tenta o processId (para BA antigas?), senão ID individual.
+        const groupId = occ.occurrenceGroupId || occ.processId || `individual-${occ.id}`;
+        
         if (!acc.has(groupId)) {
             acc.set(groupId, {
                 id: groupId,
@@ -166,7 +182,7 @@ export const getFilteredOccurrences = () => {
 
 
 /**
- * REESCRITO: Renderiza a lista de ocorrências agrupada por incidentes.
+ * ATUALIZADO: (Item 3, 4, 10) Renderiza a lista de ocorrências com botões de ação reorganizados.
  */
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
@@ -192,6 +208,7 @@ export const renderOccurrences = () => {
         const mainRecord = incident.records[0];
         const studentNames = [...incident.studentsInvolved.values()].map(s => s.name).join(', ');
 
+        // ATUALIZADO: (Item 3, 4, 10) Lógica dos botões
         return `
             <div class="border rounded-lg overflow-hidden bg-white shadow-sm">
                 <div class="p-4 flex flex-col sm:flex-row justify-between items-start gap-3">
@@ -203,11 +220,31 @@ export const renderOccurrences = () => {
                         <p class="text-sm text-gray-600"><strong>Alunos:</strong> ${studentNames}</p>
                         <p class="text-xs text-gray-400 mt-1">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
                     </div>
-                    <div class="flex-shrink-0 flex items-center space-x-2 self-start sm:self-center">
-                        <button class="history-btn text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100" data-group-id="${incident.id}" title="Ver Histórico"><i class="fas fa-history"></i></button>
-                        <button class="view-btn text-indigo-600 hover:text-indigo-900 p-2 rounded-full hover:bg-indigo-100" data-group-id="${incident.id}" title="Gerar Notificação Individual"><i class="fas fa-eye"></i></button>
-                        <button class="edit-btn text-yellow-600 hover:text-yellow-900 p-2 rounded-full hover:bg-yellow-100" data-group-id="${incident.id}" title="Editar"><i class="fas fa-pencil-alt"></i></button>
-                        <button class="delete-btn text-red-600 hover:text-red-900 p-2 rounded-full hover:bg-red-100" data-group-id="${incident.id}" title="Excluir"><i class="fas fa-trash"></i></button>
+                    
+                    <div class="flex-shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-stretch sm:self-center">
+                        <button class="notification-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-2 px-3 rounded-md bg-indigo-50 hover:bg-indigo-100 text-center" data-group-id="${incident.id}" title="Gerar Notificação">
+                            <i class="fas fa-paper-plane mr-1"></i> Notificação
+                        </button>
+                        <button class="record-btn text-gray-600 hover:text-gray-900 text-xs font-semibold py-2 px-3 rounded-md bg-gray-50 hover:bg-gray-100 border border-gray-300 text-center" data-group-id="${incident.id}" title="Gerar Ata de Ocorrência">
+                            <i class="fas fa-file-invoice mr-1"></i> Gerar Ata
+                        </button>
+                        
+                        <div class="relative kebab-menu-container self-center">
+                            <button class="kebab-menu-btn text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100" data-group-id="${incident.id}" title="Mais Opções">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <div class="kebab-menu-dropdown hidden absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border z-10">
+                                <button class="kebab-action-btn menu-item w-full text-left" data-action="history" data-group-id="${incident.id}">
+                                    <i class="fas fa-history mr-2 w-4"></i>Histórico
+                                </button>
+                                <button class="kebab-action-btn menu-item w-full text-left" data-action="edit" data-group-id="${incident.id}">
+                                    <i class="fas fa-pencil-alt mr-2 w-4"></i>Editar
+                                </button>
+                                <button class="kebab-action-btn menu-item menu-item-danger w-full text-left" data-action="delete" data-group-id="${incident.id}">
+                                    <i class="fas fa-trash mr-2 w-4"></i>Excluir
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -219,13 +256,16 @@ export const renderOccurrences = () => {
 
 
 /**
- * CORRIGIDO E REESCRITO: Abre o modal de ocorrência gerenciando o estado corretamente.
+ * ATUALIZADO: (Item 2) Abre o modal de ocorrência, populando os novos campos de contato.
  * @param {object | null} incidentToEdit - O objeto do incidente a ser editado, ou null para criar um novo.
  */
 export const openOccurrenceModal = (incidentToEdit = null) => {
     // 1. Limpa o formulário e o estado de alunos selecionados.
     dom.occurrenceForm.reset();
     state.selectedStudents.clear();
+
+    // Desativa os campos dinâmicos por padrão
+    toggleFamilyContactFields(false, document.getElementById('occurrence-family-contact-fields'));
 
     if (incidentToEdit) {
         // 2. MODO DE EDIÇÃO: Prepara o estado e os campos do formulário.
@@ -241,11 +281,27 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
         // Preenche o resto do formulário.
         document.getElementById('occurrence-type').value = mainRecord.occurrenceType || '';
         document.getElementById('occurrence-date').value = mainRecord.date || '';
+        
+        // Convocação (movida para cima)
+        document.getElementById('meeting-date-occurrence').value = mainRecord.meetingDate || '';
+        document.getElementById('meeting-time-occurrence').value = mainRecord.meetingTime || '';
+        
+        // NOVOS CAMPOS DE CONTATO (Item 2)
+        if(mainRecord.contactSucceeded) {
+            const radio = document.querySelector(`input[name="occurrence-contact-succeeded"][value="${mainRecord.contactSucceeded}"]`);
+            if (radio) {
+                radio.checked = true;
+                // Dispara o evento 'change' para mostrar/ocultar campos
+                radio.dispatchEvent(new Event('change'));
+            }
+        }
+        document.getElementById('occurrence-contact-type').value = mainRecord.contactType || '';
+        document.getElementById('occurrence-contact-date').value = mainRecord.contactDate || '';
+        
+        // Campos originais
         document.getElementById('description').value = mainRecord.description || '';
         document.getElementById('actions-taken-school').value = mainRecord.actionsTakenSchool || '';
         document.getElementById('actions-taken-family').value = mainRecord.actionsTakenFamily || '';
-        document.getElementById('meeting-date-occurrence').value = mainRecord.meetingDate || '';
-        document.getElementById('meeting-time-occurrence').value = mainRecord.meetingTime || '';
         document.getElementById('occurrence-parecer').value = mainRecord.parecer || '';
         
     } else {
@@ -266,7 +322,7 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
 };
 
 // =================================================================================
-// SEÇÃO 2: LÓGICA DA INTERFACE DE BUSCA ATIVA (CÓDIGO ORIGINAL)
+// SEÇÃO 2: LÓGICA DA INTERFACE DE BUSCA ATIVA
 // =================================================================================
 export const actionDisplayTitles = {
     tentativa_1: "1ª Tentativa de Contato",
@@ -277,6 +333,9 @@ export const actionDisplayTitles = {
     analise: "Análise"
 };
 
+/**
+ * ATUALIZADO: (Item 6, 10) Renderiza a lista de Busca Ativa com botões de ação reorganizados.
+ */
 export const renderAbsences = () => {
     dom.loadingAbsences.classList.add('hidden');
 
@@ -422,6 +481,7 @@ export const renderAbsences = () => {
                         : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Devolutiva</p>';
                 }
 
+                // ATUALIZADO: (Item 6, 10) Botões de Ação de Busca Ativa
                 html += `
                     <div class="flex justify-between items-start border-b last:border-b-0 pb-3">
                         <div>
@@ -433,8 +493,23 @@ export const renderAbsences = () => {
                         </div>
                         <div class="whitespace-nowrap text-right text-sm font-medium space-x-2 flex items-center">
                             ${actionButtonHtml}
-                            <button class="edit-absence-btn text-yellow-600 hover:text-yellow-900 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" title="Editar Ação" ${isConcluded ? 'disabled' : ''}><i class="fas fa-pencil-alt fa-lg"></i></button>
-                            <button class="delete-absence-btn text-red-600 hover:text-red-900 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" data-action-type="${abs.actionType}" title="Excluir Ação" ${isConcluded ? 'disabled' : ''}><i class="fas fa-trash fa-lg"></i></button>
+                            
+                            <div class="relative kebab-menu-container self-center">
+                                <button class="kebab-menu-btn text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100" data-id="${abs.id}" title="Mais Opções">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <div class="kebab-menu-dropdown hidden absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border z-10">
+                                    <button class="kebab-action-btn menu-item w-full text-left" data-action="history" data-id="${abs.id}" data-process-id="${abs.processId}">
+                                        <i class="fas fa-history mr-2 w-4"></i>Histórico
+                                    </button>
+                                    <button class="kebab-action-btn menu-item w-full text-left ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}" data-action="edit" data-id="${abs.id}" ${isConcluded ? 'disabled' : ''}>
+                                        <i class="fas fa-pencil-alt mr-2 w-4"></i>Editar
+                                    </button>
+                                    <button class="kebab-action-btn menu-item menu-item-danger w-full text-left ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}" data-action="delete" data-id="${abs.id}" ${isConcluded ? 'disabled' : ''}>
+                                        <i class="fas fa-trash mr-2 w-4"></i>Excluir
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -452,9 +527,36 @@ export const renderAbsences = () => {
 // =================================================================================
 
 /**
- * ATUALIZADO: Função principal que decide qual aba renderizar.
+ * (Inalterado)
+ * Função principal que decide qual aba renderizar.
  */
 export const render = () => {
+    // Adiciona/Remove listeners do menu kebab dinamicamente
+    // Remove listeners antigos para evitar duplicidade
+    document.querySelectorAll('.kebab-menu-btn').forEach(btn => {
+        btn.replaceWith(btn.cloneNode(true)); // Clona para remover listeners
+    });
+    
+    // Adiciona novos listeners
+    document.querySelectorAll('.kebab-menu-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Fecha todos os outros menus
+            document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
+            // Abre o menu clicado
+            const dropdown = btn.nextElementSibling;
+            if (dropdown) dropdown.classList.toggle('hidden');
+        });
+    });
+
+    // Fecha menus kebab se clicar fora
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.kebab-menu-container')) {
+            document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
+        }
+    });
+
+
     if (state.activeTab === 'occurrences') {
         renderOccurrences();
     } else {
@@ -463,7 +565,8 @@ export const render = () => {
 };
 
 /**
- * NOVO: Abre um modal de seleção para o usuário escolher para qual aluno
+ * (Inalterado)
+ * Abre um modal de seleção para o usuário escolher para qual aluno
  * de um incidente a notificação deve ser gerada.
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
@@ -479,7 +582,6 @@ export const openStudentSelectionModal = (groupId) => {
         return;
     }
     
-    // Estes elementos precisam ser criados no arquivo index.html
     const modal = document.getElementById('student-selection-modal'); 
     const modalBody = document.getElementById('student-selection-modal-body');
     
@@ -505,36 +607,157 @@ export const openStudentSelectionModal = (groupId) => {
 }
 
 /**
- * NOVO: Gera e exibe a notificação para um único aluno selecionado.
+ * NOVO: (Item 5) Helper para gerar o cabeçalho com logo.
+ * @returns {string} HTML do cabeçalho do relatório.
+ */
+const getReportHeaderHTML = () => {
+    const logoUrl = state.config?.schoolLogoUrl || null;
+    const schoolName = state.config?.schoolName || "Nome da Escola";
+
+    if (logoUrl) {
+        return `<div class="text-center mb-4"><img src="${logoUrl}" alt="Logo da Escola" class="max-w-full max-h-40 mx-auto"></div>`;
+    }
+    
+    return `<div class="text-center border-b pb-4"><h2 class="text-xl font-bold uppercase">${schoolName}</h2></div>`;
+};
+
+
+/**
+ * ATUALIZADO: (Item 1, 5) Gera e exibe a notificação para um único aluno selecionado.
+ * Esta é agora uma convocação formal, sem detalhes da ocorrência.
  * @param {object} incident - O objeto completo do incidente.
  * @param {object} student - O objeto do aluno selecionado.
  */
 export const openIndividualNotificationModal = (incident, student) => {
-    // Encontra o registro de ocorrência específico daquele aluno.
-    // Se não encontrar (caso raro), usa o primeiro registro como base.
     const data = incident.records.find(r => r.studentId === student.matricula) || incident.records[0];
     const responsibleNames = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    document.getElementById('notification-title').innerText = 'Notificação Individual de Ocorrência';
+    document.getElementById('notification-title').innerText = 'Notificação de Ocorrência';
     document.getElementById('notification-content').innerHTML = `
         <div class="space-y-6 text-sm">
-            <div class="text-center border-b pb-4"><h2 class="text-xl font-bold uppercase">${config.schoolName}</h2><h3 class="text-lg font-semibold mt-2">NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR</h3></div>
-            <div class="pt-4"><p class="mb-2"><strong>Aos Responsáveis (${responsibleNames}):</strong></p><p>Pelo(a) seguinte aluno(a):</p><div class="mt-2 p-2 bg-gray-50 rounded"><strong>${student.name}</strong> (Turma: ${student.class})</div></div>
-            <p class="text-justify">Prezados(as), vimos por meio desta notificá-los sobre uma ocorrência disciplinar envolvendo o(a) aluno(a) supracitado(a), registrada em <strong>${formatDate(data.date)}</strong>.</p>
-            <div class="border-t pt-4 space-y-4">
-                <div><h4 class="font-semibold mb-1">Tipo:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md">${formatText(data.occurrenceType)}</p></div>
-                <div><h4 class="font-semibold mb-1">Descrição:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
-                <div><h4 class="font-semibold mb-1">Providências da Escola:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.actionsTakenSchool)}</p></div>
-                <div><h4 class="font-semibold mb-1">Providências da Família:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.actionsTakenFamily)}</p></div>
-                ${data.parecer ? `<div><h4 class="font-semibold mb-1">Parecer/Desfecho:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.parecer)}</p></div>` : ''}
+            ${getReportHeaderHTML()}
+            <h3 class="text-lg font-semibold mt-4 text-center">NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR</h3>
+            
+            <p class="text-right mt-4">Data de Envio: ${currentDate}</p>
+
+            <div class="pt-4">
+                <p class="mb-2"><strong>Aos Responsáveis:</strong> ${formatText(responsibleNames)}</p>
+                <p>Pelo(a) seguinte aluno(a):</p>
+                <div class="mt-2 p-3 bg-gray-50 rounded border">
+                    <p><strong>Aluno:</strong> ${formatText(student.name)}</p>
+                    <p><strong>Turma:</strong> ${formatText(student.class)}</p>
+                    <p><strong>Endereço:</strong> ${formatText(student.endereco)}</p>
+                    <p><strong>Contato:</strong> ${formatText(student.contato)}</p>
+                </div>
             </div>
-            ${data.meetingDate ? `<p class="mt-4 text-justify">Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica para uma reunião na seguinte data e horário:</p>
-            <div class="mt-4 p-3 bg-indigo-100 text-indigo-800 rounded-md text-center font-semibold"><p><strong>Data:</strong> ${formatDate(data.meetingDate) || 'A ser agendada'}</p><p><strong>Horário:</strong> ${formatTime(data.meetingTime) || ''}</p></div>` : ''}
-            <div class="border-t pt-16 mt-16"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do Responsável</p></div></div>
+
+            <p class="text-justify mt-4">
+                Prezados(as), vimos por meio desta notificá-los sobre um registro referente ao(à) aluno(a) supracitado(a),
+                classificado como <strong>"${formatText(data.occurrenceType)}"</strong>, ocorrido em ${formatDate(data.date)}.
+            </p>
+            
+            <p class="text-justify bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
+                Conforme a legislação vigente, como a Lei de Diretrizes e Bases da Educação Nacional (LDB - Lei 9.394/96) e o
+                Estatuto da Criança e do Adolescente (ECA - Lei 8.069/90), ressaltamos a importância da parceria e do
+                acompanhamento ativo da família na vida escolar do(a) estudante, que é fundamental para seu desenvolvimento
+                e para a manutenção de um ambiente escolar saudável.
+            </p>
+            
+            ${data.meetingDate ? `
+            <p class="mt-4 text-justify">
+                Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica para uma reunião
+                na seguinte data e horário:
+            </p>
+            <div class="mt-4 p-3 bg-indigo-100 text-indigo-800 rounded-md text-center font-semibold">
+                <p><strong>Data:</strong> ${formatDate(data.meetingDate)}</p>
+                <p><strong>Horário:</strong> ${formatTime(data.meetingTime)}</p>
+            </div>
+            ` : `
+            <p class="mt-4 text-justify">
+                Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica
+                para tratarmos do assunto.
+            </p>
+            `}
+
+            <div class="border-t pt-16 mt-16">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="text-center mt-1">Ciente do Responsável</p>
+                </div>
+            </div>
+             <div class="border-t pt-16 mt-16">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="text-center mt-1">Assinatura da Gestão Escolar</p>
+                </div>
+            </div>
         </div>`;
     openModal(dom.notificationModalBackdrop);
 };
 
+/**
+ * NOVO: (Item 4) Gera a Ata Formal da Ocorrência para impressão e arquivo.
+ * @param {string} groupId - O ID do grupo da ocorrência.
+ */
+export const openOccurrenceRecordModal = (groupId) => {
+    const incident = getFilteredOccurrences().get(groupId);
+    if (!incident) return showToast('Incidente não encontrado.');
+    
+    const data = incident.records[0]; // Pega o registro principal
+    const students = [...incident.studentsInvolved.values()];
+    const studentNames = students.map(s => `${s.name} (Turma: ${s.class})`).join('<br>');
+    const responsibleNames = [...new Set(students.flatMap(s => [s.resp1, s.resp2]).filter(Boolean))].join(' e ');
+
+    document.getElementById('report-view-title').textContent = 'Ata de Registro de Ocorrência';
+    document.getElementById('report-view-content').innerHTML = `
+        <div class="space-y-6 text-sm">
+            ${getReportHeaderHTML()}
+            <h3 class="text-lg font-semibold mt-4 text-center uppercase">Ata de Registro de Ocorrência</h3>
+            
+            <p class="text-sm text-gray-500 text-right">ID do Incidente: ${incident.id}</p>
+
+            <div class="border rounded-lg p-4 bg-gray-50 space-y-3">
+                <div><h4 class="font-semibold">Data da Ocorrência:</h4><p>${formatDate(data.date)}</p></div>
+                <div><h4 class="font-semibold">Tipo:</h4><p>${formatText(data.occurrenceType)}</p></div>
+                <div><h4 class="font-semibold">Status:</h4><p>${formatText(data.status)}</p></div>
+                <div><h4 class="font-semibold">Aluno(s) Envolvido(s):</h4><p>${studentNames}</p></div>
+                <div><h4 class="font-semibold">Responsáveis:</h4><p>${formatText(responsibleNames)}</p></div>
+            </div>
+
+            <div class="border-t pt-4 space-y-4">
+                <div><h4 class="font-semibold mb-1">Descrição Detalhada dos Fatos:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
+                <div><h4 class="font-semibold mb-1">Providências Tomadas pela Escola:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.actionsTakenSchool)}</p></div>
+                
+                ${(data.contactSucceeded || data.meetingDate) ? `
+                <div class="border-t pt-4">
+                    <h4 class="text-md font-semibold text-gray-700 mb-2">Registro de Contato e Convocação</h4>
+                    ${data.meetingDate ? `<p><strong>Reunião Agendada:</strong> Data: ${formatDate(data.meetingDate)} | Horário: ${formatTime(data.meetingTime)}</p>` : ''}
+                    ${data.contactSucceeded === 'yes' ? 
+                        `<p><strong>Contato Realizado:</strong> Sim (Tipo: ${formatText(data.contactType)} em ${formatDate(data.contactDate)})</p>` : 
+                        (data.contactSucceeded === 'no' ? '<p><strong>Contato Realizado:</strong> Não</p>' : '')
+                    }
+                </div>
+                ` : ''}
+
+                <div><h4 class="font-semibold mb-1">Providências Solicitadas à Família:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.actionsTakenFamily)}</p></div>
+                ${data.parecer ? `<div><h4 class="font-semibold mb-1">Parecer/Desfecho:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.parecer)}</p></div>` : ''}
+            </div>
+            
+            <div class="signature-block pt-16 mt-16 space-y-12">
+                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do(s) Responsável(is)</p></div>
+                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do(s) Aluno(s)</p></div>
+                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Assinatura da Gestão Escolar</p></div>
+            </div>
+        </div>`;
+    openModal(dom.reportViewModalBackdrop);
+};
+
+
+/**
+ * (Inalterado)
+ * Abre o modal de histórico de alterações de uma ocorrência.
+ */
 export const openHistoryModal = (groupId) => {
     const incident = getFilteredOccurrences().get(groupId);
     if (!incident) return showToast('Incidente não encontrado.');
@@ -555,9 +778,46 @@ export const openHistoryModal = (groupId) => {
     openModal(document.getElementById('history-view-modal-backdrop'));
 };
 
+/**
+ * NOVO: (Item 6) Abre o modal de histórico de alterações de uma ação de Busca Ativa.
+ */
+export const openAbsenceHistoryModal = (processId) => {
+    const processActions = state.absences.filter(a => a.processId === processId);
+    if (processActions.length === 0) return showToast('Processo não encontrado.');
+    
+    // Agrega o histórico de todas as ações do processo
+    const allHistory = processActions.flatMap(a => a.history || []);
+    
+    // Adiciona a criação da ação como um evento de histórico, caso o array 'history' não exista
+    processActions.forEach(action => {
+        if (!action.history || action.history.length === 0) {
+            allHistory.push({
+                action: `Ação "${actionDisplayTitles[action.actionType]}" criada.`,
+                user: action.createdBy || 'Sistema',
+                timestamp: action.createdAt?.toDate() || new Date()
+            });
+        }
+    });
+
+    const history = allHistory.sort((a, b) => (b.timestamp.seconds || new Date(b.timestamp).getTime()) - (a.timestamp.seconds || new Date(a.timestamp).getTime()));
+
+    const historyHTML = history.length > 0
+        ? history.map(entry => {
+            const timestamp = entry.timestamp.seconds ? new Date(entry.timestamp.seconds * 1000) : new Date(entry.timestamp);
+            return `<div class="flex items-start space-x-4 py-3"><div class="flex-shrink-0"><div class="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center"><i class="fas fa-history text-gray-500"></i></div></div><div><p class="text-sm font-semibold text-gray-800">${entry.action}</p><p class="text-xs text-gray-500">Por: ${entry.user || 'Sistema'} em ${timestamp.toLocaleDateString('pt-BR')} às ${timestamp.toLocaleTimeString('pt-BR')}</p></div></div>`;
+        }).join('')
+        : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este processo.</p>';
+
+    document.getElementById('history-view-title').textContent = `Histórico do Processo`;
+    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${processId}`;
+    document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
+    openModal(document.getElementById('history-view-modal-backdrop'));
+};
+
 
 /**
- * MANTIDO: Configura o autocomplete para as barras de busca principais.
+ * (Inalterado)
+ * Configura o autocomplete para as barras de busca principais.
  */
 export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
     const input = document.getElementById(inputId);
@@ -606,6 +866,10 @@ export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
     });
 };
 
+/**
+ * (Inalterado)
+ * Renderiza a lista de alunos no modal de gerenciamento.
+ */
 export const renderStudentsList = () => {
     const tableBody = document.getElementById('students-list-table');
     tableBody.innerHTML = '';
@@ -656,6 +920,10 @@ export const renderStudentsList = () => {
     });
 };
 
+/**
+ * (Inalterado)
+ * Reseta o formulário de adição/edição de aluno.
+ */
 export const resetStudentForm = () => {
     document.getElementById('student-form-title').textContent = 'Adicionar Novo Aluno';
     document.getElementById('student-form').reset();
@@ -665,6 +933,10 @@ export const resetStudentForm = () => {
     document.getElementById('cancel-edit-student-btn').classList.add('hidden');
 };
 
+/**
+ * (Inalterado)
+ * Funções de exibição das telas de login/registro.
+ */
 export const showLoginView = () => {
     dom.registerView.classList.add('hidden');
     dom.loginView.classList.remove('hidden');
@@ -675,6 +947,10 @@ export const showRegisterView = () => {
     dom.registerView.classList.remove('hidden');
 };
 
+
+/**
+ * ATUALIZADO: (Item 5, 7) Gera o Relatório Geral de Ocorrências com gráficos e layout de dashboard.
+ */
 export const generateAndShowGeneralReport = () => {
     const filteredIncidents = getFilteredOccurrences();
     if (filteredIncidents.size === 0) {
@@ -687,6 +963,8 @@ export const generateAndShowGeneralReport = () => {
 
     const allRecords = [...filteredIncidents.values()].flatMap(i => i.records);
     const totalStudents = new Set([...filteredIncidents.values()].flatMap(i => [...i.studentsInvolved.keys()])).size;
+    
+    // Dados para Gráficos (Item 7)
     const occurrencesByType = allRecords.reduce((acc, occ) => {
         const occType = occ.occurrenceType || 'Não especificado';
         acc[occType] = (acc[occType] || 0) + 1;
@@ -694,13 +972,29 @@ export const generateAndShowGeneralReport = () => {
     }, {});
     const sortedTypes = Object.entries(occurrencesByType).sort((a, b) => b[1] - a[1]);
 
+    const occurrencesByStatus = allRecords.reduce((acc, occ) => {
+        const occStatus = occ.status || 'Pendente';
+        acc[occStatus] = (acc[occStatus] || 0) + 1;
+        return acc;
+    }, {});
+    
+    // Prepara dados para Chart.js
+    const chartDataByType = {
+        labels: sortedTypes.map(item => item[0]),
+        data: sortedTypes.map(item => item[1])
+    };
+    const chartDataByStatus = {
+        labels: Object.keys(occurrencesByStatus),
+        data: Object.values(occurrencesByStatus)
+    };
+
+
     const reportHTML = `
         <div class="space-y-8 text-sm font-sans">
-            <div class="text-center border-b-2 border-gray-200 pb-4">
-                <h2 class="text-2xl font-bold uppercase text-gray-800">${config.schoolName}</h2>
-                <h3 class="text-xl font-semibold text-gray-700 mt-2">Relatório Geral de Ocorrências</h3>
-                <p class="text-gray-500 mt-1">Gerado em: ${currentDate}</p>
-            </div>
+            ${getReportHeaderHTML()}
+            <h3 class="text-xl font-semibold text-gray-700 mt-2 text-center">Relatório Geral de Ocorrências</h3>
+            <p class="text-gray-500 mt-1 text-center">Gerado em: ${currentDate}</p>
+            
             <div class="border rounded-lg p-4 bg-gray-50">
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
@@ -710,6 +1004,18 @@ export const generateAndShowGeneralReport = () => {
                 </div>
                 ${(startDate || endDate || status !== 'all' || type !== 'all' || studentFilter) ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong></p><ul class="list-disc list-inside ml-2">${startDate ? `<li>De: <strong>${formatDate(startDate)}</strong></li>` : ''}${endDate ? `<li>Até: <strong>${formatDate(endDate)}</strong></li>` : ''}${status !== 'all' ? `<li>Status: <strong>${status}</strong></li>` : ''}${type !== 'all' ? `<li>Tipo: <strong>${type}</strong></li>` : ''}${studentFilter ? `<li>Aluno: <strong>"${formatText(studentFilter)}"</strong></li>` : ''}</ul></div>` : ''}
             </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 no-print">
+                <div class="border rounded-lg p-4 shadow-sm bg-white">
+                    <h5 class="font-semibold text-center mb-2">Ocorrências por Tipo</h5>
+                    <canvas id="report-chart-by-type" data-labels='${JSON.stringify(chartDataByType.labels)}' data-data='${JSON.stringify(chartDataByType.data)}'></canvas>
+                </div>
+                <div class="border rounded-lg p-4 shadow-sm bg-white">
+                    <h5 class="font-semibold text-center mb-2">Ocorrências por Status</h5>
+                    <canvas id="report-chart-by-status" data-labels='${JSON.stringify(chartDataByStatus.labels)}' data-data='${JSON.stringify(chartDataByStatus.data)}'></canvas>
+                </div>
+            </div>
+
             <div>
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Incidentes</h4>
                 <div class="space-y-6">
@@ -718,17 +1024,25 @@ export const generateAndShowGeneralReport = () => {
                     const studentNames = [...incident.studentsInvolved.values()].map(s => s.name).join(', ');
                     return `
                     <div class="border rounded-lg overflow-hidden break-inside-avoid">
-                        <div class="bg-gray-100 p-3"><p class="font-bold text-gray-800">${mainRecord.occurrenceType}</p><p class="text-xs text-gray-600">Data: ${formatDate(mainRecord.date)} | Status: ${mainRecord.status}</p></div>
-                        <div class="p-3">
-                            <p class="text-xs font-semibold uppercase text-gray-500">Alunos Envolvidos</p>
-                            <p class="mb-2">${studentNames}</p>
-                            <p class="text-xs font-semibold uppercase text-gray-500">Descrição</p>
-                            <p class="whitespace-pre-wrap">${formatText(mainRecord.description)}</p>
+                        <div class="bg-gray-100 p-3 flex justify-between items-center">
+                            <div>
+                                <p class="font-bold text-gray-800">${mainRecord.occurrenceType}</p>
+                                <p class="text-xs text-gray-600">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
+                            </div>
+                            ${getStatusBadge(mainRecord.status)}
+                        </div>
+                        <div class="p-4 space-y-3">
+                            <p><strong>Alunos Envolvidos:</strong> ${studentNames}</p>
+                            <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
+                            <div><h5 class="text-xs font-semibold uppercase text-gray-500">Providências da Escola</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.actionsTakenSchool)}</p></div>
+                            <div><h5 class="text-xs font-semibold uppercase text-gray-500">Providências da Família</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.actionsTakenFamily)}</p></div>
+                            ${mainRecord.parecer ? `<div><h5 class="text-xs font-semibold uppercase text-gray-500">Parecer/Desfecho</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.parecer)}</p></div>` : ''}
                         </div>
                     </div>`;
                 }).join('')}
                 </div>
             </div>
+            
             <div class="signature-block pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
         </div>
     `;
@@ -736,8 +1050,190 @@ export const generateAndShowGeneralReport = () => {
     document.getElementById('report-view-title').textContent = "Relatório Geral de Ocorrências";
     document.getElementById('report-view-content').innerHTML = reportHTML;
     openModal(dom.reportViewModalBackdrop);
+
+    // ATENÇÃO: É preciso carregar a biblioteca Chart.js no index.html para isto funcionar
+    try {
+        const typeCtx = document.getElementById('report-chart-by-type').getContext('2d');
+        new Chart(typeCtx, {
+            type: 'bar',
+            data: { labels: chartDataByType.labels, datasets: [{ label: 'Total', data: chartDataByType.data, backgroundColor: '#4f46e5' }] },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+
+        const statusCtx = document.getElementById('report-chart-by-status').getContext('2d');
+        new Chart(statusCtx, {
+            type: 'doughnut',
+            data: { labels: chartDataByStatus.labels, datasets: [{ data: chartDataByStatus.data, backgroundColor: ['#f59e0b', '#10b981', '#6b7280'] }] },
+            options: { responsive: true }
+        });
+    } catch (e) {
+        console.warn("Chart.js não está carregado. Gráficos não serão exibidos.");
+        document.getElementById('report-chart-by-type').parentElement.innerHTML = "<p class='text-center text-red-500 text-xs'>Chart.js não foi carregado. Gráficos indisponíveis.</p>";
+        document.getElementById('report-chart-by-status').parentElement.innerHTML = "";
+    }
 };
 
+/**
+ * NOVO: (Item 11) Gera o Relatório Geral de Busca Ativa com gráficos.
+ */
+export const generateAndShowBuscaAtivaReport = () => {
+    // 1. Agrupa todas as ações por 'processId'
+    const groupedByProcess = state.absences.reduce((acc, action) => {
+        const key = action.processId || `no-proc-${action.id}`;
+        if (!acc[key]) acc[key] = { id: key, actions: [], studentId: action.studentId };
+        acc[key].actions.push(action);
+        return acc;
+    }, {});
+
+    const processes = Object.values(groupedByProcess);
+    if (processes.length === 0) {
+        return showToast('Nenhum processo de Busca Ativa encontrado.');
+    }
+
+    const { processStatus, pendingAction, returnStatus } = state.filtersAbsences;
+    const studentFilter = state.filterAbsences;
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    let statusConcluido = 0, statusEmAndamento = 0;
+    let retornoSim = 0, retornoNao = 0, retornoPendente = 0;
+    let pendenteContato = 0, pendenteDevolutiva = 0;
+
+    const filteredProcesses = processes.filter(proc => {
+        proc.actions.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+        const lastAction = proc.actions[proc.actions.length - 1];
+        const student = state.students.find(s => s.matricula === proc.studentId);
+        
+        // Filtro de Aluno
+        if (studentFilter && (!student || !student.name.toLowerCase().includes(studentFilter.toLowerCase()))) return false;
+        
+        // Status do Processo
+        const isConcluded = proc.actions.some(a => a.actionType === 'analise');
+        if (processStatus === 'in_progress' && isConcluido) return false;
+        if (processStatus === 'concluded' && !isConcluded) return false;
+
+        // Status de Retorno
+        const lastReturnAction = [...proc.actions].reverse().find(a => a.contactReturned || a.visitReturned || a.ctReturned);
+        const lastReturnStatus = lastReturnAction ? (lastReturnAction.contactReturned || lastReturnAction.visitReturned || lastReturnAction.ctReturned) : 'pending';
+        
+        if (returnStatus === 'returned' && lastReturnStatus !== 'yes') return false;
+        if (returnStatus === 'not_returned' && lastReturnStatus !== 'no') return false;
+        if (returnStatus === 'pending' && lastReturnStatus !== 'pending') return false;
+
+        // Ações Pendentes (só conta se não estiver concluído)
+        let isPendingContact = false, isPendingFeedback = false;
+        if (!isConcluded) {
+            isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null);
+            
+            const ctAction = proc.actions.find(a => a.actionType === 'encaminhamento_ct');
+            isPendingFeedback = ctAction && !ctAction.ctFeedback;
+        }
+
+        if (pendingAction === 'pending_contact' && !isPendingContact) return false;
+        if (pendingAction === 'pending_feedback' && !isPendingFeedback) return false;
+        
+        // Contadores para Gráficos (contabiliza apenas os filtrados)
+        isConcluded ? statusConcluido++ : statusEmAndamento++;
+        if (lastReturnStatus === 'yes') retornoSim++;
+        else if (lastReturnStatus === 'no') retornoNao++;
+        else retornoPendente++;
+        
+        if (isPendingContact) pendenteContato++;
+        if (isPendingFeedback) pendenteDevolutiva++;
+
+        return true;
+    });
+
+    if (filteredProcesses.length === 0) {
+        return showToast('Nenhum processo encontrado para os filtros selecionados.');
+    }
+
+    // Prepara dados para Chart.js
+    const chartDataStatus = { labels: ['Em Andamento', 'Concluídos'], data: [statusEmAndamento, statusConcluido] };
+    const chartDataRetorno = { labels: ['Retornou', 'Não Retornou', 'Pendente'], data: [retornoSim, retornoNao, retornoPendente] };
+    const chartDataPendente = { labels: ['Aguard. Contato', 'Aguard. Devolutiva CT'], data: [pendenteContato, pendenteDevolutiva] };
+
+    const reportHTML = `
+        <div class="space-y-8 text-sm font-sans">
+            ${getReportHeaderHTML()}
+            <h3 class="text-xl font-semibold text-gray-700 mt-2 text-center">Relatório Geral de Busca Ativa</h3>
+            <p class="text-gray-500 mt-1 text-center">Gerado em: ${currentDate}</p>
+
+            <div class="border rounded-lg p-4 bg-gray-50">
+                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                    <div><p class="text-2xl font-bold text-indigo-600">${filteredProcesses.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Processos Filtrados</p></div>
+                    <div><p class="text-2xl font-bold text-indigo-600">${statusEmAndamento}</p><p class="text-xs font-medium text-gray-500 uppercase">Em Andamento</p></div>
+                    <div><p class="text-2xl font-bold text-indigo-600">${retornoSim}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Retornaram</p></div>
+                </div>
+                </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 no-print">
+                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Status dos Processos</h5><canvas id="ba-chart-status"></canvas></div>
+                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Status de Retorno</h5><canvas id="ba-chart-retorno"></canvas></div>
+                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Ações Pendentes (Em Andamento)</h5><canvas id="ba-chart-pendente"></canvas></div>
+            </div>
+
+            <div>
+                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Processos</h4>
+                <div class="space-y-4">
+                ${filteredProcesses.sort((a,b) => (b.actions[b.actions.length-1].createdAt?.seconds || 0) - (a.actions[a.actions.length-1].createdAt?.seconds || 0)).map(proc => {
+                    const student = state.students.find(s => s.matricula === proc.studentId);
+                    const lastAction = proc.actions[proc.actions.length - 1];
+                    const isConcluded = lastAction.actionType === 'analise';
+                    return `
+                    <div class="border rounded-lg overflow-hidden break-inside-avoid">
+                        <div class="bg-gray-100 p-3 flex justify-between items-center">
+                            <div>
+                                <p class="font-bold text-gray-800">${student ? student.name : 'Aluno Removido'}</p>
+                                <p class="text-xs text-gray-600">Turma: ${student ? student.class : 'N/A'} | ID: ${proc.id}</p>
+                            </div>
+                            ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : '<span class="text-xs font-bold text-white bg-yellow-600 px-2 py-1 rounded-full">EM ANDAMENTO</span>'}
+                        </div>
+                        <div class="p-4">
+                            <h5 class="text-xs font-semibold uppercase text-gray-500 mb-2">Resumo das Ações (${proc.actions.length})</h5>
+                            <ul class="list-disc list-inside text-xs space-y-1">
+                                ${proc.actions.map(a => `<li><strong>${actionDisplayTitles[a.actionType]}</strong> (em ${formatDate(a.createdAt?.toDate())})</li>`).join('')}
+                            </ul>
+                            ${isConcluido ? `<div class="mt-3 border-t pt-2"><h5 class="text-xs font-semibold uppercase text-gray-500">Parecer Final</h5><p class="text-xs whitespace-pre-wrap">${formatText(lastAction.ctParecer)}</p></div>` : ''}
+                        </div>
+                    </div>`;
+                }).join('')}
+                </div>
+            </div>
+            
+            <div class="signature-block pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
+        </div>
+    `;
+
+    document.getElementById('report-view-title').textContent = "Relatório Geral de Busca Ativa";
+    document.getElementById('report-view-content').innerHTML = reportHTML;
+    openModal(dom.reportViewModalBackdrop);
+
+    try {
+        new Chart(document.getElementById('ba-chart-status').getContext('2d'), {
+            type: 'doughnut',
+            data: { labels: chartDataStatus.labels, datasets: [{ data: chartDataStatus.data, backgroundColor: ['#f59e0b', '#10b981'] }] },
+            options: { responsive: true }
+        });
+        new Chart(document.getElementById('ba-chart-retorno').getContext('2d'), {
+            type: 'pie',
+            data: { labels: chartDataRetorno.labels, datasets: [{ data: chartDataRetorno.data, backgroundColor: ['#10b981', '#ef4444', '#6b7280'] }] },
+            options: { responsive: true }
+        });
+         new Chart(document.getElementById('ba-chart-pendente').getContext('2d'), {
+            type: 'bar',
+            data: { labels: chartDataPendente.labels, datasets: [{ label: 'Total', data: chartDataPendente.data, backgroundColor: ['#3b82f6', '#f97316'] }] },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+    } catch (e) {
+        console.warn("Chart.js não está carregado. Gráficos não serão exibidos.");
+    }
+};
+
+
+/**
+ * ATUALIZADO: (Item 5) Adiciona logo ao modal de ficha.
+ */
 export const openFichaViewModal = (id) => {
     const record = state.absences.find(abs => abs.id === id);
     if (!record) return showToast('Registro não encontrado.');
@@ -782,11 +1278,10 @@ export const openFichaViewModal = (id) => {
 
     const contentHTML = `
         <div class="space-y-6 text-sm text-gray-800">
-            <div class="text-center border-b pb-4">
-                <h2 class="text-lg font-bold uppercase">${config.schoolName}</h2>
-                <h3 class="font-semibold mt-1 uppercase">${title}</h3>
-            </div>
-            <div class="pt-4">
+            ${getReportHeaderHTML()}
+            <h3 class="font-semibold mt-1 uppercase text-center">${title}</h3>
+
+            <div class="pt-4 border-t mt-4">
                 <p><strong>Aluno(a):</strong> ${student.name}</p>
                 <p><strong>Turma:</strong> ${student.class || ''}</p>
                 <p><strong>Endereço:</strong> ${formatText(student.endereco)}</p>
@@ -806,6 +1301,9 @@ export const openFichaViewModal = (id) => {
     openModal(dom.fichaViewModalBackdrop);
 };
 
+/**
+ * ATUALIZADO: (Item 5) Adiciona logo à ficha consolidada.
+ */
 export const generateAndShowConsolidatedFicha = (studentId, processId = null) => {
     let studentActions = state.absences.filter(action => action.studentId === studentId);
     
@@ -825,10 +1323,8 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
 
     const fichaHTML = `
         <div class="space-y-4 text-sm">
-            <div class="text-center border-b pb-4">
-                <h2 class="text-lg font-bold uppercase">${config.schoolName}</h2>
-                <h3 class="font-semibold mt-1">Ficha de Acompanhamento da Busca Ativa</h3>
-            </div>
+            ${getReportHeaderHTML()}
+            <h3 class="font-semibold mt-1 text-center">Ficha de Acompanhamento da Busca Ativa</h3>
             
             <div class="border rounded-md p-3">
                 <h4 class="font-semibold text-base mb-2">Identificação</h4>
@@ -850,6 +1346,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
                 <div class="pl-4">
                     <p class="font-medium underline">1ª Tentativa:</p>
                     <p><strong>Conseguiu contato?</strong> ${t1.contactSucceeded === 'yes' ? 'Sim' : t1.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                    <p><strong>Tipo de Contato:</strong> ${formatText(t1.contactType)}</p>
                     <p><strong>Dia do contato:</strong> ${formatDate(t1.contactDate)}</p>
                     <p><strong>Com quem falou?</strong> ${formatText(t1.contactPerson)}</p>
                     <p><strong>Justificativa:</strong> ${formatText(t1.contactReason)}</p>
@@ -858,6 +1355,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
                 <div class="pl-4 border-t pt-2">
                     <p class="font-medium underline">2ª Tentativa:</p>
                     <p><strong>Conseguiu contato?</strong> ${t2.contactSucceeded === 'yes' ? 'Sim' : t2.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                    <p><strong>Tipo de Contato:</strong> ${formatText(t2.contactType)}</p>
                     <p><strong>Dia do contato:</strong> ${formatDate(t2.contactDate)}</p>
                     <p><strong>Com quem falou?</strong> ${formatText(t2.contactPerson)}</p>
                     <p><strong>Justificativa:</strong> ${formatText(t2.contactReason)}</p>
@@ -866,6 +1364,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
                 <div class="pl-4 border-t pt-2">
                     <p class="font-medium underline">3ª Tentativa:</p>
                     <p><strong>Conseguiu contato?</strong> ${t3.contactSucceeded === 'yes' ? 'Sim' : t3.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                    <p><strong>Tipo de Contato:</strong> ${formatText(t3.contactType)}</p>
                     <p><strong>Dia do contato:</strong> ${formatDate(t3.contactDate)}</p>
                     <p><strong>Com quem falou?</strong> ${formatText(t3.contactPerson)}</p>
                     <p><strong>Justificativa:</strong> ${formatText(t3.contactReason)}</p>
@@ -912,6 +1411,9 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
     openModal(dom.reportViewModalBackdrop);
 };
 
+/**
+ * ATUALIZADO: (Item 5) Adiciona logo ao ofício.
+ */
 export const generateAndShowOficio = (action, oficioNumber = null) => {
     if (!action) return showToast('Ação de origem não encontrada.');
     
@@ -935,12 +1437,14 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
     
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+    const schoolName = state.config?.schoolName || "Nome da Escola";
+    const city = state.config?.city || "Cidade";
 
     let attemptsSummary = contactAttempts.map((attempt, index) => {
         return `
             <p class="ml-4">- <strong>${index + 1}ª Tentativa (${formatDate(attempt.contactDate || attempt.createdAt?.toDate())}):</strong> 
             ${attempt.contactSucceeded === 'yes' 
-                ? `Contato realizado com ${formatText(attempt.contactPerson)}. Justificativa: ${formatText(attempt.contactReason)}.` 
+                ? `Contato realizado com ${formatText(attempt.contactPerson)} (Tipo: ${formatText(attempt.contactType)}). Justificativa: ${formatText(attempt.contactReason)}.` 
                 : 'Não foi possível estabelecer contato.'}
             </p>
         `;
@@ -950,8 +1454,8 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
     const oficioHTML = `
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             <div class="text-center">
-                <p class="font-bold uppercase">${config.schoolName}</p>
-                <p>${config.city}, ${currentDate}.</p>
+                ${getReportHeaderHTML()} <p class="font-bold uppercase mt-4">${schoolName}</p>
+                <p>${city}, ${currentDate}.</p>
             </div>
 
             <div class="mt-8">
@@ -1012,6 +1516,10 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
     openModal(dom.reportViewModalBackdrop);
 };
 
+/**
+ * (Inalterado)
+ * Lógica para determinar a próxima ação de busca ativa.
+ */
 export const handleNewAbsenceAction = (student) => {
     const { currentCycleActions } = getStudentProcessInfo(student.matricula);
 
@@ -1047,8 +1555,12 @@ export const handleNewAbsenceAction = (student) => {
     openAbsenceModalForStudent(student);
 };
 
+/**
+ * (Inalterado)
+ * Ativa/Desativa campos de detalhe de contato (Família).
+ */
 export const toggleFamilyContactFields = (enable, fieldsContainer) => {
-    const detailFields = fieldsContainer.querySelectorAll('input[type="date"], input[type="text"], textarea');
+    const detailFields = fieldsContainer.querySelectorAll('input[type="date"], input[type="text"], textarea, select'); // Adicionado 'select'
     detailFields.forEach(input => {
         input.disabled = !enable;
         input.required = enable;
@@ -1061,6 +1573,10 @@ export const toggleFamilyContactFields = (enable, fieldsContainer) => {
     });
 };
 
+/**
+ * (Inalterado)
+ * Ativa/Desativa campos de detalhe de contato (Visita).
+ */
 export const toggleVisitContactFields = (enable, fieldsContainer) => {
      const detailFields = fieldsContainer.querySelectorAll('input[type="text"], textarea');
      detailFields.forEach(input => {
@@ -1075,6 +1591,9 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
     });
 };
 
+/**
+ * ATUALIZADO: (Item 9) Popula o novo campo "Tipo de Contato" no modal de Busca Ativa.
+ */
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
     dom.absenceForm.reset();
 
@@ -1150,9 +1669,12 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 document.getElementById('meeting-date').value = data.meetingDate || '';
                 document.getElementById('meeting-time').value = data.meetingTime || '';
                 if(data.contactSucceeded) {
-                    document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).checked = true;
-                    document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`).dispatchEvent(new Event('change'));
+                    const radio = document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`);
+                    radio.checked = true;
+                    radio.dispatchEvent(new Event('change'));
                 }
+                // ATUALIZADO: (Item 9)
+                document.getElementById('absence-contact-type').value = data.contactType || '';
                 document.getElementById('contact-date').value = data.contactDate || '';
                 document.getElementById('contact-person').value = data.contactPerson || '';
                 document.getElementById('contact-reason').value = data.contactReason || '';
@@ -1162,8 +1684,9 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 document.getElementById('visit-agent').value = data.visitAgent || '';
                 document.getElementById('visit-date').value = data.visitDate || '';
                 if(data.visitSucceeded) {
-                    document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).checked = true;
-                    document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`).dispatchEvent(new Event('change'));
+                    const radio = document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`);
+                    radio.checked = true;
+                    radio.dispatchEvent(new Event('change'));
                 }
                 document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
                 document.getElementById('visit-reason').value = data.visitReason || '';
