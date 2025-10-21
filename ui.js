@@ -3,26 +3,16 @@
 // RESPONSABILIDADE: Todas as funções que manipulam a UI (desenhar,
 // abrir modais, gerar HTML).
 // ATUALIZAÇÃO GERAL (Conforme Análise):
-// 1. (Item 1) `openIndividualNotificationModal`: Totalmente reescrita para ser uma
-//    notificação formal, com legislação, data de envio e remoção de campos sensíveis.
-// 2. (Item 2, 9) `openOccurrenceModal` e `openAbsenceModalForStudent`: Atualizadas
-//    para popular os novos campos de contato (tipo, data) no modo de edição.
-// 3. (Item 3, 4, 10) `renderOccurrences`: Botão "Olho" trocado por "Notificação".
-//    Adicionado botão "Gerar Ata" (Item 4) e botões secundários movidos
-//    para um menu "..." (kebab) (Item 10).
-// 4. (Item 4) Nova função: `openOccurrenceRecordModal` (Ata Formal para impressão).
-// 5. (Item 5) Todos os relatórios/fichas incluem agora o Logo da Escola.
-// 6. (Item 6) `renderAbsences` atualizada com botão "Histórico" no menu "...".
-// 7. (Item 6) Nova função: `openAbsenceHistoryModal`.
-// 8. (Item 7) `generateAndShowGeneralReport`: Reesctruturado com layout "dashboard",
-//    placeholders para gráficos e inclusão de campos de providências.
-// 9. (Item 10) `renderAbsences`: Botões secundários movidos para menu "...".
-// 10. (Item 11) Nova função: `generateAndShowBuscaAtivaReport` (Relatório Geral de BA).
+// 1. (Bug Kebab) A classe `overflow-hidden` foi REMOVIDA dos cards para
+//    permitir que o menu dropdown seja exibido corretamente.
+// 2. (Arquitetura) A lógica de ocorrências foi REFEITA para separar o
+//    "Fato Coletivo" do "Acompanhamento Individual". O status geral agora é
+//    calculado, e um novo fluxo de acompanhamento foi criado.
+// 3. (Otimização) Os "listeners" de eventos da lista de alunos foram REMOVIDOS
+//    de `renderStudentsList` para serem centralizados em `main.js`.
 // =================================================================================
 
 import { state, dom } from './state.js';
-// ATUALIZADO: Assumindo que 'config' virá do 'state.js' futuramente
-// import { config } from './firebase.js'; 
 import { getStudentProcessInfo, determineNextActionForStudent } from './logic.js';
 import { formatDate, formatTime, formatText, formatPeriodo, showToast, openModal, closeModal } from './utils.js';
 import { getStudentsDocRef } from './firestore.js';
@@ -109,9 +99,8 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 
 
 /**
- * (Inalterado)
- * Gera o "selo" de status com novas cores e o status "Finalizada".
- * @param {string} status - O status da ocorrência.
+ * ATUALIZADO: (Arquitetura) A função de status agora pode lidar com o status geral calculado.
+ * @param {string} status - O status da ocorrência ('Pendente' ou 'Finalizada').
  * @returns {string} HTML do selo de status.
  */
 const getStatusBadge = (status) => {
@@ -126,16 +115,13 @@ const getStatusBadge = (status) => {
 
 
 /**
- * (Inalterado)
- * Filtra as ocorrências com base nos novos filtros de status, tipo e aluno.
+ * ATUALIZADO: (Arquitetura) Filtra e agrupa ocorrências, e calcula o status GERAL de cada incidente.
  * @returns {Map<string, object>} Um Map onde a chave é o `occurrenceGroupId` e o valor é um objeto do incidente.
  */
 export const getFilteredOccurrences = () => {
     // 1. Agrupa todas as ocorrências por `occurrenceGroupId`.
     const groupedByIncident = state.occurrences.reduce((acc, occ) => {
-        // ATUALIZADO: Lógica de ID de grupo (Item 8 - Preparação)
-        // Usa o occurrenceGroupId. Se não existir, tenta o processId (para BA antigas?), senão ID individual.
-        const groupId = occ.occurrenceGroupId || occ.processId || `individual-${occ.id}`;
+        const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
         
         if (!acc.has(groupId)) {
             acc.set(groupId, {
@@ -154,17 +140,23 @@ export const getFilteredOccurrences = () => {
         return acc;
     }, new Map());
 
-    // 2. Filtra os incidentes agrupados com base nos filtros da UI.
+    // 2. Filtra os incidentes agrupados e CALCULA O STATUS GERAL.
     const filteredIncidents = new Map();
     for (const [groupId, incident] of groupedByIncident.entries()) {
         const mainRecord = incident.records[0]; 
         const { startDate, endDate, status, type } = state.filtersOccurrences;
         const studentSearch = state.filterOccurrences.toLowerCase();
 
-        // Checagem de filtros
+        // NOVO: (Arquitetura) Lógica para calcular o status geral.
+        // Se TODOS os alunos individuais estiverem "Resolvido", o status geral é "Finalizada".
+        const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
+        const overallStatus = allResolved ? 'Finalizada' : 'Pendente';
+        incident.overallStatus = overallStatus; // Adiciona o status calculado ao objeto do incidente.
+
+        // Checagem de filtros (agora usa o 'overallStatus' para o filtro de status)
         if (startDate && mainRecord.date < startDate) continue;
         if (endDate && mainRecord.date > endDate) continue;
-        if (status !== 'all' && mainRecord.status !== status) continue;
+        if (status !== 'all' && overallStatus !== status) continue;
         if (type !== 'all' && mainRecord.occurrenceType !== type) continue;
         
         // Checagem do filtro de busca por aluno
@@ -182,7 +174,10 @@ export const getFilteredOccurrences = () => {
 
 
 /**
- * ATUALIZADO: (Item 3, 4, 10) Renderiza a lista de ocorrências com botões de ação reorganizados.
+ * ATUALIZADO: (Bug Kebab, Arquitetura) Renderiza a lista de ocorrências.
+ * - Removeu `overflow-hidden`.
+ * - Usa o status geral calculado.
+ * - Adicionou botão "Acompanhamento" ao menu.
  */
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
@@ -199,7 +194,6 @@ export const renderOccurrences = () => {
 
     dom.emptyStateOccurrences.classList.add('hidden');
     
-    // Ordena os incidentes pela data do mais recente para o mais antigo.
     const sortedIncidents = [...filteredIncidents.values()].sort((a, b) => 
         new Date(b.records[0].date) - new Date(a.records[0].date)
     );
@@ -208,14 +202,14 @@ export const renderOccurrences = () => {
         const mainRecord = incident.records[0];
         const studentNames = [...incident.studentsInvolved.values()].map(s => s.name).join(', ');
 
-        // ATUALIZADO: (Item 3, 4, 10) Lógica dos botões
+        // ATUALIZADO: (Bug Kebab) A classe `overflow-hidden` foi removida do div principal.
         return `
-            <div class="border rounded-lg overflow-hidden bg-white shadow-sm">
+            <div class="border rounded-lg bg-white shadow-sm">
                 <div class="p-4 flex flex-col sm:flex-row justify-between items-start gap-3">
                     <div class="flex-grow">
                         <div class="flex items-center gap-3 mb-2">
                             <span class="font-semibold text-gray-800">${mainRecord.occurrenceType || 'N/A'}</span>
-                            ${getStatusBadge(mainRecord.status)}
+                            ${getStatusBadge(incident.overallStatus)}
                         </div>
                         <p class="text-sm text-gray-600"><strong>Alunos:</strong> ${studentNames}</p>
                         <p class="text-xs text-gray-400 mt-1">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
@@ -233,12 +227,15 @@ export const renderOccurrences = () => {
                             <button class="kebab-menu-btn text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100" data-group-id="${incident.id}" title="Mais Opções">
                                 <i class="fas fa-ellipsis-v"></i>
                             </button>
-                            <div class="kebab-menu-dropdown hidden absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border z-10">
-                                <button class="kebab-action-btn menu-item w-full text-left" data-action="history" data-group-id="${incident.id}">
-                                    <i class="fas fa-history mr-2 w-4"></i>Histórico
+                            <div class="kebab-menu-dropdown hidden absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border z-10">
+                                <button class="kebab-action-btn menu-item w-full text-left" data-action="follow-up" data-group-id="${incident.id}">
+                                    <i class="fas fa-user-check mr-2 w-4"></i>Acompanhamento
                                 </button>
                                 <button class="kebab-action-btn menu-item w-full text-left" data-action="edit" data-group-id="${incident.id}">
-                                    <i class="fas fa-pencil-alt mr-2 w-4"></i>Editar
+                                    <i class="fas fa-pencil-alt mr-2 w-4"></i>Editar Fato
+                                </button>
+                                <button class="kebab-action-btn menu-item w-full text-left" data-action="history" data-group-id="${incident.id}">
+                                    <i class="fas fa-history mr-2 w-4"></i>Histórico
                                 </button>
                                 <button class="kebab-action-btn menu-item menu-item-danger w-full text-left" data-action="delete" data-group-id="${incident.id}">
                                     <i class="fas fa-trash mr-2 w-4"></i>Excluir
@@ -256,68 +253,52 @@ export const renderOccurrences = () => {
 
 
 /**
- * ATUALIZADO: (Item 2) Abre o modal de ocorrência, populando os novos campos de contato.
+ * ATUALIZADO: (Arquitetura) Abre o modal para editar APENAS os dados COLETIVOS do incidente.
+ * Os campos de acompanhamento individual foram removidos desta função.
  * @param {object | null} incidentToEdit - O objeto do incidente a ser editado, ou null para criar um novo.
  */
 export const openOccurrenceModal = (incidentToEdit = null) => {
-    // 1. Limpa o formulário e o estado de alunos selecionados.
     dom.occurrenceForm.reset();
     state.selectedStudents.clear();
 
-    // Desativa os campos dinâmicos por padrão
-    toggleFamilyContactFields(false, document.getElementById('occurrence-family-contact-fields'));
+    // Esconde os campos que agora são individuais, pois este modal é apenas para o fato coletivo.
+    const individualFields = ['actions-taken-school', 'actions-taken-family', 'occurrence-parecer'];
+    individualFields.forEach(id => {
+        const field = document.getElementById(id);
+        if (field) field.closest('div').classList.add('hidden');
+    });
+     document.getElementById('occurrence-parecer').parentElement.classList.add('hidden'); // Oculta a seção de parecer.
+
 
     if (incidentToEdit) {
-        // 2. MODO DE EDIÇÃO: Prepara o estado e os campos do formulário.
+        // MODO DE EDIÇÃO (FATO COLETIVO)
         const mainRecord = incidentToEdit.records[0];
-        document.getElementById('modal-title').innerText = 'Editar Registro de Ocorrência';
+        document.getElementById('modal-title').innerText = 'Editar Fato da Ocorrência';
         document.getElementById('occurrence-group-id').value = incidentToEdit.id;
 
-        // Popula o estado com os alunos envolvidos no incidente.
         incidentToEdit.studentsInvolved.forEach((student, studentId) => {
             state.selectedStudents.set(studentId, student);
         });
 
-        // Preenche o resto do formulário.
+        // Preenche apenas os campos coletivos.
         document.getElementById('occurrence-type').value = mainRecord.occurrenceType || '';
         document.getElementById('occurrence-date').value = mainRecord.date || '';
-        
-        // Convocação (movida para cima)
         document.getElementById('meeting-date-occurrence').value = mainRecord.meetingDate || '';
         document.getElementById('meeting-time-occurrence').value = mainRecord.meetingTime || '';
-        
-        // NOVOS CAMPOS DE CONTATO (Item 2)
-        if(mainRecord.contactSucceeded) {
-            const radio = document.querySelector(`input[name="occurrence-contact-succeeded"][value="${mainRecord.contactSucceeded}"]`);
-            if (radio) {
-                radio.checked = true;
-                // Dispara o evento 'change' para mostrar/ocultar campos
-                radio.dispatchEvent(new Event('change'));
-            }
-        }
-        document.getElementById('occurrence-contact-type').value = mainRecord.contactType || '';
-        document.getElementById('occurrence-contact-date').value = mainRecord.contactDate || '';
-        
-        // Campos originais
         document.getElementById('description').value = mainRecord.description || '';
-        document.getElementById('actions-taken-school').value = mainRecord.actionsTakenSchool || '';
-        document.getElementById('actions-taken-family').value = mainRecord.actionsTakenFamily || '';
-        document.getElementById('occurrence-parecer').value = mainRecord.parecer || '';
-        
+
     } else {
-        // 3. MODO DE CRIAÇÃO: Define os valores padrão.
+        // MODO DE CRIAÇÃO
         document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
         document.getElementById('occurrence-group-id').value = '';
         document.getElementById('occurrence-date').valueAsDate = new Date();
     }
 
-    // 4. INICIALIZA O COMPONENTE DE UI: Agora que o estado está correto, a UI é renderizada.
     const studentInput = document.getElementById('student-search-input');
     const suggestionsDiv = document.getElementById('student-suggestions');
     const tagsContainer = document.getElementById('student-tags-container');
     setupStudentTagInput(studentInput, suggestionsDiv, tagsContainer);
 
-    // 5. Abre o modal.
     openModal(dom.occurrenceModal);
 };
 
@@ -334,7 +315,8 @@ export const actionDisplayTitles = {
 };
 
 /**
- * ATUALIZADO: (Item 6, 10) Renderiza a lista de Busca Ativa com botões de ação reorganizados.
+ * ATUALIZADO: (Bug Kebab) Renderiza a lista de Busca Ativa.
+ * - Removeu `overflow-hidden`.
  */
 export const renderAbsences = () => {
     dom.loadingAbsences.classList.add('hidden');
@@ -425,9 +407,10 @@ export const renderAbsences = () => {
 
             const isConcluded = actions.some(a => a.actionType === 'analise');
             const hasCtAction = actions.some(a => a.actionType === 'encaminhamento_ct');
-
+            
+            // ATUALIZADO: (Bug Kebab) A classe `overflow-hidden` foi removida do div principal.
             html += `
-                <div class="border rounded-lg overflow-hidden mb-4 bg-white shadow">
+                <div class="border rounded-lg mb-4 bg-white shadow">
                     <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center" data-process-id="${processId}">
                         <div>
                             <p class="font-semibold text-gray-800 cursor-pointer hover:underline new-action-from-history-btn" data-student-id="${student.matricula}">${student.name}</p>
@@ -481,7 +464,6 @@ export const renderAbsences = () => {
                         : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Devolutiva</p>';
                 }
 
-                // ATUALIZADO: (Item 6, 10) Botões de Ação de Busca Ativa
                 html += `
                     <div class="flex justify-between items-start border-b last:border-b-0 pb-3">
                         <div>
@@ -527,9 +509,8 @@ export const renderAbsences = () => {
 // =================================================================================
 
 /**
- * ATUALIZADO (Problema 1): Lógica do menu "kebab" removida daqui.
- * Agora esta função apenas decide qual aba renderizar. A lógica de eventos
- * foi centralizada no `main.js` para evitar conflitos.
+ * (Inalterado)
+ * Função central que decide qual conteúdo de aba deve ser renderizado.
  */
 export const render = () => {
     if (state.activeTab === 'occurrences') {
@@ -543,7 +524,6 @@ export const render = () => {
  * (Inalterado)
  * Abre um modal de seleção para o usuário escolher para qual aluno
  * de um incidente a notificação deve ser gerada.
- * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openStudentSelectionModal = (groupId) => {
     const incident = getFilteredOccurrences().get(groupId);
@@ -582,7 +562,7 @@ export const openStudentSelectionModal = (groupId) => {
 }
 
 /**
- * NOVO: (Item 5) Helper para gerar o cabeçalho com logo.
+ * (Inalterado) Helper para gerar o cabeçalho com logo.
  * @returns {string} HTML do cabeçalho do relatório.
  */
 const getReportHeaderHTML = () => {
@@ -598,8 +578,7 @@ const getReportHeaderHTML = () => {
 
 
 /**
- * ATUALIZADO: (Item 1, 5) Gera e exibe a notificação para um único aluno selecionado.
- * Esta é agora uma convocação formal, sem detalhes da ocorrência.
+ * (Inalterado) Gera e exibe a notificação formal para um único aluno selecionado.
  * @param {object} incident - O objeto completo do incidente.
  * @param {object} student - O objeto do aluno selecionado.
  */
@@ -672,7 +651,7 @@ export const openIndividualNotificationModal = (incident, student) => {
 };
 
 /**
- * NOVO: (Item 4) Gera a Ata Formal da Ocorrência para impressão e arquivo.
+ * (Inalterado) Gera a Ata Formal da Ocorrência para impressão e arquivo.
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openOccurrenceRecordModal = (groupId) => {
@@ -695,28 +674,35 @@ export const openOccurrenceRecordModal = (groupId) => {
             <div class="border rounded-lg p-4 bg-gray-50 space-y-3">
                 <div><h4 class="font-semibold">Data da Ocorrência:</h4><p>${formatDate(data.date)}</p></div>
                 <div><h4 class="font-semibold">Tipo:</h4><p>${formatText(data.occurrenceType)}</p></div>
-                <div><h4 class="font-semibold">Status:</h4><p>${formatText(data.status)}</p></div>
+                <div><h4 class="font-semibold">Status:</h4><p>${formatText(incident.overallStatus)}</p></div>
                 <div><h4 class="font-semibold">Aluno(s) Envolvido(s):</h4><p>${studentNames}</p></div>
                 <div><h4 class="font-semibold">Responsáveis:</h4><p>${formatText(responsibleNames)}</p></div>
             </div>
 
             <div class="border-t pt-4 space-y-4">
                 <div><h4 class="font-semibold mb-1">Descrição Detalhada dos Fatos:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
-                <div><h4 class="font-semibold mb-1">Providências Tomadas pela Escola:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.actionsTakenSchool)}</p></div>
                 
                 ${(data.contactSucceeded || data.meetingDate) ? `
                 <div class="border-t pt-4">
                     <h4 class="text-md font-semibold text-gray-700 mb-2">Registro de Contato e Convocação</h4>
                     ${data.meetingDate ? `<p><strong>Reunião Agendada:</strong> Data: ${formatDate(data.meetingDate)} | Horário: ${formatTime(data.meetingTime)}</p>` : ''}
-                    ${data.contactSucceeded === 'yes' ? 
-                        `<p><strong>Contato Realizado:</strong> Sim (Tipo: ${formatText(data.contactType)} em ${formatDate(data.contactDate)})</p>` : 
-                        (data.contactSucceeded === 'no' ? '<p><strong>Contato Realizado:</strong> Não</p>' : '')
-                    }
                 </div>
                 ` : ''}
 
-                <div><h4 class="font-semibold mb-1">Providências Solicitadas à Família:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.actionsTakenFamily)}</p></div>
-                ${data.parecer ? `<div><h4 class="font-semibold mb-1">Parecer/Desfecho:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.parecer)}</p></div>` : ''}
+                <div class="border-t pt-4">
+                    <h4 class="text-md font-semibold text-gray-700 mb-2">Acompanhamentos Individuais</h4>
+                    ${incident.records.map(rec => {
+                        const student = incident.studentsInvolved.get(rec.studentId);
+                        return `
+                        <div class="mt-2 p-3 border rounded-md bg-gray-50">
+                            <p class="font-semibold">${student?.name || 'Aluno desconhecido'}</p>
+                            <p class="text-xs"><strong>Status:</strong> ${rec.statusIndividual || 'Pendente'}</p>
+                            <p class="mt-1"><strong>Providências da Escola:</strong> ${formatText(rec.schoolActionsIndividual)}</p>
+                            <p class="mt-1"><strong>Parecer/Desfecho:</strong> ${formatText(rec.parecerIndividual)}</p>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
             </div>
             
             <div class="signature-block pt-16 mt-16 space-y-12">
@@ -754,16 +740,15 @@ export const openHistoryModal = (groupId) => {
 };
 
 /**
- * NOVO: (Item 6) Abre o modal de histórico de alterações de uma ação de Busca Ativa.
+ * (Inalterado)
+ * Abre o modal de histórico de alterações de uma ação de Busca Ativa.
  */
 export const openAbsenceHistoryModal = (processId) => {
     const processActions = state.absences.filter(a => a.processId === processId);
     if (processActions.length === 0) return showToast('Processo não encontrado.');
     
-    // Agrega o histórico de todas as ações do processo
     const allHistory = processActions.flatMap(a => a.history || []);
     
-    // Adiciona a criação da ação como um evento de histórico, caso o array 'history' não exista
     processActions.forEach(action => {
         if (!action.history || action.history.length === 0) {
             allHistory.push({
@@ -842,58 +827,32 @@ export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
 };
 
 /**
- * (Inalterado)
- * Renderiza a lista de alunos no modal de gerenciamento.
+ * ATUALIZADO: (Otimização) Remove os `addEventListener` de dentro do loop.
+ * A lógica de clique será gerenciada por delegação de eventos em `main.js`.
  */
 export const renderStudentsList = () => {
     const tableBody = document.getElementById('students-list-table');
-    tableBody.innerHTML = '';
+    tableBody.innerHTML = ''; // Limpa a tabela antes de redesenhar.
+    
     state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
         const row = document.createElement('tr');
-        row.innerHTML = `<td class="px-4 py-2 text-sm text-gray-900">${student.name}</td><td class="px-4 py-2 text-sm text-gray-500">${student.class}</td><td class="px-4 py-2 text-right text-sm space-x-2"><button class="edit-student-btn text-yellow-600 hover:text-yellow-900" data-id="${student.matricula}"><i class="fas fa-pencil-alt"></i></button><button class="delete-student-btn text-red-600 hover:text-red-900" data-id="${student.matricula}"><i class="fas fa-trash"></i></button></td>`;
+        // Apenas o HTML é criado. Os botões agora usam classes e data-attributes
+        // para que um único listener na tabela possa identificá-los.
+        row.innerHTML = `
+            <td class="px-4 py-2 text-sm text-gray-900">${student.name}</td>
+            <td class="px-4 py-2 text-sm text-gray-500">${student.class}</td>
+            <td class="px-4 py-2 text-right text-sm space-x-2">
+                <button class="edit-student-btn text-yellow-600 hover:text-yellow-900" data-id="${student.matricula}" title="Editar">
+                    <i class="fas fa-pencil-alt"></i>
+                </button>
+                <button class="delete-student-btn text-red-600 hover:text-red-900" data-id="${student.matricula}" title="Excluir">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>`;
         tableBody.appendChild(row);
     });
-    
-    document.querySelectorAll('.edit-student-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = e.currentTarget.dataset.id;
-            const student = state.students.find(s => s.matricula === id);
-            if (student) {
-                document.getElementById('student-form-title').textContent = 'Editar Aluno';
-                document.getElementById('student-id-input').value = student.matricula;
-                document.getElementById('student-matricula-input').value = student.matricula;
-                document.getElementById('student-matricula-input').readOnly = true;
-                document.getElementById('student-matricula-input').classList.add('bg-gray-100');
-                document.getElementById('student-name-input').value = student.name;
-                document.getElementById('student-class-input').value = student.class;
-                document.getElementById('student-endereco-input').value = student.endereco || '';
-                document.getElementById('student-contato-input').value = student.contato || '';
-                document.getElementById('student-resp1-input').value = student.resp1;
-                document.getElementById('student-resp2-input').value = student.resp2;
-                document.getElementById('cancel-edit-student-btn').classList.remove('hidden');
-            }
-        });
-    });
-
-    document.querySelectorAll('.delete-student-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const id = e.currentTarget.dataset.id;
-            const student = state.students.find(s => s.matricula === id);
-            if (student && confirm(`Tem a certeza que quer remover o aluno "${student.name}"?`)) {
-                const updatedList = state.students.filter(s => s.matricula !== id);
-                try {
-                    await setDoc(getStudentsDocRef(), { list: updatedList });
-                    state.students = updatedList;
-                    renderStudentsList();
-                    showToast("Aluno removido com sucesso.");
-                } catch(error) {
-                    console.error("Erro ao remover aluno:", error);
-                    showToast("Erro ao remover aluno.");
-                }
-            }
-        });
-    });
 };
+
 
 /**
  * (Inalterado)
@@ -924,9 +883,8 @@ export const showRegisterView = () => {
 
 
 /**
- * ATUALIZADO (Problema 2): A classe `no-print` foi removida do container dos gráficos.
- * Isso permite que os gráficos sejam renderizados ao imprimir a página.
- * A classe `no-print` ainda é usada em botões e outros elementos que não devem aparecer.
+ * (Inalterado)
+ * Gera o relatório geral de ocorrências com gráficos.
  */
 export const generateAndShowGeneralReport = () => {
     const filteredIncidents = getFilteredOccurrences();
@@ -938,24 +896,21 @@ export const generateAndShowGeneralReport = () => {
     const studentFilter = state.filterOccurrences;
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    const allRecords = [...filteredIncidents.values()].flatMap(i => i.records);
     const totalStudents = new Set([...filteredIncidents.values()].flatMap(i => [...i.studentsInvolved.keys()])).size;
     
-    // Dados para Gráficos (Item 7)
-    const occurrencesByType = allRecords.reduce((acc, occ) => {
-        const occType = occ.occurrenceType || 'Não especificado';
+    const occurrencesByType = [...filteredIncidents.values()].reduce((acc, incident) => {
+        const occType = incident.records[0].occurrenceType || 'Não especificado';
         acc[occType] = (acc[occType] || 0) + 1;
         return acc;
     }, {});
     const sortedTypes = Object.entries(occurrencesByType).sort((a, b) => b[1] - a[1]);
 
-    const occurrencesByStatus = allRecords.reduce((acc, occ) => {
-        const occStatus = occ.status || 'Pendente';
+    const occurrencesByStatus = [...filteredIncidents.values()].reduce((acc, incident) => {
+        const occStatus = incident.overallStatus || 'Pendente';
         acc[occStatus] = (acc[occStatus] || 0) + 1;
         return acc;
     }, {});
     
-    // Prepara dados para Chart.js
     const chartDataByType = {
         labels: sortedTypes.map(item => item[0]),
         data: sortedTypes.map(item => item[1])
@@ -1006,14 +961,15 @@ export const generateAndShowGeneralReport = () => {
                                 <p class="font-bold text-gray-800">${mainRecord.occurrenceType}</p>
                                 <p class="text-xs text-gray-600">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
                             </div>
-                            ${getStatusBadge(mainRecord.status)}
+                            ${getStatusBadge(incident.overallStatus)}
                         </div>
                         <div class="p-4 space-y-3">
                             <p><strong>Alunos Envolvidos:</strong> ${studentNames}</p>
                             <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
-                            <div><h5 class="text-xs font-semibold uppercase text-gray-500">Providências da Escola</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.actionsTakenSchool)}</p></div>
-                            <div><h5 class="text-xs font-semibold uppercase text-gray-500">Providências da Família</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.actionsTakenFamily)}</p></div>
-                            ${mainRecord.parecer ? `<div><h5 class="text-xs font-semibold uppercase text-gray-500">Parecer/Desfecho</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.parecer)}</p></div>` : ''}
+                            ${incident.records.map(rec => {
+                                const student = incident.studentsInvolved.get(rec.studentId);
+                                return `<div class="text-xs border-t mt-2 pt-2"><p class="font-bold">${student?.name || ''}</p><p><strong>Providências Escola:</strong> ${formatText(rec.schoolActionsIndividual)}</p><p><strong>Parecer:</strong> ${formatText(rec.parecerIndividual)}</p></div>`;
+                            }).join('')}
                         </div>
                     </div>`;
                 }).join('')}
@@ -1028,7 +984,6 @@ export const generateAndShowGeneralReport = () => {
     document.getElementById('report-view-content').innerHTML = reportHTML;
     openModal(dom.reportViewModalBackdrop);
 
-    // ATENÇÃO: É preciso carregar a biblioteca Chart.js no index.html para isto funcionar
     try {
         const typeCtx = document.getElementById('report-chart-by-type').getContext('2d');
         new Chart(typeCtx, {
@@ -1050,8 +1005,10 @@ export const generateAndShowGeneralReport = () => {
     }
 };
 
+
 /**
- * ATUALIZADO (Problema 2): A classe `no-print` foi removida do container dos gráficos.
+ * (Inalterado)
+ * Gera o relatório geral de Busca Ativa com gráficos.
  */
 export const generateAndShowBuscaAtivaReport = () => {
     // 1. Agrupa todas as ações por 'processId'
@@ -1080,15 +1037,12 @@ export const generateAndShowBuscaAtivaReport = () => {
         const lastAction = proc.actions[proc.actions.length - 1];
         const student = state.students.find(s => s.matricula === proc.studentId);
         
-        // Filtro de Aluno
         if (studentFilter && (!student || !student.name.toLowerCase().includes(studentFilter.toLowerCase()))) return false;
         
-        // Status do Processo
         const isConcluded = proc.actions.some(a => a.actionType === 'analise');
         if (processStatus === 'in_progress' && isConcluded) return false;
         if (processStatus === 'concluded' && !isConcluded) return false;
 
-        // Status de Retorno
         const lastReturnAction = [...proc.actions].reverse().find(a => a.contactReturned || a.visitReturned || a.ctReturned);
         const lastReturnStatus = lastReturnAction ? (lastReturnAction.contactReturned || lastReturnAction.visitReturned || lastReturnAction.ctReturned) : 'pending';
         
@@ -1096,7 +1050,6 @@ export const generateAndShowBuscaAtivaReport = () => {
         if (returnStatus === 'not_returned' && lastReturnStatus !== 'no') return false;
         if (returnStatus === 'pending' && lastReturnStatus !== 'pending') return false;
 
-        // Ações Pendentes (só conta se não estiver concluído)
         let isPendingContact = false, isPendingFeedback = false;
         if (!isConcluded) {
             isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null);
@@ -1108,7 +1061,6 @@ export const generateAndShowBuscaAtivaReport = () => {
         if (pendingAction === 'pending_contact' && !isPendingContact) return false;
         if (pendingAction === 'pending_feedback' && !isPendingFeedback) return false;
         
-        // Contadores para Gráficos (contabiliza apenas os filtrados)
         isConcluded ? statusConcluido++ : statusEmAndamento++;
         if (lastReturnStatus === 'yes') retornoSim++;
         else if (lastReturnStatus === 'no') retornoNao++;
@@ -1124,7 +1076,6 @@ export const generateAndShowBuscaAtivaReport = () => {
         return showToast('Nenhum processo encontrado para os filtros selecionados.');
     }
 
-    // Prepara dados para Chart.js
     const chartDataStatus = { labels: ['Em Andamento', 'Concluídos'], data: [statusEmAndamento, statusConcluido] };
     const chartDataRetorno = { labels: ['Retornou', 'Não Retornou', 'Pendente'], data: [retornoSim, retornoNao, retornoPendente] };
     const chartDataPendente = { labels: ['Aguard. Contato', 'Aguard. Devolutiva CT'], data: [pendenteContato, pendenteDevolutiva] };
@@ -1209,7 +1160,8 @@ export const generateAndShowBuscaAtivaReport = () => {
 
 
 /**
- * ATUALIZADO: (Item 5) Adiciona logo ao modal de ficha.
+ * (Inalterado)
+ * Abre a ficha de notificação de Busca Ativa.
  */
 export const openFichaViewModal = (id) => {
     const record = state.absences.find(abs => abs.id === id);
@@ -1279,7 +1231,8 @@ export const openFichaViewModal = (id) => {
 };
 
 /**
- * ATUALIZADO: (Item 5) Adiciona logo à ficha consolidada.
+ * (Inalterado)
+ * Gera a Ficha Consolidada de Busca Ativa.
  */
 export const generateAndShowConsolidatedFicha = (studentId, processId = null) => {
     let studentActions = state.absences.filter(action => action.studentId === studentId);
@@ -1389,7 +1342,8 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
 };
 
 /**
- * ATUALIZADO: (Item 5) Adiciona logo ao ofício.
+ * (Inalterado)
+ * Gera o Ofício para o Conselho Tutelar.
  */
 export const generateAndShowOficio = (action, oficioNumber = null) => {
     if (!action) return showToast('Ação de origem não encontrada.');
@@ -1537,7 +1491,7 @@ export const handleNewAbsenceAction = (student) => {
  * Ativa/Desativa campos de detalhe de contato (Família).
  */
 export const toggleFamilyContactFields = (enable, fieldsContainer) => {
-    const detailFields = fieldsContainer.querySelectorAll('input[type="date"], input[type="text"], textarea, select'); // Adicionado 'select'
+    const detailFields = fieldsContainer.querySelectorAll('input[type="date"], input[type="text"], textarea, select');
     detailFields.forEach(input => {
         input.disabled = !enable;
         input.required = enable;
@@ -1569,7 +1523,8 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
 };
 
 /**
- * ATUALIZADO: (Item 9) Popula o novo campo "Tipo de Contato" no modal de Busca Ativa.
+ * (Inalterado)
+ * Abre e popula o modal de registro/edição de uma ação de Busca Ativa.
  */
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
     dom.absenceForm.reset();
@@ -1650,7 +1605,6 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                     radio.checked = true;
                     radio.dispatchEvent(new Event('change'));
                 }
-                // ATUALIZADO: (Item 9)
                 document.getElementById('absence-contact-type').value = data.contactType || '';
                 document.getElementById('contact-date').value = data.contactDate || '';
                 document.getElementById('contact-person').value = data.contactPerson || '';
@@ -1688,7 +1642,8 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 };
 
 /**
- * NOVO: (Problema 3) Abre o modal de configurações e preenche com os dados atuais.
+ * (Inalterado)
+ * Abre o modal de configurações e preenche com os dados atuais.
  */
 export const openSettingsModal = () => {
     const settingsForm = document.getElementById('settings-form');
@@ -1696,11 +1651,9 @@ export const openSettingsModal = () => {
         settingsForm.reset();
     }
 
-    // Preenche os campos do formulário com os dados do estado global
     document.getElementById('school-name-input').value = state.config.schoolName || '';
     document.getElementById('school-city-input').value = state.config.city || '';
     document.getElementById('school-logo-input').value = state.config.schoolLogoUrl || '';
 
-    // Abre o modal
     openModal(dom.settingsModal);
 };
