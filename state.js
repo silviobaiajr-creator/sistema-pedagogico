@@ -1,24 +1,33 @@
 // ARQUIVO: state.js
 // Responsabilidade: Guardar o estado global e os elementos do DOM.
+// ATUALIZAÇÃO: Adicionados estados para os novos filtros de ocorrência (tipo e status)
+// e para gerenciar a seleção de múltiplos alunos no modal de ocorrência.
 
 export const state = {
     students: [],
     occurrences: [],
     absences: [],
-    filterOccurrences: '',
-    filtersOccurrences: { startDate: null, endDate: null },
+    filterOccurrences: '', // Filtro de busca por nome de aluno
+    filtersOccurrences: {
+        startDate: null,
+        endDate: null,
+        type: 'all', // NOVO: Filtro por tipo de ocorrência
+        status: 'all'  // NOVO: Filtro por status
+    },
     filterAbsences: '',
-    filtersAbsences: { 
-        processStatus: 'all', 
-        pendingAction: 'all', 
-        returnStatus: 'all' 
+    filtersAbsences: {
+        processStatus: 'all',
+        pendingAction: 'all',
+        returnStatus: 'all'
     },
     activeTab: 'occurrences',
     recordToDelete: null,
-    db: null, // Será preenchido pelo main.js
+    db: null,
     userId: null,
+    userEmail: null,
     unsubscribeOccurrences: null,
-    unsubscribeAbsences: null
+    unsubscribeAbsences: null,
+    selectedStudents: new Map() // NOVO: Gerencia os alunos selecionados no modal Map<studentId, studentName>
 };
 
 export const dom = {
