@@ -1,10 +1,22 @@
+// =================================================================================
 // ARQUIVO: firestore.js
-// RESPONSABILIDADE: Funções de comunicação com a base de dados (CRUD - Criar, Ler, Atualizar, Excluir).
-// ATUALIZAÇÃO: Funções modificadas para incluir auditoria (userEmail).
+// RESPONSABILIDADE: Funções de comunicação com a base de dados (CRUD).
+// ATUALIZAÇÃO GERAL (Conforme Análise):
+// 1. (Item 6) `addRecord` e `updateRecord` foram substituídos por
+//    `addRecordWithHistory` e `updateRecordWithHistory` para adicionar
+//    histórico de auditoria a todos os registros (Ocorrências e Busca Ativa).
+// 2. (Item 8) Nova função `getCounterDocRef` para suportar a geração
+//    de IDs sequenciais para ocorrências.
+// 3. (Item 5) Novas funções `getSchoolConfigDocRef` e `loadSchoolConfig`
+//    para carregar dinamicamente as configurações da escola (nome, logo).
+// 4. Funções foram refatoradas para maior clareza e reutilização.
+// =================================================================================
 
-import { doc, addDoc, setDoc, deleteDoc, collection, serverTimestamp, query, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db } from './firebase.js';
 import { state } from './state.js';
+
+// --- FUNÇÕES DE REFERÊNCIA (Caminhos para os dados) ---
 
 /**
  * Retorna a referência para o documento que armazena a lista de todos os alunos.
@@ -13,6 +25,15 @@ import { state } from './state.js';
 export const getStudentsDocRef = () => {
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     return doc(db, `/artifacts/${appId}/public/data/school-data`, 'students');
+};
+
+/**
+ * NOVO: (Item 5) Retorna a referência para o documento de configurações da escola.
+ * @returns {DocumentReference}
+ */
+export const getSchoolConfigDocRef = () => {
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    return doc(db, `/artifacts/${appId}/public/data/school-data`, 'config');
 };
 
 /**
@@ -26,103 +47,89 @@ export const getCollectionRef = (type) => {
     return collection(db, `/artifacts/${appId}/public/data/${collectionName}`);
 };
 
+/**
+ * NOVO: (Item 8) Retorna a referência para um documento de contador.
+ * Usado para gerar IDs sequenciais.
+ * @param {string} counterName - O nome do contador (ex: 'occurrences').
+ * @returns {DocumentReference}
+ */
+export const getCounterDocRef = (counterName) => {
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    return doc(db, `/artifacts/${appId}/public/data/counters`, counterName);
+};
 
-// --- FUNÇÕES CRUD (Criar, Ler, Atualizar, Excluir) ---
+
+// --- FUNÇÕES CRUD COM HISTÓRICO (Criar, Ler, Atualizar, Excluir) ---
 
 /**
- * Adiciona um novo registo à base de dados.
- * Para ocorrências, adiciona automaticamente os campos de status e histórico com auditoria.
+ * ATUALIZADO: (Item 6) Adiciona um novo registo à base de dados com uma entrada inicial de histórico.
  * @param {string} type - O tipo de coleção ('occurrence' ou 'absence').
  * @param {object} data - Os dados do registo a serem salvos.
+ * @param {string} historyAction - A descrição da ação para o histórico (ex: "Registro criado").
  * @param {string} userEmail - O email do utilizador que está a criar o registo.
  * @returns {Promise<DocumentReference>} A referência do documento criado.
  */
-export const addRecord = (type, data, userEmail = 'sistema') => {
-    let finalData = { 
-        ...data, 
-        createdAt: serverTimestamp(),
-        createdBy: userEmail // NOVO: Campo de auditoria
+export const addRecordWithHistory = (type, data, historyAction, userEmail = 'sistema') => {
+    const newHistoryEntry = {
+        action: historyAction,
+        user: userEmail,
+        timestamp: new Date()
     };
 
-    // Se o registo for uma ocorrência, inicializa com os novos campos
-    if (type === 'occurrence') {
-        finalData = {
-            ...finalData,
-            status: 'Pendente', // Status inicial padrão
-            history: [
-                {
-                    action: 'Ocorrência registada',
-                    user: userEmail, // NOVO: Auditoria no histórico
-                    timestamp: new Date() 
-                }
-            ]
-        };
-    }
+    const finalData = { 
+        ...data, 
+        createdAt: new Date(),
+        createdBy: userEmail,
+        history: [newHistoryEntry] // O histórico já começa com a criação
+    };
     
     return addDoc(getCollectionRef(type), finalData);
 };
 
 /**
- * Atualiza um registo de ocorrência, adicionando uma nova entrada ao histórico com auditoria.
- * Ideal para ações como mudar o status ou registar uma impressão.
- * @param {string} id - O ID da ocorrência a ser atualizada.
- * @param {object} dataToUpdate - Os campos a serem atualizados (ex: { status: 'Concluído' }).
+ * ATUALIZADO: (Item 6) Atualiza um registo, adicionando uma nova entrada ao histórico.
+ * @param {string} type - O tipo de coleção.
+ * @param {string} id - O ID do documento.
+ * @param {object} dataToUpdate - Os campos a serem atualizados.
  * @param {string} historyAction - A descrição da ação para o histórico (ex: "Status alterado para Concluído").
  * @param {string} userEmail - O email do utilizador que está a realizar a ação.
  * @returns {Promise<void>}
  */
-export const updateOccurrenceRecord = (id, dataToUpdate, historyAction, userEmail = 'sistema') => {
-    const occurrenceRef = doc(getCollectionRef('occurrence'), id);
+export const updateRecordWithHistory = (type, id, dataToUpdate, historyAction, userEmail = 'sistema') => {
+    const recordRef = doc(getCollectionRef(type), id);
     
-    // Cria a nova entrada de histórico
     const newHistoryEntry = {
         action: historyAction,
-        user: userEmail, // NOVO: Auditoria no histórico
+        user: userEmail,
         timestamp: new Date()
     };
     
-    // Prepara o objeto de atualização, usando arrayUnion para adicionar ao array de histórico
     const finalUpdateData = {
         ...dataToUpdate,
-        updatedAt: serverTimestamp(), // NOVO: Campo de auditoria
-        updatedBy: userEmail,       // NOVO: Campo de auditoria
-        history: arrayUnion(newHistoryEntry)
+        updatedAt: new Date(),
+        updatedBy: userEmail,
+        history: arrayUnion(newHistoryEntry) // Adiciona ao array sem sobrescrever
     };
 
-    // Executa a atualização no Firestore
-    return updateDoc(occurrenceRef, finalUpdateData);
-};
-
-
-/**
- * Atualiza um registo genérico na base de dados, mesclando os dados.
- * Usado principalmente para salvar as edições do formulário principal.
- * @param {string} type - O tipo de coleção.
- * @param {string} id - O ID do documento.
- * @param {object} data - Os dados a serem mesclados.
- * @param {string} userEmail - O email do utilizador que está a atualizar.
- * @returns {Promise<void>}
- */
-export const updateRecord = (type, id, data, userEmail = 'sistema') => {
-    const dataToMerge = {
-        ...data,
-        updatedAt: serverTimestamp(), // NOVO: Campo de auditoria
-        updatedBy: userEmail        // NOVO: Campo de auditoria
-    };
-    
-    // Usamos setDoc com 'merge: true' para garantir que não sobrescrevemos campos
-    // que não estão no formulário, como o array de histórico (se existir).
-    return setDoc(doc(getCollectionRef(type), id), dataToMerge, { merge: true });
+    // Usa setDoc com 'merge: true' para garantir que não sobrescrevemos outros campos
+    // que não estão sendo explicitamente atualizados.
+    return setDoc(recordRef, finalUpdateData, { merge: true });
 };
 
 
 /**
  * Exclui um registo da base de dados.
+ * ATENÇÃO: Esta é uma exclusão permanente (hard delete). A lógica de negócio
+ * no `main.js` pode optar por usar `updateRecordWithHistory` para um "soft delete"
+ * (marcando como excluído) em vez de chamar esta função diretamente.
  * @param {string} type - O tipo de coleção.
  * @param {string} id - O ID do documento a ser excluído.
  * @returns {Promise<void>}
  */
 export const deleteRecord = (type, id) => deleteDoc(doc(getCollectionRef(type), id));
+
+
+// --- FUNÇÕES DE CARREGAMENTO DE DADOS ---
 
 /**
  * Carrega a lista de alunos do Firestore e a armazena no estado global.
@@ -140,5 +147,29 @@ export const loadStudents = async () => {
     } catch (error) {
         console.error("Erro ao carregar lista de alunos:", error);
         throw new Error("Erro ao carregar a lista de alunos.");
+    }
+};
+
+/**
+ * NOVO: (Item 5) Carrega as configurações da escola (nome, logo, etc.) do Firestore.
+ * @returns {Promise<void>}
+ */
+export const loadSchoolConfig = async () => {
+    try {
+        const docSnap = await getDoc(getSchoolConfigDocRef());
+        if (docSnap.exists()) {
+            state.config = docSnap.data();
+        } else {
+            console.log("Nenhum documento de configuração encontrado. Usando valores padrão.");
+            // Define valores padrão se nada for encontrado
+            state.config = {
+                schoolName: "EMEF. DILMA DOS SANTOS CARVALHO",
+                city: "Cidade (Exemplo)",
+                schoolLogoUrl: null
+            };
+        }
+    } catch (error) {
+        console.error("Erro ao carregar configurações da escola:", error);
+        throw new Error("Erro ao carregar as configurações da escola.");
     }
 };
