@@ -527,36 +527,11 @@ export const renderAbsences = () => {
 // =================================================================================
 
 /**
- * (Inalterado)
- * Função principal que decide qual aba renderizar.
+ * ATUALIZADO (Problema 1): Lógica do menu "kebab" removida daqui.
+ * Agora esta função apenas decide qual aba renderizar. A lógica de eventos
+ * foi centralizada no `main.js` para evitar conflitos.
  */
 export const render = () => {
-    // Adiciona/Remove listeners do menu kebab dinamicamente
-    // Remove listeners antigos para evitar duplicidade
-    document.querySelectorAll('.kebab-menu-btn').forEach(btn => {
-        btn.replaceWith(btn.cloneNode(true)); // Clona para remover listeners
-    });
-    
-    // Adiciona novos listeners
-    document.querySelectorAll('.kebab-menu-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Fecha todos os outros menus
-            document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
-            // Abre o menu clicado
-            const dropdown = btn.nextElementSibling;
-            if (dropdown) dropdown.classList.toggle('hidden');
-        });
-    });
-
-    // Fecha menus kebab se clicar fora
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.kebab-menu-container')) {
-            document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
-        }
-    });
-
-
     if (state.activeTab === 'occurrences') {
         renderOccurrences();
     } else {
@@ -949,7 +924,9 @@ export const showRegisterView = () => {
 
 
 /**
- * ATUALIZADO: (Item 5, 7) Gera o Relatório Geral de Ocorrências com gráficos e layout de dashboard.
+ * ATUALIZADO (Problema 2): A classe `no-print` foi removida do container dos gráficos.
+ * Isso permite que os gráficos sejam renderizados ao imprimir a página.
+ * A classe `no-print` ainda é usada em botões e outros elementos que não devem aparecer.
  */
 export const generateAndShowGeneralReport = () => {
     const filteredIncidents = getFilteredOccurrences();
@@ -1005,7 +982,7 @@ export const generateAndShowGeneralReport = () => {
                 ${(startDate || endDate || status !== 'all' || type !== 'all' || studentFilter) ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong></p><ul class="list-disc list-inside ml-2">${startDate ? `<li>De: <strong>${formatDate(startDate)}</strong></li>` : ''}${endDate ? `<li>Até: <strong>${formatDate(endDate)}</strong></li>` : ''}${status !== 'all' ? `<li>Status: <strong>${status}</strong></li>` : ''}${type !== 'all' ? `<li>Tipo: <strong>${type}</strong></li>` : ''}${studentFilter ? `<li>Aluno: <strong>"${formatText(studentFilter)}"</strong></li>` : ''}</ul></div>` : ''}
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 no-print">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="border rounded-lg p-4 shadow-sm bg-white">
                     <h5 class="font-semibold text-center mb-2">Ocorrências por Tipo</h5>
                     <canvas id="report-chart-by-type" data-labels='${JSON.stringify(chartDataByType.labels)}' data-data='${JSON.stringify(chartDataByType.data)}'></canvas>
@@ -1074,7 +1051,7 @@ export const generateAndShowGeneralReport = () => {
 };
 
 /**
- * NOVO: (Item 11) Gera o Relatório Geral de Busca Ativa com gráficos.
+ * ATUALIZADO (Problema 2): A classe `no-print` foi removida do container dos gráficos.
  */
 export const generateAndShowBuscaAtivaReport = () => {
     // 1. Agrupa todas as ações por 'processId'
@@ -1108,7 +1085,7 @@ export const generateAndShowBuscaAtivaReport = () => {
         
         // Status do Processo
         const isConcluded = proc.actions.some(a => a.actionType === 'analise');
-        if (processStatus === 'in_progress' && isConcluido) return false;
+        if (processStatus === 'in_progress' && isConcluded) return false;
         if (processStatus === 'concluded' && !isConcluded) return false;
 
         // Status de Retorno
@@ -1167,7 +1144,7 @@ export const generateAndShowBuscaAtivaReport = () => {
                 </div>
                 </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 no-print">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Status dos Processos</h5><canvas id="ba-chart-status"></canvas></div>
                 <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Status de Retorno</h5><canvas id="ba-chart-retorno"></canvas></div>
                 <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Ações Pendentes (Em Andamento)</h5><canvas id="ba-chart-pendente"></canvas></div>
@@ -1194,7 +1171,7 @@ export const generateAndShowBuscaAtivaReport = () => {
                             <ul class="list-disc list-inside text-xs space-y-1">
                                 ${proc.actions.map(a => `<li><strong>${actionDisplayTitles[a.actionType]}</strong> (em ${formatDate(a.createdAt?.toDate())})</li>`).join('')}
                             </ul>
-                            ${isConcluido ? `<div class="mt-3 border-t pt-2"><h5 class="text-xs font-semibold uppercase text-gray-500">Parecer Final</h5><p class="text-xs whitespace-pre-wrap">${formatText(lastAction.ctParecer)}</p></div>` : ''}
+                            ${isConcluded ? `<div class="mt-3 border-t pt-2"><h5 class="text-xs font-semibold uppercase text-gray-500">Parecer Final</h5><p class="text-xs whitespace-pre-wrap">${formatText(lastAction.ctParecer)}</p></div>` : ''}
                         </div>
                     </div>`;
                 }).join('')}
@@ -1708,4 +1685,22 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     }
     
     openModal(dom.absenceModal);
+};
+
+/**
+ * NOVO: (Problema 3) Abre o modal de configurações e preenche com os dados atuais.
+ */
+export const openSettingsModal = () => {
+    const settingsForm = document.getElementById('settings-form');
+    if (settingsForm) {
+        settingsForm.reset();
+    }
+
+    // Preenche os campos do formulário com os dados do estado global
+    document.getElementById('school-name-input').value = state.config.schoolName || '';
+    document.getElementById('school-city-input').value = state.config.city || '';
+    document.getElementById('school-logo-input').value = state.config.schoolLogoUrl || '';
+
+    // Abre o modal
+    openModal(dom.settingsModal);
 };
