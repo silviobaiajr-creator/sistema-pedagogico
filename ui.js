@@ -2,9 +2,11 @@
 // ARQUIVO: ui.js
 // RESPONSABILIDADE: Todas as funções que manipulam a UI (desenhar,
 // abrir modais, gerar HTML).
-// ATUALIZAÇÃO GERAL: O módulo de ocorrências foi completamente reescrito para
-// suportar ocorrências coletivas, agrupamento por incidentes, novos filtros e
-// um fluxo de trabalho mais inteligente com o campo "Parecer".
+// ATUALIZAÇÃO GERAL (Conforme Análise):
+// 1. Corrigida a lógica de abertura do modal de ocorrências (`openOccurrenceModal`)
+//    para popular corretamente os alunos durante a edição e consertar o salvamento.
+// 2. Adicionada a funcionalidade de notificação individual, com um modal de
+//    seleção de aluno (`openStudentSelectionModal`).
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -20,16 +22,15 @@ import { setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-fires
 // =================================================================================
 
 /**
- * NOVO: Gerencia o estado e a UI do componente de seleção de múltiplos alunos ("Tag Input").
+ * ATUALIZADO: Gerencia a UI do componente de seleção de múltiplos alunos ("Tag Input").
+ * Esta função agora apenas RENDERIZA o estado atual de `state.selectedStudents`,
+ * que é definido pela função que a chama (`openOccurrenceModal`).
  * @param {HTMLInputElement} inputElement - O campo de texto para pesquisar alunos.
  * @param {HTMLDivElement} suggestionsElement - O container para exibir as sugestões.
  * @param {HTMLDivElement} tagsContainerElement - O container onde as "tags" dos alunos selecionados serão exibidas.
  */
 export const setupStudentTagInput = (inputElement, suggestionsElement, tagsContainerElement) => {
-    // Limpa o estado anterior para garantir que não haja alunos pré-selecionados.
-    state.selectedStudents = new Map();
-    
-    // Função para redesenhar as tags dos alunos selecionados.
+    // Função interna para redesenhar as tags com base no estado atual.
     const renderTags = () => {
         tagsContainerElement.innerHTML = ''; // Limpa o container
         if (state.selectedStudents.size === 0) {
@@ -92,7 +93,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
         }
     });
 
-    renderTags(); // Renderiza o estado inicial (vazio).
+    renderTags(); // Renderiza o estado inicial (que foi preparado por `openOccurrenceModal`).
 };
 
 
@@ -105,7 +106,7 @@ const getStatusBadge = (status) => {
     const statusMap = {
         'Pendente': 'bg-yellow-100 text-yellow-800',
         'Finalizada': 'bg-green-100 text-green-800',
-        'Cancelado': 'bg-gray-100 text-gray-800' // Mantido para futuras implementações
+        'Cancelado': 'bg-gray-100 text-gray-800'
     };
     const colorClasses = statusMap[status] || 'bg-gray-100 text-gray-800';
     return `<span class="text-xs font-medium px-2.5 py-0.5 rounded-full ${colorClasses}">${status || 'N/A'}</span>`;
@@ -123,8 +124,8 @@ export const getFilteredOccurrences = () => {
         if (!acc.has(groupId)) {
             acc.set(groupId, {
                 id: groupId,
-                records: [], // Registros individuais de cada aluno
-                studentsInvolved: new Map() // Mapa de alunos para evitar duplicatas
+                records: [], 
+                studentsInvolved: new Map() 
             });
         }
         const incident = acc.get(groupId);
@@ -140,7 +141,7 @@ export const getFilteredOccurrences = () => {
     // 2. Filtra os incidentes agrupados com base nos filtros da UI.
     const filteredIncidents = new Map();
     for (const [groupId, incident] of groupedByIncident.entries()) {
-        const mainRecord = incident.records[0]; // Pega o primeiro registro como referência
+        const mainRecord = incident.records[0]; 
         const { startDate, endDate, status, type } = state.filtersOccurrences;
         const studentSearch = state.filterOccurrences.toLowerCase();
 
@@ -204,7 +205,7 @@ export const renderOccurrences = () => {
                     </div>
                     <div class="flex-shrink-0 flex items-center space-x-2 self-start sm:self-center">
                         <button class="history-btn text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100" data-group-id="${incident.id}" title="Ver Histórico"><i class="fas fa-history"></i></button>
-                        <button class="view-btn text-indigo-600 hover:text-indigo-900 p-2 rounded-full hover:bg-indigo-100" data-group-id="${incident.id}" title="Ver Notificação"><i class="fas fa-eye"></i></button>
+                        <button class="view-btn text-indigo-600 hover:text-indigo-900 p-2 rounded-full hover:bg-indigo-100" data-group-id="${incident.id}" title="Gerar Notificação Individual"><i class="fas fa-eye"></i></button>
                         <button class="edit-btn text-yellow-600 hover:text-yellow-900 p-2 rounded-full hover:bg-yellow-100" data-group-id="${incident.id}" title="Editar"><i class="fas fa-pencil-alt"></i></button>
                         <button class="delete-btn text-red-600 hover:text-red-900 p-2 rounded-full hover:bg-red-100" data-group-id="${incident.id}" title="Excluir"><i class="fas fa-trash"></i></button>
                     </div>
@@ -218,32 +219,26 @@ export const renderOccurrences = () => {
 
 
 /**
- * NOVO: Abre o modal de ocorrência para criar um novo incidente ou editar um existente.
+ * CORRIGIDO E REESCRITO: Abre o modal de ocorrência gerenciando o estado corretamente.
  * @param {object | null} incidentToEdit - O objeto do incidente a ser editado, ou null para criar um novo.
  */
 export const openOccurrenceModal = (incidentToEdit = null) => {
+    // 1. Limpa o formulário e o estado de alunos selecionados.
     dom.occurrenceForm.reset();
-    
-    // Configura o componente de seleção de alunos.
-    const studentInput = document.getElementById('student-search-input');
-    const suggestionsDiv = document.getElementById('student-suggestions');
-    const tagsContainer = document.getElementById('student-tags-container');
-    setupStudentTagInput(studentInput, suggestionsDiv, tagsContainer);
+    state.selectedStudents.clear();
 
     if (incidentToEdit) {
-        // MODO DE EDIÇÃO
+        // 2. MODO DE EDIÇÃO: Prepara o estado e os campos do formulário.
         const mainRecord = incidentToEdit.records[0];
         document.getElementById('modal-title').innerText = 'Editar Registro de Ocorrência';
         document.getElementById('occurrence-group-id').value = incidentToEdit.id;
 
-        // Popula o "Tag Input" com os alunos do incidente.
+        // Popula o estado com os alunos envolvidos no incidente.
         incidentToEdit.studentsInvolved.forEach((student, studentId) => {
             state.selectedStudents.set(studentId, student);
         });
-        // A chamada `setupStudentTagInput` já renderiza as tags ao ser inicializada.
-        setupStudentTagInput(studentInput, suggestionsDiv, tagsContainer);
 
-
+        // Preenche o resto do formulário.
         document.getElementById('occurrence-type').value = mainRecord.occurrenceType || '';
         document.getElementById('occurrence-date').value = mainRecord.date || '';
         document.getElementById('description').value = mainRecord.description || '';
@@ -254,11 +249,19 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
         document.getElementById('occurrence-parecer').value = mainRecord.parecer || '';
         
     } else {
-        // MODO DE CRIAÇÃO
+        // 3. MODO DE CRIAÇÃO: Define os valores padrão.
         document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
         document.getElementById('occurrence-group-id').value = '';
         document.getElementById('occurrence-date').valueAsDate = new Date();
     }
+
+    // 4. INICIALIZA O COMPONENTE DE UI: Agora que o estado está correto, a UI é renderizada.
+    const studentInput = document.getElementById('student-search-input');
+    const suggestionsDiv = document.getElementById('student-suggestions');
+    const tagsContainer = document.getElementById('student-tags-container');
+    setupStudentTagInput(studentInput, suggestionsDiv, tagsContainer);
+
+    // 5. Abre o modal.
     openModal(dom.occurrenceModal);
 };
 
@@ -459,26 +462,65 @@ export const render = () => {
     }
 };
 
-
 /**
- * ATUALIZADO: Abre o modal de notificação de um incidente, listando todos os alunos envolvidos.
+ * NOVO: Abre um modal de seleção para o usuário escolher para qual aluno
+ * de um incidente a notificação deve ser gerada.
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
-export const openNotificationModal = (groupId) => {
+export const openStudentSelectionModal = (groupId) => {
     const incident = getFilteredOccurrences().get(groupId);
     if (!incident) return showToast('Incidente não encontrado.');
 
-    const data = incident.records[0];
     const students = [...incident.studentsInvolved.values()];
-    const studentNames = students.map(s => `<strong>${s.name}</strong> (Turma: ${s.class})`).join('<br>');
-    const responsibleNames = [...new Set(students.flatMap(s => [s.resp1, s.resp2]).filter(Boolean))].join(' e ');
+    
+    // Se houver apenas um aluno, gera a notificação diretamente sem perguntar.
+    if (students.length === 1) {
+        openIndividualNotificationModal(incident, students[0]);
+        return;
+    }
+    
+    // Estes elementos precisam ser criados no arquivo index.html
+    const modal = document.getElementById('student-selection-modal'); 
+    const modalBody = document.getElementById('student-selection-modal-body');
+    
+    if (!modal || !modalBody) {
+        return showToast('Erro: O modal de seleção de aluno não foi encontrado na página.');
+    }
 
-    document.getElementById('notification-title').innerText = 'Notificação de Ocorrência Escolar';
+    modalBody.innerHTML = ''; // Limpa o conteúdo anterior
+
+    // Cria um botão para cada aluno envolvido.
+    students.forEach(student => {
+        const btn = document.createElement('button');
+        btn.className = 'w-full text-left bg-gray-50 hover:bg-indigo-100 p-3 rounded-lg transition';
+        btn.innerHTML = `<span class="font-semibold text-indigo-800">${student.name}</span><br><span class="text-sm text-gray-600">Turma: ${student.class}</span>`;
+        btn.onclick = () => {
+            openIndividualNotificationModal(incident, student);
+            closeModal(modal);
+        };
+        modalBody.appendChild(btn);
+    });
+
+    openModal(modal);
+}
+
+/**
+ * NOVO: Gera e exibe a notificação para um único aluno selecionado.
+ * @param {object} incident - O objeto completo do incidente.
+ * @param {object} student - O objeto do aluno selecionado.
+ */
+export const openIndividualNotificationModal = (incident, student) => {
+    // Encontra o registro de ocorrência específico daquele aluno.
+    // Se não encontrar (caso raro), usa o primeiro registro como base.
+    const data = incident.records.find(r => r.studentId === student.matricula) || incident.records[0];
+    const responsibleNames = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+
+    document.getElementById('notification-title').innerText = 'Notificação Individual de Ocorrência';
     document.getElementById('notification-content').innerHTML = `
         <div class="space-y-6 text-sm">
             <div class="text-center border-b pb-4"><h2 class="text-xl font-bold uppercase">${config.schoolName}</h2><h3 class="text-lg font-semibold mt-2">NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR</h3></div>
-            <div class="pt-4"><p class="mb-2"><strong>Aos Responsáveis (${responsibleNames}):</strong></p><p>Pelo(s) seguinte(s) aluno(s):</p><div class="mt-2 p-2 bg-gray-50 rounded">${studentNames}</div></div>
-            <p class="text-justify">Prezados(as), vimos por meio desta notificá-los sobre uma ocorrência disciplinar envolvendo o(s) aluno(s) supracitado(s), registrada em <strong>${formatDate(data.date)}</strong>.</p>
+            <div class="pt-4"><p class="mb-2"><strong>Aos Responsáveis (${responsibleNames}):</strong></p><p>Pelo(a) seguinte aluno(a):</p><div class="mt-2 p-2 bg-gray-50 rounded"><strong>${student.name}</strong> (Turma: ${student.class})</div></div>
+            <p class="text-justify">Prezados(as), vimos por meio desta notificá-los sobre uma ocorrência disciplinar envolvendo o(a) aluno(a) supracitado(a), registrada em <strong>${formatDate(data.date)}</strong>.</p>
             <div class="border-t pt-4 space-y-4">
                 <div><h4 class="font-semibold mb-1">Tipo:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md">${formatText(data.occurrenceType)}</p></div>
                 <div><h4 class="font-semibold mb-1">Descrição:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
@@ -516,7 +558,6 @@ export const openHistoryModal = (groupId) => {
 
 /**
  * MANTIDO: Configura o autocomplete para as barras de busca principais.
- * A lógica para o "Tag Input" agora é separada (setupStudentTagInput).
  */
 export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
     const input = document.getElementById(inputId);
@@ -525,7 +566,6 @@ export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
     input.addEventListener('input', () => {
         const value = input.value.toLowerCase();
         
-        // Esta função agora só existe para a busca ativa, pois a de ocorrências foi removida
         if (inputId === 'search-absences') {
             state.filterAbsences = value;
             render();
@@ -1146,4 +1186,3 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     
     openModal(dom.absenceModal);
 };
-
