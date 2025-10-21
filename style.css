@@ -1,6 +1,8 @@
 /* ============================================================================== */
 /* ARQUIVO: style.css                                                             */
 /* TODO O SEU CÓDIGO DE DESIGN ESTÁ AQUI                                          */
+/* ATUALIZAÇÃO: Adicionados estilos para o novo componente de seleção de         */
+/* múltiplos alunos (tags).                                                       */
 /* ============================================================================== */
 
 /* --- ESTILOS GERAIS E FONTES --- */
@@ -60,6 +62,33 @@ tbody tr:nth-child(even) {
 /* ============================================================================== */
 /* SEÇÃO 1: NOVOS ESTILOS PARA O FLUXO DE OCORRÊNCIAS                             */
 /* ============================================================================== */
+
+/* --- TAGS DE SELEÇÃO DE ALUNOS --- */
+.student-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    background-color: #e0e7ff; /* indigo-200 */
+    color: #3730a3; /* indigo-800 */
+    border-radius: 9999px; /* rounded-full */
+    font-size: 0.875rem; /* text-sm */
+    font-weight: 500; /* font-medium */
+}
+
+.student-tag-remove {
+    margin-left: 0.5rem; /* ml-2 */
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #4338ca; /* indigo-700 */
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.student-tag-remove:hover {
+    color: #312e81; /* indigo-900 */
+}
+
 
 /* --- CONTEÚDO EXPANSÍVEL (ACORDEÃO) --- */
 .process-content {
