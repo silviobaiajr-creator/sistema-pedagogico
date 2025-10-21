@@ -276,6 +276,22 @@
         </div>
     </div>
     
+    <!-- NOVO: Modal de Seleção de Aluno para Notificação -->
+    <div id="student-selection-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0">
+            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
+                <h3 class="text-xl font-semibold">Gerar Notificação</h3>
+                <button id="close-student-selection-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+            </div>
+            <div class="p-6">
+                <p class="text-sm text-gray-600 mb-4">Este incidente envolve múltiplos alunos. Selecione para qual aluno deseja gerar a notificação individual:</p>
+                <div id="student-selection-modal-body" class="space-y-2">
+                    <!-- Os botões dos alunos serão inseridos aqui pelo ui.js -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modais de Visualização e Impressão (Estrutura Genérica - Inalterada) -->
     <div id="notification-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="notification-title" class="text-xl font-semibold">Notificação</h3><button id="close-notification-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="notification-content" class="p-8 overflow-y-auto bg-white"></div><div class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 no-print"><button id="share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
     <div id="report-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3><button id="close-report-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="report-view-content" class="p-8 overflow-y-auto bg-white"></div><div class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 no-print"><button id="report-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="report-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
