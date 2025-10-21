@@ -1,14 +1,13 @@
 // =================================================================================
 // ARQUIVO: main.js
-// RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra todos os outros
-// módulos, configura os listeners de eventos e a autenticação do usuário.
-// ATUALIZAÇÃO GERAL (Conforme Análise):
-// 1. O listener de evento para o botão 'view-btn' (olho) foi modificado
-//    para chamar a nova função `openStudentSelectionModal`, permitindo a
-//    geração de notificações individuais.
+// RESPONSABILIDADE: Ponto de entrada da aplicação.
+// ATUALIZAÇÃO (Conforme Análise de Erro):
+// 1. Corrigida a chamada da função `collection()` dentro de `handleOccurrenceSubmit`
+//    para passar a instância do `db` corretamente, resolvendo o erro ao salvar
+//    uma nova ocorrência.
 // =================================================================================
 
-// --- MÓDulos IMPORTADOS ---
+// --- MÓDULOS IMPORTADOS ---
 
 // Serviços do Firebase para autenticação e banco de dados
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -25,7 +24,7 @@ import {
     openOccurrenceModal,
     handleNewAbsenceAction,
     setupAutocomplete,
-    openStudentSelectionModal, // ATUALIZADO: Importa a nova função do modal de seleção
+    openStudentSelectionModal,
     openHistoryModal,
     openFichaViewModal,
     generateAndShowConsolidatedFicha,
@@ -291,7 +290,10 @@ async function handleOccurrenceSubmit(e) {
             };
 
             for (const studentId of state.selectedStudents.keys()) {
-                const newRecordRef = doc(collection(getCollectionRef('occurrence')));
+                // CORRIGIDO: A função `doc(collection(...))` estava incorreta.
+                // A forma correta é criar a referência da coleção primeiro.
+                const occurrencesCollection = getCollectionRef('occurrence');
+                const newRecordRef = doc(collection(db, occurrencesCollection.path)); 
                 const recordData = { ...data, studentId, occurrenceGroupId: newGroupId, history: [newHistoryEntry] };
                 batch.set(newRecordRef, recordData);
             }
@@ -525,6 +527,7 @@ function setupModalCloseButtons() {
         'close-absence-modal-btn': dom.absenceModal, 'cancel-absence-btn': dom.absenceModal,
         'close-report-generator-btn': dom.reportGeneratorModal, 'cancel-report-generator-btn': dom.reportGeneratorModal,
         'close-notification-btn': dom.notificationModalBackdrop,
+        'close-student-selection-modal-btn': document.getElementById('student-selection-modal'), // Adicionado
         'close-report-view-btn': dom.reportViewModalBackdrop,
         'close-ficha-view-btn': dom.fichaViewModalBackdrop,
         'close-history-view-btn': document.getElementById('history-view-modal-backdrop'),
@@ -555,7 +558,6 @@ function setupListClickListeners() {
             const groupId = button.dataset.groupId;
             if (button.classList.contains('edit-btn')) handleEditOccurrence(groupId);
             else if (button.classList.contains('delete-btn')) handleDelete('occurrence', groupId);
-            // ATUALIZADO: Chama o novo modal de seleção em vez da notificação direta.
             else if (button.classList.contains('view-btn')) openStudentSelectionModal(groupId);
             else if (button.classList.contains('history-btn')) openHistoryModal(groupId);
         }
@@ -682,3 +684,4 @@ function toggleAccordion(header) {
         icon?.classList.toggle('rotate-180', isHidden);
     }
 }
+
