@@ -1,17 +1,270 @@
+// =================================================================================
 // ARQUIVO: ui.js
-// Responsabilidade: Todas as funções que manipulam a UI (desenhar,
+// RESPONSABILIDADE: Todas as funções que manipulam a UI (desenhar,
 // abrir modais, gerar HTML).
-// ATUALIZAÇÃO: Adicionada a exibição de status, um botão de histórico
-// e a lógica para o modal de histórico de ocorrências.
-// ATUALIZAÇÃO 2: Removida a definição manual de status da ocorrência.
+// ATUALIZAÇÃO GERAL: O módulo de ocorrências foi completamente reescrito para
+// suportar ocorrências coletivas, agrupamento por incidentes, novos filtros e
+// um fluxo de trabalho mais inteligente com o campo "Parecer".
+// =================================================================================
 
 import { state, dom } from './state.js';
 import { config } from './firebase.js';
 import { getStudentProcessInfo, determineNextActionForStudent } from './logic.js';
 import { formatDate, formatTime, formatText, formatPeriodo, showToast, openModal, closeModal } from './utils.js';
-import { getStudentsDocRef, addRecord } from './firestore.js';
+import { getStudentsDocRef } from './firestore.js';
 import { setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+
+// =================================================================================
+// SEÇÃO 1: LÓGICA DA NOVA INTERFACE DE OCORRÊNCIAS
+// =================================================================================
+
+/**
+ * NOVO: Gerencia o estado e a UI do componente de seleção de múltiplos alunos ("Tag Input").
+ * @param {HTMLInputElement} inputElement - O campo de texto para pesquisar alunos.
+ * @param {HTMLDivElement} suggestionsElement - O container para exibir as sugestões.
+ * @param {HTMLDivElement} tagsContainerElement - O container onde as "tags" dos alunos selecionados serão exibidas.
+ */
+export const setupStudentTagInput = (inputElement, suggestionsElement, tagsContainerElement) => {
+    // Limpa o estado anterior para garantir que não haja alunos pré-selecionados.
+    state.selectedStudents = new Map();
+    
+    // Função para redesenhar as tags dos alunos selecionados.
+    const renderTags = () => {
+        tagsContainerElement.innerHTML = ''; // Limpa o container
+        if (state.selectedStudents.size === 0) {
+            tagsContainerElement.innerHTML = `<p class="text-sm text-gray-400">Pesquise e selecione um ou mais alunos...</p>`;
+            return;
+        }
+        
+        state.selectedStudents.forEach((student, studentId) => {
+            const tag = document.createElement('span');
+            tag.className = 'bg-indigo-100 text-indigo-800 text-sm font-medium me-2 px-2.5 py-0.5 rounded-full flex items-center';
+            tag.innerHTML = `${student.name} <button type="button" class="ms-2 text-indigo-600 hover:text-indigo-800">&times;</button>`;
+            
+            // Adiciona evento para remover o aluno ao clicar no "X".
+            tag.querySelector('button').addEventListener('click', () => {
+                state.selectedStudents.delete(studentId);
+                renderTags(); // Re-renderiza as tags
+            });
+            tagsContainerElement.appendChild(tag);
+        });
+    };
+
+    // Evento de digitação no campo de busca.
+    inputElement.addEventListener('input', () => {
+        const value = inputElement.value.toLowerCase();
+        suggestionsElement.innerHTML = '';
+        if (!value) {
+            suggestionsElement.classList.add('hidden');
+            return;
+        }
+        
+        // Filtra alunos que ainda não foram selecionados.
+        const filteredStudents = state.students
+            .filter(s => !state.selectedStudents.has(s.matricula) && s.name.toLowerCase().includes(value))
+            .slice(0, 5);
+        
+        if (filteredStudents.length > 0) {
+            suggestionsElement.classList.remove('hidden');
+            filteredStudents.forEach(student => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                item.textContent = student.name;
+                item.addEventListener('click', () => {
+                    // Adiciona o aluno ao Map de selecionados.
+                    state.selectedStudents.set(student.matricula, student);
+                    inputElement.value = ''; // Limpa o campo de busca
+                    suggestionsElement.classList.add('hidden');
+                    renderTags(); // Atualiza a exibição das tags
+                });
+                suggestionsElement.appendChild(item);
+            });
+        } else {
+            suggestionsElement.classList.add('hidden');
+        }
+    });
+    
+    // Esconde sugestões se o usuário clicar fora.
+    document.addEventListener('click', (e) => {
+        if (!suggestionsElement.contains(e.target) && e.target !== inputElement) {
+            suggestionsElement.classList.add('hidden');
+        }
+    });
+
+    renderTags(); // Renderiza o estado inicial (vazio).
+};
+
+
+/**
+ * ATUALIZADO: Gera o "selo" de status com novas cores e o status "Finalizada".
+ * @param {string} status - O status da ocorrência.
+ * @returns {string} HTML do selo de status.
+ */
+const getStatusBadge = (status) => {
+    const statusMap = {
+        'Pendente': 'bg-yellow-100 text-yellow-800',
+        'Finalizada': 'bg-green-100 text-green-800',
+        'Cancelado': 'bg-gray-100 text-gray-800' // Mantido para futuras implementações
+    };
+    const colorClasses = statusMap[status] || 'bg-gray-100 text-gray-800';
+    return `<span class="text-xs font-medium px-2.5 py-0.5 rounded-full ${colorClasses}">${status || 'N/A'}</span>`;
+};
+
+
+/**
+ * REESCRITO: Filtra as ocorrências com base nos novos filtros de status, tipo e aluno.
+ * @returns {Map<string, object>} Um Map onde a chave é o `occurrenceGroupId` e o valor é um objeto do incidente.
+ */
+export const getFilteredOccurrences = () => {
+    // 1. Agrupa todas as ocorrências por `occurrenceGroupId`.
+    const groupedByIncident = state.occurrences.reduce((acc, occ) => {
+        const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
+        if (!acc.has(groupId)) {
+            acc.set(groupId, {
+                id: groupId,
+                records: [], // Registros individuais de cada aluno
+                studentsInvolved: new Map() // Mapa de alunos para evitar duplicatas
+            });
+        }
+        const incident = acc.get(groupId);
+        incident.records.push(occ);
+        
+        const student = state.students.find(s => s.matricula === occ.studentId);
+        if (student) {
+            incident.studentsInvolved.set(student.matricula, student);
+        }
+        return acc;
+    }, new Map());
+
+    // 2. Filtra os incidentes agrupados com base nos filtros da UI.
+    const filteredIncidents = new Map();
+    for (const [groupId, incident] of groupedByIncident.entries()) {
+        const mainRecord = incident.records[0]; // Pega o primeiro registro como referência
+        const { startDate, endDate, status, type } = state.filtersOccurrences;
+        const studentSearch = state.filterOccurrences.toLowerCase();
+
+        // Checagem de filtros
+        if (startDate && mainRecord.date < startDate) continue;
+        if (endDate && mainRecord.date > endDate) continue;
+        if (status !== 'all' && mainRecord.status !== status) continue;
+        if (type !== 'all' && mainRecord.occurrenceType !== type) continue;
+        
+        // Checagem do filtro de busca por aluno
+        if (studentSearch) {
+            const hasMatchingStudent = [...incident.studentsInvolved.values()].some(s => 
+                s.name.toLowerCase().includes(studentSearch)
+            );
+            if (!hasMatchingStudent) continue;
+        }
+
+        filteredIncidents.set(groupId, incident);
+    }
+    return filteredIncidents;
+};
+
+
+/**
+ * REESCRITO: Renderiza a lista de ocorrências agrupada por incidentes.
+ */
+export const renderOccurrences = () => {
+    dom.loadingOccurrences.classList.add('hidden');
+    
+    const filteredIncidents = getFilteredOccurrences();
+    
+    dom.occurrencesTitle.textContent = `Exibindo ${filteredIncidents.size} Incidente(s)`;
+
+    if (filteredIncidents.size === 0) {
+         dom.emptyStateOccurrences.classList.remove('hidden');
+         dom.occurrencesListDiv.innerHTML = '';
+         return;
+    }
+
+    dom.emptyStateOccurrences.classList.add('hidden');
+    
+    // Ordena os incidentes pela data do mais recente para o mais antigo.
+    const sortedIncidents = [...filteredIncidents.values()].sort((a, b) => 
+        new Date(b.records[0].date) - new Date(a.records[0].date)
+    );
+
+    let html = sortedIncidents.map(incident => {
+        const mainRecord = incident.records[0];
+        const studentNames = [...incident.studentsInvolved.values()].map(s => s.name).join(', ');
+
+        return `
+            <div class="border rounded-lg overflow-hidden bg-white shadow-sm">
+                <div class="p-4 flex flex-col sm:flex-row justify-between items-start gap-3">
+                    <div class="flex-grow">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="font-semibold text-gray-800">${mainRecord.occurrenceType || 'N/A'}</span>
+                            ${getStatusBadge(mainRecord.status)}
+                        </div>
+                        <p class="text-sm text-gray-600"><strong>Alunos:</strong> ${studentNames}</p>
+                        <p class="text-xs text-gray-400 mt-1">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
+                    </div>
+                    <div class="flex-shrink-0 flex items-center space-x-2 self-start sm:self-center">
+                        <button class="history-btn text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100" data-group-id="${incident.id}" title="Ver Histórico"><i class="fas fa-history"></i></button>
+                        <button class="view-btn text-indigo-600 hover:text-indigo-900 p-2 rounded-full hover:bg-indigo-100" data-group-id="${incident.id}" title="Ver Notificação"><i class="fas fa-eye"></i></button>
+                        <button class="edit-btn text-yellow-600 hover:text-yellow-900 p-2 rounded-full hover:bg-yellow-100" data-group-id="${incident.id}" title="Editar"><i class="fas fa-pencil-alt"></i></button>
+                        <button class="delete-btn text-red-600 hover:text-red-900 p-2 rounded-full hover:bg-red-100" data-group-id="${incident.id}" title="Excluir"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    dom.occurrencesListDiv.innerHTML = html;
+};
+
+
+/**
+ * NOVO: Abre o modal de ocorrência para criar um novo incidente ou editar um existente.
+ * @param {object | null} incidentToEdit - O objeto do incidente a ser editado, ou null para criar um novo.
+ */
+export const openOccurrenceModal = (incidentToEdit = null) => {
+    dom.occurrenceForm.reset();
+    
+    // Configura o componente de seleção de alunos.
+    const studentInput = document.getElementById('student-search-input');
+    const suggestionsDiv = document.getElementById('student-suggestions');
+    const tagsContainer = document.getElementById('student-tags-container');
+    setupStudentTagInput(studentInput, suggestionsDiv, tagsContainer);
+
+    if (incidentToEdit) {
+        // MODO DE EDIÇÃO
+        const mainRecord = incidentToEdit.records[0];
+        document.getElementById('modal-title').innerText = 'Editar Registro de Ocorrência';
+        document.getElementById('occurrence-group-id').value = incidentToEdit.id;
+
+        // Popula o "Tag Input" com os alunos do incidente.
+        incidentToEdit.studentsInvolved.forEach((student, studentId) => {
+            state.selectedStudents.set(studentId, student);
+        });
+        // A chamada `setupStudentTagInput` já renderiza as tags ao ser inicializada.
+        setupStudentTagInput(studentInput, suggestionsDiv, tagsContainer);
+
+
+        document.getElementById('occurrence-type').value = mainRecord.occurrenceType || '';
+        document.getElementById('occurrence-date').value = mainRecord.date || '';
+        document.getElementById('description').value = mainRecord.description || '';
+        document.getElementById('actions-taken-school').value = mainRecord.actionsTakenSchool || '';
+        document.getElementById('actions-taken-family').value = mainRecord.actionsTakenFamily || '';
+        document.getElementById('meeting-date-occurrence').value = mainRecord.meetingDate || '';
+        document.getElementById('meeting-time-occurrence').value = mainRecord.meetingTime || '';
+        document.getElementById('occurrence-parecer').value = mainRecord.parecer || '';
+        
+    } else {
+        // MODO DE CRIAÇÃO
+        document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
+        document.getElementById('occurrence-group-id').value = '';
+        document.getElementById('occurrence-date').valueAsDate = new Date();
+    }
+    openModal(dom.occurrenceModal);
+};
+
+// =================================================================================
+// SEÇÃO 2: LÓGICA DA INTERFACE DE BUSCA ATIVA (CÓDIGO ORIGINAL)
+// =================================================================================
 export const actionDisplayTitles = {
     tentativa_1: "1ª Tentativa de Contato",
     tentativa_2: "2ª Tentativa de Contato",
@@ -21,279 +274,7 @@ export const actionDisplayTitles = {
     analise: "Análise"
 };
 
-// NOVO: FUNÇÃO AUXILIAR para gerar o "selo" de status com cores.
-const getStatusBadge = (status) => {
-    const statusMap = {
-        'Pendente': 'bg-yellow-100 text-yellow-800',
-        'Em Análise': 'bg-blue-100 text-blue-800',
-        'Resolvido': 'bg-green-100 text-green-800',
-        'Cancelado': 'bg-gray-100 text-gray-800'
-    };
-    const colorClasses = statusMap[status] || 'bg-gray-100 text-gray-800';
-    return `<span class="text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full ${colorClasses}">${status || 'N/A'}</span>`;
-};
-
-// NOVO: FUNÇÃO para abrir e popular o modal de histórico de uma ocorrência.
-export const openHistoryModal = (occurrenceId) => {
-    const occurrence = state.occurrences.find(o => o.id === occurrenceId);
-    if (!occurrence) return showToast('Registo de ocorrência não encontrado.');
-
-    const student = state.students.find(s => s.matricula === occurrence.studentId);
-    const history = [...(occurrence.history || [])]; // Cria uma cópia para não alterar o estado
-    history.sort((a, b) => {
-        const timeA = a.timestamp.seconds ? a.timestamp.toMillis() : new Date(a.timestamp).getTime();
-        const timeB = b.timestamp.seconds ? b.timestamp.toMillis() : new Date(b.timestamp).getTime();
-        return timeB - timeA; // Ordena do mais recente para o mais antigo
-    });
-
-    const historyHTML = history.length > 0
-        ? history.map(entry => {
-            const timestamp = entry.timestamp.seconds ? new Date(entry.timestamp.seconds * 1000) : new Date(entry.timestamp);
-            const formattedDate = timestamp.toLocaleDateString('pt-BR');
-            const formattedTime = timestamp.toLocaleTimeString('pt-BR');
-            
-            return `
-            <div class="flex items-start space-x-4 py-3">
-                <div class="flex-shrink-0">
-                    <div class="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center">
-                        <i class="fas fa-history text-gray-500"></i>
-                    </div>
-                </div>
-                <div>
-                    <p class="text-sm font-semibold text-gray-800">${entry.action}</p>
-                    <p class="text-xs text-gray-500">
-                        Por: ${entry.user || 'Sistema'} em ${formattedDate} às ${formattedTime}
-                    </p>
-                </div>
-            </div>
-            `;
-        }).join('')
-        : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para esta ocorrência.</p>';
-
-    document.getElementById('history-view-title').textContent = `Histórico da Ocorrência`;
-    document.getElementById('history-view-subtitle').innerHTML = `
-        <strong>Aluno:</strong> ${student?.name || 'N/A'}<br>
-        <strong>Data:</strong> ${formatDate(occurrence.date)}
-    `;
-    document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
-    
-    openModal(document.getElementById('history-view-modal-backdrop'));
-};
-
-
-// FUNÇÃO AUXILIAR ADICIONADA para obter ocorrências com base nos filtros
-export const getFilteredOccurrences = () => {
-    return state.occurrences.filter(o => {
-        const student = state.students.find(s => s.matricula === o.studentId);
-        if (!student) return false;
-        
-        const nameMatch = student.name.toLowerCase().startsWith(state.filterOccurrences.toLowerCase());
-        if (!nameMatch) return false;
-
-        const { startDate, endDate } = state.filtersOccurrences;
-        if (startDate && o.date < startDate) return false;
-        if (endDate && o.date > endDate) return false;
-
-        return true;
-    });
-};
-
-// NOVA FUNÇÃO ADICIONADA para criar e exibir o relatório geral
-export const generateAndShowGeneralReport = () => {
-    const filteredOccurrences = getFilteredOccurrences();
-    if (filteredOccurrences.length === 0) {
-        return showToast('Nenhuma ocorrência encontrada para os filtros selecionados.');
-    }
-
-    const { startDate, endDate } = state.filtersOccurrences;
-    const filterTerm = state.filterOccurrences;
-    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-
-    // Agregação de dados para o resumo
-    const studentIds = [...new Set(filteredOccurrences.map(occ => occ.studentId))];
-    const occurrencesByType = filteredOccurrences.reduce((acc, occ) => {
-        const type = occ.occurrenceType || 'Não especificado';
-        acc[type] = (acc[type] || 0) + 1;
-        return acc;
-    }, {});
-    const sortedTypes = Object.entries(occurrencesByType).sort((a, b) => b[1] - a[1]);
-
-    const groupedByStudent = filteredOccurrences.reduce((acc, occ) => {
-        if (!acc[occ.studentId]) {
-            acc[occ.studentId] = [];
-        }
-        acc[occ.studentId].push(occ);
-        return acc;
-    }, {});
-
-    // Geração do HTML do relatório
-    const reportHTML = `
-        <div class="space-y-8 text-sm font-sans">
-            <div class="text-center border-b-2 border-gray-200 pb-4">
-                <h2 class="text-2xl font-bold uppercase text-gray-800">${config.schoolName}</h2>
-                <h3 class="text-xl font-semibold text-gray-700 mt-2">Relatório Geral de Ocorrências</h3>
-                <p class="text-gray-500 mt-1">Gerado em: ${currentDate}</p>
-            </div>
-
-            <div class="border rounded-lg p-4 bg-gray-50">
-                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <div>
-                        <p class="text-2xl font-bold text-indigo-600">${filteredOccurrences.length}</p>
-                        <p class="text-xs font-medium text-gray-500 uppercase">Total de Ocorrências</p>
-                    </div>
-                    <div>
-                        <p class="text-2xl font-bold text-indigo-600">${studentIds.length}</p>
-                        <p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos</p>
-                    </div>
-                    <div>
-                        <p class="text-lg font-bold text-indigo-600">${sortedTypes.length > 0 ? sortedTypes[0][0] : 'N/A'}</p>
-                        <p class="text-xs font-medium text-gray-500 uppercase">Principal Tipo de Ocorrência</p>
-                    </div>
-                </div>
-                ${(startDate || endDate || filterTerm) ? `
-                <div class="mt-4 border-t pt-3 text-xs text-gray-600">
-                    <p><strong>Filtros Aplicados:</strong></p>
-                    <ul class="list-disc list-inside ml-2">
-                        ${startDate ? `<li>Período de: <strong>${formatDate(startDate)}</strong></li>` : ''}
-                        ${endDate ? `<li>Período até: <strong>${formatDate(endDate)}</strong></li>` : ''}
-                        ${filterTerm ? `<li>Busca por aluno: <strong>"${formatText(filterTerm)}"</strong></li>` : ''}
-                    </ul>
-                </div>
-                ` : ''}
-            </div>
-            
-            <div>
-                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes das Ocorrências</h4>
-                <div class="space-y-6">
-                ${Object.keys(groupedByStudent).sort((a, b) => {
-                    const studentA = state.students.find(s => s.matricula === a)?.name || '';
-                    const studentB = state.students.find(s => s.matricula === b)?.name || '';
-                    return studentA.localeCompare(studentB);
-                }).map(studentId => {
-                    const occurrences = groupedByStudent[studentId].sort((a, b) => new Date(a.date) - new Date(b.date));
-                    const student = state.students.find(s => s.matricula === studentId);
-                    if (!student) return '';
-
-                    return `
-                    <div class="border rounded-lg overflow-hidden break-inside-avoid">
-                        <div class="bg-gray-100 p-3">
-                            <p class="font-bold text-gray-800">${student.name}</p>
-                            <p class="text-xs text-gray-600">Turma: ${student.class} | ${occurrences.length} ocorrência(s)</p>
-                        </div>
-                        <div class="divide-y divide-gray-200">
-                            ${occurrences.map(occ => `
-                                <div class="p-3 grid grid-cols-4 gap-4 items-start">
-                                    <div class="col-span-1">
-                                        <p class="font-semibold text-gray-600">${formatDate(occ.date)}</p>
-                                    </div>
-                                    <div class="col-span-3">
-                                        <p class="font-semibold text-gray-800">${formatText(occ.occurrenceType)}</p>
-                                        <p class="text-xs text-gray-600 mt-1 whitespace-pre-wrap">${formatText(occ.description)}</p>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                    `;
-                }).join('')}
-                </div>
-            </div>
-
-            <div class="signature-block pt-16 mt-8">
-                <div class="text-center w-2/3 mx-auto">
-                    <div class="border-t border-gray-400"></div>
-                    <p class="mt-1 text-sm">Assinatura da Gestão Escolar</p>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.getElementById('report-view-title').textContent = "Relatório Geral de Ocorrências";
-    document.getElementById('report-view-content').innerHTML = reportHTML;
-    openModal(dom.reportViewModalBackdrop);
-};
-
-export const renderOccurrences = () => {
-    dom.loadingOccurrences.classList.add('hidden');
-    
-    let filtered = getFilteredOccurrences();
-    
-    dom.occurrencesTitle.textContent = `Exibindo ${filtered.length} Registro(s) de Ocorrências`;
-
-    if (filtered.length === 0) {
-         dom.emptyStateOccurrences.classList.remove('hidden');
-         dom.occurrencesListDiv.innerHTML = '';
-         return;
-    }
-
-    dom.emptyStateOccurrences.classList.add('hidden');
-
-    const groupedByStudent = filtered.reduce((acc, occ) => {
-        const key = occ.studentId;
-        if (!acc[key]) {
-            acc[key] = [];
-        }
-        acc[key].push(occ);
-        return acc;
-    }, {});
-
-    const sortedGroupKeys = Object.keys(groupedByStudent).sort((a, b) => {
-        const studentA = state.students.find(s => s.matricula === a)?.name || '';
-        const studentB = state.students.find(s => s.matricula === b)?.name || '';
-        return studentA.localeCompare(studentB);
-    });
-
-    let html = '';
-    for (const studentId of sortedGroupKeys) {
-        const occurrences = groupedByStudent[studentId].sort((a, b) => new Date(b.date) - new Date(a.date));
-        const student = state.students.find(s => s.matricula === studentId);
-        if (!student) continue;
-
-        html += `
-            <div class="border rounded-lg overflow-hidden mb-4 bg-white shadow">
-                <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center" data-student-id-occ="${student.matricula}">
-                    <div>
-                        <p class="font-semibold text-gray-800 cursor-pointer hover:underline new-occurrence-from-history-btn" data-student-id="${student.matricula}">${student.name}</p>
-                        <p class="text-sm text-gray-500">${occurrences.length} Ocorrência(s) registrada(s)</p>
-                    </div>
-                    <div class="flex items-center space-x-4">
-                        <button class="generate-student-report-btn bg-purple-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-purple-700 text-xs no-print" data-student-id="${student.matricula}">
-                            <i class="fas fa-file-invoice"></i> Relatório
-                        </button>
-                        <i class="fas fa-chevron-down transition-transform duration-300"></i>
-                    </div>
-                </div>
-                <div class="process-content" id="content-occ-${student.matricula}">
-                    <div class="border-t border-gray-200 divide-y divide-gray-200">
-                        ${occurrences.map(occ => `
-                            <div class="flex justify-between items-start py-3 px-4 hover:bg-gray-50 transition-colors duration-150">
-                                <div>
-                                    <p class="font-medium text-gray-800">${occ.occurrenceType || 'N/A'}</p>
-                                    <p class="text-sm text-gray-500 mb-1">Data: ${formatDate(occ.date)}</p>
-                                    ${getStatusBadge(occ.status)}
-                                </div>
-                                <div class="whitespace-nowrap text-right text-sm font-medium space-x-2 flex items-center pl-4">
-                                    <button class="history-btn text-gray-500 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100" data-id="${occ.id}" title="Ver Histórico"><i class="fas fa-history"></i></button>
-                                    <button class="view-btn text-indigo-600 hover:text-indigo-900 p-1 rounded-full hover:bg-indigo-100" data-id="${occ.id}" title="Ver Notificação"><i class="fas fa-eye"></i></button>
-                                    <button class="edit-btn text-yellow-600 hover:text-yellow-900 p-1 rounded-full hover:bg-yellow-100" data-id="${occ.id}" title="Editar"><i class="fas fa-pencil-alt"></i></button>
-                                    <button class="delete-btn text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-100" data-id="${occ.id}" title="Excluir"><i class="fas fa-trash"></i></button>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    dom.occurrencesListDiv.innerHTML = html;
-};
-
 export const renderAbsences = () => {
-    // ... (O restante do arquivo permanece o mesmo)
-    // NOTE: O código a seguir é o original, sem alterações,
-    // para manter a funcionalidade da aba "Busca Ativa".
-    
     dom.loadingAbsences.classList.add('hidden');
 
     const searchFiltered = state.absences
@@ -456,45 +437,265 @@ export const renderAbsences = () => {
                 `;
             });
 
-            html += `
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
+            html += `</div></div></div></div>`;
         }
-        
         dom.absencesListDiv.innerHTML = html;
     }
 };
 
+
+// =================================================================================
+// SEÇÃO 3: FUNÇÕES DE RENDERIZAÇÃO PRINCIPAL E GERAIS
+// =================================================================================
+
+/**
+ * ATUALIZADO: Função principal que decide qual aba renderizar.
+ */
 export const render = () => {
-    if (state.activeTab === 'occurrences') renderOccurrences();
-    else renderAbsences();
+    if (state.activeTab === 'occurrences') {
+        renderOccurrences();
+    } else {
+        renderAbsences();
+    }
 };
 
-export const openNotificationModal = (id) => {
-    const data = state.occurrences.find(occ => occ.id === id);
-    if (data) {
-        const student = state.students.find(s => s.matricula === data.studentId) || {name: 'Aluno Removido', class: 'N/A', resp1: '', resp2: ''};
-        document.getElementById('notification-title').innerText = 'Notificação de Ocorrência Escolar';
-        const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
-        document.getElementById('notification-content').innerHTML = `
-            <div class="space-y-6 text-sm"><div class="text-center border-b pb-4"><h2 class="text-xl font-bold uppercase">${config.schoolName}</h2><h3 class="text-lg font-semibold mt-2">NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR</h3></div>
-            <div class="pt-4"><p class="mb-2"><strong>Aos Responsáveis (${responsaveis}) pelo(a) aluno(a):</strong></p><p class="text-lg font-semibold">${formatText(student.name)}</p><p class="text-gray-600"><strong>Turma:</strong> ${formatText(student.class)}</p></div>
-            <p class="text-justify">Prezados(as), vimos por meio desta notificá-los sobre uma ocorrência disciplinar envolvendo o(a) aluno(a) supracitado(a), registrada em <strong>${formatDate(data.date)}</strong>.</p>
+
+/**
+ * ATUALIZADO: Abre o modal de notificação de um incidente, listando todos os alunos envolvidos.
+ * @param {string} groupId - O ID do grupo da ocorrência.
+ */
+export const openNotificationModal = (groupId) => {
+    const incident = getFilteredOccurrences().get(groupId);
+    if (!incident) return showToast('Incidente não encontrado.');
+
+    const data = incident.records[0];
+    const students = [...incident.studentsInvolved.values()];
+    const studentNames = students.map(s => `<strong>${s.name}</strong> (Turma: ${s.class})`).join('<br>');
+    const responsibleNames = [...new Set(students.flatMap(s => [s.resp1, s.resp2]).filter(Boolean))].join(' e ');
+
+    document.getElementById('notification-title').innerText = 'Notificação de Ocorrência Escolar';
+    document.getElementById('notification-content').innerHTML = `
+        <div class="space-y-6 text-sm">
+            <div class="text-center border-b pb-4"><h2 class="text-xl font-bold uppercase">${config.schoolName}</h2><h3 class="text-lg font-semibold mt-2">NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR</h3></div>
+            <div class="pt-4"><p class="mb-2"><strong>Aos Responsáveis (${responsibleNames}):</strong></p><p>Pelo(s) seguinte(s) aluno(s):</p><div class="mt-2 p-2 bg-gray-50 rounded">${studentNames}</div></div>
+            <p class="text-justify">Prezados(as), vimos por meio desta notificá-los sobre uma ocorrência disciplinar envolvendo o(s) aluno(s) supracitado(s), registrada em <strong>${formatDate(data.date)}</strong>.</p>
             <div class="border-t pt-4 space-y-4">
                 <div><h4 class="font-semibold mb-1">Tipo:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md">${formatText(data.occurrenceType)}</p></div>
                 <div><h4 class="font-semibold mb-1">Descrição:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
-                <div><h4 class="font-semibold mb-1">Pessoas Envolvidas:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.involved)}</p></div>
                 <div><h4 class="font-semibold mb-1">Providências da Escola:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.actionsTakenSchool)}</p></div>
                 <div><h4 class="font-semibold mb-1">Providências da Família:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.actionsTakenFamily)}</p></div>
+                ${data.parecer ? `<div><h4 class="font-semibold mb-1">Parecer/Desfecho:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.parecer)}</p></div>` : ''}
             </div>
-            <p class="mt-4 text-justify">Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica para uma reunião na seguinte data e horário:</p>
-            <div class="mt-4 p-3 bg-indigo-100 text-indigo-800 rounded-md text-center font-semibold"><p><strong>Data:</strong> ${formatDate(data.meetingDate) || 'A ser agendada'}</p><p><strong>Horário:</strong> ${formatTime(data.meetingTime) || ''}</p></div>
-            <div class="border-t pt-16 mt-16"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do Responsável</p></div></div></div>`;
-        openModal(dom.notificationModalBackdrop);
+            ${data.meetingDate ? `<p class="mt-4 text-justify">Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica para uma reunião na seguinte data e horário:</p>
+            <div class="mt-4 p-3 bg-indigo-100 text-indigo-800 rounded-md text-center font-semibold"><p><strong>Data:</strong> ${formatDate(data.meetingDate) || 'A ser agendada'}</p><p><strong>Horário:</strong> ${formatTime(data.meetingTime) || ''}</p></div>` : ''}
+            <div class="border-t pt-16 mt-16"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do Responsável</p></div></div>
+        </div>`;
+    openModal(dom.notificationModalBackdrop);
+};
+
+export const openHistoryModal = (groupId) => {
+    const incident = getFilteredOccurrences().get(groupId);
+    if (!incident) return showToast('Incidente não encontrado.');
+
+    const mainRecord = incident.records[0];
+    const history = [...(mainRecord.history || [])].sort((a, b) => (b.timestamp.seconds || new Date(b.timestamp).getTime()) - (a.timestamp.seconds || new Date(a.timestamp).getTime()));
+
+    const historyHTML = history.length > 0
+        ? history.map(entry => {
+            const timestamp = entry.timestamp.seconds ? new Date(entry.timestamp.seconds * 1000) : new Date(entry.timestamp);
+            return `<div class="flex items-start space-x-4 py-3"><div class="flex-shrink-0"><div class="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center"><i class="fas fa-history text-gray-500"></i></div></div><div><p class="text-sm font-semibold text-gray-800">${entry.action}</p><p class="text-xs text-gray-500">Por: ${entry.user || 'Sistema'} em ${timestamp.toLocaleDateString('pt-BR')} às ${timestamp.toLocaleTimeString('pt-BR')}</p></div></div>`;
+        }).join('')
+        : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este incidente.</p>';
+    
+    document.getElementById('history-view-title').textContent = `Histórico do Incidente`;
+    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${groupId}<br><strong>Data:</strong> ${formatDate(mainRecord.date)}`;
+    document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
+    openModal(document.getElementById('history-view-modal-backdrop'));
+};
+
+
+/**
+ * MANTIDO: Configura o autocomplete para as barras de busca principais.
+ * A lógica para o "Tag Input" agora é separada (setupStudentTagInput).
+ */
+export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
+    const input = document.getElementById(inputId);
+    const suggestionsContainer = document.getElementById(suggestionsId);
+    
+    input.addEventListener('input', () => {
+        const value = input.value.toLowerCase();
+        
+        // Esta função agora só existe para a busca ativa, pois a de ocorrências foi removida
+        if (inputId === 'search-absences') {
+            state.filterAbsences = value;
+            render();
+        }
+        
+        suggestionsContainer.innerHTML = '';
+        if (!value) {
+            suggestionsContainer.classList.add('hidden');
+            return;
+        }
+        
+        const filteredStudents = state.students.filter(s => s.name.toLowerCase().startsWith(value)).slice(0, 5);
+        
+        if (filteredStudents.length > 0) {
+            suggestionsContainer.classList.remove('hidden');
+            filteredStudents.forEach(student => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                item.textContent = student.name;
+                item.addEventListener('click', () => {
+                    if (onSelectCallback) onSelectCallback(student);
+                    input.value = '';
+                    if (inputId === 'search-absences') state.filterAbsences = '';
+                    render();
+                    suggestionsContainer.classList.add('hidden');
+                });
+                suggestionsContainer.appendChild(item);
+            });
+        } else {
+            suggestionsContainer.classList.add('hidden');
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!suggestionsContainer.contains(e.target) && e.target !== input) {
+            suggestionsContainer.classList.add('hidden');
+        }
+    });
+};
+
+export const renderStudentsList = () => {
+    const tableBody = document.getElementById('students-list-table');
+    tableBody.innerHTML = '';
+    state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td class="px-4 py-2 text-sm text-gray-900">${student.name}</td><td class="px-4 py-2 text-sm text-gray-500">${student.class}</td><td class="px-4 py-2 text-right text-sm space-x-2"><button class="edit-student-btn text-yellow-600 hover:text-yellow-900" data-id="${student.matricula}"><i class="fas fa-pencil-alt"></i></button><button class="delete-student-btn text-red-600 hover:text-red-900" data-id="${student.matricula}"><i class="fas fa-trash"></i></button></td>`;
+        tableBody.appendChild(row);
+    });
+    
+    document.querySelectorAll('.edit-student-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.dataset.id;
+            const student = state.students.find(s => s.matricula === id);
+            if (student) {
+                document.getElementById('student-form-title').textContent = 'Editar Aluno';
+                document.getElementById('student-id-input').value = student.matricula;
+                document.getElementById('student-matricula-input').value = student.matricula;
+                document.getElementById('student-matricula-input').readOnly = true;
+                document.getElementById('student-matricula-input').classList.add('bg-gray-100');
+                document.getElementById('student-name-input').value = student.name;
+                document.getElementById('student-class-input').value = student.class;
+                document.getElementById('student-endereco-input').value = student.endereco || '';
+                document.getElementById('student-contato-input').value = student.contato || '';
+                document.getElementById('student-resp1-input').value = student.resp1;
+                document.getElementById('student-resp2-input').value = student.resp2;
+                document.getElementById('cancel-edit-student-btn').classList.remove('hidden');
+            }
+        });
+    });
+
+    document.querySelectorAll('.delete-student-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const id = e.currentTarget.dataset.id;
+            const student = state.students.find(s => s.matricula === id);
+            if (student && confirm(`Tem a certeza que quer remover o aluno "${student.name}"?`)) {
+                const updatedList = state.students.filter(s => s.matricula !== id);
+                try {
+                    await setDoc(getStudentsDocRef(), { list: updatedList });
+                    state.students = updatedList;
+                    renderStudentsList();
+                    showToast("Aluno removido com sucesso.");
+                } catch(error) {
+                    console.error("Erro ao remover aluno:", error);
+                    showToast("Erro ao remover aluno.");
+                }
+            }
+        });
+    });
+};
+
+export const resetStudentForm = () => {
+    document.getElementById('student-form-title').textContent = 'Adicionar Novo Aluno';
+    document.getElementById('student-form').reset();
+    document.getElementById('student-id-input').value = '';
+    document.getElementById('student-matricula-input').readOnly = false;
+    document.getElementById('student-matricula-input').classList.remove('bg-gray-100');
+    document.getElementById('cancel-edit-student-btn').classList.add('hidden');
+};
+
+export const showLoginView = () => {
+    dom.registerView.classList.add('hidden');
+    dom.loginView.classList.remove('hidden');
+};
+
+export const showRegisterView = () => {
+    dom.loginView.classList.add('hidden');
+    dom.registerView.classList.remove('hidden');
+};
+
+export const generateAndShowGeneralReport = () => {
+    const filteredIncidents = getFilteredOccurrences();
+    if (filteredIncidents.size === 0) {
+        return showToast('Nenhum incidente encontrado para os filtros selecionados.');
     }
+
+    const { startDate, endDate, status, type } = state.filtersOccurrences;
+    const studentFilter = state.filterOccurrences;
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    const allRecords = [...filteredIncidents.values()].flatMap(i => i.records);
+    const totalStudents = new Set([...filteredIncidents.values()].flatMap(i => [...i.studentsInvolved.keys()])).size;
+    const occurrencesByType = allRecords.reduce((acc, occ) => {
+        const occType = occ.occurrenceType || 'Não especificado';
+        acc[occType] = (acc[occType] || 0) + 1;
+        return acc;
+    }, {});
+    const sortedTypes = Object.entries(occurrencesByType).sort((a, b) => b[1] - a[1]);
+
+    const reportHTML = `
+        <div class="space-y-8 text-sm font-sans">
+            <div class="text-center border-b-2 border-gray-200 pb-4">
+                <h2 class="text-2xl font-bold uppercase text-gray-800">${config.schoolName}</h2>
+                <h3 class="text-xl font-semibold text-gray-700 mt-2">Relatório Geral de Ocorrências</h3>
+                <p class="text-gray-500 mt-1">Gerado em: ${currentDate}</p>
+            </div>
+            <div class="border rounded-lg p-4 bg-gray-50">
+                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                    <div><p class="text-2xl font-bold text-indigo-600">${filteredIncidents.size}</p><p class="text-xs font-medium text-gray-500 uppercase">Total de Incidentes</p></div>
+                    <div><p class="text-2xl font-bold text-indigo-600">${totalStudents}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos</p></div>
+                    <div><p class="text-lg font-bold text-indigo-600">${sortedTypes.length > 0 ? sortedTypes[0][0] : 'N/A'}</p><p class="text-xs font-medium text-gray-500 uppercase">Principal Tipo</p></div>
+                </div>
+                ${(startDate || endDate || status !== 'all' || type !== 'all' || studentFilter) ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong></p><ul class="list-disc list-inside ml-2">${startDate ? `<li>De: <strong>${formatDate(startDate)}</strong></li>` : ''}${endDate ? `<li>Até: <strong>${formatDate(endDate)}</strong></li>` : ''}${status !== 'all' ? `<li>Status: <strong>${status}</strong></li>` : ''}${type !== 'all' ? `<li>Tipo: <strong>${type}</strong></li>` : ''}${studentFilter ? `<li>Aluno: <strong>"${formatText(studentFilter)}"</strong></li>` : ''}</ul></div>` : ''}
+            </div>
+            <div>
+                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Incidentes</h4>
+                <div class="space-y-6">
+                ${[...filteredIncidents.values()].sort((a,b) => new Date(b.records[0].date) - new Date(a.records[0].date)).map(incident => {
+                    const mainRecord = incident.records[0];
+                    const studentNames = [...incident.studentsInvolved.values()].map(s => s.name).join(', ');
+                    return `
+                    <div class="border rounded-lg overflow-hidden break-inside-avoid">
+                        <div class="bg-gray-100 p-3"><p class="font-bold text-gray-800">${mainRecord.occurrenceType}</p><p class="text-xs text-gray-600">Data: ${formatDate(mainRecord.date)} | Status: ${mainRecord.status}</p></div>
+                        <div class="p-3">
+                            <p class="text-xs font-semibold uppercase text-gray-500">Alunos Envolvidos</p>
+                            <p class="mb-2">${studentNames}</p>
+                            <p class="text-xs font-semibold uppercase text-gray-500">Descrição</p>
+                            <p class="whitespace-pre-wrap">${formatText(mainRecord.description)}</p>
+                        </div>
+                    </div>`;
+                }).join('')}
+                </div>
+            </div>
+            <div class="signature-block pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
+        </div>
+    `;
+
+    document.getElementById('report-view-title').textContent = "Relatório Geral de Ocorrências";
+    document.getElementById('report-view-content').innerHTML = reportHTML;
+    openModal(dom.reportViewModalBackdrop);
 };
 
 export const openFichaViewModal = (id) => {
@@ -563,137 +764,6 @@ export const openFichaViewModal = (id) => {
     document.getElementById('ficha-view-title').textContent = title;
     document.getElementById('ficha-view-content').innerHTML = contentHTML;
     openModal(dom.fichaViewModalBackdrop);
-};
-
-export const openReportGeneratorModal = (reportType) => {
-    const records = reportType === 'occurrences' ? state.occurrences : state.absences;
-    const studentIds = [...new Set(records.map(item => item.studentId))];
-    const studentsInRecords = state.students.filter(s => studentIds.includes(s.matricula)).sort((a,b) => a.name.localeCompare(b.name));
-
-    const select = document.getElementById('student-select');
-    
-    const title = reportType === 'occurrences' ? 'Gerar Relatório de Ocorrências' : 'Gerar Ficha Consolidada';
-    document.getElementById('report-generator-title').textContent = title;
-    dom.reportGeneratorModal.dataset.reportType = reportType;
-    
-    select.innerHTML = studentsInRecords.length > 0
-        ? '<option value="">Selecione um aluno...</option>' + studentsInRecords.map(s => `<option value="${s.matricula}">${s.name}</option>`).join('')
-        : '<option value="">Nenhum aluno com registros</option>';
-    openModal(dom.reportGeneratorModal);
-};
-
-export const generateAndShowOficio = (action, oficioNumber = null) => {
-    if (!action) return showToast('Ação de origem não encontrada.');
-    
-    const finalOficioNumber = oficioNumber || action.oficioNumber;
-    const finalOficioYear = action.oficioYear || new Date().getFullYear();
-
-    if (!finalOficioNumber) return showToast('Número do ofício não encontrado para este registro.');
-
-    const student = state.students.find(s => s.matricula === action.studentId);
-    if (!student) return showToast('Aluno não encontrado.');
-
-    const processActions = state.absences
-        .filter(a => a.processId === action.processId)
-        .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-
-    if (processActions.length === 0) return showToast('Nenhuma ação encontrada para este processo.');
-
-    const firstActionWithAbsenceData = processActions.find(a => a.periodoFaltasStart);
-    const visitAction = processActions.find(a => a.actionType === 'visita');
-    const contactAttempts = processActions.filter(a => a.actionType.startsWith('tentativa'));
-    
-    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
-
-    let attemptsSummary = contactAttempts.map((attempt, index) => {
-        return `
-            <p class="ml-4">- <strong>${index + 1}ª Tentativa (${formatDate(attempt.contactDate || attempt.createdAt?.toDate())}):</strong> 
-            ${attempt.contactSucceeded === 'yes' 
-                ? `Contato realizado com ${formatText(attempt.contactPerson)}. Justificativa: ${formatText(attempt.contactReason)}.` 
-                : 'Não foi possível estabelecer contato.'}
-            </p>
-        `;
-    }).join('');
-    if (!attemptsSummary) attemptsSummary = "<p class='ml-4'>Nenhuma tentativa de contato registrada.</p>";
-
-    const oficioHTML = `
-        <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
-            <div class="text-center">
-                <p class="font-bold uppercase">${config.schoolName}</p>
-                <p>${config.city}, ${currentDate}.</p>
-            </div>
-
-            <div class="mt-8">
-                <p class="font-bold text-base">OFÍCIO Nº ${String(finalOficioNumber).padStart(3, '0')}/${finalOficioYear}</p>
-            </div>
-
-            <div class="mt-8">
-                <p><strong>Ao</strong></p>
-                <p><strong>Conselho Tutelar</strong></p>
-                <p><strong>Nesta</strong></p>
-            </div>
-
-            <div class="mt-8">
-                <p><strong>Assunto:</strong> Encaminhamento de aluno infrequente.</p>
-            </div>
-
-            <div class="mt-8 text-justify">
-                <p class="indent-8">Prezados(as) Conselheiros(as),</p>
-                <p class="mt-4 indent-8">
-                    Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>,
-                    regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino,
-                    filho(a) de <strong>${responsaveis}</strong>, residente no endereço: ${formatText(student.endereco)}.
-                </p>
-                <p class="mt-4 indent-8">
-                    O(A) referido(a) aluno(a) apresenta um número de <strong>${firstActionWithAbsenceData?.absenceCount || '(não informado)'} faltas</strong>,
-                    apuradas no período de ${formatPeriodo(firstActionWithAbsenceData?.periodoFaltasStart, firstActionWithAbsenceData?.periodoFaltasEnd)}.
-                </p>
-                <p class="mt-4 indent-8">
-                    Informamos que a escola esgotou as tentativas de contato com a família, conforme descrito abaixo:
-                </p>
-                <div class="mt-2">${attemptsSummary}</div>
-                <p class="mt-4 indent-8">
-                    Adicionalmente, foi realizada uma visita in loco em <strong>${formatDate(visitAction?.visitDate)}</strong> pelo agente escolar <strong>${formatText(visitAction?.visitAgent)}</strong>.
-                    Durante a visita, ${visitAction?.visitSucceeded === 'yes' 
-                        ? `foi possível conversar com ${formatText(visitAction?.visitContactPerson)}, que justificou a ausência devido a: ${formatText(visitAction?.visitReason)}.`
-                        : 'não foi possível localizar ou contatar os responsáveis.'}
-                </p>
-                <p class="mt-4 indent-8">
-                    Diante do exposto e considerando o que preceitua o Art. 56 do Estatuto da Criança e do Adolescente (ECA), solicitamos as devidas providências deste Conselho para garantir o direito à educação do(a) aluno(a).
-                </p>
-            </div>
-
-            <div class="mt-12 text-center">
-                <p>Atenciosamente,</p>
-            </div>
-            
-            <div class="signature-block pt-16 mt-8 space-y-12">
-                <div class="text-center w-2/3 mx-auto">
-                    <div class="border-t border-gray-400"></div>
-                    <p class="mt-1">Diretor(a)</p>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.getElementById('report-view-title').textContent = `Ofício Nº ${finalOficioNumber}`;
-    document.getElementById('report-view-content').innerHTML = oficioHTML;
-    openModal(dom.reportViewModalBackdrop);
-};
-
-export const generateAndShowReport = (studentId) => {
-    const studentOccurrences = state.occurrences.filter(occ => occ.studentId === studentId).sort((a, b) => new Date(a.date) - new Date(b.date));
-    if (studentOccurrences.length === 0) return showToast('Nenhuma ocorrência para este aluno.');
-
-    const studentData = state.students.find(s => s.matricula === studentId);
-    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-
-    const reportHTML = `<div class="space-y-6 text-sm"><div class="text-center border-b pb-4"><h2 class="text-xl font-bold uppercase">${config.schoolName}</h2><h3 class="text-lg font-semibold mt-2">RELATÓRIO DE OCORRÊNCIAS</h3></div><div class="pt-4 text-left"><p><strong>ALUNO(A):</strong> ${studentData.name}</p><p><strong>TURMA:</strong> ${studentData.class}</p><p><strong>DATA:</strong> ${currentDate}</p></div>${studentOccurrences.map((occ, index) => `<div class="border-t pt-4 mt-4"><h4 class="font-semibold mb-2 text-base">OCORRÊNCIA ${index + 1} - Data: ${formatDate(occ.date)}</h4><div class="pl-4 border-l-2 border-gray-200 space-y-2"><div><p class="font-medium">Tipo:</p><p class="text-gray-700 bg-gray-50 p-2 rounded-md">${formatText(occ.occurrenceType)}</p></div><div><p class="font-medium">Descrição:</p><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(occ.description)}</p></div><div><p class="font-medium">Providências da Escola:</p><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(occ.actionsTakenSchool)}</p></div></div></div>`).join('')}<div class="border-t pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Assinatura da Coordenação</p></div></div></div>`;
-    
-    document.getElementById('report-view-title').textContent = "Relatório de Ocorrências";
-    document.getElementById('report-view-content').innerHTML = reportHTML;
-    openModal(dom.reportViewModalBackdrop);
 };
 
 export const generateAndShowConsolidatedFicha = (studentId, processId = null) => {
@@ -800,6 +870,141 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
     document.getElementById('report-view-title').textContent = "Ficha Consolidada de Busca Ativa";
     document.getElementById('report-view-content').innerHTML = fichaHTML;
     openModal(dom.reportViewModalBackdrop);
+};
+
+export const generateAndShowOficio = (action, oficioNumber = null) => {
+    if (!action) return showToast('Ação de origem não encontrada.');
+    
+    const finalOficioNumber = oficioNumber || action.oficioNumber;
+    const finalOficioYear = action.oficioYear || new Date().getFullYear();
+
+    if (!finalOficioNumber) return showToast('Número do ofício não encontrado para este registro.');
+
+    const student = state.students.find(s => s.matricula === action.studentId);
+    if (!student) return showToast('Aluno não encontrado.');
+
+    const processActions = state.absences
+        .filter(a => a.processId === action.processId)
+        .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+
+    if (processActions.length === 0) return showToast('Nenhuma ação encontrada para este processo.');
+
+    const firstActionWithAbsenceData = processActions.find(a => a.periodoFaltasStart);
+    const visitAction = processActions.find(a => a.actionType === 'visita');
+    const contactAttempts = processActions.filter(a => a.actionType.startsWith('tentativa'));
+    
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+
+    let attemptsSummary = contactAttempts.map((attempt, index) => {
+        return `
+            <p class="ml-4">- <strong>${index + 1}ª Tentativa (${formatDate(attempt.contactDate || attempt.createdAt?.toDate())}):</strong> 
+            ${attempt.contactSucceeded === 'yes' 
+                ? `Contato realizado com ${formatText(attempt.contactPerson)}. Justificativa: ${formatText(attempt.contactReason)}.` 
+                : 'Não foi possível estabelecer contato.'}
+            </p>
+        `;
+    }).join('');
+    if (!attemptsSummary) attemptsSummary = "<p class='ml-4'>Nenhuma tentativa de contato registrada.</p>";
+
+    const oficioHTML = `
+        <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+            <div class="text-center">
+                <p class="font-bold uppercase">${config.schoolName}</p>
+                <p>${config.city}, ${currentDate}.</p>
+            </div>
+
+            <div class="mt-8">
+                <p class="font-bold text-base">OFÍCIO Nº ${String(finalOficioNumber).padStart(3, '0')}/${finalOficioYear}</p>
+            </div>
+
+            <div class="mt-8">
+                <p><strong>Ao</strong></p>
+                <p><strong>Conselho Tutelar</strong></p>
+                <p><strong>Nesta</strong></p>
+            </div>
+
+            <div class="mt-8">
+                <p><strong>Assunto:</strong> Encaminhamento de aluno infrequente.</p>
+            </div>
+
+            <div class="mt-8 text-justify">
+                <p class="indent-8">Prezados(as) Conselheiros(as),</p>
+                <p class="mt-4 indent-8">
+                    Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>,
+                    regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino,
+                    filho(a) de <strong>${responsaveis}</strong>, residente no endereço: ${formatText(student.endereco)}.
+                </p>
+                <p class="mt-4 indent-8">
+                    O(A) referido(a) aluno(a) apresenta um número de <strong>${firstActionWithAbsenceData?.absenceCount || '(não informado)'} faltas</strong>,
+                    apuradas no período de ${formatPeriodo(firstActionWithAbsenceData?.periodoFaltasStart, firstActionWithAbsenceData?.periodoFaltasEnd)}.
+                </p>
+                <p class="mt-4 indent-8">
+                    Informamos que a escola esgotou as tentativas de contato com a família, conforme descrito abaixo:
+                </p>
+                <div class="mt-2">${attemptsSummary}</div>
+                <p class="mt-4 indent-8">
+                    Adicionalmente, foi realizada uma visita in loco em <strong>${formatDate(visitAction?.visitDate)}</strong> pelo agente escolar <strong>${formatText(visitAction?.visitAgent)}</strong>.
+                    Durante a visita, ${visitAction?.visitSucceeded === 'yes' 
+                        ? `foi possível conversar com ${formatText(visitAction?.visitContactPerson)}, que justificou a ausência devido a: ${formatText(visitAction?.visitReason)}.`
+                        : 'não foi possível localizar ou contatar os responsáveis.'}
+                </p>
+                <p class="mt-4 indent-8">
+                    Diante do exposto e considerando o que preceitua o Art. 56 do Estatuto da Criança e do Adolescente (ECA), solicitamos as devidas providências deste Conselho para garantir o direito à educação do(a) aluno(a).
+                </p>
+            </div>
+
+            <div class="mt-12 text-center">
+                <p>Atenciosamente,</p>
+            </div>
+            
+            <div class="signature-block pt-16 mt-8 space-y-12">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="mt-1">Diretor(a)</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('report-view-title').textContent = `Ofício Nº ${finalOficioNumber}`;
+    document.getElementById('report-view-content').innerHTML = oficioHTML;
+    openModal(dom.reportViewModalBackdrop);
+};
+
+export const handleNewAbsenceAction = (student) => {
+    const { currentCycleActions } = getStudentProcessInfo(student.matricula);
+
+    if (currentCycleActions.length > 0) {
+        const lastAction = currentCycleActions[currentCycleActions.length - 1];
+        let isPending = false;
+        let pendingActionMessage = "Complete a etapa anterior para poder prosseguir.";
+
+        if (lastAction.actionType.startsWith('tentativa')) {
+            if (lastAction.contactSucceeded == null || lastAction.contactReturned == null) {
+                isPending = true;
+            }
+        } 
+        else if (lastAction.actionType === 'visita') {
+            if (lastAction.visitSucceeded == null || lastAction.visitReturned == null) {
+                isPending = true;
+            }
+        }
+        else if (lastAction.actionType === 'encaminhamento_ct') {
+            if (lastAction.ctFeedback == null || lastAction.ctReturned == null) {
+                isPending = true;
+                pendingActionMessage = "Preencha a devolutiva e o status de retorno do CT para poder analisar o processo.";
+            }
+        }
+
+        if (isPending) {
+            showToast(pendingActionMessage);
+            openAbsenceModalForStudent(student, lastAction.actionType, lastAction);
+            return; 
+        }
+    }
+
+    openAbsenceModalForStudent(student);
 };
 
 export const toggleFamilyContactFields = (enable, fieldsContainer) => {
@@ -942,174 +1147,3 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     openModal(dom.absenceModal);
 };
 
-export const openOccurrenceModalForStudent = (student) => {
-    dom.occurrenceForm.reset();
-    document.getElementById('occurrence-id').value = '';
-    document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
-    document.getElementById('student-name').value = student.name;
-    document.getElementById('student-class').value = student.class;
-    document.getElementById('occurrence-date').valueAsDate = new Date();
-    // --- INÍCIO DA MODIFICAÇÃO ---
-    // A linha abaixo foi removida, pois o status agora é automático (definido no main.js).
-    // document.getElementById('occurrence-status').value = 'Pendente';
-    // --- FIM DA MODIFKAÇÃO ---
-    openModal(dom.occurrenceModal);
-};
-
-export const handleNewAbsenceAction = (student) => {
-    const { currentCycleActions } = getStudentProcessInfo(student.matricula);
-
-    if (currentCycleActions.length > 0) {
-        const lastAction = currentCycleActions[currentCycleActions.length - 1];
-        let isPending = false;
-        let pendingActionMessage = "Complete a etapa anterior para poder prosseguir.";
-
-        if (lastAction.actionType.startsWith('tentativa')) {
-            if (lastAction.contactSucceeded == null || lastAction.contactReturned == null) {
-                isPending = true;
-            }
-        } 
-        else if (lastAction.actionType === 'visita') {
-            if (lastAction.visitSucceeded == null || lastAction.visitReturned == null) {
-                isPending = true;
-            }
-        }
-        else if (lastAction.actionType === 'encaminhamento_ct') {
-            if (lastAction.ctFeedback == null || lastAction.ctReturned == null) {
-                isPending = true;
-                pendingActionMessage = "Preencha a devolutiva e o status de retorno do CT para poder analisar o processo.";
-            }
-        }
-
-        if (isPending) {
-            showToast(pendingActionMessage);
-            openAbsenceModalForStudent(student, lastAction.actionType, lastAction);
-            return; 
-        }
-    }
-
-    openAbsenceModalForStudent(student);
-};
-
-export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
-    const input = document.getElementById(inputId);
-    const suggestionsContainer = document.getElementById(suggestionsId);
-    
-    input.addEventListener('input', () => {
-        const value = input.value.toLowerCase();
-        if (inputId === 'search-occurrences') state.filterOccurrences = value;
-        if (inputId === 'search-absences') state.filterAbsences = value;
-        render();
-        suggestionsContainer.innerHTML = '';
-        if (!value) {
-            suggestionsContainer.classList.add('hidden');
-            return;
-        }
-        
-        const filteredStudents = state.students.filter(s => s.name.toLowerCase().startsWith(value)).slice(0, 5);
-        
-        if (filteredStudents.length > 0) {
-            suggestionsContainer.classList.remove('hidden');
-            filteredStudents.forEach(student => {
-                const item = document.createElement('div');
-                item.classList.add('suggestion-item');
-                item.textContent = student.name;
-                item.addEventListener('click', () => {
-                    if (onSelectCallback) {
-                        onSelectCallback(student);
-                    } 
-                    input.value = '';
-                    if (inputId === 'search-occurrences') state.filterOccurrences = '';
-                    if (inputId === 'search-absences') state.filterAbsences = '';
-                    render();
-                    suggestionsContainer.classList.add('hidden');
-                });
-                suggestionsContainer.appendChild(item);
-            });
-        } else {
-            suggestionsContainer.classList.add('hidden');
-        }
-    });
-
-    document.addEventListener('click', (e) => {
-        if (!suggestionsContainer.contains(e.target) && e.target !== input) {
-            suggestionsContainer.classList.add('hidden');
-        }
-    });
-};
-
-export const renderStudentsList = () => {
-    const tableBody = document.getElementById('students-list-table');
-    tableBody.innerHTML = '';
-    state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td class="px-4 py-2 text-sm text-gray-900">${student.name}</td>
-            <td class="px-4 py-2 text-sm text-gray-500">${student.class}</td>
-            <td class="px-4 py-2 text-right text-sm space-x-2">
-                <button class="edit-student-btn text-yellow-600 hover:text-yellow-900" data-id="${student.matricula}"><i class="fas fa-pencil-alt"></i></button>
-                <button class="delete-student-btn text-red-600 hover:text-red-900" data-id="${student.matricula}"><i class="fas fa-trash"></i></button>
-            </td>
-        `;
-        tableBody.appendChild(row);
-    });
-    
-    document.querySelectorAll('.edit-student-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = e.currentTarget.dataset.id;
-            const student = state.students.find(s => s.matricula === id);
-            if (student) {
-                document.getElementById('student-form-title').textContent = 'Editar Aluno';
-                document.getElementById('student-id-input').value = student.matricula;
-                document.getElementById('student-matricula-input').value = student.matricula;
-                document.getElementById('student-matricula-input').readOnly = true;
-                document.getElementById('student-matricula-input').classList.add('bg-gray-100');
-                document.getElementById('student-name-input').value = student.name;
-                document.getElementById('student-class-input').value = student.class;
-                document.getElementById('student-endereco-input').value = student.endereco || '';
-                document.getElementById('student-contato-input').value = student.contato || '';
-                document.getElementById('student-resp1-input').value = student.resp1;
-                document.getElementById('student-resp2-input').value = student.resp2;
-                document.getElementById('cancel-edit-student-btn').classList.remove('hidden');
-            }
-        });
-    });
-
-    document.querySelectorAll('.delete-student-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const id = e.currentTarget.dataset.id;
-            const student = state.students.find(s => s.matricula === id);
-            if (student && confirm(`Tem a certeza que quer remover o aluno "${student.name}"?`)) {
-                const updatedList = state.students.filter(s => s.matricula !== id);
-                try {
-                    await setDoc(getStudentsDocRef(), { list: updatedList });
-                    state.students = updatedList;
-                    renderStudentsList();
-                    showToast("Aluno removido com sucesso.");
-                } catch(error) {
-                    console.error("Erro ao remover aluno:", error);
-                    showToast("Erro ao remover aluno.");
-                }
-            }
-        });
-    });
-};
-
-export const resetStudentForm = () => {
-    document.getElementById('student-form-title').textContent = 'Adicionar Novo Aluno';
-    document.getElementById('student-form').reset();
-    document.getElementById('student-id-input').value = '';
-    document.getElementById('student-matricula-input').readOnly = false;
-    document.getElementById('student-matricula-input').classList.remove('bg-gray-100');
-    document.getElementById('cancel-edit-student-btn').classList.add('hidden');
-};
-
-export const showLoginView = () => {
-    dom.registerView.classList.add('hidden');
-    dom.loginView.classList.remove('hidden');
-};
-
-export const showRegisterView = () => {
-    dom.loginView.classList.add('hidden');
-    dom.registerView.classList.remove('hidden');
-};
