@@ -108,40 +108,66 @@
                 </nav>
             </div>
 
-            <!-- Conteúdo da Aba de Ocorrências -->
+            <!-- Conteúdo da Aba de Ocorrências (ATUALIZADO) -->
             <div id="tab-content-occurrences">
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <h2 id="occurrences-title" class="text-xl sm:text-2xl font-semibold text-gray-700">Registros de Ocorrências</h2>
-                    <button id="general-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 transition duration-300">
-                        <i class="fas fa-file-alt mr-2"></i>Relatório Geral
-                    </button>
+                    <div class="flex gap-4">
+                        <button id="general-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 transition duration-300">
+                            <i class="fas fa-file-alt mr-2"></i>Relatório
+                        </button>
+                        <button id="add-occurrence-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">
+                            <i class="fas fa-plus mr-2"></i>Nova Ocorrência
+                        </button>
+                    </div>
                 </div>
-                <div id="occurrence-filters" class="mb-6 bg-gray-50 p-4 rounded-lg border flex flex-wrap gap-4 items-center">
-                    <h3 class="text-md font-semibold text-gray-700 w-full sm:w-auto">Filtrar por Período:</h3>
-                    <div class="flex-1 min-w-[150px]">
+                <!-- Filtros Atualizados -->
+                <div id="occurrence-filters" class="mb-6 bg-gray-50 p-4 rounded-lg border grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div class="md:col-span-4"><h3 class="text-md font-semibold text-gray-700">Filtros</h3></div>
+                    <div>
                         <label for="occurrence-start-date" class="text-sm font-medium text-gray-600">De</label>
                         <input type="date" id="occurrence-start-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
                     </div>
-                    <div class="flex-1 min-w-[150px]">
+                    <div>
                         <label for="occurrence-end-date" class="text-sm font-medium text-gray-600">Até</label>
                         <input type="date" id="occurrence-end-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
+                    </div>
+                    <div>
+                        <label for="occurrence-filter-type" class="text-sm font-medium text-gray-600">Tipo</label>
+                        <select id="occurrence-filter-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
+                            <option value="all">Todos os Tipos</option>
+                            <option value="Agressão (Física)">Agressão (Física)</option>
+                            <option value="Agressão (Verbal)">Agressão (Verbal)</option>
+                            <option value="Indisciplina / Comportamento Inadequado">Indisciplina / Comportamento Inadequado</option>
+                            <option value="Bullying">Bullying</option>
+                            <option value="Dano ao Patrimônio">Dano ao Patrimônio</option>
+                            <option value="Uso inadequado de telemóvel/eletrónicos">Uso inadequado de telemóvel/eletrónicos</option>
+                            <option value="Outros">Outros</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="occurrence-filter-status" class="text-sm font-medium text-gray-600">Status</label>
+                        <select id="occurrence-filter-status" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
+                            <option value="all">Todos os Status</option>
+                            <option value="Pendente">Pendente</option>
+                            <option value="Finalizada">Finalizada</option>
+                        </select>
                     </div>
                 </div>
                 <main class="bg-white rounded-lg shadow-md p-4 sm:p-6">
                     <div class="mb-4">
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
-                            <input type="text" id="search-occurrences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Buscar aluno para ver histórico ou registar nova ocorrência...">
-                            <div id="occurrence-student-suggestions" class="autocomplete-suggestions hidden"></div>
+                            <input type="text" id="search-occurrences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Filtrar por nome do aluno...">
                         </div>
                     </div>
                     <div id="loading-occurrences" class="text-center p-8"><i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i><p class="mt-2 text-gray-500">A carregar registos...</p></div>
-                    <div id="empty-state-occurrences" class="text-center p-8 hidden"><i class="fas fa-file-alt fa-3x text-gray-300 mb-4"></i><h3 class="text-xl font-semibold text-gray-600">Nenhuma ocorrência registada</h3><p class="text-gray-500 mt-1">Use a busca acima para registar uma nova ocorrência.</p></div>
-                    <div id="occurrences-list" class="space-y-4"></div>
+                    <div id="empty-state-occurrences" class="text-center p-8 hidden"><i class="fas fa-file-alt fa-3x text-gray-300 mb-4"></i><h3 class="text-xl font-semibold text-gray-600">Nenhuma ocorrência encontrada</h3><p class="text-gray-500 mt-1">Use os filtros ou clique em "Nova Ocorrência" para começar.</p></div>
+                    <div id="occurrences-list" class="space-y-3"></div>
                 </main>
             </div>
 
-            <!-- Conteúdo da Aba de Busca Ativa -->
+            <!-- Conteúdo da Aba de Busca Ativa (Inalterado) -->
             <div id="tab-content-absences" class="hidden">
                 <div class="mb-6"><h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2></div>
                 <div id="absence-filters" class="mb-6 bg-gray-50 p-4 rounded-lg border flex flex-wrap gap-4 items-center">
@@ -172,7 +198,7 @@
     <!-- MODAIS DA APLICAÇÃO                                                            -->
     <!-- ============================================================================== -->
 
-    <!-- Modal: Registro/Edição de Ocorrência -->
+    <!-- Modal: Registro/Edição de Ocorrência (ATUALIZADO) -->
     <div id="occurrence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -180,24 +206,40 @@
                 <button id="close-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <form id="occurrence-form" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-                <input type="hidden" id="occurrence-id">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label for="student-name" class="block text-sm font-medium">Aluno(a)</label><input type="text" id="student-name" class="mt-1 block w-full bg-gray-100" required readonly></div>
-                    <div><label for="student-class" class="block text-sm font-medium">Turma</label><input type="text" id="student-class" class="mt-1 block w-full bg-gray-100" readonly required></div>
+                <input type="hidden" id="occurrence-group-id">
+                
+                <!-- Novo Componente: Seleção Múltipla de Alunos -->
+                <div>
+                    <label for="student-search-input" class="block text-sm font-medium">Aluno(s) Envolvido(s)</label>
+                    <div id="student-tags-container" class="mt-1 flex flex-wrap gap-2 items-center p-2 border border-gray-300 rounded-md min-h-[42px] bg-gray-50">
+                        <!-- Tags dos alunos selecionados aparecerão aqui -->
+                    </div>
+                    <div class="relative">
+                        <input type="text" id="student-search-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Pesquisar nome do aluno...">
+                        <div id="student-suggestions" class="autocomplete-suggestions hidden"></div>
+                    </div>
                 </div>
+
                 <div><label for="occurrence-type" class="block text-sm font-medium">Tipo de Ocorrência</label><select id="occurrence-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required><option value="">Selecione um tipo...</option><option value="Agressão (Física)">Agressão (Física)</option><option value="Agressão (Verbal)">Agressão (Verbal)</option><option value="Indisciplina / Comportamento Inadequado">Indisciplina / Comportamento Inadequado</option><option value="Bullying">Bullying</option><option value="Dano ao Patrimônio">Dano ao Patrimônio</option><option value="Uso inadequado de telemóvel/eletrónicos">Uso inadequado de telemóvel/eletrónicos</option><option value="Outros">Outros</option></select></div>
                 <div><label for="occurrence-date" class="block text-sm font-medium">Data da Ocorrência</label><input type="date" id="occurrence-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required></div>
                 <div><label for="description" class="block text-sm font-medium">Descrição da Ocorrência</label><textarea id="description" rows="4" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required></textarea></div>
-                <div><label for="involved" class="block text-sm font-medium">Pessoas Envolvidas</label><input type="text" id="involved" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: Outros alunos, professores..."></div>
                 <div><label for="actions-taken-school" class="block text-sm font-medium">Providências da Escola</label><textarea id="actions-taken-school" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: Conversa com o aluno, contato com os pais..."></textarea></div>
                 <div><label for="actions-taken-family" class="block text-sm font-medium">Providências da Família</label><textarea id="actions-taken-family" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: Acompanhamento, diálogo..."></textarea></div>
                 <div class="pt-4 border-t"><h4 class="text-md font-semibold text-gray-600">Convocação para Reunião (Opcional)</h4><div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2"><div><label for="meeting-date-occurrence" class="block text-sm font-medium">Data do Comparecimento</label><input type="date" id="meeting-date-occurrence" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label for="meeting-time-occurrence" class="block text-sm font-medium">Horário do Comparecimento</label><input type="time" id="meeting-time-occurrence" class="mt-1 w-full border-gray-300 rounded-md"></div></div></div>
+                
+                <!-- Novo Campo: Parecer -->
+                <div class="pt-4 border-t">
+                    <label for="occurrence-parecer" class="block text-md font-semibold text-gray-600">Parecer / Desfecho</label>
+                    <p class="text-xs text-gray-500 mb-2">Preencher este campo mudará o status da ocorrência para "Finalizada".</p>
+                    <textarea id="occurrence-parecer" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Descreva a conclusão do caso, acordos firmados, etc."></textarea>
+                </div>
+
                 <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar</button></div>
             </form>
         </div>
     </div>
 
-    <!-- Modal: Registro/Edição de Ação de Busca Ativa -->
+    <!-- Modal: Registro/Edição de Ação de Busca Ativa (Inalterado) -->
     <div id="absence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0 max-h-[95vh] flex flex-col">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="absence-modal-title" class="text-xl font-semibold">Registar Ação</h3><button id="close-absence-modal-btn" class="text-gray-500 text-2xl font-bold">&times;</button></div>
@@ -222,7 +264,7 @@
         </div>
     </div>
 
-    <!-- Modal: Gerenciamento de Alunos -->
+    <!-- Modal: Gerenciamento de Alunos (Inalterado) -->
     <div id="students-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 class="text-xl font-semibold">Gerir Lista de Alunos</h3><button id="close-students-modal-btn" class="text-gray-500 text-2xl font-bold">&times;</button></div>
@@ -234,12 +276,12 @@
         </div>
     </div>
     
-    <!-- Modais de Visualização e Impressão (Estrutura Genérica) -->
+    <!-- Modais de Visualização e Impressão (Estrutura Genérica - Inalterada) -->
     <div id="notification-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="notification-title" class="text-xl font-semibold">Notificação</h3><button id="close-notification-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="notification-content" class="p-8 overflow-y-auto bg-white"></div><div class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 no-print"><button id="share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
     <div id="report-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3><button id="close-report-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="report-view-content" class="p-8 overflow-y-auto bg-white"></div><div class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 no-print"><button id="report-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="report-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
     <div id="ficha-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="ficha-view-title" class="text-xl font-semibold">Documento</h3><button id="close-ficha-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="ficha-view-content" class="p-8 overflow-y-auto bg-white"></div><div class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 no-print"><button id="ficha-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="ficha-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
     
-    <!-- Modal: Visualização de Histórico de Ocorrência -->
+    <!-- Modal: Visualização de Histórico de Ocorrência (Inalterado) -->
     <div id="history-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center flex-shrink-0">
@@ -253,13 +295,13 @@
         </div>
     </div>
 
-    <!-- Modal: Gerador de Relatório -->
+    <!-- Modal: Gerador de Relatório (Inalterado) -->
     <div id="report-generator-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="report-generator-title" class="text-xl font-semibold">Gerar Relatório</h3><button id="close-report-generator-btn" class="text-gray-500 text-2xl">&times;</button></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium">Selecione o Aluno(a)</label><select id="student-select" class="mt-1 block w-full"><option value="">Carregando...</option></select></div></div><div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg"><button type="button" id="cancel-report-generator-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="button" id="create-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg">Gerar</button></div></div></div>
 
-    <!-- Modal: Confirmação de Exclusão -->
+    <!-- Modal: Confirmação de Exclusão (Inalterado) -->
     <div id="delete-confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="p-6 text-center"><i class="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i><h3 class="text-lg font-semibold">Confirmar Exclusão</h3><p id="delete-confirm-message" class="mt-2 text-sm text-gray-500">Tem certeza?</p></div><div class="bg-gray-50 px-4 py-3 sm:px-6 flex flex-row-reverse rounded-b-lg"><button type="button" id="confirm-delete-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700">Excluir</button><button type="button" id="cancel-delete-btn" class="mt-3 sm:mt-0 w-full sm:w-auto inline-flex justify-center rounded-md px-4 py-2 bg-white text-gray-700 border hover:bg-gray-50 sm:mr-3">Cancelar</button></div></div></div>
     
-    <!-- Notificação Toast (feedback para o utilizador) -->
+    <!-- Notificação Toast (feedback para o utilizador - Inalterado) -->
     <div id="toast-notification" class="fixed bottom-5 right-5 bg-gray-800 text-white py-3 px-5 rounded-lg shadow-lg transform translate-y-20 opacity-0 z-50"><p id="toast-message"></p></div>
 
     <!-- Script principal da aplicação -->
@@ -267,4 +309,3 @@
 
 </body>
 </html>
-
