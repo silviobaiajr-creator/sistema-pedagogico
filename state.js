@@ -7,6 +7,7 @@
 //    configurações da escola (nome, logo) carregadas do Firestore.
 // 2. Adicionadas referências do DOM para os novos elementos da interface, como
 //    o botão de configurações e o de relatório da Busca Ativa.
+// 3. (Problema 3) Adicionadas referências para o novo modal de configurações.
 // =================================================================================
 
 export const state = {
@@ -15,7 +16,7 @@ export const state = {
     occurrences: [],
     absences: [],
     
-    // NOVO: (Item 5) Configurações da escola
+    // Configurações da escola
     config: {
         schoolName: "Carregando...",
         city: "",
@@ -76,7 +77,7 @@ export const dom = {
     occurrenceModal: document.getElementById('occurrence-modal'),
     absenceModal: document.getElementById('absence-modal'),
     studentsModal: document.getElementById('students-modal'),
-    settingsModal: document.getElementById('settings-modal'), // Referência para o futuro modal de config
+    settingsModal: document.getElementById('settings-modal'), // ATUALIZADO (Problema 3)
     notificationModalBackdrop: document.getElementById('notification-modal-backdrop'),
     deleteConfirmModal: document.getElementById('delete-confirm-modal'),
     reportGeneratorModal: document.getElementById('report-generator-modal'),
@@ -94,6 +95,7 @@ export const dom = {
     // Formulários
     occurrenceForm: document.getElementById('occurrence-form'),
     absenceForm: document.getElementById('absence-form'),
+    settingsForm: document.getElementById('settings-form'), // ATUALIZADO (Problema 3)
     
     // Navegação e Filtros
     tabOccurrences: document.getElementById('tab-occurrences'),
