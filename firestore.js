@@ -9,7 +9,9 @@
 //    de IDs sequenciais para ocorrências.
 // 3. (Item 5) Novas funções `getSchoolConfigDocRef` e `loadSchoolConfig`
 //    para carregar dinamicamente as configurações da escola (nome, logo).
-// 4. Funções foram refatoradas para maior clareza e reutilização.
+// 4. (Problema 3) Adicionada a nova função `saveSchoolConfig` para persistir
+//    as configurações da escola no banco de dados.
+// 5. Funções foram refatoradas para maior clareza e reutilização.
 // =================================================================================
 
 import { doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -28,7 +30,7 @@ export const getStudentsDocRef = () => {
 };
 
 /**
- * NOVO: (Item 5) Retorna a referência para o documento de configurações da escola.
+ * Retorna a referência para o documento de configurações da escola.
  * @returns {DocumentReference}
  */
 export const getSchoolConfigDocRef = () => {
@@ -48,7 +50,7 @@ export const getCollectionRef = (type) => {
 };
 
 /**
- * NOVO: (Item 8) Retorna a referência para um documento de contador.
+ * Retorna a referência para um documento de contador.
  * Usado para gerar IDs sequenciais.
  * @param {string} counterName - O nome do contador (ex: 'occurrences').
  * @returns {DocumentReference}
@@ -62,7 +64,7 @@ export const getCounterDocRef = (counterName) => {
 // --- FUNÇÕES CRUD COM HISTÓRICO (Criar, Ler, Atualizar, Excluir) ---
 
 /**
- * ATUALIZADO: (Item 6) Adiciona um novo registo à base de dados com uma entrada inicial de histórico.
+ * Adiciona um novo registo à base de dados com uma entrada inicial de histórico.
  * @param {string} type - O tipo de coleção ('occurrence' ou 'absence').
  * @param {object} data - Os dados do registo a serem salvos.
  * @param {string} historyAction - A descrição da ação para o histórico (ex: "Registro criado").
@@ -87,7 +89,7 @@ export const addRecordWithHistory = (type, data, historyAction, userEmail = 'sis
 };
 
 /**
- * ATUALIZADO: (Item 6) Atualiza um registo, adicionando uma nova entrada ao histórico.
+ * Atualiza um registo, adicionando uma nova entrada ao histórico.
  * @param {string} type - O tipo de coleção.
  * @param {string} id - O ID do documento.
  * @param {object} dataToUpdate - Os campos a serem atualizados.
@@ -111,8 +113,6 @@ export const updateRecordWithHistory = (type, id, dataToUpdate, historyAction, u
         history: arrayUnion(newHistoryEntry) // Adiciona ao array sem sobrescrever
     };
 
-    // Usa setDoc com 'merge: true' para garantir que não sobrescrevemos outros campos
-    // que não estão sendo explicitamente atualizados.
     return setDoc(recordRef, finalUpdateData, { merge: true });
 };
 
@@ -129,7 +129,7 @@ export const updateRecordWithHistory = (type, id, dataToUpdate, historyAction, u
 export const deleteRecord = (type, id) => deleteDoc(doc(getCollectionRef(type), id));
 
 
-// --- FUNÇÕES DE CARREGAMENTO DE DADOS ---
+// --- FUNÇÕES DE CARREGAMENTO E SALVAMENTO DE DADOS ---
 
 /**
  * Carrega a lista de alunos do Firestore e a armazena no estado global.
@@ -151,7 +151,7 @@ export const loadStudents = async () => {
 };
 
 /**
- * NOVO: (Item 5) Carrega as configurações da escola (nome, logo, etc.) do Firestore.
+ * Carrega as configurações da escola (nome, logo, etc.) do Firestore.
  * @returns {Promise<void>}
  */
 export const loadSchoolConfig = async () => {
@@ -172,4 +172,15 @@ export const loadSchoolConfig = async () => {
         console.error("Erro ao carregar configurações da escola:", error);
         throw new Error("Erro ao carregar as configurações da escola.");
     }
+};
+
+/**
+ * NOVO (Problema 3): Salva as configurações da escola no Firestore.
+ * @param {object} data - O objeto com os dados da configuração (schoolName, city, schoolLogoUrl).
+ * @returns {Promise<void>}
+ */
+export const saveSchoolConfig = (data) => {
+    const configRef = getSchoolConfigDocRef();
+    // Usa setDoc com 'merge: true' para não sobrescrever outros campos que possam existir no futuro.
+    return setDoc(configRef, data, { merge: true });
 };
