@@ -1,23 +1,29 @@
 // =================================================================================
 // ARQUIVO: main.js
-// RESPONSABILIDADE: Ponto de entrada da aplicação.
-// ATUALIZAÇÃO (Conforme Análise de Erro):
-// 1. Corrigida a chamada da função `collection()` dentro de `handleOccurrenceSubmit`
-//    para passar a instância do `db` corretamente, resolvendo o erro ao salvar
-//    uma nova ocorrência.
+// RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra a lógica de
+// eventos, submissão de formulários e a comunicação entre a UI e o Firestore.
+// ATUALIZAÇÃO GERAL (Conforme Análise):
+// 1. (Item 2, 9) `handleOccurrenceSubmit` e `getAbsenceFormData`: Atualizadas para
+//    coletar e salvar os novos campos de contato (tipo, data, etc.).
+// 2. (Item 4, 6, 10, 11) `setupListClickListeners`: Lógica de eventos reescrita para
+//    suportar os novos botões ("Gerar Ata", "Relatório BA") e o menu "..." (kebab).
+// 3. (Item 8) `handleOccurrenceSubmit`: Lógica de criação de ocorrência agora usa
+//    uma Transação do Firestore para gerar um ID sequencial (ex: OCC-2025-001).
+// 4. (Item 2) `setupEventListeners`: Adicionado listener para os campos de contato
+//    dinâmicos no formulário de ocorrências.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
 
 // Serviços do Firebase para autenticação e banco de dados
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { onSnapshot, query, writeBatch, doc, setDoc, where, getDocs, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { onSnapshot, query, writeBatch, doc, setDoc, where, getDocs, collection, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Módulos internos da aplicação
 import { auth, db } from './firebase.js';
 import { state, dom } from './state.js';
 import { showToast, closeModal, shareContent, openModal } from './utils.js';
-import { loadStudents, getCollectionRef, addRecord, updateRecord, deleteRecord, getStudentsDocRef } from './firestore.js';
+import { loadStudents, getCollectionRef, getStudentsDocRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory } from './firestore.js';
 import { 
     render, 
     renderStudentsList, 
@@ -25,7 +31,9 @@ import {
     handleNewAbsenceAction,
     setupAutocomplete,
     openStudentSelectionModal,
+    openOccurrenceRecordModal, // NOVO (Item 4)
     openHistoryModal,
+    openAbsenceHistoryModal, // NOVO (Item 6)
     openFichaViewModal,
     generateAndShowConsolidatedFicha,
     generateAndShowOficio,
@@ -36,6 +44,7 @@ import {
     toggleFamilyContactFields,
     toggleVisitContactFields,
     generateAndShowGeneralReport,
+    generateAndShowBuscaAtivaReport, // NOVO (Item 11)
     getFilteredOccurrences
 } from './ui.js';
 import * as logic from './logic.js';
@@ -52,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user) {
             // Utilizador AUTENTICADO
             state.userId = user.uid;
-            state.userEmail = user.email; // Armazena o email para auditoria
+            state.userEmail = user.email;
             dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
             
             dom.loginScreen.classList.add('hidden');
@@ -60,7 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.userProfile.classList.remove('hidden');
             
             try {
+                // Carrega dados essenciais
                 await loadStudents();
+                // ATENÇÃO: Adicionar uma função para carregar as configurações da escola
+                // await loadSchoolConfig(); 
                 setupFirestoreListeners();
                 render();
             } catch (error) {
@@ -141,8 +153,12 @@ function setupEventListeners() {
     document.getElementById('occurrence-filter-type').addEventListener('change', (e) => { state.filtersOccurrences.type = e.target.value; render(); });
     document.getElementById('occurrence-filter-status').addEventListener('change', (e) => { state.filtersOccurrences.status = e.target.value; render(); });
     dom.generalReportBtn.addEventListener('click', generateAndShowGeneralReport);
+    // NOVO (Item 2): Listener para campos de contato dinâmicos no modal de ocorrência
+    document.querySelectorAll('input[name="occurrence-contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('occurrence-family-contact-fields'))));
 
     // --- Busca Ativa: Listeners ---
+    // NOVO (Item 11): Listener para o novo botão de relatório
+    document.getElementById('general-ba-report-btn').addEventListener('click', generateAndShowBuscaAtivaReport);
     document.getElementById('filter-process-status').addEventListener('change', (e) => { state.filtersAbsences.processStatus = e.target.value; render(); });
     document.getElementById('filter-pending-action').addEventListener('change', (e) => { state.filtersAbsences.pendingAction = e.target.value; render(); });
     document.getElementById('filter-return-status').addEventListener('change', (e) => { state.filtersAbsences.returnStatus = e.target.value; render(); });
@@ -207,6 +223,9 @@ function switchTab(tabName) {
 }
 
 // Submissão de Formulários
+/**
+ * ATUALIZADO: (Item 2, 8) Lida com a submissão do formulário de ocorrências.
+ */
 async function handleOccurrenceSubmit(e) {
     e.preventDefault();
     const groupId = document.getElementById('occurrence-group-id').value;
@@ -218,6 +237,10 @@ async function handleOccurrenceSubmit(e) {
     const parecer = document.getElementById('occurrence-parecer').value.trim();
     const newStatus = parecer ? 'Finalizada' : 'Pendente';
     
+    const contactSucceededRadio = document.querySelector('input[name="occurrence-contact-succeeded"]:checked');
+    const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
+
+    // Coleta dos dados do formulário, incluindo os novos campos (Item 2)
     const data = { 
         date: document.getElementById('occurrence-date').value, 
         occurrenceType: document.getElementById('occurrence-type').value,
@@ -227,7 +250,11 @@ async function handleOccurrenceSubmit(e) {
         actionsTakenFamily: document.getElementById('actions-taken-family').value.trim(), 
         meetingDate: document.getElementById('meeting-date-occurrence').value || null, 
         meetingTime: document.getElementById('meeting-time-occurrence').value || null,
-        parecer: parecer || null
+        parecer: parecer || null,
+        // Novos campos de contato
+        contactSucceeded: contactSucceeded,
+        contactType: contactSucceeded === 'yes' ? document.getElementById('occurrence-contact-type').value : null,
+        contactDate: contactSucceeded === 'yes' ? document.getElementById('occurrence-contact-date').value : null,
     };
 
     try { 
@@ -275,14 +302,27 @@ async function handleOccurrenceSubmit(e) {
                  }
             });
 
-
             await batch.commit();
             showToast('Ocorrência atualizada com sucesso!');
         } else {
-            // --- MODO DE CRIAÇÃO ---
-            const newGroupId = `OCC-${Date.now()}`;
-            const batch = writeBatch(db);
+            // --- MODO DE CRIAÇÃO com ID SEQUENCIAL (Item 8) ---
+            const counterRef = getCounterDocRef('occurrences');
             
+            const newGroupId = await runTransaction(db, async (transaction) => {
+                const counterDoc = await transaction.get(counterRef);
+                const currentYear = new Date().getFullYear();
+                
+                let newCount = 1;
+                if (counterDoc.exists() && counterDoc.data().year === currentYear) {
+                    newCount = counterDoc.data().count + 1;
+                }
+                
+                transaction.set(counterRef, { count: newCount, year: currentYear });
+                
+                return `OCC-${currentYear}-${String(newCount).padStart(3, '0')}`;
+            });
+
+            const batch = writeBatch(db);
             const newHistoryEntry = {
                 action: 'Incidente registado',
                 user: state.userEmail,
@@ -290,15 +330,13 @@ async function handleOccurrenceSubmit(e) {
             };
 
             for (const studentId of state.selectedStudents.keys()) {
-                // CORRIGIDO: A função `doc(collection(...))` estava incorreta.
-                // A forma correta é criar a referência da coleção primeiro.
                 const occurrencesCollection = getCollectionRef('occurrence');
                 const newRecordRef = doc(collection(db, occurrencesCollection.path)); 
-                const recordData = { ...data, studentId, occurrenceGroupId: newGroupId, history: [newHistoryEntry] };
+                const recordData = { ...data, studentId, occurrenceGroupId: newGroupId, history: [newHistoryEntry], createdAt: new Date() };
                 batch.set(newRecordRef, recordData);
             }
             await batch.commit();
-            showToast('Ocorrência registada com sucesso!'); 
+            showToast(`Ocorrência ${newGroupId} registada com sucesso!`); 
         }
         closeModal(dom.occurrenceModal); 
     } catch (error) { 
@@ -321,8 +359,15 @@ async function handleAbsenceSubmit(e) {
     try {
         const id = data.id;
         delete data.id;
+        
+        const historyAction = id ? "Dados da ação atualizados." : `Ação "${actionDisplayTitles[data.actionType]}" registada.`;
 
-        await (id ? updateRecord('absence', id, data, state.userEmail) : addRecord('absence', data, state.userEmail));
+        if (id) {
+            await updateRecordWithHistory('absence', id, data, historyAction, state.userEmail);
+        } else {
+            await addRecordWithHistory('absence', data, historyAction, state.userEmail);
+        }
+
         showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
         closeModal(dom.absenceModal);
         
@@ -333,6 +378,7 @@ async function handleAbsenceSubmit(e) {
         }
     } catch (error) { 
         showToast('Erro ao salvar ação.'); 
+        console.error("Erro ao salvar ação de BA:", error);
     }
 }
 
@@ -430,7 +476,8 @@ async function handleDeleteConfirmation() {
             await batch.commit();
             showToast('Encaminhamento e Análise excluídos.');
         } else {
-            await deleteRecord(type, id);
+            // Usa deleteRecordWithHistory para registrar a exclusão
+            await updateRecordWithHistory(type, id, { status: 'Excluído' }, `Registro ${id} excluído.`, state.userEmail);
             showToast('Registro excluído com sucesso.');
         }
     } catch (error) { showToast('Erro ao excluir.'); console.error(error); } finally { state.recordToDelete = null; closeModal(dom.deleteConfirmModal); }
@@ -450,15 +497,21 @@ function handleReportGeneration() {
 
 // Lógica de UI e Dados
 function getOccurrenceHistoryMessage(original, updated) {
-    if (original && original.status !== updated.status) {
-        return `Status alterado de "${original.status}" para "${updated.status}".`;
-    }
-    if (original && original.parecer !== updated.parecer && updated.parecer) {
-        return `Parecer adicionado/atualizado.`;
-    }
+    const changes = [];
+    if (original.status !== updated.status) changes.push(`Status alterado de "${original.status}" para "${updated.status}".`);
+    if (original.parecer !== updated.parecer) changes.push(`Parecer foi ${updated.parecer ? 'adicionado/atualizado' : 'removido'}.`);
+    if (original.contactSucceeded !== updated.contactSucceeded) changes.push(`Status de contato com a família alterado.`);
+    if (original.meetingDate !== updated.meetingDate) changes.push(`Data da reunião alterada.`);
+    
+    if (changes.length > 0) return changes.join(' ');
+    
     return "Dados do incidente foram atualizados.";
 }
 
+
+/**
+ * ATUALIZADO: (Item 9) Lida com a coleta de dados do formulário de Busca Ativa.
+ */
 function getAbsenceFormData() {
     const studentName = document.getElementById('absence-student-name').value.trim();
     const student = state.students.find(s => s.name === studentName);
@@ -483,6 +536,7 @@ function getAbsenceFormData() {
         data.meetingTime = document.getElementById('meeting-time').value || null;
         data.contactSucceeded = contactSucceeded ? contactSucceeded.value : null;
         if (data.contactSucceeded === 'yes') {
+            data.contactType = document.getElementById('absence-contact-type').value || null; // NOVO (Item 9)
             data.contactDate = document.getElementById('contact-date').value || null;
             data.contactPerson = document.getElementById('contact-person').value || null;
             data.contactReason = document.getElementById('contact-reason').value || null;
@@ -527,7 +581,7 @@ function setupModalCloseButtons() {
         'close-absence-modal-btn': dom.absenceModal, 'cancel-absence-btn': dom.absenceModal,
         'close-report-generator-btn': dom.reportGeneratorModal, 'cancel-report-generator-btn': dom.reportGeneratorModal,
         'close-notification-btn': dom.notificationModalBackdrop,
-        'close-student-selection-modal-btn': document.getElementById('student-selection-modal'), // Adicionado
+        'close-student-selection-modal-btn': document.getElementById('student-selection-modal'),
         'close-report-view-btn': dom.reportViewModalBackdrop,
         'close-ficha-view-btn': dom.fichaViewModalBackdrop,
         'close-history-view-btn': document.getElementById('history-view-modal-backdrop'),
@@ -550,30 +604,52 @@ function setupModalCloseButtons() {
     document.getElementById('ficha-print-btn').addEventListener('click', () => window.print());
 }
 
+/**
+ * ATUALIZADO: (Item 4, 10) Lida com cliques nos botões das listas (primários e do menu kebab).
+ */
 function setupListClickListeners() {
+    // Listener para a lista de OCORRÊNCIAS
     dom.occurrencesListDiv.addEventListener('click', (e) => {
         const button = e.target.closest('button');
-        if (button) {
-            e.stopPropagation();
-            const groupId = button.dataset.groupId;
-            if (button.classList.contains('edit-btn')) handleEditOccurrence(groupId);
-            else if (button.classList.contains('delete-btn')) handleDelete('occurrence', groupId);
-            else if (button.classList.contains('view-btn')) openStudentSelectionModal(groupId);
-            else if (button.classList.contains('history-btn')) openHistoryModal(groupId);
+        if (!button) return;
+
+        const groupId = button.dataset.groupId;
+        e.stopPropagation();
+
+        if (button.classList.contains('notification-btn')) {
+            openStudentSelectionModal(groupId);
+        } else if (button.classList.contains('record-btn')) {
+            openOccurrenceRecordModal(groupId); // NOVO (Item 4)
+        } else if (button.classList.contains('kebab-action-btn')) {
+            const action = button.dataset.action;
+            if (action === 'edit') handleEditOccurrence(groupId);
+            else if (action === 'delete') handleDelete('occurrence', groupId);
+            else if (action === 'history') openHistoryModal(groupId);
+            // Esconde o menu após a ação
+            button.closest('.kebab-menu-dropdown').classList.add('hidden');
         }
     });
 
+    // Listener para a lista de BUSCA ATIVA
     dom.absencesListDiv.addEventListener('click', (e) => {
         const button = e.target.closest('button');
         if (button) {
             e.stopPropagation();
             const id = button.dataset.id;
-            if (button.classList.contains('edit-absence-btn')) handleEditAbsence(id);
-            else if (button.classList.contains('delete-absence-btn')) handleDeleteAbsence(id);
-            else if (button.classList.contains('notification-btn')) openFichaViewModal(id);
+            
+            // Botões que NÃO estão no menu kebab
+            if (button.classList.contains('notification-btn')) openFichaViewModal(id);
             else if (button.classList.contains('send-ct-btn')) handleSendToCT(id);
             else if (button.classList.contains('view-oficio-btn')) handleViewOficio(id);
             else if (button.classList.contains('generate-ficha-btn-row')) generateAndShowConsolidatedFicha(button.dataset.studentId, button.dataset.processId);
+            // Botões DENTRO do menu kebab
+            else if (button.classList.contains('kebab-action-btn')) {
+                const action = button.dataset.action;
+                if (action === 'edit') handleEditAbsence(id);
+                else if (action === 'delete') handleDeleteAbsence(id);
+                else if (action === 'history') openAbsenceHistoryModal(button.dataset.processId); // NOVO (Item 6)
+                button.closest('.kebab-menu-dropdown').classList.add('hidden');
+            }
             return;
         }
 
@@ -655,7 +731,7 @@ async function handleSendToCT(id) {
                 absenceCount: firstAction?.absenceCount || null,
             };
             try {
-                await addRecord('absence', dataForCt, state.userEmail);
+                await addRecordWithHistory('absence', dataForCt, "Ação 'Encaminhamento ao CT' registada.", state.userEmail);
                 showToast("Registro de 'Encaminhamento ao CT' salvo automaticamente.");
             } catch(err) {
                 showToast("Erro ao salvar o encaminhamento automático.");
@@ -684,4 +760,3 @@ function toggleAccordion(header) {
         icon?.classList.toggle('rotate-180', isHidden);
     }
 }
-
