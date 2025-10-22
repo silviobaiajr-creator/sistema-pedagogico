@@ -202,24 +202,24 @@ function setupEventListeners() {
 
 // --- HANDLERS E FUNÇÕES AUXILIARES ---
 
-// (Inalterado) Funções de Autenticação
-async function handleLogin(e) {
-    e.preventDefault();
-    try {
-        await signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value);
-    } catch (error) {
-        console.error("Erro de Login:", error);
-        showToast("Email ou senha inválidos.");
-    }
+// Funções de Autenticação
+async function handleLogin(e) { 
+    e.preventDefault(); 
+    try { 
+        // ATUALIZADO: (Correção) Revertido para getElementById para garantir que o DOM esteja carregado no momento do clique.
+        await signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value); 
+    } catch (error) { 
+        console.error("Erro de Login:", error); 
+        showToast("Email ou senha inválidos."); 
+    } 
 }
-
-// (Inalterado) Funções de Autenticação
-async function handleRegister(e) {
-    e.preventDefault();
-    try {
-        await createUserWithEmailAndPassword(auth, document.getElementById('register-email').value, document.getElementById('register-password').value);
-    } catch (error) {
-        console.error("Erro de Registo:", error);
+async function handleRegister(e) { 
+    e.preventDefault(); 
+    try { 
+        // ATUALIZADO: (Correção) Revertido para getElementById.
+        await createUserWithEmailAndPassword(auth, document.getElementById('register-email').value, document.getElementById('register-password').value); 
+    } catch (error) { 
+        console.error("Erro de Registo:", error); 
         showToast(getAuthErrorMessage(error.code));
     }
 }
@@ -874,7 +874,7 @@ async function handleSendToCT(id) {
             const firstAction = currentCycleActions.find(a => a.periodoFaltasStart);
             const dataForCt = {
                 studentId: student.matricula, actionType: 'encaminhamento_ct', processId,
-                ctSentDate: new Date().toISOString().split('T')[0],
+                ctSentDate: new Date().toISOString().split('T_')[0],
                 oficioNumber, oficioYear: new Date().getFullYear(),
                 periodoFaltasStart: firstAction?.periodoFaltasStart || null,
                 periodoFaltasEnd: firstAction?.periodoFaltasEnd || null,
