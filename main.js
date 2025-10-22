@@ -19,6 +19,8 @@
 //    adicionando uma referência para ele em `setupModalCloseButtons`.
 // 5. (Lógica) Atualizada a criação de novos registros para INICIALIZAR os
 //    campos movidos (meetingDate, contactSucceeded, etc.) como nulos.
+// 6. (PONTO 1) Adicionada lógica para corrigir o menu kebab cortado.
+// 7. (PONTO 7) Adicionada lógica para tornar "Providências da Família" obrigatório.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -29,10 +31,8 @@ import { onSnapshot, query, writeBatch, doc, setDoc, where, getDocs, collection,
 
 // Módulos internos da aplicação
 import { auth, db } from './firebase.js';
-// ATUALIZADO: (CORREÇÃO) Importa a nova função de inicialização do DOM.
 import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, shareContent, openModal } from './utils.js';
-// ATUALIZADO: (Arquitetura) Importa `deleteRecord` para exclusão correta.
 import { loadStudents, saveSchoolConfig, loadSchoolConfig, getCollectionRef, getStudentsDocRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord } from './firestore.js';
 import { 
     render, 
@@ -65,7 +65,7 @@ import * as logic from './logic.js';
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
 document.addEventListener('DOMContentLoaded', () => {
-    // NOVO: (CORREÇÃO) Popula as referências do DOM AGORA,
+    // Popula as referências do DOM AGORA,
     // garantindo que todos os elementos existem antes de usá-los.
     initializeDOMReferences();
 
@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ATUALIZADO: (CORREÇÃO) Movido para ser chamado DEPOIS de initializeDOMReferences()
+    // Movido para ser chamado DEPOIS de initializeDOMReferences()
     setupEventListeners();
     
     // Configura autocomplete apenas para a Busca Ativa.
@@ -160,7 +160,6 @@ function setupEventListeners() {
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
     dom.settingsForm.addEventListener('submit', handleSettingsSubmit);
-    // NOVO: (Arquitetura) Listener para o novo formulário de acompanhamento.
     dom.followUpForm.addEventListener('submit', handleFollowUpSubmit);
 
     // Fechar Modais
@@ -174,8 +173,6 @@ function setupEventListeners() {
     document.getElementById('occurrence-filter-type').addEventListener('change', (e) => { state.filtersOccurrences.type = e.target.value; render(); });
     document.getElementById('occurrence-filter-status').addEventListener('change', (e) => { state.filtersOccurrences.status = e.target.value; render(); });
     dom.generalReportBtn.addEventListener('click', generateAndShowGeneralReport);
-    // REMOVIDO: O listener de 'occurrence-contact-succeeded' foi movido para o modal de Acompanhamento (e será adicionado lá, se necessário)
-    // document.querySelectorAll('input[name="occurrence-contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('occurrence-family-contact-fields'))));
 
     // --- Busca Ativa: Listeners ---
     document.getElementById('general-ba-report-btn').addEventListener('click', generateAndShowBuscaAtivaReport);
@@ -194,25 +191,63 @@ function setupEventListeners() {
     // Ações nas Listas
     setupListClickListeners();
 
-    // NOVO: (Otimização) Listener centralizado para a tabela de alunos.
+    // Listener centralizado para a tabela de alunos.
     dom.studentsListTable.addEventListener('click', handleStudentTableActions);
 
     // Ações em Modais
     document.getElementById('confirm-delete-btn').addEventListener('click', handleDeleteConfirmation);
     document.getElementById('action-type').addEventListener('change', (e) => handleActionTypeChange(e.target.value));
+    
+    // Listeners para os rádios da Busca Ativa (mostra/esconde campos)
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
     
-    // NOVO: (Arquitetura) Listener para o rádio de contato no modal de ACOMPANHAMENTO.
-    // Assumindo que o `index.html` será atualizado para ter estes rádios com este 'name'.
-    document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('follow-up-family-contact-fields'))));
+    // ATUALIZADO (PONTO 7): Listener para o rádio de contato no modal de ACOMPANHAMENTO.
+    // Agora também torna "Providências da Família" obrigatório.
+    document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio => 
+        radio.addEventListener('change', (e) => {
+            const enable = e.target.value === 'yes';
+            
+            // 1. Lógica (agora corrigida via ui.js) para "Tipo" e "Data"
+            toggleFamilyContactFields(enable, document.getElementById('follow-up-family-contact-fields'));
+            
+            // 2. Lógica para "Providências da Família" (Ponto 7)
+            const familyActionsTextarea = document.getElementById('follow-up-family-actions');
+            if (familyActionsTextarea) {
+                familyActionsTextarea.required = enable;
+                
+                // Feedback visual (opcional, mas recomendado)
+                // Procura o label associado ao textarea (assumindo que está no div pai)
+                const label = familyActionsTextarea.closest('div').querySelector('label');
+                if (label) {
+                    // Adiciona um asterisco vermelho se for obrigatório
+                    label.innerHTML = enable 
+                        ? 'Providências da Família <span class="text-red-500">*</span>' 
+                        : 'Providências da Família';
+                }
+            }
+        })
+    );
+    // --- FIM DA ATUALIZAÇÃO (PONTO 7) ---
 
 
+    // ATUALIZADO (PONTO 1): Listener global para fechar menus kebab e restaurar overflow.
     document.addEventListener('click', (e) => {
+        // Se o clique NÃO foi dentro de um container de menu kebab
         if (!e.target.closest('.kebab-menu-container')) {
+            // Fecha todos os dropdowns de menu kebab
             document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
+            
+            // Restaura o 'overflow: hidden' em todos os acordeões ABERTOS
+            document.querySelectorAll('.process-content').forEach(c => {
+                // Só aplica se ele estiver aberto (tiver maxHeight definido e diferente de 0px)
+                if (c.style.maxHeight && c.style.maxHeight !== '0px') {
+                    c.style.overflow = 'hidden';
+                }
+            });
         }
     });
+    // --- FIM DA ATUALIZAÇÃO (PONTO 1) ---
 }
 
 // --- HANDLERS E FUNÇÕES AUXILIARES ---
@@ -221,7 +256,6 @@ function setupEventListeners() {
 async function handleLogin(e) { 
     e.preventDefault(); 
     try { 
-        // (Correção de Bug Anterior) Usa getElementById para garantir que o elemento existe no momento do submit.
         await signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value); 
     } catch (error) { 
         console.error("Erro de Login:", error); 
@@ -231,7 +265,6 @@ async function handleLogin(e) {
 async function handleRegister(e) { 
     e.preventDefault(); 
     try { 
-        // (Correção de Bug Anterior) Usa getElementById.
         await createUserWithEmailAndPassword(auth, document.getElementById('register-email').value, document.getElementById('register-password').value); 
     } catch (error) { 
         console.error("Erro de Registo:", error); 
@@ -247,7 +280,6 @@ function getAuthErrorMessage(code) {
     }
 }
 
-// NOVO: (Melhoria) Função para traduzir erros do Firestore.
 function getFirestoreErrorMessage(code) {
     switch (code) {
         case 'permission-denied':
@@ -271,8 +303,7 @@ function switchTab(tabName) {
 }
 
 /**
- * ATUALIZADO: (Arquitetura) Lida com a submissão do formulário de ocorrências (criação ou edição do FATO COLETIVO).
- * REMOVIDOS os campos de Convocação e Contato.
+ * Lida com a submissão do formulário de ocorrências (criação ou edição do FATO COLETIVO).
  */
 async function handleOccurrenceSubmit(e) {
     e.preventDefault();
@@ -282,18 +313,10 @@ async function handleOccurrenceSubmit(e) {
         return showToast("Selecione pelo menos um aluno.");
     }
     
-    // REMOVIDO: O 'contactSucceededRadio' foi movido para o handleFollowUpSubmit.
-
-    // ATUALIZADO: (Arquitetura) Apenas dados coletivos são recolhidos deste formulário.
     const collectiveData = { 
         date: document.getElementById('occurrence-date').value, 
         occurrenceType: document.getElementById('occurrence-type').value,
         description: document.getElementById('description').value.trim(), 
-        // REMOVIDO: meetingDate
-        // REMOVIDO: meetingTime
-        // REMOVIDO: contactSucceeded
-        // REMOVIDO: contactType
-        // REMOVIDO: contactDate
     };
 
     try { 
@@ -321,23 +344,20 @@ async function handleOccurrenceSubmit(e) {
                     const newRecordRef = doc(collection(db, getCollectionRef('occurrence').path));
                     const templateRecord = originalIncident.records[0] || {};
                     
-                    // ATUALIZADO: (Arquitetura) Novos registros individuais são inicializados com todos os campos (nulos).
                     const newRecordData = { 
                         ...collectiveData, 
                         studentId, 
                         occurrenceGroupId: groupId,
-                        // NOVO: (Arquitetura) Campos individuais são inicializados.
-                        statusIndividual: 'Aguardando Contato', // Novo status padrão
+                        statusIndividual: 'Aguardando Contato', 
                         schoolActionsIndividual: '',
-                        providenciasFamilia: '', // Campo novo
+                        providenciasFamilia: '', 
                         parecerIndividual: '',
-                        meetingDate: null, // Campo movido
-                        meetingTime: null, // Campo movido
-                        contactSucceeded: null, // Campo movido
-                        contactType: null, // Campo movido
-                        contactDate: null, // Campo movido
-                        // Fim dos campos individuais
-                        history: templateRecord.history || [], // Herda histórico
+                        meetingDate: null, 
+                        meetingTime: null, 
+                        contactSucceeded: null, 
+                        contactType: null, 
+                        contactDate: null, 
+                        history: templateRecord.history || [], 
                         createdAt: new Date(),
                         createdBy: state.userEmail
                     };
@@ -385,23 +405,20 @@ async function handleOccurrenceSubmit(e) {
             });
 
             for (const studentId of state.selectedStudents.keys()) {
-                // ATUALIZADO: (Arquitetura) Novos registros individuais são inicializados com todos os campos (nulos).
                 const recordData = { 
                     ...collectiveData, 
                     studentId,
                     occurrenceGroupId: newGroupId,
-                    // NOVO: (Arquitetura) Campos individuais são inicializados aqui.
-                    statusIndividual: 'Aguardando Contato', // Novo status padrão
+                    statusIndividual: 'Aguardando Contato', 
                     schoolActionsIndividual: '',
-                    providenciasFamilia: '', // Campo novo
+                    providenciasFamilia: '', 
                     parecerIndividual: '',
-                    meetingDate: null, // Campo movido
-                    meetingTime: null, // Campo movido
-                    contactSucceeded: null, // Campo movido
-                    contactType: null, // Campo movido
-                    contactDate: null, // Campo movido
+                    meetingDate: null, 
+                    meetingTime: null, 
+                    contactSucceeded: null, 
+                    contactType: null, 
+                    contactDate: null, 
                 };
-                // A função `addRecordWithHistory` já adiciona o histórico e dados de criação.
                 await addRecordWithHistory('occurrence', recordData, 'Incidente registado', state.userEmail);
             }
             showToast(`Ocorrência ${newGroupId} registada com sucesso!`); 
@@ -409,15 +426,12 @@ async function handleOccurrenceSubmit(e) {
         closeModal(dom.occurrenceModal); 
     } catch (error) { 
         console.error("Erro ao salvar ocorrência:", error);
-        // ATUALIZADO: (Melhoria) Mensagem de erro mais específica.
         showToast(getFirestoreErrorMessage(error.code) || 'Erro ao salvar a ocorrência.'); 
     }
 }
 
 /**
- * ATUALIZADO: (Arquitetura) Lida com a submissão do formulário de acompanhamento individual.
- * AGORA INCLUI: Convocação, Contato, Providências da Família.
- * AGORA CALCULA: O status automaticamente.
+ * Lida com a submissão do formulário de acompanhamento individual.
  */
 async function handleFollowUpSubmit(e) {
     e.preventDefault();
@@ -428,9 +442,7 @@ async function handleFollowUpSubmit(e) {
         return showToast("Erro: ID do aluno ou do registo não encontrado.");
     }
 
-    // ATUALIZADO: (Arquitetura) Coleta todos os dados do formulário de acompanhamento
-    
-    // Assumindo que os IDs no index.html serão atualizados (ex: 'follow-up-meeting-date')
+    // Coleta todos os dados do formulário de acompanhamento
     const parecer = document.getElementById('follow-up-parecer').value.trim();
     const contactSucceededRadio = document.querySelector('input[name="follow-up-contact-succeeded"]:checked');
     const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
@@ -439,7 +451,7 @@ async function handleFollowUpSubmit(e) {
     let newStatus = 'Pendente'; // Padrão: Contato feito, mas sem parecer
     if (parecer) {
         newStatus = 'Resolvido';
-    } else if (!contactSucceeded) {
+    } else if (!contactSucceeded || contactSucceeded === 'no') { // Se não conseguiu contato ou marcou 'não'
         newStatus = 'Aguardando Contato';
     }
     // --- Fim da Lógica ---
@@ -447,17 +459,17 @@ async function handleFollowUpSubmit(e) {
     const dataToUpdate = {
         // Campos de Acompanhamento
         schoolActionsIndividual: document.getElementById('follow-up-actions').value.trim(),
-        providenciasFamilia: document.getElementById('follow-up-family-actions').value.trim(), // Assumindo ID 'follow-up-family-actions'
+        providenciasFamilia: document.getElementById('follow-up-family-actions').value.trim(), 
         parecerIndividual: parecer,
         
         // Campos Movidos (Convocação)
-        meetingDate: document.getElementById('follow-up-meeting-date').value || null, // Assumindo ID 'follow-up-meeting-date'
-        meetingTime: document.getElementById('follow-up-meeting-time').value || null, // Assumindo ID 'follow-up-meeting-time'
+        meetingDate: document.getElementById('follow-up-meeting-date').value || null, 
+        meetingTime: document.getElementById('follow-up-meeting-time').value || null, 
         
         // Campos Movidos (Contato)
         contactSucceeded: contactSucceeded,
-        contactType: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-type').value : null, // Assumindo ID 'follow-up-contact-type'
-        contactDate: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-date').value : null, // Assumindo ID 'follow-up-contact-date'
+        contactType: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-type').value : null, 
+        contactDate: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-date').value : null, 
 
         // Status Automático
         statusIndividual: newStatus
@@ -471,7 +483,6 @@ async function handleFollowUpSubmit(e) {
         closeModal(dom.followUpModal);
     } catch (error) {
         console.error("Erro ao salvar acompanhamento:", error);
-        // ATUALIZADO: (Melhoria) Mensagem de erro mais específica.
         showToast(getFirestoreErrorMessage(error.code) || 'Erro ao salvar o acompanhamento.');
     }
 }
@@ -509,7 +520,6 @@ async function handleAbsenceSubmit(e) {
             setTimeout(() => openAbsenceModalForStudent(student, 'analise'), 350);
         }
     } catch (error) { 
-        // ATUALIZADO: (Melhoria) Mensagem de erro mais específica.
         console.error("Erro ao salvar ação de BA:", error);
         showToast(getFirestoreErrorMessage(error.code) || 'Erro ao salvar ação.'); 
     }
@@ -629,7 +639,6 @@ async function handleDeleteConfirmation() {
             await batch.commit();
             showToast('Encaminhamento e Análise excluídos.');
         } else {
-            // ATUALIZADO: (Melhoria) Usa `deleteRecord` para exclusão real.
             await deleteRecord(type, id);
             showToast('Registro excluído com sucesso.');
         }
@@ -648,16 +657,9 @@ function handleReportGeneration() {
     closeModal(dom.reportGeneratorModal);
 }
 
-// Lógica de UI e Dados
+// Lógica de UI e Dados (sem alterações significativas)
 function getOccurrenceHistoryMessage(original, updated) {
-    const changes = [];
-    // Esta função era do fluxo antigo, agora a lógica de histórico está
-    // em `handleOccurrenceSubmit` e `handleFollowUpSubmit`.
-    if (original.status !== updated.status) changes.push(`Status alterado de "${original.status}" para "${updated.status}".`);
-    if (original.parecer !== updated.parecer) changes.push(`Parecer foi ${updated.parecer ? 'adicionado/atualizado' : 'removido'}.`);
-    
-    if (changes.length > 0) return changes.join(' ');
-    
+    // ... (Esta função pode ser removida se não usada, pois o histórico agora é mais direto)
     return "Dados do incidente foram atualizados.";
 }
 
@@ -725,9 +727,6 @@ function handleActionTypeChange(action) {
 // --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
 
 function setupModalCloseButtons() {
-    // ATUALIZADO: (Bug Fix) Adicionado 'cancel-follow-up-btn'.
-    // Isto assume que o botão "Cancelar" no index.html terá o id="cancel-follow-up-btn"
-    // e o onclick="" removido.
     const modalMap = {
         'close-modal-btn': dom.occurrenceModal, 'cancel-btn': dom.occurrenceModal,
         'close-absence-modal-btn': dom.absenceModal, 'cancel-absence-btn': dom.absenceModal,
@@ -740,23 +739,20 @@ function setupModalCloseButtons() {
         'close-students-modal-btn': dom.studentsModal,
         'cancel-delete-btn': dom.deleteConfirmModal,
         'close-settings-modal-btn': dom.settingsModal,
-        'cancel-settings-btn': dom.settingsModal, // Adicionado para consistência
-        // NOVO: (Arquitetura & Bug Fix) Adiciona os botões de fechar do novo modal.
+        'cancel-settings-btn': dom.settingsModal, 
         'close-follow-up-modal-btn': dom.followUpModal,
-        'cancel-follow-up-btn': dom.followUpModal // << Correção do Bug
+        'cancel-follow-up-btn': dom.followUpModal 
     };
 
     for (const [id, modal] of Object.entries(modalMap)) {
         const button = document.getElementById(id);
         if (button && modal) {
-            // Remove o onclick inline para evitar bugs, se ele existir (como no botão Cancelar)
             if (button.hasAttribute('onclick')) {
                 button.removeAttribute('onclick');
             }
             button.addEventListener('click', () => closeModal(modal));
-        } else if (!button && id === 'cancel-follow-up-btn') {
-             // Aviso para o desenvolvedor (você) caso o ID não seja encontrado
-             console.warn("O botão 'cancel-follow-up-btn' não foi encontrado. Certifique-se de que o ID está no index.html.");
+        } else if (!button && (id === 'cancel-follow-up-btn' || id === 'close-follow-up-modal-btn')) {
+             console.warn(`O botão '${id}' não foi encontrado. Verifique o ID no index.html.`);
         }
     }
 
@@ -769,8 +765,9 @@ function setupModalCloseButtons() {
 }
 
 /**
- * ATUALIZADO (Arquitetura): Lógica centralizada para todos os cliques nas listas.
- * Agora inclui a gestão do menu kebab e a nova ação 'follow-up'.
+ * ATUALIZADO (PONTO 1): Lógica centralizada para cliques nas listas.
+ * Inclui gestão do menu kebab e a nova ação 'follow-up'.
+ * Inclui correção para o bug do overflow no menu kebab da Busca Ativa.
  */
 function setupListClickListeners() {
     // Listener para a lista de OCORRÊNCIAS
@@ -783,17 +780,17 @@ function setupListClickListeners() {
             e.stopPropagation();
             const dropdown = button.nextElementSibling;
             if (dropdown) {
-                // Fecha outros menus abertos para uma melhor experiência
+                // Fecha outros menus abertos
                 document.querySelectorAll('.kebab-menu-dropdown').forEach(d => {
                     if (d !== dropdown) d.classList.add('hidden');
                 });
                 dropdown.classList.toggle('hidden');
             }
-            return; // Encerra a execução aqui para não acionar outras lógicas
+            return; 
         }
 
         const groupId = button.dataset.groupId;
-        e.stopPropagation();
+        e.stopPropagation(); // Evita que o clique se propague para outros elementos
 
         if (button.classList.contains('notification-btn')) {
             openStudentSelectionModal(groupId);
@@ -804,7 +801,6 @@ function setupListClickListeners() {
             if (action === 'edit') handleEditOccurrence(groupId);
             else if (action === 'delete') handleDelete('occurrence', groupId);
             else if (action === 'history') openHistoryModal(groupId);
-            // NOVO: (Arquitetura) Chama a função para abrir o modal de acompanhamento.
             else if (action === 'follow-up') openFollowUpModal(groupId);
             // Esconde o menu após a ação
             button.closest('.kebab-menu-dropdown').classList.add('hidden');
@@ -815,18 +811,37 @@ function setupListClickListeners() {
     dom.absencesListDiv.addEventListener('click', (e) => {
         const button = e.target.closest('button');
         if (button) {
-            e.stopPropagation();
+            e.stopPropagation(); // Evita propagação
 
+             // ---- INÍCIO DA CORREÇÃO (PONTO 1) ----
              if (button.classList.contains('kebab-menu-btn')) {
                 const dropdown = button.nextElementSibling;
                 if (dropdown) {
+                    // Fecha outros menus
                     document.querySelectorAll('.kebab-menu-dropdown').forEach(d => {
                         if (d !== dropdown) d.classList.add('hidden');
                     });
-                    dropdown.classList.toggle('hidden');
+                    
+                    // Lógica de Overflow:
+                    const contentParent = button.closest('.process-content');
+                    // Se o menu está prestes a abrir, remove o clip
+                    if (contentParent && dropdown.classList.contains('hidden')) { 
+                        contentParent.style.overflow = 'visible';
+                    } else if (contentParent) {
+                        // Se está prestes a fechar, restaura (após um pequeno delay)
+                        setTimeout(() => { 
+                            // Verifica se ainda está fechado antes de restaurar
+                            if (dropdown.classList.contains('hidden')) {
+                                contentParent.style.overflow = 'hidden';
+                            }
+                        }, 250); // Delay para permitir a animação do menu
+                    }
+                    
+                    dropdown.classList.toggle('hidden'); // Abre/Fecha o menu
                 }
-                return;
+                return; // Encerra aqui para não executar outras lógicas de botão
             }
+             // ---- FIM DA CORREÇÃO (PONTO 1) ----
 
             const id = button.dataset.id;
             
@@ -839,18 +854,16 @@ function setupListClickListeners() {
                 if (action === 'edit') handleEditAbsence(id);
                 else if (action === 'delete') handleDeleteAbsence(id);
                 else if (action === 'history') openAbsenceHistoryModal(button.dataset.processId);
+                // Fecha o menu após a ação
                 button.closest('.kebab-menu-dropdown').classList.add('hidden');
+                // Restaura o overflow ao fechar o menu por clique em ação
+                const contentParent = button.closest('.process-content');
+                if(contentParent) contentParent.style.overflow = 'hidden';
             }
             return;
         }
 
-        const newActionTrigger = e.target.closest('.new-action-from-history-btn');
-        if (newActionTrigger) {
-            e.stopPropagation();
-            handleNewAbsenceFromHistory(newActionTrigger.dataset.studentId);
-            return;
-        }
-        
+        // Clique para abrir/fechar o acordeão
         const header = e.target.closest('.process-header');
         if (header) {
             const id = header.dataset.processId;
@@ -858,14 +871,30 @@ function setupListClickListeners() {
             const icon = header.querySelector('i.fa-chevron-down');
             if (content) {
                 const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px';
-                content.style.maxHeight = isHidden ? `${content.scrollHeight}px` : null;
+                if (isHidden) {
+                    content.style.maxHeight = `${content.scrollHeight}px`;
+                    // Não definir overflow: visible aqui, deixar o kebab controlar
+                } else {
+                    content.style.maxHeight = null;
+                    // ---- CORREÇÃO (PONTO 1): Garante overflow hidden ao fechar ----
+                    content.style.overflow = 'hidden'; 
+                }
                 icon?.classList.toggle('rotate-180', isHidden);
             }
+            return; // Impede que o clique no header feche menus abertos
+        }
+        
+        // Clique para iniciar nova ação a partir do histórico
+        const newActionTrigger = e.target.closest('.new-action-from-history-btn');
+        if (newActionTrigger) {
+            e.stopPropagation();
+            handleNewAbsenceFromHistory(newActionTrigger.dataset.studentId);
+            return;
         }
     });
 }
 
-// Funções de Manipulação de Eventos das Listas
+// Funções de Manipulação de Eventos das Listas (sem alterações significativas)
 function handleEditOccurrence(groupId) {
     const incident = getFilteredOccurrences().get(groupId);
     if (incident) {
@@ -951,8 +980,7 @@ function handleNewAbsenceFromHistory(studentId) {
 }
 
 /**
- * NOVO: (Otimização) Lida com todas as ações na tabela de alunos usando delegação de eventos.
- * @param {Event} e - O objeto do evento de clique.
+ * Lida com todas as ações na tabela de alunos usando delegação de eventos.
  */
 async function handleStudentTableActions(e) {
     const editBtn = e.target.closest('.edit-student-btn');
@@ -989,7 +1017,6 @@ async function handleStudentTableActions(e) {
                 showToast("Aluno removido com sucesso.");
             } catch(error) {
                 console.error("Erro ao remover aluno:", error);
-                // ATUALIZADO: (Melhoria) Mensagem de erro mais específica.
                 showToast(getFirestoreErrorMessage(error.code) || "Erro ao remover aluno.");
             }
         }
