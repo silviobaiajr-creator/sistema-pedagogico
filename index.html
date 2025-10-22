@@ -212,6 +212,7 @@
     <!-- ============================================================================== -->
 
     <!-- Modal: Registro/Edição de Ocorrência (APENAS FATO COLETIVO) -->
+    <!-- ATUALIZAÇÃO: Removidos fieldsets de "Convocação" e "Contato com a Família" -->
     <div id="occurrence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -234,33 +235,14 @@
                 <div><label for="occurrence-type" class="block text-sm font-medium">Tipo de Ocorrência</label><select id="occurrence-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required><option value="">Selecione um tipo...</option><option value="Agressão (Física)">Agressão (Física)</option><option value="Agressão (Verbal)">Agressão (Verbal)</option><option value="Indisciplina / Comportamento Inadequado">Indisciplina / Comportamento Inadequado</option><option value="Bullying">Bullying</option><option value="Dano ao Patrimônio">Dano ao Patrimônio</option><option value="Uso inadequado de telemóvel/eletrónicos">Uso inadequado de telemóvel/eletrónicos</option><option value="Outros">Outros</option></select></div>
                 <div><label for="occurrence-date" class="block text-sm font-medium">Data da Ocorrência</label><input type="date" id="occurrence-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div>
                 
-                <fieldset class="pt-4 border-t"><legend class="text-md font-semibold text-gray-600">Convocação para Reunião (Opcional)</legend><div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2"><div><label for="meeting-date-occurrence" class="block text-sm font-medium">Data do Comparecimento</label><input type="date" id="meeting-date-occurrence" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label for="meeting-time-occurrence" class="block text-sm font-medium">Horário do Comparecimento</label><input type="time" id="meeting-time-occurrence" class="mt-1 w-full border-gray-300 rounded-md"></div></div></fieldset>
-                
-                <!-- ATENÇÃO: Contato com a família ainda é COLETIVO neste fluxo original, mantido aqui. -->
-                <fieldset class="pt-4 border-t"><legend class="text-md font-semibold text-gray-600">Contato com a Família</legend><div class="mt-2">
-                    <span class="block text-sm font-medium">Conseguiu contato?</span>
-                    <div class="mt-2 space-x-4"><label><input type="radio" name="occurrence-contact-succeeded" value="yes"> Sim</label><label><input type="radio" name="occurrence-contact-succeeded" value="no"> Não</label></div>
-                </div>
-                <div id="occurrence-family-contact-fields" class="space-y-4 mt-4 hidden">
-                    <div><label for="occurrence-contact-type" class="block text-sm font-medium">Tipo de Contato</label><select id="occurrence-contact-type" class="mt-1 w-full border-gray-300 rounded-md"><option value="">Selecione...</option><option value="WhatsApp">WhatsApp</option><option value="Ligação">Ligação</option><option value="Pessoalmente">Pessoalmente</option></select></div>
-                    <div><label for="occurrence-contact-date" class="block text-sm font-medium">Dia do Contato</label><input type="date" id="occurrence-contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                </div></fieldset>
-
                 <!-- Seção de Detalhes -->
                 <div class="pt-4 border-t space-y-4">
                     <div><label for="description" class="block text-sm font-medium">Descrição da Ocorrência</label><textarea id="description" rows="4" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></textarea></div>
                     
-                    <!-- CAMPOS REMOVIDOS LOGICAMENTE DESTE MODAL (MOVIMENTADOS PARA O MODAL DE ACOMPANHAMENTO) -->
-                    <!-- Ocultados via JS no ui.js ou removidos daqui se preferir -->
+                    <!-- CAMPOS REMOVIDOS DESTE MODAL (MOVIMENTADOS PARA O MODAL DE ACOMPANHAMENTO) -->
                     <div class="hidden"><label for="actions-taken-school" class="block text-sm font-medium">Providências da Escola</label><textarea id="actions-taken-school" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Ex: Conversa com o aluno, contato com os pais..."></textarea></div>
-                    <div class="hidden"><label for="actions-taken-family" class="block text-sm font-medium">Providências da Família</label><textarea id="actions-taken-family" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Ex: Acompanhamento, diálogo..."></textarea></div>
-                </div>
-                
-                <!-- Campo de Parecer (REMOVIDO LOGICAMENTE DESTE MODAL) -->
-                <div class="pt-4 border-t hidden">
-                    <label for="occurrence-parecer" class="block text-md font-semibold text-gray-600">Parecer / Desfecho</label>
-                    <p class="text-xs text-gray-500 mb-2">Preencher este campo mudará o status da ocorrência para "Finalizada".</p>
-                    <textarea id="occurrence-parecer" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Descreva a conclusão do caso, acordos firmados, etc."></textarea>
+                    <!-- O campo de parecer também foi removido logicamente daqui -->
+                    <div class="hidden"><label for="occurrence-parecer" class="block text-sm font-medium">Parecer / Desfecho</label><textarea id="occurrence-parecer" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"></textarea></div>
                 </div>
 
                 <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Fato</button></div>
@@ -269,8 +251,9 @@
     </div>
 
     <!-- NOVO: Modal para Acompanhamento Individual da Ocorrência -->
+    <!-- ATUALIZAÇÃO: Reestruturado conforme a nova lógica de acompanhamento -->
     <div id="follow-up-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
                 <h3 id="follow-up-modal-title" class="text-xl font-semibold">Acompanhamento Individual</h3>
                 <button id="close-follow-up-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
@@ -283,30 +266,59 @@
                  </select>
             </div>
             <!-- Formulário de acompanhamento (inicialmente oculto até selecionar aluno) -->
-            <form id="follow-up-form" class="p-6 space-y-4 hidden" data-record-id="" data-student-id="">
+            <form id="follow-up-form" class="p-6 space-y-4 hidden max-h-[70vh] overflow-y-auto" data-record-id="" data-student-id="">
                 <input type="hidden" id="follow-up-record-id"> 
-                <div>
-                    <label for="follow-up-student-name" class="block text-sm font-medium">Aluno</label>
-                    <input type="text" id="follow-up-student-name" class="mt-1 block w-full bg-gray-100 p-2 border rounded" readonly>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium">Aluno</label>
+                        <input type="text" id="follow-up-student-name" class="mt-1 block w-full bg-gray-100 p-2 border rounded" readonly>
+                    </div>
+                    <div>
+                        <!-- CAMPO DE STATUS AGORA É AUTOMÁTICO E APENAS EXIBIDO -->
+                        <label class="block text-sm font-medium">Status do Acompanhamento</label>
+                        <span id="follow-up-status-display" class="text-sm font-medium px-2.5 py-1.5 rounded-full mt-1 inline-block"></span>
+                    </div>
                 </div>
-                <div>
-                    <label for="follow-up-status" class="block text-sm font-medium">Status do Acompanhamento</label>
-                    <select id="follow-up-status" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm" required>
-                        <option value="Pendente">Pendente</option>
-                        <option value="Resolvido">Resolvido</option>
-                    </select>
+
+                <!-- CAMPO MOVIDO: Convocação para Reunião -->
+                <fieldset class="pt-4 border-t"><legend class="text-md font-semibold text-gray-600">Convocação para Reunião (Opcional)</legend><div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2"><div><label for="meeting-date-occurrence" class="block text-sm font-medium">Data do Comparecimento</label><input type="date" id="meeting-date-occurrence" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label for="meeting-time-occurrence" class="block text-sm font-medium">Horário do Comparecimento</label><input type="time" id="meeting-time-occurrence" class="mt-1 w-full border-gray-300 rounded-md"></div></div></fieldset>
+                
+                <!-- CAMPO MOVIDO: Contato com a Família -->
+                <fieldset class="pt-4 border-t"><legend class="text-md font-semibold text-gray-600">Contato com a Família</legend><div class="mt-2">
+                    <span class="block text-sm font-medium">Conseguiu contato?</span>
+                    <!-- ATUALIZAÇÃO: 'name' alterado para ser único deste modal -->
+                    <div class="mt-2 space-x-4"><label><input type="radio" name="follow-up-contact-succeeded" value="yes"> Sim</label><label><input type="radio" name="follow-up-contact-succeeded" value="no"> Não</label></div>
                 </div>
-                 <div>
-                    <label for="follow-up-actions" class="block text-sm font-medium">Providências da Escola (Individuais)</label>
-                    <textarea id="follow-up-actions" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Ex: Conversa individual, orientação..."></textarea>
+                <!-- ATUALIZAÇÃO: 'id' alterado para ser único deste modal -->
+                <div id="follow-up-family-contact-fields" class="space-y-4 mt-4 hidden">
+                    <!-- ATUALIZAÇÃO: 'id' e opções alteradas conforme solicitado -->
+                    <div><label for="follow-up-contact-type" class="block text-sm font-medium">Tipo de Contato</label><select id="follow-up-contact-type" class="mt-1 w-full border-gray-300 rounded-md"><option value="">Selecione...</option><option value="WhatsApp">WhatsApp</option><option value="Ligação">Ligação</option><option value="Pessoalmente">Pessoalmente</option></select></div>
+                    <div><label for="follow-up-contact-date" class="block text-sm font-medium">Dia do Contato</label><input type="date" id="follow-up-contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                </div></fieldset>
+
+                <!-- Campos de Acompanhamento -->
+                <div class="pt-4 border-t space-y-4">
+                    <div>
+                        <label for="follow-up-actions" class="block text-sm font-medium">Providências da Escola (Individuais)</label>
+                        <textarea id="follow-up-actions" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Ex: Conversa individual, orientação..."></textarea>
+                    </div>
+                    <!-- CAMPO NOVO: Providências da Família -->
+                    <div>
+                        <label for="follow-up-family-actions" class="block text-sm font-medium">Providências da Família</label>
+                        <textarea id="follow-up-family-actions" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Ex: Acompanhamento, diálogo..."></textarea>
+                    </div>
                 </div>
-                <div>
+
+                <div class="pt-4 border-t">
                     <label for="follow-up-parecer" class="block text-sm font-medium">Parecer / Desfecho (Individual)</label>
                     <p class="text-xs text-gray-500 mb-1">Preencher este campo mudará o status individual para "Resolvido".</p>
                     <textarea id="follow-up-parecer" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Descreva a conclusão do caso para este aluno..."></textarea>
                 </div>
+                
                 <div class="pt-4 flex justify-end space-x-3">
-                    <button type="button" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg" onclick="closeModal(document.getElementById('follow-up-modal'))">Cancelar</button>
+                    <!-- ATUALIZAÇÃO: Removido 'onclick' e adicionado 'id' para correção do bug -->
+                    <button type="button" id="cancel-follow-up-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button>
                     <button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Acompanhamento</button>
                 </div>
             </form>
