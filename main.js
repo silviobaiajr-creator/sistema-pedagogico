@@ -21,6 +21,9 @@
 //    campos movidos (meetingDate, contactSucceeded, etc.) como nulos.
 // 6. (PONTO 1) Adicionada lógica para corrigir o menu kebab cortado.
 // 7. (PONTO 7) Adicionada lógica para tornar "Providências da Família" obrigatório.
+// 8. (SUGESTÃO DO UTILIZADOR) `setupListClickListeners` foi atualizada para
+//    capturar cliques no novo botão `.student-follow-up-trigger` e chamar
+//    `openFollowUpModal` com o ID do aluno pré-selecionado.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -57,7 +60,7 @@ import {
     generateAndShowBuscaAtivaReport,
     getFilteredOccurrences,
     openSettingsModal,
-    // NOVO: (Arquitetura) Importa a nova função para abrir o modal de acompanhamento.
+    // (Arquitetura) Importa a função para abrir o modal de acompanhamento.
     openFollowUpModal 
 } from './ui.js';
 import * as logic from './logic.js';
@@ -765,8 +768,8 @@ function setupModalCloseButtons() {
 }
 
 /**
- * ATUALIZADO (PONTO 1): Lógica centralizada para cliques nas listas.
- * Inclui gestão do menu kebab e a nova ação 'follow-up'.
+ * ATUALIZADO (PONTO 1 & 8): Lógica centralizada para cliques nas listas.
+ * Inclui gestão do menu kebab e a nova ação 'follow-up' (ambos os modos).
  * Inclui correção para o bug do overflow no menu kebab da Busca Ativa.
  */
 function setupListClickListeners() {
@@ -775,7 +778,19 @@ function setupListClickListeners() {
         const button = e.target.closest('button');
         if (!button) return;
 
-        // Ação do menu Kebab
+        // --- INÍCIO DA ATUALIZAÇÃO (PONTO 8) ---
+        // NOVA LÓGICA: Clique direto no aluno para acompanhamento
+        const followUpTrigger = e.target.closest('.student-follow-up-trigger');
+        if (followUpTrigger) {
+            e.stopPropagation();
+            const groupId = followUpTrigger.dataset.groupId;
+            const studentId = followUpTrigger.dataset.studentId;
+            openFollowUpModal(groupId, studentId); // Chama a função com o aluno pré-selecionado
+            return; // Encerra o processamento do clique aqui
+        }
+        // --- FIM DA ATUALIZAÇÃO (PONTO 8) ---
+
+        // Ação do menu Kebab (continua como antes)
         if (button.classList.contains('kebab-menu-btn')) {
             e.stopPropagation();
             const dropdown = button.nextElementSibling;
@@ -801,7 +816,8 @@ function setupListClickListeners() {
             if (action === 'edit') handleEditOccurrence(groupId);
             else if (action === 'delete') handleDelete('occurrence', groupId);
             else if (action === 'history') openHistoryModal(groupId);
-            else if (action === 'follow-up') openFollowUpModal(groupId);
+            // ATUALIZAÇÃO (PONTO 8): Chamada sem pré-seleção (clique no kebab)
+            else if (action === 'follow-up') openFollowUpModal(groupId); 
             // Esconde o menu após a ação
             button.closest('.kebab-menu-dropdown').classList.add('hidden');
         }
