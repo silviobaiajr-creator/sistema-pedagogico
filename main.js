@@ -13,6 +13,8 @@
 //    para fornecer um feedback mais útil ao utilizador.
 // 4. O fluxo de eventos foi atualizado para incluir o novo botão de
 //    "Acompanhamento" no menu de ocorrências.
+// 5. (CORREÇÃO GERAL) Chamada à `initializeDOMReferences` no `DOMContentLoaded`
+//    para garantir que as referências do DOM não sejam nulas.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -23,7 +25,8 @@ import { onSnapshot, query, writeBatch, doc, setDoc, where, getDocs, collection,
 
 // Módulos internos da aplicação
 import { auth, db } from './firebase.js';
-import { state, dom } from './state.js';
+// ATUALIZADO: (CORREÇÃO) Importa a nova função de inicialização do DOM.
+import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, shareContent, openModal } from './utils.js';
 // ATUALIZADO: (Arquitetura) Importa `deleteRecord` para exclusão correta.
 import { loadStudents, saveSchoolConfig, loadSchoolConfig, getCollectionRef, getStudentsDocRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord } from './firestore.js';
@@ -58,6 +61,10 @@ import * as logic from './logic.js';
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
 document.addEventListener('DOMContentLoaded', () => {
+    // NOVO: (CORREÇÃO) Popula as referências do DOM AGORA,
+    // garantindo que todos os elementos existem antes de usá-los.
+    initializeDOMReferences();
+
     state.db = db; // Armazena a instância do DB no estado global
 
     // Observador do estado de autenticação do Firebase
@@ -99,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ATUALIZADO: (CORREÇÃO) Movido para ser chamado DEPOIS de initializeDOMReferences()
     setupEventListeners();
     
     // Configura autocomplete apenas para a Busca Ativa.
@@ -162,7 +170,6 @@ function setupEventListeners() {
     document.getElementById('occurrence-filter-type').addEventListener('change', (e) => { state.filtersOccurrences.type = e.target.value; render(); });
     document.getElementById('occurrence-filter-status').addEventListener('change', (e) => { state.filtersOccurrences.status = e.target.value; render(); });
     dom.generalReportBtn.addEventListener('click', generateAndShowGeneralReport);
-    // (Inalterado) Listener para campos dinâmicos do modal de ocorrência (que foi removido de lá)
     document.querySelectorAll('input[name="occurrence-contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('occurrence-family-contact-fields'))));
 
     // --- Busca Ativa: Listeners ---
@@ -187,12 +194,10 @@ function setupEventListeners() {
 
     // Ações em Modais
     document.getElementById('confirm-delete-btn').addEventListener('click', handleDeleteConfirmation);
-    // (Inalterado) Listener para o modal de Busca Ativa
     document.getElementById('action-type').addEventListener('change', (e) => handleActionTypeChange(e.target.value));
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
     
-    // (Inalterado) Listener global para fechar menus kebab
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.kebab-menu-container')) {
             document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
@@ -206,7 +211,7 @@ function setupEventListeners() {
 async function handleLogin(e) { 
     e.preventDefault(); 
     try { 
-        // ATUALIZADO: (Correção) Revertido para getElementById para garantir que o DOM esteja carregado no momento do clique.
+        // (Correção de Bug Anterior) Usa getElementById para garantir que o elemento existe no momento do submit.
         await signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value); 
     } catch (error) { 
         console.error("Erro de Login:", error); 
@@ -216,7 +221,7 @@ async function handleLogin(e) {
 async function handleRegister(e) { 
     e.preventDefault(); 
     try { 
-        // ATUALIZADO: (Correção) Revertido para getElementById.
+        // (Correção de Bug Anterior) Usa getElementById.
         await createUserWithEmailAndPassword(auth, document.getElementById('register-email').value, document.getElementById('register-password').value); 
     } catch (error) { 
         console.error("Erro de Registo:", error); 
@@ -224,7 +229,6 @@ async function handleRegister(e) {
     }
 }
 
-// (Inalterado) Funções de Autenticação
 function getAuthErrorMessage(code) {
     switch (code) {
         case 'auth/email-already-in-use': return "Este email já está a ser utilizado.";
@@ -246,7 +250,6 @@ function getFirestoreErrorMessage(code) {
 }
 
 
-// (Inalterado) Navegação
 function switchTab(tabName) {
     state.activeTab = tabName;
     const isOccurrences = tabName === 'occurrences';
@@ -257,7 +260,6 @@ function switchTab(tabName) {
     render();
 }
 
-// (Inalterado) Submissão de Formulários
 /**
  * ATUALIZADO: (Arquitetura) Lida com a submissão do formulário de ocorrências (criação ou edição do FATO COLETIVO).
  */
@@ -269,7 +271,6 @@ async function handleOccurrenceSubmit(e) {
         return showToast("Selecione pelo menos um aluno.");
     }
     
-    // (Inalterado) Coleta dos dados do formulário
     const contactSucceededRadio = document.querySelector('input[name="occurrence-contact-succeeded"]:checked');
     const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
 
@@ -280,7 +281,6 @@ async function handleOccurrenceSubmit(e) {
         description: document.getElementById('description').value.trim(), 
         meetingDate: document.getElementById('meeting-date-occurrence').value || null, 
         meetingTime: document.getElementById('meeting-time-occurrence').value || null,
-        // (Inalterado) Estes campos são coletivos no seu fluxo original
         contactSucceeded: contactSucceeded,
         contactType: contactSucceeded === 'yes' ? document.getElementById('occurrence-contact-type').value : null,
         contactDate: contactSucceeded === 'yes' ? document.getElementById('occurrence-contact-date').value : null,
@@ -309,8 +309,6 @@ async function handleOccurrenceSubmit(e) {
                 const isNewStudent = !originalIncident.records.some(r => r.studentId === studentId);
                 if (isNewStudent) {
                     const newRecordRef = doc(collection(db, getCollectionRef('occurrence').path));
-                    // Pega os campos individuais do primeiro registro (se houver) para manter consistência,
-                    // mas reseta o status.
                     const templateRecord = originalIncident.records[0] || {};
                     const newRecordData = { 
                         ...collectiveData, 
@@ -427,7 +425,6 @@ async function handleFollowUpSubmit(e) {
 }
 
 
-// (Inalterado) Submissão de Formulários
 async function handleAbsenceSubmit(e) {
     e.preventDefault();
     const form = e.target;
@@ -443,7 +440,7 @@ async function handleAbsenceSubmit(e) {
         const id = data.id;
         delete data.id;
         
-        const historyAction = id ? "Dados da ação atualizados." : `Ação "${actionDisplayTitles[data.actionType]}" registada.`;
+        const historyAction = id ? "Dados da ação atualizados." : `Ação de Busca Ativa registada.`;
 
         if (id) {
             await updateRecordWithHistory('absence', id, data, historyAction, state.userEmail);
@@ -466,7 +463,6 @@ async function handleAbsenceSubmit(e) {
     }
 }
 
-// (Inalterado) Submissão de Formulários
 async function handleSettingsSubmit(e) {
     e.preventDefault();
     const data = {
@@ -487,7 +483,7 @@ async function handleSettingsSubmit(e) {
     }
 }
 
-// (Inalterado) Funções de Gerenciamento de Alunos
+// Funções de Gerenciamento de Alunos
 function handleCsvUpload() {
     const fileInput = document.getElementById('csv-file');
     const feedbackDiv = document.getElementById('csv-feedback');
@@ -525,7 +521,6 @@ function handleCsvUpload() {
     });
 }
 
-// (Inalterado) Funções de Gerenciamento de Alunos
 async function handleStudentFormSubmit(e) {
     e.preventDefault();
     const id = document.getElementById('student-id-input').value;
@@ -562,7 +557,7 @@ async function handleStudentFormSubmit(e) {
     }
 }
 
-// (Inalterado) Ações (Excluir, Gerar Relatório)
+// Ações (Excluir, Gerar Relatório)
 async function handleDeleteConfirmation() {
     if (!state.recordToDelete) return;
     const { type, id } = state.recordToDelete;
@@ -582,14 +577,13 @@ async function handleDeleteConfirmation() {
             await batch.commit();
             showToast('Encaminhamento e Análise excluídos.');
         } else {
-            // ATUALIZADO: (Melhoria) Usa `deleteRecord` para exclusão real, em vez de soft delete.
+            // ATUALIZADO: (Melhoria) Usa `deleteRecord` para exclusão real.
             await deleteRecord(type, id);
             showToast('Registro excluído com sucesso.');
         }
     } catch (error) { showToast('Erro ao excluir.'); console.error(error); } finally { state.recordToDelete = null; closeModal(dom.deleteConfirmModal); }
 }
 
-// (Inalterado) Ações (Excluir, Gerar Relatório)
 function handleReportGeneration() {
     const studentId = document.getElementById('student-select').value;
     if (!studentId) return showToast('Por favor, selecione um aluno.');
@@ -602,12 +596,11 @@ function handleReportGeneration() {
     closeModal(dom.reportGeneratorModal);
 }
 
-// (Inalterado) Lógica de UI e Dados
+// Lógica de UI e Dados
 function getOccurrenceHistoryMessage(original, updated) {
     const changes = [];
     // Esta função era do fluxo antigo, agora a lógica de histórico está
     // em `handleOccurrenceSubmit` e `handleFollowUpSubmit`.
-    // Mantida para não quebrar nada, mas a lógica de histórico foi movida.
     if (original.status !== updated.status) changes.push(`Status alterado de "${original.status}" para "${updated.status}".`);
     if (original.parecer !== updated.parecer) changes.push(`Parecer foi ${updated.parecer ? 'adicionado/atualizado' : 'removido'}.`);
     
@@ -616,7 +609,6 @@ function getOccurrenceHistoryMessage(original, updated) {
     return "Dados do incidente foram atualizados.";
 }
 
-// (Inalterado) Lógica de UI e Dados
 function getAbsenceFormData() {
     const studentName = document.getElementById('absence-student-name').value.trim();
     const student = state.students.find(s => s.name === studentName);
@@ -671,7 +663,6 @@ function getAbsenceFormData() {
     return data;
 }
 
-// (Inalterado) Lógica de UI e Dados
 function handleActionTypeChange(action) {
     document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
     const groupToShow = action.startsWith('tentativa') ? 'group-tentativas' : `group-${action}`;
@@ -681,7 +672,6 @@ function handleActionTypeChange(action) {
 
 // --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
 
-// (Inalterado) Configuração de Listeners Dinâmicos
 function setupModalCloseButtons() {
     const modalMap = {
         'close-modal-btn': dom.occurrenceModal, 'cancel-btn': dom.occurrenceModal,
@@ -811,7 +801,7 @@ function setupListClickListeners() {
     });
 }
 
-// (Inalterado) Funções de Manipulação de Eventos das Listas
+// Funções de Manipulação de Eventos das Listas
 function handleEditOccurrence(groupId) {
     const incident = getFilteredOccurrences().get(groupId);
     if (incident) {
@@ -821,21 +811,18 @@ function handleEditOccurrence(groupId) {
     }
 }
 
-// (Inalterado) Funções de Manipulação de Eventos das Listas
 function handleDelete(type, id) {
     document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este incidente e todos os seus registros? Esta ação não pode ser desfeita.';
     state.recordToDelete = { type, id };
     openModal(dom.deleteConfirmModal);
 }
 
-// (Inalterado) Funções de Manipulação de Eventos das Listas
 function handleEditAbsence(id) {
     const data = state.absences.find(a => a.id === id);
     const student = data ? state.students.find(s => s.matricula === data.studentId) : null;
     if (student) openAbsenceModalForStudent(student, data.actionType, data);
 }
 
-// (Inalterado) Funções de Manipulação de Eventos das Listas
 function handleDeleteAbsence(id) {
     const actionToDelete = state.absences.find(a => a.id === id);
     if (!actionToDelete) return;
@@ -858,7 +845,6 @@ function handleDeleteAbsence(id) {
     openModal(dom.deleteConfirmModal);
 }
 
-// (Inalterado) Funções de Manipulação de Eventos das Listas
 async function handleSendToCT(id) {
     const oficioNumber = prompt("Por favor, insira o número do ofício:");
     if (oficioNumber?.trim()) {
@@ -874,7 +860,7 @@ async function handleSendToCT(id) {
             const firstAction = currentCycleActions.find(a => a.periodoFaltasStart);
             const dataForCt = {
                 studentId: student.matricula, actionType: 'encaminhamento_ct', processId,
-                ctSentDate: new Date().toISOString().split('T_')[0],
+                ctSentDate: new Date().toISOString().split('T')[0],
                 oficioNumber, oficioYear: new Date().getFullYear(),
                 periodoFaltasStart: firstAction?.periodoFaltasStart || null,
                 periodoFaltasEnd: firstAction?.periodoFaltasEnd || null,
@@ -890,13 +876,11 @@ async function handleSendToCT(id) {
     }
 }
 
-// (Inalterado) Funções de Manipulação de Eventos das Listas
 function handleViewOficio(id) {
     const ctAction = state.absences.find(a => a.id === id);
     if (ctAction) generateAndShowOficio(ctAction);
 }
 
-// (Inalterado) Funções de Manipulação de Eventos das Listas
 function handleNewAbsenceFromHistory(studentId) {
     const student = state.students.find(s => s.matricula === studentId);
     if (student) handleNewAbsenceAction(student);
