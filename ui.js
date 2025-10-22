@@ -302,6 +302,69 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     openModal(dom.occurrenceModal);
 };
 
+
+// =================================================================================
+// SEÇÃO 1.5: NOVA LÓGICA DO MODAL DE ACOMPANHAMENTO INDIVIDUAL
+// =================================================================================
+
+/**
+ * ATUALIZADO: (Arquitetura) Abre o novo modal de acompanhamento individual.
+ * @param {string} groupId - O ID do grupo da ocorrência.
+ */
+export const openFollowUpModal = (groupId) => {
+    const incident = getFilteredOccurrences().get(groupId);
+    if (!incident) {
+        return showToast('Erro: Incidente não encontrado.');
+    }
+
+    const studentSelect = document.getElementById('follow-up-student-select');
+    const followUpForm = document.getElementById('follow-up-form');
+    studentSelect.innerHTML = '<option value="">Selecione um aluno...</option>';
+    followUpForm.classList.add('hidden'); // Esconde o formulário até um aluno ser selecionado
+
+    // 1. Popula o <select> com os alunos envolvidos no incidente
+    incident.studentsInvolved.forEach((student, studentId) => {
+        const record = incident.records.find(r => r.studentId === studentId);
+        if (record) {
+            const option = document.createElement('option');
+            option.value = record.id; // Usamos o ID do registro individual
+            option.textContent = student.name;
+            option.dataset.studentId = studentId; // Guardamos o ID do aluno também
+            studentSelect.appendChild(option);
+        }
+    });
+
+    // 2. Adiciona um listener para quando o usuário escolher um aluno
+    studentSelect.onchange = (e) => {
+        const selectedOption = e.target.options[e.target.selectedIndex];
+        const recordId = selectedOption.value;
+        const studentId = selectedOption.dataset.studentId;
+
+        if (!recordId) {
+            followUpForm.classList.add('hidden');
+            return;
+        }
+        
+        const record = incident.records.find(r => r.id === recordId);
+        const student = incident.studentsInvolved.get(studentId);
+
+        if (record && student) {
+            // 3. Preenche o formulário com os dados individuais
+            followUpForm.dataset.recordId = recordId;
+            followUpForm.dataset.studentId = studentId;
+            document.getElementById('follow-up-student-name').value = student.name;
+            document.getElementById('follow-up-status').value = record.statusIndividual || 'Pendente';
+            document.getElementById('follow-up-actions').value = record.schoolActionsIndividual || '';
+            document.getElementById('follow-up-parecer').value = record.parecerIndividual || '';
+            
+            followUpForm.classList.remove('hidden');
+        }
+    };
+
+    // 4. Abre o modal
+    openModal(dom.followUpModal);
+};
+
 // =================================================================================
 // SEÇÃO 2: LÓGICA DA INTERFACE DE BUSCA ATIVA
 // =================================================================================
