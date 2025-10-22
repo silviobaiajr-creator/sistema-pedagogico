@@ -2,19 +2,23 @@
 // ARQUIVO: main.js
 // RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra a lógica de
 // eventos, submissão de formulários e a comunicação entre a UI e o Firestore.
-// ATUALIZAÇÃO GERAL (Conforme Análise):
+//
+// ATUALIZAÇÃO (Baseada no Diálogo):
 // 1. (Arquitetura) `handleOccurrenceSubmit` foi REFEITA para salvar apenas os
-//    dados COLETIVOS do fato. Uma nova função, `handleFollowUpSubmit`, foi
-//    criada para salvar o ACOMPANHAMENTO INDIVIDUAL de cada aluno.
-// 2. (Otimização) Adicionado um listener centralizado para a tabela de alunos,
-//    usando a técnica de "delegação de eventos", e a lógica de clique foi
-//    movida para cá, vinda do `ui.js`.
-// 3. (Melhoria) As mensagens de erro nos blocos `catch` foram detalhadas
-//    para fornecer um feedback mais útil ao utilizador.
-// 4. O fluxo de eventos foi atualizado para incluir o novo botão de
-//    "Acompanhamento" no menu de ocorrências.
-// 5. (CORREÇÃO GERAL) Chamada à `initializeDOMReferences` no `DOMContentLoaded`
-//    para garantir que as referências do DOM não sejam nulas.
+//    dados COLETIVOS do fato (Data, Tipo, Descrição).
+// 2. (Arquitetura) `handleFollowUpSubmit` foi REFEITA para salvar o
+//    ACOMPANHAMENTO INDIVIDUAL, que agora inclui:
+//    - Convocação para Reunião (Data/Hora)
+//    - Contato com a Família (Status, Tipo, Data)
+//    - Providências da Escola (Individual)
+//    - Providências da Família (Novo campo)
+//    - Parecer / Desfecho (Individual)
+// 3. (Lógica) O Status do Acompanhamento agora é AUTOMÁTICO, baseado no
+//    preenchimento do Parecer e do Contato (Resolvido, Pendente, Aguardando Contato).
+// 4. (Bug Fix) Corrigido o botão "Cancelar" do modal de Acompanhamento,
+//    adicionando uma referência para ele em `setupModalCloseButtons`.
+// 5. (Lógica) Atualizada a criação de novos registros para INICIALIZAR os
+//    campos movidos (meetingDate, contactSucceeded, etc.) como nulos.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -170,7 +174,8 @@ function setupEventListeners() {
     document.getElementById('occurrence-filter-type').addEventListener('change', (e) => { state.filtersOccurrences.type = e.target.value; render(); });
     document.getElementById('occurrence-filter-status').addEventListener('change', (e) => { state.filtersOccurrences.status = e.target.value; render(); });
     dom.generalReportBtn.addEventListener('click', generateAndShowGeneralReport);
-    document.querySelectorAll('input[name="occurrence-contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('occurrence-family-contact-fields'))));
+    // REMOVIDO: O listener de 'occurrence-contact-succeeded' foi movido para o modal de Acompanhamento (e será adicionado lá, se necessário)
+    // document.querySelectorAll('input[name="occurrence-contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('occurrence-family-contact-fields'))));
 
     // --- Busca Ativa: Listeners ---
     document.getElementById('general-ba-report-btn').addEventListener('click', generateAndShowBuscaAtivaReport);
@@ -198,6 +203,11 @@ function setupEventListeners() {
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
     
+    // NOVO: (Arquitetura) Listener para o rádio de contato no modal de ACOMPANHAMENTO.
+    // Assumindo que o `index.html` será atualizado para ter estes rádios com este 'name'.
+    document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('follow-up-family-contact-fields'))));
+
+
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.kebab-menu-container')) {
             document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
@@ -262,6 +272,7 @@ function switchTab(tabName) {
 
 /**
  * ATUALIZADO: (Arquitetura) Lida com a submissão do formulário de ocorrências (criação ou edição do FATO COLETIVO).
+ * REMOVIDOS os campos de Convocação e Contato.
  */
 async function handleOccurrenceSubmit(e) {
     e.preventDefault();
@@ -271,19 +282,18 @@ async function handleOccurrenceSubmit(e) {
         return showToast("Selecione pelo menos um aluno.");
     }
     
-    const contactSucceededRadio = document.querySelector('input[name="occurrence-contact-succeeded"]:checked');
-    const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
+    // REMOVIDO: O 'contactSucceededRadio' foi movido para o handleFollowUpSubmit.
 
     // ATUALIZADO: (Arquitetura) Apenas dados coletivos são recolhidos deste formulário.
     const collectiveData = { 
         date: document.getElementById('occurrence-date').value, 
         occurrenceType: document.getElementById('occurrence-type').value,
         description: document.getElementById('description').value.trim(), 
-        meetingDate: document.getElementById('meeting-date-occurrence').value || null, 
-        meetingTime: document.getElementById('meeting-time-occurrence').value || null,
-        contactSucceeded: contactSucceeded,
-        contactType: contactSucceeded === 'yes' ? document.getElementById('occurrence-contact-type').value : null,
-        contactDate: contactSucceeded === 'yes' ? document.getElementById('occurrence-contact-date').value : null,
+        // REMOVIDO: meetingDate
+        // REMOVIDO: meetingTime
+        // REMOVIDO: contactSucceeded
+        // REMOVIDO: contactType
+        // REMOVIDO: contactDate
     };
 
     try { 
@@ -310,14 +320,23 @@ async function handleOccurrenceSubmit(e) {
                 if (isNewStudent) {
                     const newRecordRef = doc(collection(db, getCollectionRef('occurrence').path));
                     const templateRecord = originalIncident.records[0] || {};
+                    
+                    // ATUALIZADO: (Arquitetura) Novos registros individuais são inicializados com todos os campos (nulos).
                     const newRecordData = { 
                         ...collectiveData, 
                         studentId, 
                         occurrenceGroupId: groupId,
                         // NOVO: (Arquitetura) Campos individuais são inicializados.
-                        statusIndividual: 'Pendente',
-                        schoolActionsIndividual: '', // Inicia vazio
-                        parecerIndividual: '', // Inicia vazio
+                        statusIndividual: 'Aguardando Contato', // Novo status padrão
+                        schoolActionsIndividual: '',
+                        providenciasFamilia: '', // Campo novo
+                        parecerIndividual: '',
+                        meetingDate: null, // Campo movido
+                        meetingTime: null, // Campo movido
+                        contactSucceeded: null, // Campo movido
+                        contactType: null, // Campo movido
+                        contactDate: null, // Campo movido
+                        // Fim dos campos individuais
                         history: templateRecord.history || [], // Herda histórico
                         createdAt: new Date(),
                         createdBy: state.userEmail
@@ -366,14 +385,21 @@ async function handleOccurrenceSubmit(e) {
             });
 
             for (const studentId of state.selectedStudents.keys()) {
+                // ATUALIZADO: (Arquitetura) Novos registros individuais são inicializados com todos os campos (nulos).
                 const recordData = { 
                     ...collectiveData, 
                     studentId,
                     occurrenceGroupId: newGroupId,
                     // NOVO: (Arquitetura) Campos individuais são inicializados aqui.
-                    statusIndividual: 'Pendente',
+                    statusIndividual: 'Aguardando Contato', // Novo status padrão
                     schoolActionsIndividual: '',
+                    providenciasFamilia: '', // Campo novo
                     parecerIndividual: '',
+                    meetingDate: null, // Campo movido
+                    meetingTime: null, // Campo movido
+                    contactSucceeded: null, // Campo movido
+                    contactType: null, // Campo movido
+                    contactDate: null, // Campo movido
                 };
                 // A função `addRecordWithHistory` já adiciona o histórico e dados de criação.
                 await addRecordWithHistory('occurrence', recordData, 'Incidente registado', state.userEmail);
@@ -389,7 +415,9 @@ async function handleOccurrenceSubmit(e) {
 }
 
 /**
- * NOVO: (Arquitetura) Lida com a submissão do formulário de acompanhamento individual.
+ * ATUALIZADO: (Arquitetura) Lida com a submissão do formulário de acompanhamento individual.
+ * AGORA INCLUI: Convocação, Contato, Providências da Família.
+ * AGORA CALCULA: O status automaticamente.
  */
 async function handleFollowUpSubmit(e) {
     e.preventDefault();
@@ -400,18 +428,42 @@ async function handleFollowUpSubmit(e) {
         return showToast("Erro: ID do aluno ou do registo não encontrado.");
     }
 
+    // ATUALIZADO: (Arquitetura) Coleta todos os dados do formulário de acompanhamento
+    
+    // Assumindo que os IDs no index.html serão atualizados (ex: 'follow-up-meeting-date')
+    const parecer = document.getElementById('follow-up-parecer').value.trim();
+    const contactSucceededRadio = document.querySelector('input[name="follow-up-contact-succeeded"]:checked');
+    const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
+    
+    // --- LÓGICA DE STATUS AUTOMÁTICO ---
+    let newStatus = 'Pendente'; // Padrão: Contato feito, mas sem parecer
+    if (parecer) {
+        newStatus = 'Resolvido';
+    } else if (!contactSucceeded) {
+        newStatus = 'Aguardando Contato';
+    }
+    // --- Fim da Lógica ---
+
     const dataToUpdate = {
-        statusIndividual: document.getElementById('follow-up-status').value,
+        // Campos de Acompanhamento
         schoolActionsIndividual: document.getElementById('follow-up-actions').value.trim(),
-        parecerIndividual: document.getElementById('follow-up-parecer').value.trim()
+        providenciasFamilia: document.getElementById('follow-up-family-actions').value.trim(), // Assumindo ID 'follow-up-family-actions'
+        parecerIndividual: parecer,
+        
+        // Campos Movidos (Convocação)
+        meetingDate: document.getElementById('follow-up-meeting-date').value || null, // Assumindo ID 'follow-up-meeting-date'
+        meetingTime: document.getElementById('follow-up-meeting-time').value || null, // Assumindo ID 'follow-up-meeting-time'
+        
+        // Campos Movidos (Contato)
+        contactSucceeded: contactSucceeded,
+        contactType: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-type').value : null, // Assumindo ID 'follow-up-contact-type'
+        contactDate: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-date').value : null, // Assumindo ID 'follow-up-contact-date'
+
+        // Status Automático
+        statusIndividual: newStatus
     };
     
-    // Atualiza o status individual para "Resolvido" se um parecer for adicionado.
-    if (dataToUpdate.parecerIndividual) {
-        dataToUpdate.statusIndividual = 'Resolvido';
-    }
-
-    const historyAction = `Acompanhamento para o aluno foi atualizado (Status: ${dataToUpdate.statusIndividual}).`;
+    const historyAction = `Acompanhamento atualizado (Status: ${dataToUpdate.statusIndividual}).`;
 
     try {
         await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
@@ -673,6 +725,9 @@ function handleActionTypeChange(action) {
 // --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
 
 function setupModalCloseButtons() {
+    // ATUALIZADO: (Bug Fix) Adicionado 'cancel-follow-up-btn'.
+    // Isto assume que o botão "Cancelar" no index.html terá o id="cancel-follow-up-btn"
+    // e o onclick="" removido.
     const modalMap = {
         'close-modal-btn': dom.occurrenceModal, 'cancel-btn': dom.occurrenceModal,
         'close-absence-modal-btn': dom.absenceModal, 'cancel-absence-btn': dom.absenceModal,
@@ -685,14 +740,23 @@ function setupModalCloseButtons() {
         'close-students-modal-btn': dom.studentsModal,
         'cancel-delete-btn': dom.deleteConfirmModal,
         'close-settings-modal-btn': dom.settingsModal,
-        // NOVO: (Arquitetura) Adiciona o botão de fechar do novo modal.
-        'close-follow-up-modal-btn': dom.followUpModal 
+        'cancel-settings-btn': dom.settingsModal, // Adicionado para consistência
+        // NOVO: (Arquitetura & Bug Fix) Adiciona os botões de fechar do novo modal.
+        'close-follow-up-modal-btn': dom.followUpModal,
+        'cancel-follow-up-btn': dom.followUpModal // << Correção do Bug
     };
 
     for (const [id, modal] of Object.entries(modalMap)) {
         const button = document.getElementById(id);
         if (button && modal) {
+            // Remove o onclick inline para evitar bugs, se ele existir (como no botão Cancelar)
+            if (button.hasAttribute('onclick')) {
+                button.removeAttribute('onclick');
+            }
             button.addEventListener('click', () => closeModal(modal));
+        } else if (!button && id === 'cancel-follow-up-btn') {
+             // Aviso para o desenvolvedor (você) caso o ID não seja encontrado
+             console.warn("O botão 'cancel-follow-up-btn' não foi encontrado. Certifique-se de que o ID está no index.html.");
         }
     }
 
@@ -931,4 +995,3 @@ async function handleStudentTableActions(e) {
         }
     }
 }
-
