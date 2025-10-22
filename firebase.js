@@ -1,5 +1,8 @@
 // ARQUIVO: firebase.js
 // RESPONSABILIDADE: Configurar e inicializar o Firebase de forma robusta.
+// ATUALIZAÇÃO: (Melhoria 3c) Removido o objeto `config` estático
+// (schoolName, city) que era redundante. O sistema agora depende
+// 100% da configuração carregada do Firestore (via `loadSchoolConfig`).
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -13,12 +16,6 @@ const firebaseConfig = {
     storageBucket: "acompanhamento-vida-escolar.appspot.com",
     messagingSenderId: "315669308837",
     appId: "1:315669308837:web:053497df9ceea4df5c4c9c"
-};
-
-// Configuração geral da escola, que pode ser usada em outras partes da UI.
-export const config = {
-    schoolName: "EMEF. DILMA DOS SANTOS CARVALHO",
-    city: "Cidade (Exemplo)"
 };
 
 // As variáveis são inicializadas como nulas para garantir que sempre tenham um valor definido.
