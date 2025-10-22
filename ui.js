@@ -2,20 +2,18 @@
 // ARQUIVO: ui.js
 // RESPONSABILIDADE: Todas as funções que manipulam a UI (desenhar,
 // abrir modais, gerar HTML).
-// ATUALIZAÇÃO GERAL (Conforme Análise):
-// 1. (Bug Kebab) A classe `overflow-hidden` foi REMOVIDA dos cards para
-//    permitir que o menu dropdown seja exibido corretamente.
-// 2. (Arquitetura) A lógica de ocorrências foi REFEITA para separar o
-//    "Fato Coletivo" do "Acompanhamento Individual". O status geral agora é
-//    calculado, e um novo fluxo de acompanhamento foi criado.
-// 3. (Otimização) Os "listeners" de eventos da lista de alunos foram REMOVIDOS
-//    de `renderStudentsList` para serem centralizados em `main.js`.
-// 4. (Refatoração Solicitada) `openOccurrenceModal` foi simplificada (removidos
-//    campos de contato/reunião).
-// 5. (Refatoração Solicitada) `openFollowUpModal` foi criada/expandida para
-//    conter os campos de contato/reunião e a nova lógica de status automático.
-// 6. (Refatoração Solicitada) `getFilteredOccurrences` agora calcula o status
-//    geral com base no preenchimento do `parecerIndividual`.
+//
+// ATUALIZAÇÃO (Baseada no Diálogo):
+// 1. (Arquitetura) `openOccurrenceModal` foi simplificada, removendo a
+//    lógica de preenchimento dos campos de Convocação e Contato.
+// 2. (Arquitetura) Adicionada a nova função `openFollowUpModal` (e exportada)
+//    para lidar com o modal de Acompanhamento Individual.
+// 3. (Lógica) Esta nova função preenche todos os campos movidos (Convocação,
+//    Contato, Prov. Família) e exibe o STATUS AUTOMÁTICO.
+// 4. (Lógica) `getStatusBadge` foi atualizada para incluir o novo status
+//    "Aguardando Contato".
+// 5. (Melhoria) Relatórios (`openOccurrenceRecordModal` e
+//    `generateAndShowGeneralReport`) agora exibem o campo "Providências da Família".
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -105,17 +103,17 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 
 
 /**
- * ATUALIZADO: (Arquitetura) A função de status agora pode lidar com o status geral calculado.
- * @param {string} status - O status da ocorrência ('Pendente' ou 'Finalizada').
+ * ATUALIZADO: (Lógica) A função de status agora lida com o novo status "Aguardando Contato".
+ * @param {string} status - O status da ocorrência ('Pendente', 'Finalizada', 'Aguardando Contato').
  * @returns {string} HTML do selo de status.
  */
 const getStatusBadge = (status) => {
     const statusMap = {
         'Pendente': 'bg-yellow-100 text-yellow-800',
+        'Aguardando Contato': 'bg-blue-100 text-blue-800', // NOVO
         'Finalizada': 'bg-green-100 text-green-800',
+        'Resolvido': 'bg-green-100 text-green-800', // Alias
         'Cancelado': 'bg-gray-100 text-gray-800'
-        // Adicionaremos os status individuais 'Aguardando Contato' etc.
-        // diretamente na função `openFollowUpModal` pois eles têm cores diferentes.
     };
     const colorClasses = statusMap[status] || 'bg-gray-100 text-gray-800';
     return `<span class="text-xs font-medium px-2.5 py-0.5 rounded-full ${colorClasses}">${status || 'N/A'}</span>`;
@@ -123,8 +121,8 @@ const getStatusBadge = (status) => {
 
 
 /**
- * ATUALIZADO: (Arquitetura, Refatoração Solicitada) Filtra e agrupa ocorrências,
- * e calcula o status GERAL com base no preenchimento do `parecerIndividual`.
+ * ATUALIZADO: (Arquitetura) Filtra e agrupa ocorrências, e calcula o status GERAL de cada incidente.
+ * A lógica do status GERAL ('Finalizada' se TODOS os individuais forem 'Resolvido') foi mantida.
  * @returns {Map<string, object>} Um Map onde a chave é o `occurrenceGroupId` e o valor é um objeto do incidente.
  */
 export const getFilteredOccurrences = () => {
@@ -156,9 +154,10 @@ export const getFilteredOccurrences = () => {
         const { startDate, endDate, status, type } = state.filtersOccurrences;
         const studentSearch = state.filterOccurrences.toLowerCase();
 
-        // ATUALIZAÇÃO: (Refatoração Solicitada)
-        // O status geral é 'Finalizada' se TODOS os pareceres individuais estiverem preenchidos.
-        const allResolved = incident.records.every(r => r.parecerIndividual && r.parecerIndividual.trim() !== '');
+        // NOVO: (Arquitetura) Lógica para calcular o status geral.
+        // Se TODOS os alunos individuais estiverem "Resolvido", o status geral é "Finalizada".
+        // Esta lógica permanece a mesma.
+        const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
         const overallStatus = allResolved ? 'Finalizada' : 'Pendente';
         incident.overallStatus = overallStatus; // Adiciona o status calculado ao objeto do incidente.
 
@@ -262,20 +261,26 @@ export const renderOccurrences = () => {
 
 
 /**
- * ATUALIZADO: (Refatoração Solicitada) Abre o modal para editar APENAS os dados COLETIVOS.
- * Os campos de acompanhamento foram removidos deste modal e do HTML.
+ * ATUALIZADO: (Arquitetura) Abre o modal para editar APENAS os dados COLETIVOS do incidente.
+ * Campos de Convocação e Acompanhamento foram removidos desta função.
  * @param {object | null} incidentToEdit - O objeto do incidente a ser editado, ou null para criar um novo.
  */
 export const openOccurrenceModal = (incidentToEdit = null) => {
     dom.occurrenceForm.reset();
     state.selectedStudents.clear();
 
-    // Esconde os campos que agora são individuais (esta é uma segurança, pois eles foram removidos do HTML)
-    const individualFields = ['actions-taken-school', 'occurrence-parecer'];
+    // Esconde os campos que agora são individuais (esta lógica pode ser removida se o HTML for limpo)
+    const individualFields = ['actions-taken-school', 'actions-taken-family', 'occurrence-parecer'];
     individualFields.forEach(id => {
         const field = document.getElementById(id);
         if (field) field.closest('div').classList.add('hidden');
     });
+     // Oculta a seção de parecer (esta lógica pode ser removida se o HTML for limpo)
+     const parecerField = document.getElementById('occurrence-parecer');
+     if (parecerField) {
+        parecerField.parentElement.classList.add('hidden');
+     }
+
 
     if (incidentToEdit) {
         // MODO DE EDIÇÃO (FATO COLETIVO)
@@ -290,6 +295,7 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
         // Preenche apenas os campos coletivos.
         document.getElementById('occurrence-type').value = mainRecord.occurrenceType || '';
         document.getElementById('occurrence-date').value = mainRecord.date || '';
+        // REMOVIDO: Linhas que preenchiam 'meeting-date-occurrence' e 'meeting-time-occurrence'
         document.getElementById('description').value = mainRecord.description || '';
 
     } else {
@@ -307,13 +313,10 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     openModal(dom.occurrenceModal);
 };
 
-// =================================================================================
-// SEÇÃO 1.5: NOVA LÓGICA DO MODAL DE ACOMPANHAMENTO INDIVIDUAL
-// =================================================================================
-
 /**
- * ATUALIZADO: (Refatoração Solicitada) Abre o novo modal de acompanhamento individual
- * com todos os campos movidos e a lógica de status automático.
+ * NOVO: (Arquitetura) Abre o novo modal de acompanhamento individual.
+ * Esta função é chamada pelo main.js e preenche o modal com os dados
+ * individuais do aluno selecionado.
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openFollowUpModal = (groupId) => {
@@ -322,10 +325,15 @@ export const openFollowUpModal = (groupId) => {
         return showToast('Erro: Incidente não encontrado.');
     }
 
+    // Referências aos elementos do modal de Acompanhamento
     const studentSelect = document.getElementById('follow-up-student-select');
     const followUpForm = document.getElementById('follow-up-form');
+    // ATUALIZADO: (Lógica) Referência ao NOVO display de status (assumindo id 'follow-up-status-display' no HTML)
+    const statusDisplay = document.getElementById('follow-up-status-display'); 
+    
     studentSelect.innerHTML = '<option value="">Selecione um aluno...</option>';
-    followUpForm.classList.add('hidden'); // Esconde o formulário até um aluno ser selecionado
+    followUpForm.classList.add('hidden'); // Esconde o formulário
+    if (statusDisplay) statusDisplay.innerHTML = ''; // Limpa o status
 
     // 1. Popula o <select> com os alunos envolvidos no incidente
     incident.studentsInvolved.forEach((student, studentId) => {
@@ -334,7 +342,7 @@ export const openFollowUpModal = (groupId) => {
             const option = document.createElement('option');
             option.value = record.id; // Usamos o ID do registro individual
             option.textContent = student.name;
-            option.dataset.studentId = studentId; // Guardamos o ID do aluno também
+            option.dataset.studentId = studentId;
             studentSelect.appendChild(option);
         }
     });
@@ -347,6 +355,7 @@ export const openFollowUpModal = (groupId) => {
 
         if (!recordId) {
             followUpForm.classList.add('hidden');
+            if (statusDisplay) statusDisplay.innerHTML = '';
             return;
         }
         
@@ -357,49 +366,50 @@ export const openFollowUpModal = (groupId) => {
             // 3. Preenche o formulário com os dados individuais
             followUpForm.dataset.recordId = recordId;
             followUpForm.dataset.studentId = studentId;
+            
             document.getElementById('follow-up-student-name').value = student.name;
-            
-            // 4. LÓGICA DE STATUS AUTOMÁTICO
-            const statusDisplay = document.getElementById('follow-up-status-display');
-            if (record.parecerIndividual && record.parecerIndividual.trim() !== '') {
-                statusDisplay.textContent = 'Resolvido';
-                statusDisplay.className = 'text-sm font-medium px-2.5 py-1.5 rounded-full mt-1 inline-block bg-green-100 text-green-800';
+
+            // --- Lógica de Status Automático (Exibição) ---
+            let statusText = 'Pendente'; // Padrão se o contato foi feito
+            if (record.parecerIndividual) {
+                statusText = 'Resolvido';
             } else if (!record.contactSucceeded) {
-                statusDisplay.textContent = 'Aguardando Contato';
-                statusDisplay.className = 'text-sm font-medium px-2.5 py-1.5 rounded-full mt-1 inline-block bg-yellow-100 text-yellow-800';
-            } else {
-                statusDisplay.textContent = 'Em Acompanhamento';
-                statusDisplay.className = 'text-sm font-medium px-2.5 py-1.5 rounded-full mt-1 inline-block bg-blue-100 text-blue-800';
+                // Se 'contactSucceeded' for null, undefined, ou "", é 'Aguardando Contato'
+                statusText = 'Aguardando Contato';
             }
-
-            // 5. Preenche os campos movidos e novos
-            document.getElementById('meeting-date-occurrence').value = record.meetingDate || '';
-            document.getElementById('meeting-time-occurrence').value = record.meetingTime || '';
+            if (statusDisplay) statusDisplay.innerHTML = `<strong>Status:</strong> ${getStatusBadge(statusText)}`;
             
-            // Preenche os rádios de contato
-            const contactRadioYes = document.querySelector('input[name="follow-up-contact-succeeded"][value="yes"]');
-            const contactRadioNo = document.querySelector('input[name="follow-up-contact-succeeded"][value="no"]');
-            const contactFields = document.getElementById('follow-up-family-contact-fields');
-            
-            if (record.contactSucceeded === 'yes') {
-                contactRadioYes.checked = true;
-                toggleFamilyContactFields(true, contactFields); // Mostra detalhes
-            } else if (record.contactSucceeded === 'no') {
-                contactRadioNo.checked = true;
-                toggleFamilyContactFields(false, contactFields); // Esconde detalhes
-            } else {
-                contactRadioYes.checked = false;
-                contactRadioNo.checked = false;
-                toggleFamilyContactFields(false, contactFields); // Esconde detalhes
-            }
-
-            document.getElementById('follow-up-contact-type').value = record.contactType || '';
-            document.getElementById('follow-up-contact-date').value = record.contactDate || '';
-            
-            // Preenche campos de providências
+            // Preenche os campos de acompanhamento
             document.getElementById('follow-up-actions').value = record.schoolActionsIndividual || '';
-            document.getElementById('follow-up-family-actions').value = record.familyActionsIndividual || '';
+            // Assumindo ID 'follow-up-family-actions' para Providências da Família no HTML
+            document.getElementById('follow-up-family-actions').value = record.providenciasFamilia || ''; 
             document.getElementById('follow-up-parecer').value = record.parecerIndividual || '';
+            
+            // Preenche campos movidos (Convocação)
+            // Assumindo ID 'follow-up-meeting-date' no HTML
+            document.getElementById('follow-up-meeting-date').value = record.meetingDate || ''; 
+            // Assumindo ID 'follow-up-meeting-time' no HTML
+            document.getElementById('follow-up-meeting-time').value = record.meetingTime || ''; 
+
+            // Preenche campos movidos (Contato)
+            const contactRadio = document.querySelector(`input[name="follow-up-contact-succeeded"][value="${record.contactSucceeded}"]`);
+            if (contactRadio) {
+                contactRadio.checked = true;
+            } else {
+                document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio => radio.checked = false);
+            }
+            
+            // Dispara o evento change para mostrar/esconder os campos de detalhe
+            // Assumindo ID 'follow-up-family-contact-fields' no HTML
+            const contactFieldsContainer = document.getElementById('follow-up-family-contact-fields'); 
+            if (contactFieldsContainer) {
+                toggleFamilyContactFields(record.contactSucceeded === 'yes', contactFieldsContainer);
+            }
+
+            // Assumindo ID 'follow-up-contact-type' no HTML
+            document.getElementById('follow-up-contact-type').value = record.contactType || ''; 
+            // Assumindo ID 'follow-up-contact-date' no HTML
+            document.getElementById('follow-up-contact-date').value = record.contactDate || ''; 
             
             followUpForm.classList.remove('hidden');
         }
@@ -408,7 +418,6 @@ export const openFollowUpModal = (groupId) => {
     // 4. Abre o modal
     openModal(dom.followUpModal);
 };
-
 
 // =================================================================================
 // SEÇÃO 2: LÓGICA DA INTERFACE DE BUSCA ATIVA
@@ -686,16 +695,14 @@ const getReportHeaderHTML = () => {
 
 
 /**
- * ATUALIZADO: (Refatoração Solicitada) Gera e exibe a notificação formal.
- * Agora, os dados de convocação e contato vêm dos campos individuais.
+ * (Inalterado) Gera e exibe a notificação formal para um único aluno selecionado.
+ * Esta função continua funcionando pois os campos (meetingDate, etc.)
+ * ainda existem no registro individual, apenas são preenchidos por outro modal.
  * @param {object} incident - O objeto completo do incidente.
  * @param {object} student - O objeto do aluno selecionado.
  */
 export const openIndividualNotificationModal = (incident, student) => {
-    // Pega o registro individual específico deste aluno
-    const data = incident.records.find(r => r.studentId === student.matricula);
-    if (!data) return showToast('Registro individual do aluno não encontrado.');
-    
+    const data = incident.records.find(r => r.studentId === student.matricula) || incident.records[0];
     const responsibleNames = [student.resp1, student.resp2].filter(Boolean).join(' e ');
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -730,7 +737,6 @@ export const openIndividualNotificationModal = (incident, student) => {
                 e para a manutenção de um ambiente escolar saudável.
             </p>
             
-            <!-- ATUALIZAÇÃO: Os dados de 'meetingDate' agora vêm do registro individual 'data' -->
             ${data.meetingDate ? `
             <p class="mt-4 text-justify">
                 Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica para uma reunião
@@ -764,9 +770,7 @@ export const openIndividualNotificationModal = (incident, student) => {
 };
 
 /**
- * ATUALIZADO: (Refatoração Solicitada) Gera a Ata Formal da Ocorrência.
- * Agora exibe os dados individuais (contato, reunião, providências) de forma
- * mais clara para cada aluno.
+ * ATUALIZADO: (Melhoria) Gera a Ata Formal, agora incluindo "Providências da Família".
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openOccurrenceRecordModal = (groupId) => {
@@ -795,39 +799,33 @@ export const openOccurrenceRecordModal = (groupId) => {
             </div>
 
             <div class="border-t pt-4 space-y-4">
-                <div><h4 class="font-semibold mb-1">Descrição Detalhada dos Fatos (Coletivo):</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
+                <div><h4 class="font-semibold mb-1">Descrição Detalhada dos Fatos:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
                 
                 <div class="border-t pt-4">
                     <h4 class="text-md font-semibold text-gray-700 mb-2">Acompanhamentos Individuais</h4>
                     ${incident.records.map(rec => {
                         const student = incident.studentsInvolved.get(rec.studentId);
-                        
-                        // Calcula o status individual para exibição
-                        let statusText, statusClass;
-                        if (rec.parecerIndividual && rec.parecerIndividual.trim() !== '') {
-                            statusText = 'Resolvido'; statusClass = 'bg-green-100 text-green-800';
-                        } else if (!rec.contactSucceeded) {
-                            statusText = 'Aguardando Contato'; statusClass = 'bg-yellow-100 text-yellow-800';
-                        } else {
-                            statusText = 'Em Acompanhamento'; statusClass = 'bg-blue-100 text-blue-800';
-                        }
+                        // A lógica de status individual é lida diretamente do registro
+                        const statusIndividual = rec.statusIndividual || 'Pendente'; 
                         
                         return `
                         <div class="mt-2 p-3 border rounded-md bg-gray-50 break-inside-avoid">
-                            <div class="flex justify-between items-center mb-2">
+                            <div class="flex justify-between items-center">
                                 <p class="font-semibold">${student?.name || 'Aluno desconhecido'}</p>
-                                <span class="text-xs font-medium px-2.5 py-0.5 rounded-full ${statusClass}">${statusText}</span>
+                                ${getStatusBadge(statusIndividual)}
                             </div>
                             
-                            ${rec.meetingDate ? `<p class="text-xs"><strong>Reunião Agendada:</strong> ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}</p>` : ''}
-                            
-                            <p class="text-xs mt-1"><strong>Contato com a Família:</strong> 
-                                ${rec.contactSucceeded === 'yes' ? `Sim (Tipo: ${formatText(rec.contactType)}, Data: ${formatDate(rec.contactDate)})` : 
-                                  (rec.contactSucceeded === 'no' ? 'Não (Tentativa sem sucesso)' : 'Nenhuma tentativa registada')}
-                            </p>
-                            
+                            ${(rec.meetingDate) ? `
+                            <div class="mt-2 p-2 bg-indigo-50 rounded-md text-sm">
+                                <p><strong>Reunião Agendada:</strong> Data: ${formatDate(rec.meetingDate)} | Horário: ${formatTime(rec.meetingTime)}</p>
+                            </div>
+                            ` : ''}
+
                             <p class="mt-2"><strong>Providências da Escola:</strong> ${formatText(rec.schoolActionsIndividual)}</p>
-                            <p class="mt-1"><strong>Providências da Família:</strong> ${formatText(rec.familyActionsIndividual)}</p>
+                            
+                            <!-- NOVO: Campo Adicionado -->
+                            <p class="mt-1"><strong>Providências da Família:</strong> ${formatText(rec.providenciasFamilia)}</p>
+
                             <p class="mt-1"><strong>Parecer/Desfecho:</strong> ${formatText(rec.parecerIndividual)}</p>
                         </div>
                         `;
@@ -853,8 +851,11 @@ export const openHistoryModal = (groupId) => {
     const incident = getFilteredOccurrences().get(groupId);
     if (!incident) return showToast('Incidente não encontrado.');
 
-    const mainRecord = incident.records[0];
-    const history = [...(mainRecord.history || [])].sort((a, b) => (b.timestamp.seconds || new Date(b.timestamp).getTime()) - (a.timestamp.seconds || new Date(a.timestamp).getTime()));
+    // Pega o histórico de todos os registros e junta
+    const allHistory = incident.records.flatMap(r => r.history || []);
+    
+    // Ordena o histórico combinado pela data
+    const history = allHistory.sort((a, b) => (b.timestamp.seconds || new Date(b.timestamp).getTime()) - (a.timestamp.seconds || new Date(a.timestamp).getTime()));
 
     const historyHTML = history.length > 0
         ? history.map(entry => {
@@ -864,7 +865,7 @@ export const openHistoryModal = (groupId) => {
         : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este incidente.</p>';
     
     document.getElementById('history-view-title').textContent = `Histórico do Incidente`;
-    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${groupId}<br><strong>Data:</strong> ${formatDate(mainRecord.date)}`;
+    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${groupId}<br><strong>Data:</strong> ${formatDate(incident.records[0].date)}`;
     document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
     openModal(document.getElementById('history-view-modal-backdrop'));
 };
@@ -1013,8 +1014,7 @@ export const showRegisterView = () => {
 
 
 /**
- * ATUALIZADO: (Refatoração Solicitada) Gera o relatório geral de ocorrências.
- * Agora, o status é calculado a partir do `parecerIndividual`.
+ * ATUALIZADO: (Melhoria) Gera o relatório geral, agora incluindo "Providências da Família".
  */
 export const generateAndShowGeneralReport = () => {
     const filteredIncidents = getFilteredOccurrences();
@@ -1035,6 +1035,7 @@ export const generateAndShowGeneralReport = () => {
     }, {});
     const sortedTypes = Object.entries(occurrencesByType).sort((a, b) => b[1] - a[1]);
 
+    // O status GERAL (overallStatus) é usado para este gráfico
     const occurrencesByStatus = [...filteredIncidents.values()].reduce((acc, incident) => {
         const occStatus = incident.overallStatus || 'Pendente';
         acc[occStatus] = (acc[occStatus] || 0) + 1;
@@ -1073,7 +1074,7 @@ export const generateAndShowGeneralReport = () => {
                     <canvas id="report-chart-by-type" data-labels='${JSON.stringify(chartDataByType.labels)}' data-data='${JSON.stringify(chartDataByType.data)}'></canvas>
                 </div>
                 <div class="border rounded-lg p-4 shadow-sm bg-white">
-                    <h5 class="font-semibold text-center mb-2">Ocorrências por Status</h5>
+                    <h5 class="font-semibold text-center mb-2">Ocorrências por Status (Geral)</h5>
                     <canvas id="report-chart-by-status" data-labels='${JSON.stringify(chartDataByStatus.labels)}' data-data='${JSON.stringify(chartDataByStatus.data)}'></canvas>
                 </div>
             </div>
@@ -1095,13 +1096,10 @@ export const generateAndShowGeneralReport = () => {
                         </div>
                         <div class="p-4 space-y-3">
                             <p><strong>Alunos Envolvidos:</strong> ${studentNames}</p>
-                            <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
+                            <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição do Fato</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
                             ${incident.records.map(rec => {
                                 const student = incident.studentsInvolved.get(rec.studentId);
-                                return `<div class="text-xs border-t mt-2 pt-2"><p class="font-bold">${student?.name || ''}</p>
-                                <p><strong>Providências Escola:</strong> ${formatText(rec.schoolActionsIndividual)}</p>
-                                <p><strong>Providências Família:</strong> ${formatText(rec.familyActionsIndividual)}</p>
-                                <p><strong>Parecer:</strong> ${formatText(rec.parecerIndividual)}</p></div>`;
+                                return `<div class="text-xs border-t mt-2 pt-2"><p class="font-bold">${student?.name || ''} (${rec.statusIndividual || 'Pendente'})</p><p><strong>Providências Escola:</strong> ${formatText(rec.schoolActionsIndividual)}</p><!-- NOVO: Campo Adicionado --><p><strong>Providências Família:</strong> ${formatText(rec.providenciasFamilia)}</p><p><strong>Parecer:</strong> ${formatText(rec.parecerIndividual)}</p></div>`;
                             }).join('')}
                         </div>
                     </div>`;
@@ -1128,7 +1126,7 @@ export const generateAndShowGeneralReport = () => {
         const statusCtx = document.getElementById('report-chart-by-status').getContext('2d');
         new Chart(statusCtx, {
             type: 'doughnut',
-            data: { labels: chartDataByStatus.labels, datasets: [{ data: chartDataByStatus.data, backgroundColor: ['#f59e0b', '#10b981', '#6b7280'] }] },
+            data: { labels: chartDataByStatus.labels, datasets: [{ data: chartDataByStatus.data, backgroundColor: ['#f59e0b', '#10b981', '#6b7280'] }] }, // Amarelo, Verde, Cinza
             options: { responsive: true }
         });
     } catch (e) {
@@ -1620,19 +1618,20 @@ export const handleNewAbsenceAction = (student) => {
 };
 
 /**
- * ATUALIZADO: (Refatoração Solicitada)
+ * (Inalterado)
  * Ativa/Desativa campos de detalhe de contato (Família).
- * Agora é uma função reutilizável.
+ * Esta função agora será usada pelo modal de Acompanhamento.
  */
 export const toggleFamilyContactFields = (enable, fieldsContainer) => {
+    if (!fieldsContainer) return; // Guarda de segurança
     const detailFields = fieldsContainer.querySelectorAll('input[type="date"], input[type="text"], textarea, select');
     detailFields.forEach(input => {
         input.disabled = !enable;
-        input.required = enable;
+        input.required = enable; // Apenas requer se o "Sim" estiver marcado
         if (!enable) {
             input.classList.add('bg-gray-200', 'cursor-not-allowed');
-            if (input.tagName !== 'SELECT') input.value = '';
-            else input.value = ''; // Reseta o select
+            // Não limpa o valor, pois o usuário pode querer ver o que estava preenchido
+            // input.value = ''; 
         } else {
             input.classList.remove('bg-gray-200', 'cursor-not-allowed');
         }
@@ -1644,13 +1643,14 @@ export const toggleFamilyContactFields = (enable, fieldsContainer) => {
  * Ativa/Desativa campos de detalhe de contato (Visita).
  */
 export const toggleVisitContactFields = (enable, fieldsContainer) => {
+     if (!fieldsContainer) return; // Guarda de segurança
      const detailFields = fieldsContainer.querySelectorAll('input[type="text"], textarea');
      detailFields.forEach(input => {
         input.disabled = !enable;
         input.required = enable;
         if (!enable) {
             input.classList.add('bg-gray-200', 'cursor-not-allowed');
-            input.value = '';
+            // input.value = '';
         } else {
             input.classList.remove('bg-gray-200', 'cursor-not-allowed');
         }
