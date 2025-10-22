@@ -3,11 +3,10 @@
 // RESPONSABILIDADE: Guardar o estado global da aplicação e as referências
 // aos elementos do DOM para acesso rápido.
 // ATUALIZAÇÃO GERAL (Conforme Análise):
-// 1. (Item 5) Adicionado o objeto `config` ao estado para armazenar as
-//    configurações da escola (nome, logo) carregadas do Firestore.
-// 2. Adicionadas referências do DOM para os novos elementos da interface, como
-//    o botão de configurações e o de relatório da Busca Ativa.
-// 3. (Problema 3) Adicionadas referências para o novo modal de configurações.
+// 1. (Item 2 - Arquitetura) Adicionadas referências DOM para o novo modal
+//    de "Acompanhamento Individual" (`followUpModal` e `followUpForm`).
+// 2. (Item 3a - Otimização) Adicionada referência DOM para a tabela de
+//    alunos (`studentsListTable`) para permitir a delegação de eventos.
 // =================================================================================
 
 export const state = {
@@ -77,7 +76,9 @@ export const dom = {
     occurrenceModal: document.getElementById('occurrence-modal'),
     absenceModal: document.getElementById('absence-modal'),
     studentsModal: document.getElementById('students-modal'),
-    settingsModal: document.getElementById('settings-modal'), // ATUALIZADO (Problema 3)
+    settingsModal: document.getElementById('settings-modal'),
+    // NOVO: (Arquitetura) Referência ao novo modal de acompanhamento.
+    followUpModal: document.getElementById('follow-up-modal'),
     notificationModalBackdrop: document.getElementById('notification-modal-backdrop'),
     deleteConfirmModal: document.getElementById('delete-confirm-modal'),
     reportGeneratorModal: document.getElementById('report-generator-modal'),
@@ -91,11 +92,15 @@ export const dom = {
     emptyStateAbsences: document.getElementById('empty-state-absences'),
     loadingOccurrences: document.getElementById('loading-occurrences'),
     loadingAbsences: document.getElementById('loading-absences'),
+    // NOVO: (Otimização) Referência à tabela de alunos.
+    studentsListTable: document.getElementById('students-list-table'),
     
     // Formulários
     occurrenceForm: document.getElementById('occurrence-form'),
     absenceForm: document.getElementById('absence-form'),
-    settingsForm: document.getElementById('settings-form'), // ATUALIZADO (Problema 3)
+    settingsForm: document.getElementById('settings-form'),
+    // NOVO: (Arquitetura) Referência ao novo formulário de acompanhamento.
+    followUpForm: document.getElementById('follow-up-form'),
     
     // Navegação e Filtros
     tabOccurrences: document.getElementById('tab-occurrences'),
