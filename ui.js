@@ -14,6 +14,10 @@
 //    "Aguardando Contato".
 // 5. (Melhoria) Relatórios (`openOccurrenceRecordModal` e
 //    `generateAndShowGeneralReport`) agora exibem o campo "Providências da Família".
+// 6. (PONTO 2) `setupStudentTagInput` atualizada para mostrar a TURMA do aluno.
+// 7. (PONTO 3 & 4) `renderOccurrences` atualizada para mostrar STATUS INDIVIDUAL e DESTACAR busca.
+// 8. (PONTO 5) `toggleFamilyContactFields` e `toggleVisitContactFields` corrigidas para remover 'hidden'.
+// 9. (PONTO 6) `openIndividualNotificationModal` atualizada para bloquear se data/hora faltarem.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -28,8 +32,8 @@ import { setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-fires
 // =================================================================================
 
 /**
- * (Inalterado)
- * Gerencia a UI do componente de seleção de múltiplos alunos ("Tag Input").
+ * ATUALIZADO (PONTO 2): Gerencia a UI de seleção de múltiplos alunos.
+ * Agora, a tag exibe o NOME e a TURMA do aluno.
  * @param {HTMLInputElement} inputElement - O campo de texto para pesquisar alunos.
  * @param {HTMLDivElement} suggestionsElement - O container para exibir as sugestões.
  * @param {HTMLDivElement} tagsContainerElement - O container onde as "tags" dos alunos selecionados serão exibidas.
@@ -45,8 +49,16 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
         
         state.selectedStudents.forEach((student, studentId) => {
             const tag = document.createElement('span');
-            tag.className = 'bg-indigo-100 text-indigo-800 text-sm font-medium me-2 px-2.5 py-0.5 rounded-full flex items-center';
-            tag.innerHTML = `${student.name} <button type="button" class="ms-2 text-indigo-600 hover:text-indigo-800">&times;</button>`;
+            
+            // ATUALIZADO (PONTO 2): Adiciona 'gap-1.5' para espaçamento
+            tag.className = 'bg-indigo-100 text-indigo-800 text-sm font-medium me-2 px-2.5 py-0.5 rounded-full flex items-center gap-1.5';
+            
+            // ATUALIZADO (PONTO 2): Mostra o nome e a turma
+            tag.innerHTML = `
+                <span>${student.name}</span>
+                <span class="text-xs text-indigo-500 font-normal">(${student.class || 'S/ Turma'})</span>
+                <button type="button" class="ms-1 text-indigo-600 hover:text-indigo-800">&times;</button>
+            `;
             
             // Adiciona evento para remover o aluno ao clicar no "X".
             tag.querySelector('button').addEventListener('click', () => {
@@ -103,7 +115,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 
 
 /**
- * ATUALIZADO: (Lógica) A função de status agora lida com o novo status "Aguardando Contato".
+ * (Inalterado)
  * @param {string} status - O status da ocorrência ('Pendente', 'Finalizada', 'Aguardando Contato').
  * @returns {string} HTML do selo de status.
  */
@@ -121,8 +133,7 @@ const getStatusBadge = (status) => {
 
 
 /**
- * ATUALIZADO: (Arquitetura) Filtra e agrupa ocorrências, e calcula o status GERAL de cada incidente.
- * A lógica do status GERAL ('Finalizada' se TODOS os individuais forem 'Resolvido') foi mantida.
+ * (Inalterado) Filtra e agrupa ocorrências.
  * @returns {Map<string, object>} Um Map onde a chave é o `occurrenceGroupId` e o valor é um objeto do incidente.
  */
 export const getFilteredOccurrences = () => {
@@ -154,9 +165,7 @@ export const getFilteredOccurrences = () => {
         const { startDate, endDate, status, type } = state.filtersOccurrences;
         const studentSearch = state.filterOccurrences.toLowerCase();
 
-        // NOVO: (Arquitetura) Lógica para calcular o status geral.
-        // Se TODOS os alunos individuais estiverem "Resolvido", o status geral é "Finalizada".
-        // Esta lógica permanece a mesma.
+        // Lógica para calcular o status geral.
         const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
         const overallStatus = allResolved ? 'Finalizada' : 'Pendente';
         incident.overallStatus = overallStatus; // Adiciona o status calculado ao objeto do incidente.
@@ -182,10 +191,9 @@ export const getFilteredOccurrences = () => {
 
 
 /**
- * ATUALIZADO: (Bug Kebab, Arquitetura) Renderiza a lista de ocorrências.
- * - Removeu `overflow-hidden`.
- * - Usa o status geral calculado.
- * - Adicionou botão "Acompanhamento" ao menu.
+ * ATUALIZADO: (PONTO 3 & 4) Renderiza a lista de ocorrências.
+ * - Mostra o status individual de CADA aluno.
+ * - Destaca o aluno que corresponde à busca.
  */
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
@@ -208,9 +216,31 @@ export const renderOccurrences = () => {
 
     let html = sortedIncidents.map(incident => {
         const mainRecord = incident.records[0];
-        const studentNames = [...incident.studentsInvolved.values()].map(s => s.name).join(', ');
+        
+        // ATUALIZADO (PONTO 4): Pega o termo da busca
+        const studentSearch = state.filterOccurrences.toLowerCase();
 
-        // ATUALIZADO: (Bug Kebab) A classe `overflow-hidden` foi removida do div principal.
+        // ATUALIZADO (PONTO 3 & 4): Gera HTML para cada aluno com status e destaque
+        const studentDetailsHTML = [...incident.studentsInvolved.values()].map(student => {
+            const record = incident.records.find(r => r.studentId === student.matricula);
+            const status = record?.statusIndividual || 'Pendente';
+            
+            // Lógica de destaque (Ponto 4)
+            const isMatch = studentSearch && student.name.toLowerCase().includes(studentSearch);
+            const nameClass = isMatch ? 'font-bold text-yellow-800' : 'font-medium text-gray-700';
+            // Se der match, a borda e o fundo mudam
+            const borderClass = isMatch ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-gray-50';
+
+            return `
+                <div class="flex items-center gap-1.5 py-1 px-2 rounded-lg border ${borderClass}">
+                    <span class="${nameClass}">${student.name}</span>
+                    ${getStatusBadge(status)}
+                </div>`;
+        }).join('');
+        // --- FIM DA ATUALIZAÇÃO ---
+
+
+        // (Bug Kebab) A classe `overflow-hidden` foi removida do div principal.
         return `
             <div class="border rounded-lg bg-white shadow-sm">
                 <div class="p-4 flex flex-col sm:flex-row justify-between items-start gap-3">
@@ -219,8 +249,17 @@ export const renderOccurrences = () => {
                             <span class="font-semibold text-gray-800">${mainRecord.occurrenceType || 'N/A'}</span>
                             ${getStatusBadge(incident.overallStatus)}
                         </div>
-                        <p class="text-sm text-gray-600"><strong>Alunos:</strong> ${studentNames}</p>
-                        <p class="text-xs text-gray-400 mt-1">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
+
+                        <!-- ATUALIZADO (PONTO 3): Exibe os detalhes dos alunos -->
+                        <div class="text-sm text-gray-600 mt-2">
+                            <strong class="block text-gray-500 text-xs font-bold uppercase mb-1.5">Alunos Envolvidos:</strong>
+                            <div class="flex flex-wrap gap-2">
+                                ${studentDetailsHTML}
+                            </div>
+                        </div>
+                        
+                        <!-- Atualizado espaçamento para mt-2 -->
+                        <p class="text-xs text-gray-400 mt-2">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
                     </div>
                     
                     <div class="flex-shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-stretch sm:self-center">
@@ -261,8 +300,7 @@ export const renderOccurrences = () => {
 
 
 /**
- * ATUALIZADO: (Arquitetura) Abre o modal para editar APENAS os dados COLETIVOS do incidente.
- * Campos de Convocação e Acompanhamento foram removidos desta função.
+ * (Inalterado) Abre o modal para editar APENAS os dados COLETIVOS do incidente.
  * @param {object | null} incidentToEdit - O objeto do incidente a ser editado, ou null para criar um novo.
  */
 export const openOccurrenceModal = (incidentToEdit = null) => {
@@ -295,7 +333,6 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
         // Preenche apenas os campos coletivos.
         document.getElementById('occurrence-type').value = mainRecord.occurrenceType || '';
         document.getElementById('occurrence-date').value = mainRecord.date || '';
-        // REMOVIDO: Linhas que preenchiam 'meeting-date-occurrence' e 'meeting-time-occurrence'
         document.getElementById('description').value = mainRecord.description || '';
 
     } else {
@@ -314,9 +351,7 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
 };
 
 /**
- * NOVO: (Arquitetura) Abre o novo modal de acompanhamento individual.
- * Esta função é chamada pelo main.js e preenche o modal com os dados
- * individuais do aluno selecionado.
+ * (Inalterado) Abre o novo modal de acompanhamento individual.
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openFollowUpModal = (groupId) => {
@@ -328,7 +363,6 @@ export const openFollowUpModal = (groupId) => {
     // Referências aos elementos do modal de Acompanhamento
     const studentSelect = document.getElementById('follow-up-student-select');
     const followUpForm = document.getElementById('follow-up-form');
-    // ATUALIZADO: (Lógica) Referência ao NOVO display de status (assumindo id 'follow-up-status-display' no HTML)
     const statusDisplay = document.getElementById('follow-up-status-display'); 
     
     studentSelect.innerHTML = '<option value="">Selecione um aluno...</option>';
@@ -381,14 +415,11 @@ export const openFollowUpModal = (groupId) => {
             
             // Preenche os campos de acompanhamento
             document.getElementById('follow-up-actions').value = record.schoolActionsIndividual || '';
-            // Assumindo ID 'follow-up-family-actions' para Providências da Família no HTML
             document.getElementById('follow-up-family-actions').value = record.providenciasFamilia || ''; 
             document.getElementById('follow-up-parecer').value = record.parecerIndividual || '';
             
             // Preenche campos movidos (Convocação)
-            // Assumindo ID 'follow-up-meeting-date' no HTML
             document.getElementById('follow-up-meeting-date').value = record.meetingDate || ''; 
-            // Assumindo ID 'follow-up-meeting-time' no HTML
             document.getElementById('follow-up-meeting-time').value = record.meetingTime || ''; 
 
             // Preenche campos movidos (Contato)
@@ -400,15 +431,13 @@ export const openFollowUpModal = (groupId) => {
             }
             
             // Dispara o evento change para mostrar/esconder os campos de detalhe
-            // Assumindo ID 'follow-up-family-contact-fields' no HTML
             const contactFieldsContainer = document.getElementById('follow-up-family-contact-fields'); 
             if (contactFieldsContainer) {
+                // Chama a função (agora corrigida)
                 toggleFamilyContactFields(record.contactSucceeded === 'yes', contactFieldsContainer);
             }
 
-            // Assumindo ID 'follow-up-contact-type' no HTML
             document.getElementById('follow-up-contact-type').value = record.contactType || ''; 
-            // Assumindo ID 'follow-up-contact-date' no HTML
             document.getElementById('follow-up-contact-date').value = record.contactDate || ''; 
             
             followUpForm.classList.remove('hidden');
@@ -432,8 +461,7 @@ export const actionDisplayTitles = {
 };
 
 /**
- * ATUALIZADO: (Bug Kebab) Renderiza a lista de Busca Ativa.
- * - Removeu `overflow-hidden`.
+ * (Inalterado) Renderiza a lista de Busca Ativa.
  */
 export const renderAbsences = () => {
     dom.loadingAbsences.classList.add('hidden');
@@ -525,7 +553,6 @@ export const renderAbsences = () => {
             const isConcluded = actions.some(a => a.actionType === 'analise');
             const hasCtAction = actions.some(a => a.actionType === 'encaminhamento_ct');
             
-            // ATUALIZADO: (Bug Kebab) A classe `overflow-hidden` foi removida do div principal.
             html += `
                 <div class="border rounded-lg mb-4 bg-white shadow">
                     <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center" data-process-id="${processId}">
@@ -541,7 +568,7 @@ export const renderAbsences = () => {
                             <i class="fas fa-chevron-down transition-transform duration-300"></i>
                         </div>
                     </div>
-                    <div class="process-content" id="content-${processId}">
+                    <div class="process-content" id="content-${processId}" style="overflow: hidden;"> <!-- Adicionado overflow: hidden aqui -->
                         <div class="p-4 border-t border-gray-200">
                             <div class="space-y-4">
         `;
@@ -695,14 +722,24 @@ const getReportHeaderHTML = () => {
 
 
 /**
- * (Inalterado) Gera e exibe a notificação formal para um único aluno selecionado.
- * Esta função continua funcionando pois os campos (meetingDate, etc.)
- * ainda existem no registro individual, apenas são preenchidos por outro modal.
+ * ATUALIZADO: (PONTO 6) Gera e exibe a notificação formal.
+ * Adiciona uma verificação para data/hora da reunião.
  * @param {object} incident - O objeto completo do incidente.
  * @param {object} student - O objeto do aluno selecionado.
  */
 export const openIndividualNotificationModal = (incident, student) => {
     const data = incident.records.find(r => r.studentId === student.matricula) || incident.records[0];
+    
+    // ---- INÍCIO DA VERIFICAÇÃO (PONTO 6) ----
+    // Verifica se os campos movidos (agora no acompanhamento) estão preenchidos
+    if (!data.meetingDate || !data.meetingTime) {
+        // Usa showToast, que já está importado
+        showToast("Erro: É necessário definir a Data e o Horário da convocação.");
+        showToast("Defina a Data e Horário no 'Acompanhamento' primeiro.");
+        return; // Interrompe a geração da notificação
+    }
+    // ---- FIM DA VERIFICAÇÃO ----
+    
     const responsibleNames = [student.resp1, student.resp2].filter(Boolean).join(' e ');
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -770,7 +807,7 @@ export const openIndividualNotificationModal = (incident, student) => {
 };
 
 /**
- * ATUALIZADO: (Melhoria) Gera a Ata Formal, agora incluindo "Providências da Família".
+ * (Inalterado) Gera a Ata Formal, incluindo "Providências da Família".
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openOccurrenceRecordModal = (groupId) => {
@@ -805,7 +842,6 @@ export const openOccurrenceRecordModal = (groupId) => {
                     <h4 class="text-md font-semibold text-gray-700 mb-2">Acompanhamentos Individuais</h4>
                     ${incident.records.map(rec => {
                         const student = incident.studentsInvolved.get(rec.studentId);
-                        // A lógica de status individual é lida diretamente do registro
                         const statusIndividual = rec.statusIndividual || 'Pendente'; 
                         
                         return `
@@ -823,7 +859,6 @@ export const openOccurrenceRecordModal = (groupId) => {
 
                             <p class="mt-2"><strong>Providências da Escola:</strong> ${formatText(rec.schoolActionsIndividual)}</p>
                             
-                            <!-- NOVO: Campo Adicionado -->
                             <p class="mt-1"><strong>Providências da Família:</strong> ${formatText(rec.providenciasFamilia)}</p>
 
                             <p class="mt-1"><strong>Parecer/Desfecho:</strong> ${formatText(rec.parecerIndividual)}</p>
@@ -958,7 +993,7 @@ export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
 };
 
 /**
- * ATUALIZADO: (Otimização) Remove os `addEventListener` de dentro do loop.
+ * (Inalterado)
  * A lógica de clique será gerenciada por delegação de eventos em `main.js`.
  */
 export const renderStudentsList = () => {
@@ -967,8 +1002,6 @@ export const renderStudentsList = () => {
     
     state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
         const row = document.createElement('tr');
-        // Apenas o HTML é criado. Os botões agora usam classes e data-attributes
-        // para que um único listener na tabela possa identificá-los.
         row.innerHTML = `
             <td class="px-4 py-2 text-sm text-gray-900">${student.name}</td>
             <td class="px-4 py-2 text-sm text-gray-500">${student.class}</td>
@@ -1014,7 +1047,8 @@ export const showRegisterView = () => {
 
 
 /**
- * ATUALIZADO: (Melhoria) Gera o relatório geral, agora incluindo "Providências da Família".
+ * (Inalterado)
+ * Gera o relatório geral, incluindo "Providências da Família".
  */
 export const generateAndShowGeneralReport = () => {
     const filteredIncidents = getFilteredOccurrences();
@@ -1099,7 +1133,7 @@ export const generateAndShowGeneralReport = () => {
                             <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição do Fato</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
                             ${incident.records.map(rec => {
                                 const student = incident.studentsInvolved.get(rec.studentId);
-                                return `<div class="text-xs border-t mt-2 pt-2"><p class="font-bold">${student?.name || ''} (${rec.statusIndividual || 'Pendente'})</p><p><strong>Providências Escola:</strong> ${formatText(rec.schoolActionsIndividual)}</p><!-- NOVO: Campo Adicionado --><p><strong>Providências Família:</strong> ${formatText(rec.providenciasFamilia)}</p><p><strong>Parecer:</strong> ${formatText(rec.parecerIndividual)}</p></div>`;
+                                return `<div class="text-xs border-t mt-2 pt-2"><p class="font-bold">${student?.name || ''} (${rec.statusIndividual || 'Pendente'})</p><p><strong>Providências Escola:</strong> ${formatText(rec.schoolActionsIndividual)}</p><p><strong>Providências Família:</strong> ${formatText(rec.providenciasFamilia)}</p><p><strong>Parecer:</strong> ${formatText(rec.parecerIndividual)}</p></div>`;
                             }).join('')}
                         </div>
                     </div>`;
@@ -1618,12 +1652,17 @@ export const handleNewAbsenceAction = (student) => {
 };
 
 /**
- * (Inalterado)
- * Ativa/Desativa campos de detalhe de contato (Família).
- * Esta função agora será usada pelo modal de Acompanhamento.
+ * ATUALIZADO: (PONTO 5) Ativa/Desativa campos de detalhe de contato (Família).
+ * Agora também remove a classe 'hidden' do contêiner.
  */
 export const toggleFamilyContactFields = (enable, fieldsContainer) => {
     if (!fieldsContainer) return; // Guarda de segurança
+    
+    // ---- CORREÇÃO DO BUG (PONTO 5) ----
+    // Controla a visibilidade do contêiner principal
+    fieldsContainer.classList.toggle('hidden', !enable);
+    // ---- FIM DA CORREÇÃO ----
+
     const detailFields = fieldsContainer.querySelectorAll('input[type="date"], input[type="text"], textarea, select');
     detailFields.forEach(input => {
         input.disabled = !enable;
@@ -1639,11 +1678,16 @@ export const toggleFamilyContactFields = (enable, fieldsContainer) => {
 };
 
 /**
- * (Inalterado)
- * Ativa/Desativa campos de detalhe de contato (Visita).
+ * ATUALIZADO: (PONTO 5 - Bug Similar) Ativa/Desativa campos de detalhe de contato (Visita).
+ * Agora também remove a classe 'hidden' do contêiner.
  */
 export const toggleVisitContactFields = (enable, fieldsContainer) => {
      if (!fieldsContainer) return; // Guarda de segurança
+     
+     // ---- CORREÇÃO DO BUG (PONTO 5) ----
+     fieldsContainer.classList.toggle('hidden', !enable);
+     // ---- FIM DA CORREÇÃO ----
+     
      const detailFields = fieldsContainer.querySelectorAll('input[type="text"], textarea');
      detailFields.forEach(input => {
         input.disabled = !enable;
