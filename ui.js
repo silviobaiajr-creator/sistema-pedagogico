@@ -18,6 +18,10 @@
 // 7. (PONTO 3 & 4) `renderOccurrences` atualizada para mostrar STATUS INDIVIDUAL e DESTACAR busca.
 // 8. (PONTO 5) `toggleFamilyContactFields` e `toggleVisitContactFields` corrigidas para remover 'hidden'.
 // 9. (PONTO 6) `openIndividualNotificationModal` atualizada para bloquear se data/hora faltarem.
+// 10. (SUGESTÃO DO UTILIZADOR) `renderOccurrences` agora torna o nome do aluno
+//     um botão para abrir o acompanhamento.
+// 11. (SUGESTÃO DO UTILIZADOR) `openFollowUpModal` foi modificada para aceitar
+//     um `studentIdToPreselect` e carregar o formulário diretamente.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -115,7 +119,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 
 
 /**
- * (Inalterado)
+ * Retorna o HTML para um selo (badge) de status.
  * @param {string} status - O status da ocorrência ('Pendente', 'Finalizada', 'Aguardando Contato').
  * @returns {string} HTML do selo de status.
  */
@@ -133,7 +137,7 @@ const getStatusBadge = (status) => {
 
 
 /**
- * (Inalterado) Filtra e agrupa ocorrências.
+ * Filtra e agrupa ocorrências com base nos filtros de estado e pesquisa.
  * @returns {Map<string, object>} Um Map onde a chave é o `occurrenceGroupId` e o valor é um objeto do incidente.
  */
 export const getFilteredOccurrences = () => {
@@ -162,6 +166,8 @@ export const getFilteredOccurrences = () => {
     const filteredIncidents = new Map();
     for (const [groupId, incident] of groupedByIncident.entries()) {
         const mainRecord = incident.records[0]; 
+        if (!mainRecord) continue; // Adiciona verificação de segurança
+        
         const { startDate, endDate, status, type } = state.filtersOccurrences;
         const studentSearch = state.filterOccurrences.toLowerCase();
 
@@ -191,9 +197,10 @@ export const getFilteredOccurrences = () => {
 
 
 /**
- * ATUALIZADO: (PONTO 3 & 4) Renderiza a lista de ocorrências.
+ * ATUALIZADO: (PONTO 3, 4 & 10) Renderiza a lista de ocorrências.
  * - Mostra o status individual de CADA aluno.
  * - Destaca o aluno que corresponde à busca.
+ * - Torna o card do aluno um BOTÃO para abrir o acompanhamento.
  */
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
@@ -220,7 +227,7 @@ export const renderOccurrences = () => {
         // ATUALIZADO (PONTO 4): Pega o termo da busca
         const studentSearch = state.filterOccurrences.toLowerCase();
 
-        // ATUALIZADO (PONTO 3 & 4): Gera HTML para cada aluno com status e destaque
+        // ATUALIZADO (PONTO 3, 4, 10): Gera HTML para cada aluno como um botão clicável
         const studentDetailsHTML = [...incident.studentsInvolved.values()].map(student => {
             const record = incident.records.find(r => r.studentId === student.matricula);
             const status = record?.statusIndividual || 'Pendente';
@@ -229,13 +236,20 @@ export const renderOccurrences = () => {
             const isMatch = studentSearch && student.name.toLowerCase().includes(studentSearch);
             const nameClass = isMatch ? 'font-bold text-yellow-800' : 'font-medium text-gray-700';
             // Se der match, a borda e o fundo mudam
-            const borderClass = isMatch ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-gray-50';
+            let borderClass = isMatch ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-gray-50';
+            
+            // Lógica de hover (Ponto 10)
+            let hoverClass = isMatch ? 'hover:bg-yellow-100' : 'hover:bg-indigo-50';
 
             return `
-                <div class="flex items-center gap-1.5 py-1 px-2 rounded-lg border ${borderClass}">
+                <button type="button" 
+                        class="student-follow-up-trigger flex items-center gap-1.5 py-1 px-2 rounded-lg border ${borderClass} ${hoverClass} cursor-pointer transition-colors"
+                        data-group-id="${incident.id}"
+                        data-student-id="${student.matricula}"
+                        title="Abrir acompanhamento de ${student.name}">
                     <span class="${nameClass}">${student.name}</span>
                     ${getStatusBadge(status)}
-                </div>`;
+                </button>`;
         }).join('');
         // --- FIM DA ATUALIZAÇÃO ---
 
@@ -300,25 +314,12 @@ export const renderOccurrences = () => {
 
 
 /**
- * (Inalterado) Abre o modal para editar APENAS os dados COLETIVOS do incidente.
+ * Abre o modal para registrar ou editar os dados COLETIVOS do incidente.
  * @param {object | null} incidentToEdit - O objeto do incidente a ser editado, ou null para criar um novo.
  */
 export const openOccurrenceModal = (incidentToEdit = null) => {
     dom.occurrenceForm.reset();
     state.selectedStudents.clear();
-
-    // Esconde os campos que agora são individuais (esta lógica pode ser removida se o HTML for limpo)
-    const individualFields = ['actions-taken-school', 'actions-taken-family', 'occurrence-parecer'];
-    individualFields.forEach(id => {
-        const field = document.getElementById(id);
-        if (field) field.closest('div').classList.add('hidden');
-    });
-     // Oculta a seção de parecer (esta lógica pode ser removida se o HTML for limpo)
-     const parecerField = document.getElementById('occurrence-parecer');
-     if (parecerField) {
-        parecerField.parentElement.classList.add('hidden');
-     }
-
 
     if (incidentToEdit) {
         // MODO DE EDIÇÃO (FATO COLETIVO)
@@ -351,10 +352,12 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
 };
 
 /**
- * (Inalterado) Abre o novo modal de acompanhamento individual.
+ * ATUALIZADO (PONTO 11): Abre o novo modal de acompanhamento individual.
+ * Agora aceita um ID de aluno para pré-seleção.
  * @param {string} groupId - O ID do grupo da ocorrência.
+ * @param {string | null} [studentIdToPreselect=null] - O ID (matrícula) do aluno para carregar diretamente.
  */
-export const openFollowUpModal = (groupId) => {
+export const openFollowUpModal = (groupId, studentIdToPreselect = null) => {
     const incident = getFilteredOccurrences().get(groupId);
     if (!incident) {
         return showToast('Erro: Incidente não encontrado.');
@@ -362,6 +365,7 @@ export const openFollowUpModal = (groupId) => {
 
     // Referências aos elementos do modal de Acompanhamento
     const studentSelect = document.getElementById('follow-up-student-select');
+    const studentSelectWrapper = studentSelect.parentElement; // O <div> que envolve o select
     const followUpForm = document.getElementById('follow-up-form');
     const statusDisplay = document.getElementById('follow-up-status-display'); 
     
@@ -376,7 +380,7 @@ export const openFollowUpModal = (groupId) => {
             const option = document.createElement('option');
             option.value = record.id; // Usamos o ID do registro individual
             option.textContent = student.name;
-            option.dataset.studentId = studentId;
+            option.dataset.studentId = studentId; // Armazena o studentId (matrícula)
             studentSelect.appendChild(option);
         }
     });
@@ -385,14 +389,15 @@ export const openFollowUpModal = (groupId) => {
     studentSelect.onchange = (e) => {
         const selectedOption = e.target.options[e.target.selectedIndex];
         const recordId = selectedOption.value;
-        const studentId = selectedOption.dataset.studentId;
-
+        
         if (!recordId) {
             followUpForm.classList.add('hidden');
             if (statusDisplay) statusDisplay.innerHTML = '';
             return;
         }
         
+        // Pega o studentId (matrícula) do dataset da option selecionada
+        const studentId = selectedOption.dataset.studentId;
         const record = incident.records.find(r => r.id === recordId);
         const student = incident.studentsInvolved.get(studentId);
 
@@ -407,8 +412,8 @@ export const openFollowUpModal = (groupId) => {
             let statusText = 'Pendente'; // Padrão se o contato foi feito
             if (record.parecerIndividual) {
                 statusText = 'Resolvido';
-            } else if (!record.contactSucceeded) {
-                // Se 'contactSucceeded' for null, undefined, ou "", é 'Aguardando Contato'
+            } else if (!record.contactSucceeded || record.contactSucceeded === 'no') {
+                // Se 'contactSucceeded' for null, undefined, "" ou "no"
                 statusText = 'Aguardando Contato';
             }
             if (statusDisplay) statusDisplay.innerHTML = `<strong>Status:</strong> ${getStatusBadge(statusText)}`;
@@ -443,6 +448,29 @@ export const openFollowUpModal = (groupId) => {
             followUpForm.classList.remove('hidden');
         }
     };
+    
+    // --- INÍCIO DA LÓGICA DE PRÉ-SELEÇÃO (PONTO 11) ---
+    if (studentIdToPreselect) {
+        // Encontra o 'recordId' (que é o value da option) com base no 'studentId'
+        const record = incident.records.find(r => r.studentId === studentIdToPreselect);
+        if (record) {
+            studentSelect.value = record.id; // Define o valor do select
+            studentSelectWrapper.classList.add('hidden'); // Esconde o dropdown
+            studentSelect.dispatchEvent(new Event('change')); // Dispara o 'onchange' para preencher o formulário
+        } else {
+            // Fallback: se não encontrar o aluno (improvável), mostra o dropdown
+            studentSelectWrapper.classList.remove('hidden');
+            studentSelect.value = "";
+            studentSelect.dispatchEvent(new Event('change')); // Dispara o 'onchange' para esconder o formulário
+        }
+    } else {
+        // Comportamento normal (clique no kebab): mostra o dropdown e reseta
+        studentSelectWrapper.classList.remove('hidden');
+        studentSelect.value = "";
+        studentSelect.dispatchEvent(new Event('change')); // Dispara o 'onchange' para esconder o formulário
+    }
+    // --- FIM DA LÓGICA DE PRÉ-SELEÇÃO ---
+
 
     // 4. Abre o modal
     openModal(dom.followUpModal);
@@ -461,7 +489,7 @@ export const actionDisplayTitles = {
 };
 
 /**
- * (Inalterado) Renderiza a lista de Busca Ativa.
+ * Renderiza a lista de Busca Ativa.
  */
 export const renderAbsences = () => {
     dom.loadingAbsences.classList.add('hidden');
@@ -653,7 +681,6 @@ export const renderAbsences = () => {
 // =================================================================================
 
 /**
- * (Inalterado)
  * Função central que decide qual conteúdo de aba deve ser renderizado.
  */
 export const render = () => {
@@ -665,7 +692,6 @@ export const render = () => {
 };
 
 /**
- * (Inalterado)
  * Abre um modal de seleção para o usuário escolher para qual aluno
  * de um incidente a notificação deve ser gerada.
  */
@@ -706,7 +732,7 @@ export const openStudentSelectionModal = (groupId) => {
 }
 
 /**
- * (Inalterado) Helper para gerar o cabeçalho com logo.
+ * Helper para gerar o cabeçalho com logo.
  * @returns {string} HTML do cabeçalho do relatório.
  */
 const getReportHeaderHTML = () => {
@@ -807,7 +833,7 @@ export const openIndividualNotificationModal = (incident, student) => {
 };
 
 /**
- * (Inalterado) Gera a Ata Formal, incluindo "Providências da Família".
+ * Gera a Ata Formal, incluindo "Providências da Família".
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openOccurrenceRecordModal = (groupId) => {
@@ -879,7 +905,6 @@ export const openOccurrenceRecordModal = (groupId) => {
 
 
 /**
- * (Inalterado)
  * Abre o modal de histórico de alterações de uma ocorrência.
  */
 export const openHistoryModal = (groupId) => {
@@ -906,7 +931,6 @@ export const openHistoryModal = (groupId) => {
 };
 
 /**
- * (Inalterado)
  * Abre o modal de histórico de alterações de uma ação de Busca Ativa.
  */
 export const openAbsenceHistoryModal = (processId) => {
@@ -942,7 +966,6 @@ export const openAbsenceHistoryModal = (processId) => {
 
 
 /**
- * (Inalterado)
  * Configura o autocomplete para as barras de busca principais.
  */
 export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
@@ -993,11 +1016,13 @@ export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
 };
 
 /**
- * (Inalterado)
+ * Renderiza a lista de alunos no modal "Gerir Alunos".
  * A lógica de clique será gerenciada por delegação de eventos em `main.js`.
  */
 export const renderStudentsList = () => {
     const tableBody = document.getElementById('students-list-table');
+    if (!tableBody) return; // Adiciona guarda de segurança
+    
     tableBody.innerHTML = ''; // Limpa a tabela antes de redesenhar.
     
     state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
@@ -1019,7 +1044,6 @@ export const renderStudentsList = () => {
 
 
 /**
- * (Inalterado)
  * Reseta o formulário de adição/edição de aluno.
  */
 export const resetStudentForm = () => {
@@ -1032,7 +1056,6 @@ export const resetStudentForm = () => {
 };
 
 /**
- * (Inalterado)
  * Funções de exibição das telas de login/registro.
  */
 export const showLoginView = () => {
@@ -1047,7 +1070,6 @@ export const showRegisterView = () => {
 
 
 /**
- * (Inalterado)
  * Gera o relatório geral, incluindo "Providências da Família".
  */
 export const generateAndShowGeneralReport = () => {
@@ -1172,7 +1194,6 @@ export const generateAndShowGeneralReport = () => {
 
 
 /**
- * (Inalterado)
  * Gera o relatório geral de Busca Ativa com gráficos.
  */
 export const generateAndShowBuscaAtivaReport = () => {
@@ -1325,7 +1346,6 @@ export const generateAndShowBuscaAtivaReport = () => {
 
 
 /**
- * (Inalterado)
  * Abre a ficha de notificação de Busca Ativa.
  */
 export const openFichaViewModal = (id) => {
@@ -1396,7 +1416,6 @@ export const openFichaViewModal = (id) => {
 };
 
 /**
- * (Inalterado)
  * Gera a Ficha Consolidada de Busca Ativa.
  */
 export const generateAndShowConsolidatedFicha = (studentId, processId = null) => {
@@ -1507,7 +1526,6 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
 };
 
 /**
- * (Inalterado)
  * Gera o Ofício para o Conselho Tutelar.
  */
 export const generateAndShowOficio = (action, oficioNumber = null) => {
@@ -1613,7 +1631,6 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
 };
 
 /**
- * (Inalterado)
  * Lógica para determinar a próxima ação de busca ativa.
  */
 export const handleNewAbsenceAction = (student) => {
@@ -1702,7 +1719,6 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
 };
 
 /**
- * (Inalterado)
  * Abre e popula o modal de registro/edição de uma ação de Busca Ativa.
  */
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
@@ -1781,8 +1797,8 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 document.getElementById('meeting-time').value = data.meetingTime || '';
                 if(data.contactSucceeded) {
                     const radio = document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`);
-                    radio.checked = true;
-                    radio.dispatchEvent(new Event('change'));
+                    if(radio) radio.checked = true;
+                    if(radio) radio.dispatchEvent(new Event('change'));
                 }
                 document.getElementById('absence-contact-type').value = data.contactType || '';
                 document.getElementById('contact-date').value = data.contactDate || '';
@@ -1795,8 +1811,8 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 document.getElementById('visit-date').value = data.visitDate || '';
                 if(data.visitSucceeded) {
                     const radio = document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`);
-                    radio.checked = true;
-                    radio.dispatchEvent(new Event('change'));
+                    if(radio) radio.checked = true;
+                    if(radio) radio.dispatchEvent(new Event('change'));
                 }
                 document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
                 document.getElementById('visit-reason').value = data.visitReason || '';
@@ -1821,7 +1837,6 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 };
 
 /**
- * (Inalterado)
  * Abre o modal de configurações e preenche com os dados atuais.
  */
 export const openSettingsModal = () => {
