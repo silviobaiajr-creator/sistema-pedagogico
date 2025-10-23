@@ -3,20 +3,18 @@
 // RESPONSABILIDADE: Todas as funções que manipulam a UI (desenhar,
 // abrir modais, gerar HTML).
 //
-// ATUALIZAÇÃO (REFATORAÇÃO PASSO 1):
-// 1. As 11 funções responsáveis por gerar relatórios, atas, ofícios e
-//    históricos foram MOVIDAS para o novo arquivo `reports.js`.
-// 2. Este arquivo agora foca apenas na renderização principal, modais de
-//    formulário e lógica de UI do dia-a-dia.
-// 3. `getStatusBadge` e `getFilteredOccurrences` foram exportadas
-//    para serem usadas pelo `reports.js`.
-// 4. Imports desnecessários (ex: formatPeriodo) foram removidos.
+// ATUALIZAÇÃO (REFATORAÇÃO PASSO 1 - CORREÇÃO):
+// 1. A constante `actionDisplayTitles` foi MOVIDA para `reports.js`.
+// 2. Adicionada a importação de `actionDisplayTitles` de `reports.js`
+//    para que as funções `renderAbsences` e `openAbsenceModalForStudent`
+//    continuem a funcionar corretamente.
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { getStudentProcessInfo, determineNextActionForStudent } from './logic.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal } from './utils.js';
-// Removidos imports de firestore (setDoc, getStudentsDocRef) pois não eram usados.
+// NOVO: Importa a constante que foi movida
+import { actionDisplayTitles } from './reports.js'; 
 
 
 // =================================================================================
@@ -469,14 +467,8 @@ export const openFollowUpModal = (groupId, studentIdToPreselect = null) => {
 // =================================================================================
 // SEÇÃO 2: LÓGICA DA INTERFACE DE BUSCA ATIVA
 // =================================================================================
-export const actionDisplayTitles = {
-    tentativa_1: "1ª Tentativa de Contato",
-    tentativa_2: "2ª Tentativa de Contato",
-    tentativa_3: "3ª Tentativa de Contato",
-    visita: "Visita In Loco",
-    encaminhamento_ct: "Encaminhamento ao Conselho Tutelar",
-    analise: "Análise"
-};
+
+// REMOVIDO: const actionDisplayTitles = { ... } (movido para reports.js)
 
 /**
  * Renderiza a lista de Busca Ativa.
@@ -680,20 +672,6 @@ export const render = () => {
         renderAbsences();
     }
 };
-
-// --- FUNÇÕES DE RELATÓRIO MOVIDAS ---
-// getReportHeaderHTML
-// openStudentSelectionModal
-// openIndividualNotificationModal
-// openOccurrenceRecordModal
-// openHistoryModal
-// openAbsenceHistoryModal
-// generateAndShowGeneralReport
-// generateAndShowBuscaAtivaReport
-// generateAndShowConsolidatedFicha
-// generateAndShowOficio
-// --- FIM DAS FUNÇÕES MOVIDAS ---
-
 
 /**
  * Configura o autocomplete para as barras de busca principais.
@@ -909,6 +887,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 
     const finalActionType = forceActionType || (isEditing ? data.actionType : determineNextActionForStudent(student.matricula));
     document.getElementById('action-type').value = finalActionType;
+    // Usa a constante importada
     document.getElementById('action-type-display').value = actionDisplayTitles[finalActionType] || '';
     document.getElementById('action-type').dispatchEvent(new Event('change'));
 
@@ -1020,3 +999,4 @@ export const openSettingsModal = () => {
 
     openModal(dom.settingsModal);
 };
+
