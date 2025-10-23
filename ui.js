@@ -3,18 +3,16 @@
 // RESPONSABILIDADE: Todas as funções que manipulam a UI (desenhar,
 // abrir modais, gerar HTML).
 //
-// ATUALIZAÇÃO (REFATORAÇÃO PASSO 1 - CORREÇÃO):
-// 1. A constante `actionDisplayTitles` foi MOVIDA para `reports.js`.
-// 2. Adicionada a importação de `actionDisplayTitles` de `reports.js`
-//    para que as funções `renderAbsences` e `openAbsenceModalForStudent`
-//    continuem a funcionar corretamente.
+// PASSO 1 DA REFATORAÇÃO:
+// 1. (REMOVIDO) A constante 'actionDisplayTitles' foi movida para 'constants.js'.
+// 2. (ATUALIZADO) O import agora busca 'actionDisplayTitles' de 'constants.js'.
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { getStudentProcessInfo, determineNextActionForStudent } from './logic.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal } from './utils.js';
-// NOVO: Importa a constante que foi movida
-import { actionDisplayTitles } from './reports.js'; 
+// NOVO: Importa a constante do novo arquivo 'constants.js'
+import { actionDisplayTitles } from './constants.js';
 
 
 // =================================================================================
@@ -36,20 +34,20 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             tagsContainerElement.innerHTML = `<p class="text-sm text-gray-400">Pesquise e selecione um ou mais alunos...</p>`;
             return;
         }
-        
+
         state.selectedStudents.forEach((student, studentId) => {
             const tag = document.createElement('span');
-            
+
             // ATUALIZADO (PONTO 2): Adiciona 'gap-1.5' para espaçamento
             tag.className = 'bg-indigo-100 text-indigo-800 text-sm font-medium me-2 px-2.5 py-0.5 rounded-full flex items-center gap-1.5';
-            
+
             // ATUALIZADO (PONTO 2): Mostra o nome e a turma
             tag.innerHTML = `
                 <span>${student.name}</span>
                 <span class="text-xs text-indigo-500 font-normal">(${student.class || 'S/ Turma'})</span>
                 <button type="button" class="ms-1 text-indigo-600 hover:text-indigo-800">&times;</button>
             `;
-            
+
             // Adiciona evento para remover o aluno ao clicar no "X".
             tag.querySelector('button').addEventListener('click', () => {
                 state.selectedStudents.delete(studentId);
@@ -67,12 +65,12 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             suggestionsElement.classList.add('hidden');
             return;
         }
-        
+
         // Filtra alunos que ainda não foram selecionados.
         const filteredStudents = state.students
             .filter(s => !state.selectedStudents.has(s.matricula) && s.name.toLowerCase().includes(value))
             .slice(0, 5);
-        
+
         if (filteredStudents.length > 0) {
             suggestionsElement.classList.remove('hidden');
             filteredStudents.forEach(student => {
@@ -92,7 +90,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             suggestionsElement.classList.add('hidden');
         }
     });
-    
+
     // Esconde sugestões se o usuário clicar fora.
     document.addEventListener('click', (e) => {
         if (!suggestionsElement.contains(e.target) && e.target !== inputElement) {
@@ -132,17 +130,17 @@ export const getFilteredOccurrences = () => {
     // 1. Agrupa todas as ocorrências por `occurrenceGroupId`.
     const groupedByIncident = state.occurrences.reduce((acc, occ) => {
         const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
-        
+
         if (!acc.has(groupId)) {
             acc.set(groupId, {
                 id: groupId,
-                records: [], 
-                studentsInvolved: new Map() 
+                records: [],
+                studentsInvolved: new Map()
             });
         }
         const incident = acc.get(groupId);
         incident.records.push(occ);
-        
+
         const student = state.students.find(s => s.matricula === occ.studentId);
         if (student) {
             incident.studentsInvolved.set(student.matricula, student);
@@ -153,9 +151,9 @@ export const getFilteredOccurrences = () => {
     // 2. Filtra os incidentes agrupados e CALCULA O STATUS GERAL.
     const filteredIncidents = new Map();
     for (const [groupId, incident] of groupedByIncident.entries()) {
-        const mainRecord = incident.records[0]; 
+        const mainRecord = incident.records[0];
         if (!mainRecord) continue; // Adiciona verificação de segurança
-        
+
         const { startDate, endDate, status, type } = state.filtersOccurrences;
         const studentSearch = state.filterOccurrences.toLowerCase();
 
@@ -169,10 +167,10 @@ export const getFilteredOccurrences = () => {
         if (endDate && mainRecord.date > endDate) continue;
         if (status !== 'all' && overallStatus !== status) continue;
         if (type !== 'all' && mainRecord.occurrenceType !== type) continue;
-        
+
         // Checagem do filtro de busca por aluno
         if (studentSearch) {
-            const hasMatchingStudent = [...incident.studentsInvolved.values()].some(s => 
+            const hasMatchingStudent = [...incident.studentsInvolved.values()].some(s =>
                 s.name.toLowerCase().includes(studentSearch)
             );
             if (!hasMatchingStudent) continue;
@@ -192,9 +190,9 @@ export const getFilteredOccurrences = () => {
  */
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
-    
+
     const filteredIncidents = getFilteredOccurrences();
-    
+
     dom.occurrencesTitle.textContent = `Exibindo ${filteredIncidents.size} Incidente(s)`;
 
     if (filteredIncidents.size === 0) {
@@ -204,14 +202,14 @@ export const renderOccurrences = () => {
     }
 
     dom.emptyStateOccurrences.classList.add('hidden');
-    
-    const sortedIncidents = [...filteredIncidents.values()].sort((a, b) => 
+
+    const sortedIncidents = [...filteredIncidents.values()].sort((a, b) =>
         new Date(b.records[0].date) - new Date(a.records[0].date)
     );
 
     let html = sortedIncidents.map(incident => {
         const mainRecord = incident.records[0];
-        
+
         // ATUALIZADO (PONTO 4): Pega o termo da busca
         const studentSearch = state.filterOccurrences.toLowerCase();
 
@@ -219,18 +217,18 @@ export const renderOccurrences = () => {
         const studentDetailsHTML = [...incident.studentsInvolved.values()].map(student => {
             const record = incident.records.find(r => r.studentId === student.matricula);
             const status = record?.statusIndividual || 'Pendente';
-            
+
             // Lógica de destaque (Ponto 4)
             const isMatch = studentSearch && student.name.toLowerCase().includes(studentSearch);
             const nameClass = isMatch ? 'font-bold text-yellow-800' : 'font-medium text-gray-700';
             // Se der match, a borda e o fundo mudam
             let borderClass = isMatch ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-gray-50';
-            
+
             // Lógica de hover (Ponto 10)
             let hoverClass = isMatch ? 'hover:bg-yellow-100' : 'hover:bg-indigo-50';
 
             return `
-                <button type="button" 
+                <button type="button"
                         class="student-follow-up-trigger flex items-center gap-1.5 py-1 px-2 rounded-lg border ${borderClass} ${hoverClass} cursor-pointer transition-colors"
                         data-group-id="${incident.id}"
                         data-student-id="${student.matricula}"
@@ -259,11 +257,11 @@ export const renderOccurrences = () => {
                                 ${studentDetailsHTML}
                             </div>
                         </div>
-                        
+
                         <!-- Atualizado espaçamento para mt-2 -->
                         <p class="text-xs text-gray-400 mt-2">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
                     </div>
-                    
+
                     <div class="flex-shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-stretch sm:self-center">
                         <button class="notification-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-2 px-3 rounded-md bg-indigo-50 hover:bg-indigo-100 text-center" data-group-id="${incident.id}" title="Gerar Notificação">
                             <i class="fas fa-paper-plane mr-1"></i> Notificação
@@ -271,7 +269,7 @@ export const renderOccurrences = () => {
                         <button class="record-btn text-gray-600 hover:text-gray-900 text-xs font-semibold py-2 px-3 rounded-md bg-gray-50 hover:bg-gray-100 border border-gray-300 text-center" data-group-id="${incident.id}" title="Gerar Ata de Ocorrência">
                             <i class="fas fa-file-invoice mr-1"></i> Gerar Ata
                         </button>
-                        
+
                         <div class="relative kebab-menu-container self-center">
                             <button class="kebab-menu-btn text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100" data-group-id="${incident.id}" title="Mais Opções">
                                 <i class="fas fa-ellipsis-v"></i>
@@ -296,7 +294,7 @@ export const renderOccurrences = () => {
             </div>
         `;
     }).join('');
-    
+
     dom.occurrencesListDiv.innerHTML = html;
 };
 
@@ -355,8 +353,8 @@ export const openFollowUpModal = (groupId, studentIdToPreselect = null) => {
     const studentSelect = document.getElementById('follow-up-student-select');
     const studentSelectWrapper = studentSelect.parentElement; // O <div> que envolve o select
     const followUpForm = document.getElementById('follow-up-form');
-    const statusDisplay = document.getElementById('follow-up-status-display'); 
-    
+    const statusDisplay = document.getElementById('follow-up-status-display');
+
     studentSelect.innerHTML = '<option value="">Selecione um aluno...</option>';
     followUpForm.classList.add('hidden'); // Esconde o formulário
     if (statusDisplay) statusDisplay.innerHTML = ''; // Limpa o status
@@ -377,13 +375,13 @@ export const openFollowUpModal = (groupId, studentIdToPreselect = null) => {
     studentSelect.onchange = (e) => {
         const selectedOption = e.target.options[e.target.selectedIndex];
         const recordId = selectedOption.value;
-        
+
         if (!recordId) {
             followUpForm.classList.add('hidden');
             if (statusDisplay) statusDisplay.innerHTML = '';
             return;
         }
-        
+
         // Pega o studentId (matrícula) do dataset da option selecionada
         const studentId = selectedOption.dataset.studentId;
         const record = incident.records.find(r => r.id === recordId);
@@ -393,7 +391,7 @@ export const openFollowUpModal = (groupId, studentIdToPreselect = null) => {
             // 3. Preenche o formulário com os dados individuais
             followUpForm.dataset.recordId = recordId;
             followUpForm.dataset.studentId = studentId;
-            
+
             document.getElementById('follow-up-student-name').value = student.name;
 
             // --- Lógica de Status Automático (Exibição) ---
@@ -405,15 +403,15 @@ export const openFollowUpModal = (groupId, studentIdToPreselect = null) => {
                 statusText = 'Aguardando Contato';
             }
             if (statusDisplay) statusDisplay.innerHTML = `<strong>Status:</strong> ${getStatusBadge(statusText)}`;
-            
+
             // Preenche os campos de acompanhamento
             document.getElementById('follow-up-actions').value = record.schoolActionsIndividual || '';
-            document.getElementById('follow-up-family-actions').value = record.providenciasFamilia || ''; 
+            document.getElementById('follow-up-family-actions').value = record.providenciasFamilia || '';
             document.getElementById('follow-up-parecer').value = record.parecerIndividual || '';
-            
+
             // Preenche campos movidos (Convocação)
-            document.getElementById('follow-up-meeting-date').value = record.meetingDate || ''; 
-            document.getElementById('follow-up-meeting-time').value = record.meetingTime || ''; 
+            document.getElementById('follow-up-meeting-date').value = record.meetingDate || '';
+            document.getElementById('follow-up-meeting-time').value = record.meetingTime || '';
 
             // Preenche campos movidos (Contato)
             const contactRadio = document.querySelector(`input[name="follow-up-contact-succeeded"][value="${record.contactSucceeded}"]`);
@@ -422,21 +420,21 @@ export const openFollowUpModal = (groupId, studentIdToPreselect = null) => {
             } else {
                 document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio => radio.checked = false);
             }
-            
+
             // Dispara o evento change para mostrar/esconder os campos de detalhe
-            const contactFieldsContainer = document.getElementById('follow-up-family-contact-fields'); 
+            const contactFieldsContainer = document.getElementById('follow-up-family-contact-fields');
             if (contactFieldsContainer) {
                 // Chama a função (agora corrigida)
                 toggleFamilyContactFields(record.contactSucceeded === 'yes', contactFieldsContainer);
             }
 
-            document.getElementById('follow-up-contact-type').value = record.contactType || ''; 
-            document.getElementById('follow-up-contact-date').value = record.contactDate || ''; 
-            
+            document.getElementById('follow-up-contact-type').value = record.contactType || '';
+            document.getElementById('follow-up-contact-date').value = record.contactDate || '';
+
             followUpForm.classList.remove('hidden');
         }
     };
-    
+
     // --- INÍCIO DA LÓGICA DE PRÉ-SELEÇÃO (PONTO 11) ---
     if (studentIdToPreselect) {
         // Encontra o 'recordId' (que é o value da option) com base no 'studentId'
@@ -468,7 +466,7 @@ export const openFollowUpModal = (groupId, studentIdToPreselect = null) => {
 // SEÇÃO 2: LÓGICA DA INTERFACE DE BUSCA ATIVA
 // =================================================================================
 
-// REMOVIDO: const actionDisplayTitles = { ... } (movido para reports.js)
+// REMOVIDO: const actionDisplayTitles = { ... } (movido para constants.js)
 
 /**
  * Renderiza a lista de Busca Ativa.
@@ -483,7 +481,7 @@ export const renderAbsences = () => {
         });
 
     const groupedByProcess = searchFiltered.reduce((acc, action) => {
-        const key = action.processId || `no-proc-${action.id}`; 
+        const key = action.processId || `no-proc-${action.id}`;
         if (!acc[key]) {
             acc[key] = [];
         }
@@ -494,7 +492,7 @@ export const renderAbsences = () => {
     const filteredGroupKeys = Object.keys(groupedByProcess).filter(processId => {
         const actions = groupedByProcess[processId];
         actions.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-        
+
         const { processStatus, pendingAction, returnStatus } = state.filtersAbsences;
 
         const isConcluded = actions.some(a => a.actionType === 'analise');
@@ -518,26 +516,28 @@ export const renderAbsences = () => {
         }
 
         if (returnStatus !== 'all') {
-            const lastActionWithReturnInfo = [...actions].reverse().find(a => 
+            const lastActionWithReturnInfo = [...actions].reverse().find(a =>
                 (a.contactReturned !== undefined && a.contactReturned !== null) ||
                 (a.visitReturned !== undefined && a.visitReturned !== null) ||
                 (a.ctReturned !== undefined && a.ctReturned !== null)
             );
 
             if (!lastActionWithReturnInfo) {
+                // Se não há informação de retorno E o filtro é para 'retornou' ou 'não retornou', exclui
                 if (returnStatus === 'returned' || returnStatus === 'not_returned') return false;
+                 // Se não há info e o filtro é 'pendente', mantém (pois está pendente)
             } else {
-                const lastStatus = lastActionWithReturnInfo.contactReturned || lastActionWithReturnInfo.visitReturned || lastActionWithReturnInfo.ctReturned;
+                 // Se HÁ informação de retorno
+                const lastStatus = lastActionWithReturnInfo.contactReturned ?? lastActionWithReturnInfo.visitReturned ?? lastActionWithReturnInfo.ctReturned;
 
-                if (returnStatus === 'returned' && lastStatus !== 'yes') {
-                    return false;
-                }
-                if (returnStatus === 'not_returned' && lastStatus !== 'no') {
-                    return false;
-                }
+                if (returnStatus === 'returned' && lastStatus !== 'yes') return false;
+                if (returnStatus === 'not_returned' && lastStatus !== 'no') return false;
+                 // Se há info e o filtro é 'pendente', exclui (pois não está mais pendente)
+                if (returnStatus === 'pending') return false;
             }
         }
-        
+
+
         return true;
     });
 
@@ -546,23 +546,28 @@ export const renderAbsences = () => {
         dom.absencesListDiv.innerHTML = '';
     } else {
         dom.emptyStateAbsences.classList.add('hidden');
-        
+
         const sortedGroupKeys = filteredGroupKeys.sort((a, b) => {
             const lastActionA = groupedByProcess[a].sort((x, y) => (y.createdAt?.seconds || 0) - (x.createdAt?.seconds || 0))[0];
             const lastActionB = groupedByProcess[b].sort((x, y) => (y.createdAt?.seconds || 0) - (x.createdAt?.seconds || 0))[0];
-            return (lastActionB.createdAt?.seconds || 0) - (lastActionA.createdAt?.seconds || 0);
+            // Garante que lastActionA e B existem antes de tentar acessar createdAt
+             const timeA = lastActionA?.createdAt?.seconds || (lastActionA?.createdAt ? new Date(lastActionA.createdAt).getTime() / 1000 : 0);
+            const timeB = lastActionB?.createdAt?.seconds || (lastActionB?.createdAt ? new Date(lastActionB.createdAt).getTime() / 1000 : 0);
+            return timeB - timeA;
         });
+
 
         let html = '';
         for (const processId of sortedGroupKeys) {
             const actions = groupedByProcess[processId].sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
             const firstAction = actions[0];
+             if (!firstAction) continue; // Pula se não houver ações (segurança)
             const student = state.students.find(s => s.matricula === firstAction.studentId);
             if (!student) continue;
 
             const isConcluded = actions.some(a => a.actionType === 'analise');
             const hasCtAction = actions.some(a => a.actionType === 'encaminhamento_ct');
-            
+
             html += `
                 <div class="border rounded-lg mb-4 bg-white shadow">
                     <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center" data-process-id="${processId}">
@@ -582,13 +587,13 @@ export const renderAbsences = () => {
                         <div class="p-4 border-t border-gray-200">
                             <div class="space-y-4">
         `;
-        
+
             actions.forEach(abs => {
                 const actionDate = abs.contactDate || abs.visitDate || abs.ctSentDate || (abs.createdAt?.toDate() ? abs.createdAt.toDate().toISOString().split('T')[0] : '');
                 const returned = abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes';
                 const notReturned = abs.contactReturned === 'no' || abs.visitReturned === 'no' || abs.ctReturned === 'no';
 
-                
+
                 let actionButtonHtml = '';
                 if (abs.actionType.startsWith('tentativa')) {
                     actionButtonHtml = `<button class="notification-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50" data-id="${abs.id}" title="Gerar Notificação">Notificação</button>`;
@@ -602,7 +607,7 @@ export const renderAbsences = () => {
                 } else {
                     actionButtonHtml = `<span class="inline-block w-24"></span>`;
                 }
-                
+
                 let statusHtml = '';
                 if (abs.actionType.startsWith('tentativa')) {
                     statusHtml = (abs.contactSucceeded === 'yes' || abs.contactSucceeded === 'no')
@@ -613,7 +618,7 @@ export const renderAbsences = () => {
                         ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-check"></i> Contato Realizado</p>'
                         : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Contato</p>';
                 } else if (abs.actionType === 'encaminhamento_ct') {
-                    statusHtml = abs.ctFeedback 
+                    statusHtml = abs.ctFeedback
                         ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-inbox"></i> Devolutiva Recebida</p>'
                         : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Devolutiva</p>';
                 }
@@ -629,7 +634,7 @@ export const renderAbsences = () => {
                         </div>
                         <div class="whitespace-nowrap text-right text-sm font-medium space-x-2 flex items-center">
                             ${actionButtonHtml}
-                            
+
                             <div class="relative kebab-menu-container self-center">
                                 <button class="kebab-menu-btn text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100" data-id="${abs.id}" title="Mais Opções">
                                     <i class="fas fa-ellipsis-v"></i>
@@ -679,23 +684,23 @@ export const render = () => {
 export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
     const input = document.getElementById(inputId);
     const suggestionsContainer = document.getElementById(suggestionsId);
-    
+
     input.addEventListener('input', () => {
         const value = input.value.toLowerCase();
-        
+
         if (inputId === 'search-absences') {
             state.filterAbsences = value;
             render();
         }
-        
+
         suggestionsContainer.innerHTML = '';
         if (!value) {
             suggestionsContainer.classList.add('hidden');
             return;
         }
-        
+
         const filteredStudents = state.students.filter(s => s.name.toLowerCase().startsWith(value)).slice(0, 5);
-        
+
         if (filteredStudents.length > 0) {
             suggestionsContainer.classList.remove('hidden');
             filteredStudents.forEach(student => {
@@ -730,9 +735,9 @@ export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
 export const renderStudentsList = () => {
     const tableBody = document.getElementById('students-list-table');
     if (!tableBody) return; // Adiciona guarda de segurança
-    
+
     tableBody.innerHTML = ''; // Limpa a tabela antes de redesenhar.
-    
+
     state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -792,7 +797,7 @@ export const handleNewAbsenceAction = (student) => {
             if (lastAction.contactSucceeded == null || lastAction.contactReturned == null) {
                 isPending = true;
             }
-        } 
+        }
         else if (lastAction.actionType === 'visita') {
             if (lastAction.visitSucceeded == null || lastAction.visitReturned == null) {
                 isPending = true;
@@ -808,7 +813,7 @@ export const handleNewAbsenceAction = (student) => {
         if (isPending) {
             showToast(pendingActionMessage);
             openAbsenceModalForStudent(student, lastAction.actionType, lastAction);
-            return; 
+            return;
         }
     }
 
@@ -821,7 +826,7 @@ export const handleNewAbsenceAction = (student) => {
  */
 export const toggleFamilyContactFields = (enable, fieldsContainer) => {
     if (!fieldsContainer) return; // Guarda de segurança
-    
+
     // ---- CORREÇÃO DO BUG (PONTO 5) ----
     // Controla a visibilidade do contêiner principal
     fieldsContainer.classList.toggle('hidden', !enable);
@@ -834,7 +839,7 @@ export const toggleFamilyContactFields = (enable, fieldsContainer) => {
         if (!enable) {
             input.classList.add('bg-gray-200', 'cursor-not-allowed');
             // Não limpa o valor, pois o usuário pode querer ver o que estava preenchido
-            // input.value = ''; 
+            // input.value = '';
         } else {
             input.classList.remove('bg-gray-200', 'cursor-not-allowed');
         }
@@ -847,11 +852,11 @@ export const toggleFamilyContactFields = (enable, fieldsContainer) => {
  */
 export const toggleVisitContactFields = (enable, fieldsContainer) => {
      if (!fieldsContainer) return; // Guarda de segurança
-     
+
      // ---- CORREÇÃO DO BUG (PONTO 5) ----
      fieldsContainer.classList.toggle('hidden', !enable);
      // ---- FIM DA CORREÇÃO ----
-     
+
      const detailFields = fieldsContainer.querySelectorAll('input[type="text"], textarea');
      detailFields.forEach(input => {
         input.disabled = !enable;
@@ -881,7 +886,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     document.getElementById('absence-student-class').value = student.class || '';
     document.getElementById('absence-student-endereco').value = student.endereco || '';
     document.getElementById('absence-student-contato').value = student.contato || '';
-    
+
     const { processId, currentCycleActions } = getStudentProcessInfo(student.matricula);
     document.getElementById('absence-process-id').value = data?.processId || processId;
 
@@ -889,7 +894,11 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     document.getElementById('action-type').value = finalActionType;
     // Usa a constante importada
     document.getElementById('action-type-display').value = actionDisplayTitles[finalActionType] || '';
-    document.getElementById('action-type').dispatchEvent(new Event('change'));
+    // A linha abaixo estava causando erro pois 'dispatchEvent' não existe diretamente no elemento ID 'action-type'.
+    // Precisa obter o elemento primeiro. E como o valor do input hidden já foi setado, e o display também,
+    // não precisamos mais disparar o change. A lógica que dependia disso (mostrar/esconder campos)
+    // precisa ser chamada explicitamente mais abaixo.
+    // document.getElementById('action-type').dispatchEvent(new Event('change'));
 
     const absenceFieldsContainer = dom.absenceForm.querySelector('#absence-form > .bg-gray-50');
     const absenceInputs = absenceFieldsContainer.querySelectorAll('input');
@@ -897,90 +906,129 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 
     const readOnlyAbsenceData = (finalActionType !== 'tentativa_1' && !isEditing) || (isEditing && firstAbsenceRecordInCycle && data.id !== firstAbsenceRecordInCycle.id);
 
-    if (!readOnlyAbsenceData) {
-        document.getElementById('absence-start-date').required = true;
-        document.getElementById('absence-end-date').required = true;
-        document.getElementById('absence-count').required = true;
-    }
+    // Ajusta a obrigatoriedade dos campos de falta
+    document.getElementById('absence-start-date').required = !readOnlyAbsenceData;
+    document.getElementById('absence-end-date').required = !readOnlyAbsenceData;
+    document.getElementById('absence-count').required = !readOnlyAbsenceData;
+
 
     if (readOnlyAbsenceData) {
-        const source = firstAbsenceRecordInCycle || data;
+        const source = firstAbsenceRecordInCycle || data || {}; // Garante que source não é null
         document.getElementById('absence-start-date').value = source.periodoFaltasStart || '';
         document.getElementById('absence-end-date').value = source.periodoFaltasEnd || '';
         document.getElementById('absence-count').value = source.absenceCount || '';
         absenceInputs.forEach(input => input.readOnly = true);
     } else {
         absenceInputs.forEach(input => input.readOnly = false);
+         // Se for criar a primeira tentativa E não for edição, preenche com dados do 'data' se existirem (caso venha de um 'handleNewAbsenceAction' com dados antigos)
+        if (finalActionType === 'tentativa_1' && !isEditing && data) {
+             document.getElementById('absence-start-date').value = data.periodoFaltasStart || '';
+             document.getElementById('absence-end-date').value = data.periodoFaltasEnd || '';
+             document.getElementById('absence-count').value = data.absenceCount || '';
+        }
     }
-    
+
+    // Esconde todos os grupos dinâmicos primeiro
+    dom.absenceForm.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
+
+    // Mostra o grupo correto e ajusta 'required'
+    let activeGroup = null;
     switch (finalActionType) {
         case 'tentativa_1':
         case 'tentativa_2':
         case 'tentativa_3':
+            activeGroup = document.getElementById('group-tentativas');
             document.getElementById('meeting-date').required = true;
             document.getElementById('meeting-time').required = true;
+            // A obrigatoriedade dos campos dentro de family-contact-fields é controlada por toggleFamilyContactFields
             break;
         case 'visita':
+            activeGroup = document.getElementById('group-visita');
             document.getElementById('visit-agent').required = true;
             document.getElementById('visit-date').required = true;
+            // A obrigatoriedade dos campos dentro de visit-contact-fields é controlada por toggleVisitContactFields
             break;
         case 'encaminhamento_ct':
+            activeGroup = document.getElementById('group-encaminhamento_ct');
             document.getElementById('ct-sent-date').required = true;
             break;
         case 'analise':
+            activeGroup = document.getElementById('group-analise');
             document.getElementById('ct-parecer').required = true;
             break;
     }
-    
-    if (isEditing) {
-        if (!readOnlyAbsenceData) {
-            document.getElementById('absence-start-date').value = data.periodoFaltasStart || '';
-            document.getElementById('absence-end-date').value = data.periodoFaltasEnd || '';
-            document.getElementById('absence-count').value = data.absenceCount || '';
-        }
-        
+     if (activeGroup) {
+         activeGroup.classList.remove('hidden');
+     }
+
+
+    if (isEditing && data) { // Garante que 'data' existe antes de acessá-lo
+        // Preenche os campos específicos da ação que está sendo editada
         switch (data.actionType) {
             case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
                 document.getElementById('meeting-date').value = data.meetingDate || '';
                 document.getElementById('meeting-time').value = data.meetingTime || '';
-                if(data.contactSucceeded) {
+                if(data.contactSucceeded != null) { // Verifica se não é null ou undefined
                     const radio = document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`);
-                    if(radio) radio.checked = true;
-                    if(radio) radio.dispatchEvent(new Event('change'));
+                    if(radio) {
+                        radio.checked = true;
+                        // Chama explicitamente a função para mostrar/esconder campos
+                        toggleFamilyContactFields(data.contactSucceeded === 'yes', document.getElementById('family-contact-fields'));
+                    }
+                } else {
+                     // Garante que os campos de detalhe fiquem escondidos se contactSucceeded for nulo
+                    toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
                 }
                 document.getElementById('absence-contact-type').value = data.contactType || '';
                 document.getElementById('contact-date').value = data.contactDate || '';
                 document.getElementById('contact-person').value = data.contactPerson || '';
                 document.getElementById('contact-reason').value = data.contactReason || '';
-                if(data.contactReturned) document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`).checked = true;
+                if(data.contactReturned != null) { // Verifica null/undefined
+                    const returnRadio = document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`);
+                     if(returnRadio) returnRadio.checked = true;
+                }
                 break;
             case 'visita':
                 document.getElementById('visit-agent').value = data.visitAgent || '';
                 document.getElementById('visit-date').value = data.visitDate || '';
-                if(data.visitSucceeded) {
+                if(data.visitSucceeded != null) { // Verifica null/undefined
                     const radio = document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`);
-                    if(radio) radio.checked = true;
-                    if(radio) radio.dispatchEvent(new Event('change'));
+                    if(radio) {
+                         radio.checked = true;
+                         // Chama explicitamente
+                        toggleVisitContactFields(data.visitSucceeded === 'yes', document.getElementById('visit-contact-fields'));
+                    }
+                } else {
+                    toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
                 }
                 document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
                 document.getElementById('visit-reason').value = data.visitReason || '';
                 document.getElementById('visit-obs').value = data.visitObs || '';
-                if (data.visitReturned) document.querySelector(`input[name="visit-returned"][value="${data.visitReturned}"]`).checked = true;
+                if (data.visitReturned != null) { // Verifica null/undefined
+                    const visitReturnRadio = document.querySelector(`input[name="visit-returned"][value="${data.visitReturned}"]`);
+                    if (visitReturnRadio) visitReturnRadio.checked = true;
+                }
                 break;
             case 'encaminhamento_ct':
                 document.getElementById('ct-sent-date').value = data.ctSentDate || '';
                 document.getElementById('ct-feedback').value = data.ctFeedback || '';
-                if (data.ctReturned) document.querySelector(`input[name="ct-returned"][value="${data.ctReturned}"]`).checked = true;
+                if (data.ctReturned != null) { // Verifica null/undefined
+                     const ctReturnRadio = document.querySelector(`input[name="ct-returned"][value="${data.ctReturned}"]`);
+                     if(ctReturnRadio) ctReturnRadio.checked = true;
+                }
                 break;
             case 'analise':
                 document.getElementById('ct-parecer').value = data.ctParecer || '';
                 break;
         }
     } else {
+        // Garante que ao criar nova ação, os campos condicionais estejam escondidos por padrão
           toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
           toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
+          // Desmarca radios que podem ter ficado marcados de um modal anterior
+          dom.absenceForm.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
     }
-    
+
     openModal(dom.absenceModal);
 };
 
