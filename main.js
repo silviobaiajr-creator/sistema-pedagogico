@@ -3,27 +3,11 @@
 // RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra a lógica de
 // eventos, submissão de formulários e a comunicação entre a UI e o Firestore.
 //
-// ATUALIZAÇÃO (Baseada no Diálogo):
-// 1. (Arquitetura) `handleOccurrenceSubmit` foi REFEITA para salvar apenas os
-//    dados COLETIVOS do fato (Data, Tipo, Descrição).
-// 2. (Arquitetura) `handleFollowUpSubmit` foi REFEITA para salvar o
-//    ACOMPANHAMENTO INDIVIDUAL, que agora inclui:
-//    - Convocação para Reunião (Data/Hora)
-//    - Contato com a Família (Status, Tipo, Data)
-//    - Providências da Escola (Individual)
-//    - Providências da Família (Novo campo)
-//    - Parecer / Desfecho (Individual)
-// 3. (Lógica) O Status do Acompanhamento agora é AUTOMÁTICO, baseado no
-//    preenchimento do Parecer e do Contato (Resolvido, Pendente, Aguardando Contato).
-// 4. (Bug Fix) Corrigido o botão "Cancelar" do modal de Acompanhamento,
-//    adicionando uma referência para ele em `setupModalCloseButtons`.
-// 5. (Lógica) Atualizada a criação de novos registros para INICIALIZAR os
-//    campos movidos (meetingDate, contactSucceeded, etc.) como nulos.
-// 6. (PONTO 1) Adicionada lógica para corrigir o menu kebab cortado.
-// 7. (PONTO 7) Adicionada lógica para tornar "Providências da Família" obrigatório.
-// 8. (SUGESTÃO DO UTILIZADOR) `setupListClickListeners` foi atualizada para
-//    capturar cliques no novo botão `.student-follow-up-trigger` e chamar
-//    `openFollowUpModal` com o ID do aluno pré-selecionado.
+// ATUALIZAÇÃO (REFATORAÇÃO PASSO 1):
+// 1. As importações de funções de relatório (`generateAndShowGeneralReport`,
+//    `openOccurrenceRecordModal`, etc.) foram atualizadas para apontar
+//    para o novo arquivo `reports.js` em vez de `ui.js`.
+// 2. Nenhuma outra lógica foi alterada neste passo.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -37,12 +21,36 @@ import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, shareContent, openModal } from './utils.js';
 import { loadStudents, saveSchoolConfig, loadSchoolConfig, getCollectionRef, getStudentsDocRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord } from './firestore.js';
+
+// Funções de UI que *permaneceram* em ui.js
 import { 
     render, 
     renderStudentsList, 
     openOccurrenceModal,
     handleNewAbsenceAction,
     setupAutocomplete,
+    // openStudentSelectionModal, // MOVIDO
+    // openOccurrenceRecordModal, // MOVIDO
+    // openHistoryModal, // MOVIDO
+    // openAbsenceHistoryModal, // MOVIDO
+    // openFichaViewModal, // MOVIDO
+    // generateAndShowConsolidatedFicha, // MOVIDO
+    // generateAndShowOficio, // MOVIDO
+    openAbsenceModalForStudent,
+    showLoginView,
+    showRegisterView,
+    resetStudentForm,
+    toggleFamilyContactFields,
+    toggleVisitContactFields,
+    // generateAndShowGeneralReport, // MOVIDO
+    // generateAndShowBuscaAtivaReport, // MOVIDO
+    getFilteredOccurrences, // Necessário para handleEditOccurrence
+    openSettingsModal,
+    openFollowUpModal 
+} from './ui.js';
+
+// NOVO: Funções de relatório importadas de reports.js
+import {
     openStudentSelectionModal,
     openOccurrenceRecordModal,
     openHistoryModal,
@@ -50,19 +58,10 @@ import {
     openFichaViewModal,
     generateAndShowConsolidatedFicha,
     generateAndShowOficio,
-    openAbsenceModalForStudent,
-    showLoginView,
-    showRegisterView,
-    resetStudentForm,
-    toggleFamilyContactFields,
-    toggleVisitContactFields,
     generateAndShowGeneralReport,
-    generateAndShowBuscaAtivaReport,
-    getFilteredOccurrences,
-    openSettingsModal,
-    // (Arquitetura) Importa a função para abrir o modal de acompanhamento.
-    openFollowUpModal 
-} from './ui.js';
+    generateAndShowBuscaAtivaReport
+} from './reports.js';
+
 import * as logic from './logic.js';
 
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
