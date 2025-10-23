@@ -1,18 +1,24 @@
-// =================================================================================
-// ARQUIVO: reports.js (NOVO ARQUIVO)
-// RESPONSABILIDADE: Gerar todos os documentos e relatórios (Atas, Fichas, 
-// Ofícios, Relatórios Gerais e Históricos).
-//
-// DIDÁTICA: Este é o Passo 1 da refatoração. Estas funções foram movidas
-// do arquivo `ui.js` para aumentar a coesão e separar as responsabilidades.
-// =================================================================================
+// ARQUIVO: reports.js
+// RESPONSABILIDADE: Gerar todos os documentos e relatórios (Atas, Fichas, Ofícios, Relatórios Gerais).
+// ATUALIZAÇÃO:
+// 1. Adicionada a constante `actionDisplayTitles` (movida de ui.js).
+// 2. Removidas importações não utilizadas (`getFilteredOccurrences`, `getStatusBadge`, `formatPeriodo`).
 
 import { state, dom } from './state.js';
-import { formatDate, formatTime, formatText, formatPeriodo, showToast, openModal, closeModal } from './utils.js';
+// formatPeriodo foi removido dos imports de utils.js pois não é usado aqui diretamente agora
+import { formatDate, formatTime, formatText, showToast, openModal, closeModal } from './utils.js';
+// Imports de ui.js removidos pois não são necessários aqui
+// import { getFilteredOccurrences, getStatusBadge } from './ui.js'; 
 
-// NOTA: Estas funções são importadas do ui.js, pois elas ainda
-// residem lá. No futuro, elas também poderão ser movidas se necessário.
-import { getFilteredOccurrences, getStatusBadge } from './ui.js';
+// NOVO: Constante movida de ui.js
+export const actionDisplayTitles = {
+    tentativa_1: "1ª Tentativa de Contato",
+    tentativa_2: "2ª Tentativa de Contato",
+    tentativa_3: "3ª Tentativa de Contato",
+    visita: "Visita In Loco",
+    encaminhamento_ct: "Encaminhamento ao Conselho Tutelar",
+    analise: "Análise"
+};
 
 /**
  * Helper para gerar o cabeçalho com logo.
@@ -23,7 +29,8 @@ export const getReportHeaderHTML = () => {
     const schoolName = state.config?.schoolName || "Nome da Escola";
 
     if (logoUrl) {
-        return `<div class="text-center mb-4"><img src="${logoUrl}" alt="Logo da Escola" class="max-w-full max-h-40 mx-auto"></div>`;
+        // Adiciona onerror para fallback caso a URL da imagem falhe
+        return `<div class="text-center mb-4"><img src="${logoUrl}" alt="Logo da Escola" class="max-w-full max-h-40 mx-auto" onerror="this.onerror=null; this.src='https://placehold.co/150x50/indigo/white?text=Logo'; this.alt='Logo Placeholder';"></div>`;
     }
     
     return `<div class="text-center border-b pb-4"><h2 class="text-xl font-bold uppercase">${schoolName}</h2></div>`;
@@ -35,8 +42,24 @@ export const getReportHeaderHTML = () => {
  * de um incidente a notificação deve ser gerada.
  */
 export const openStudentSelectionModal = (groupId) => {
-    const incident = getFilteredOccurrences().get(groupId);
-    if (!incident) return showToast('Incidente não encontrado.');
+    // Precisa importar getFilteredOccurrences de ui.js se for usar aqui, 
+    // mas vamos assumir que state.occurrences está atualizado e filtrar diretamente
+    const incident = state.occurrences.reduce((acc, occ) => {
+         const currentGroupId = occ.occurrenceGroupId || `individual-${occ.id}`;
+         if (currentGroupId === groupId) {
+             if (!acc) {
+                acc = { id: groupId, records: [], studentsInvolved: new Map() };
+             }
+             acc.records.push(occ);
+             const student = state.students.find(s => s.matricula === occ.studentId);
+             if (student && !acc.studentsInvolved.has(student.matricula)) {
+                 acc.studentsInvolved.set(student.matricula, student);
+             }
+         }
+         return acc;
+    }, null);
+
+    if (!incident || incident.studentsInvolved.size === 0) return showToast('Incidente não encontrado ou sem alunos associados.');
 
     const students = [...incident.studentsInvolved.values()];
     
@@ -73,17 +96,22 @@ export const openStudentSelectionModal = (groupId) => {
 /**
  * ATUALIZADO: (PONTO 6) Gera e exibe a notificação formal.
  * Adiciona uma verificação para data/hora da reunião.
- * @param {object} incident - O objeto completo do incidente.
+ * @param {object} incident - O objeto completo do incidente (com records e studentsInvolved).
  * @param {object} student - O objeto do aluno selecionado.
  */
 export const openIndividualNotificationModal = (incident, student) => {
-    const data = incident.records.find(r => r.studentId === student.matricula) || incident.records[0];
+    const data = incident.records.find(r => r.studentId === student.matricula); 
+    
+    if (!data) {
+        showToast(`Erro: Registro individual não encontrado para ${student.name}.`);
+        return;
+    }
     
     // ---- INÍCIO DA VERIFICAÇÃO (PONTO 6) ----
     // Verifica se os campos movidos (agora no acompanhamento) estão preenchidos
     if (!data.meetingDate || !data.meetingTime) {
         // Usa showToast, que já está importado
-        showToast("Erro: É necessário definir a Data e o Horário da convocação.");
+        showToast(`Erro: É necessário definir a Data e o Horário da convocação para ${student.name}.`);
         showToast("Defina a Data e Horário no 'Acompanhamento' primeiro.");
         return; // Interrompe a geração da notificação
     }
@@ -123,7 +151,6 @@ export const openIndividualNotificationModal = (incident, student) => {
                 e para a manutenção de um ambiente escolar saudável.
             </p>
             
-            ${data.meetingDate ? `
             <p class="mt-4 text-justify">
                 Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica para uma reunião
                 na seguinte data e horário:
@@ -132,12 +159,6 @@ export const openIndividualNotificationModal = (incident, student) => {
                 <p><strong>Data:</strong> ${formatDate(data.meetingDate)}</p>
                 <p><strong>Horário:</strong> ${formatTime(data.meetingTime)}</p>
             </div>
-            ` : `
-            <p class="mt-4 text-justify">
-                Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica
-                para tratarmos do assunto.
-            </p>
-            `}
 
             <div class="border-t pt-16 mt-16">
                 <div class="text-center w-2/3 mx-auto">
@@ -160,8 +181,27 @@ export const openIndividualNotificationModal = (incident, student) => {
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openOccurrenceRecordModal = (groupId) => {
-    const incident = getFilteredOccurrences().get(groupId);
-    if (!incident) return showToast('Incidente não encontrado.');
+    // Reimplementando a lógica de busca do incidente aqui, já que getFilteredOccurrences foi removido
+     const incident = state.occurrences.reduce((acc, occ) => {
+         const currentGroupId = occ.occurrenceGroupId || `individual-${occ.id}`;
+         if (currentGroupId === groupId) {
+             if (!acc) {
+                acc = { id: groupId, records: [], studentsInvolved: new Map(), overallStatus: 'Pendente' }; // Inicia status
+             }
+             acc.records.push(occ);
+             const student = state.students.find(s => s.matricula === occ.studentId);
+             if (student && !acc.studentsInvolved.has(student.matricula)) {
+                 acc.studentsInvolved.set(student.matricula, student);
+             }
+         }
+         return acc;
+    }, null);
+
+    if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
+
+    // Calcula o status geral aqui
+    const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
+    incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
     
     const data = incident.records[0]; // Pega o registro principal para dados coletivos
     const students = [...incident.studentsInvolved.values()];
@@ -193,11 +233,24 @@ export const openOccurrenceRecordModal = (groupId) => {
                         const student = incident.studentsInvolved.get(rec.studentId);
                         const statusIndividual = rec.statusIndividual || 'Pendente'; 
                         
+                        // Importa getStatusBadge para usar aqui
+                        const getStatusBadgeLocal = (status) => {
+                             const statusMap = {
+                                'Pendente': 'bg-yellow-100 text-yellow-800',
+                                'Aguardando Contato': 'bg-blue-100 text-blue-800',
+                                'Finalizada': 'bg-green-100 text-green-800',
+                                'Resolvido': 'bg-green-100 text-green-800', 
+                                'Cancelado': 'bg-gray-100 text-gray-800'
+                            };
+                            const colorClasses = statusMap[status] || 'bg-gray-100 text-gray-800';
+                            return `<span class="text-xs font-medium px-2.5 py-0.5 rounded-full ${colorClasses}">${status || 'N/A'}</span>`;
+                        };
+
                         return `
                         <div class="mt-2 p-3 border rounded-md bg-gray-50 break-inside-avoid">
                             <div class="flex justify-between items-center">
                                 <p class="font-semibold">${student?.name || 'Aluno desconhecido'}</p>
-                                ${getStatusBadge(statusIndividual)}
+                                ${getStatusBadgeLocal(statusIndividual)}
                             </div>
                             
                             ${(rec.meetingDate) ? `
@@ -231,30 +284,41 @@ export const openOccurrenceRecordModal = (groupId) => {
  * Abre o modal de histórico de alterações de uma ocorrência.
  */
 export const openHistoryModal = (groupId) => {
-    const incident = getFilteredOccurrences().get(groupId);
+     // Reimplementando a lógica de busca do incidente
+     const incident = state.occurrences.reduce((acc, occ) => {
+         const currentGroupId = occ.occurrenceGroupId || `individual-${occ.id}`;
+         if (currentGroupId === groupId) {
+             if (!acc) {
+                acc = { id: groupId, records: [], date: occ.date }; // Armazena a data
+             }
+             acc.records.push(occ);
+         }
+         return acc;
+    }, null);
+
     if (!incident) return showToast('Incidente não encontrado.');
 
     // Pega o histórico de todos os registros e junta
     const allHistory = incident.records.flatMap(r => r.history || []);
     
     // Ordena o histórico combinado pela data
-    const history = allHistory.sort((a, b) => (b.timestamp.seconds || new Date(b.timestamp).getTime()) - (a.timestamp.seconds || new Date(a.timestamp).getTime()));
+    const history = allHistory.sort((a, b) => (b.timestamp?.seconds || new Date(b.timestamp).getTime()) - (a.timestamp?.seconds || new Date(a.timestamp).getTime()));
 
     const historyHTML = history.length > 0
         ? history.map(entry => {
-            const timestamp = entry.timestamp.seconds ? new Date(entry.timestamp.seconds * 1000) : new Date(entry.timestamp);
-            return `<div class="flex items-start space-x-4 py-3"><div class="flex-shrink-0"><div class="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center"><i class="fas fa-history text-gray-500"></i></div></div><div><p class="text-sm font-semibold text-gray-800">${entry.action}</p><p class="text-xs text-gray-500">Por: ${entry.user || 'Sistema'} em ${timestamp.toLocaleDateString('pt-BR')} às ${timestamp.toLocaleTimeString('pt-BR')}</p></div></div>`;
+            const timestamp = entry.timestamp?.seconds ? new Date(entry.timestamp.seconds * 1000) : (entry.timestamp ? new Date(entry.timestamp) : new Date());
+            return `<div class="flex items-start space-x-4 py-3"><div class="flex-shrink-0"><div class="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center"><i class="fas fa-history text-gray-500"></i></div></div><div><p class="text-sm font-semibold text-gray-800">${formatText(entry.action)}</p><p class="text-xs text-gray-500">Por: ${formatText(entry.user || 'Sistema')} em ${timestamp.toLocaleDateString('pt-BR')} às ${timestamp.toLocaleTimeString('pt-BR')}</p></div></div>`;
         }).join('')
         : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este incidente.</p>';
     
     document.getElementById('history-view-title').textContent = `Histórico do Incidente`;
-    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${groupId}<br><strong>Data:</strong> ${formatDate(incident.records[0].date)}`;
+    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${groupId}<br><strong>Data:</strong> ${formatDate(incident.date)}`;
     document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
     openModal(document.getElementById('history-view-modal-backdrop'));
 };
 
 /**
- * Abre o modal de histórico de alterações de uma ação de Busca Ativa.
+ * Abre o modal de histórico de alterações de um processo de Busca Ativa.
  */
 export const openAbsenceHistoryModal = (processId) => {
     const processActions = state.absences.filter(a => a.processId === processId);
@@ -262,22 +326,27 @@ export const openAbsenceHistoryModal = (processId) => {
     
     const allHistory = processActions.flatMap(a => a.history || []);
     
+    // Adiciona a criação como evento se não houver histórico gravado
     processActions.forEach(action => {
         if (!action.history || action.history.length === 0) {
             allHistory.push({
                 action: `Ação "${actionDisplayTitles[action.actionType]}" criada.`,
                 user: action.createdBy || 'Sistema',
-                timestamp: action.createdAt?.toDate() || new Date()
+                timestamp: action.createdAt // Mantém como objeto Timestamp ou Date
             });
         }
     });
 
-    const history = allHistory.sort((a, b) => (b.timestamp.seconds || new Date(b.timestamp).getTime()) - (a.timestamp.seconds || new Date(a.timestamp).getTime()));
+    const history = allHistory.sort((a, b) => {
+        const timeA = a.timestamp?.seconds ? a.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
+        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(b.timestamp).getTime();
+        return timeB - timeA;
+    });
 
     const historyHTML = history.length > 0
         ? history.map(entry => {
-            const timestamp = entry.timestamp.seconds ? new Date(entry.timestamp.seconds * 1000) : new Date(entry.timestamp);
-            return `<div class="flex items-start space-x-4 py-3"><div class="flex-shrink-0"><div class="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center"><i class="fas fa-history text-gray-500"></i></div></div><div><p class="text-sm font-semibold text-gray-800">${entry.action}</p><p class="text-xs text-gray-500">Por: ${entry.user || 'Sistema'} em ${timestamp.toLocaleDateString('pt-BR')} às ${timestamp.toLocaleTimeString('pt-BR')}</p></div></div>`;
+            const timestamp = entry.timestamp?.seconds ? new Date(entry.timestamp.seconds * 1000) : (entry.timestamp ? new Date(entry.timestamp) : new Date());
+            return `<div class="flex items-start space-x-4 py-3"><div class="flex-shrink-0"><div class="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center"><i class="fas fa-history text-gray-500"></i></div></div><div><p class="text-sm font-semibold text-gray-800">${formatText(entry.action)}</p><p class="text-xs text-gray-500">Por: ${formatText(entry.user || 'Sistema')} em ${timestamp.toLocaleDateString('pt-BR')} às ${timestamp.toLocaleTimeString('pt-BR')}</p></div></div>`;
         }).join('')
         : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este processo.</p>';
 
@@ -289,283 +358,7 @@ export const openAbsenceHistoryModal = (processId) => {
 
 
 /**
- * Gera o relatório geral, incluindo "Providências da Família".
- */
-export const generateAndShowGeneralReport = () => {
-    const filteredIncidents = getFilteredOccurrences();
-    if (filteredIncidents.size === 0) {
-        return showToast('Nenhum incidente encontrado para os filtros selecionados.');
-    }
-
-    const { startDate, endDate, status, type } = state.filtersOccurrences;
-    const studentFilter = state.filterOccurrences;
-    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-
-    const totalStudents = new Set([...filteredIncidents.values()].flatMap(i => [...i.studentsInvolved.keys()])).size;
-    
-    const occurrencesByType = [...filteredIncidents.values()].reduce((acc, incident) => {
-        const occType = incident.records[0].occurrenceType || 'Não especificado';
-        acc[occType] = (acc[occType] || 0) + 1;
-        return acc;
-    }, {});
-    const sortedTypes = Object.entries(occurrencesByType).sort((a, b) => b[1] - a[1]);
-
-    // O status GERAL (overallStatus) é usado para este gráfico
-    const occurrencesByStatus = [...filteredIncidents.values()].reduce((acc, incident) => {
-        const occStatus = incident.overallStatus || 'Pendente';
-        acc[occStatus] = (acc[occStatus] || 0) + 1;
-        return acc;
-    }, {});
-    
-    const chartDataByType = {
-        labels: sortedTypes.map(item => item[0]),
-        data: sortedTypes.map(item => item[1])
-    };
-    const chartDataByStatus = {
-        labels: Object.keys(occurrencesByStatus),
-        data: Object.values(occurrencesByStatus)
-    };
-
-
-    const reportHTML = `
-        <div class="space-y-8 text-sm font-sans">
-            ${getReportHeaderHTML()}
-            <h3 class="text-xl font-semibold text-gray-700 mt-2 text-center">Relatório Geral de Ocorrências</h3>
-            <p class="text-gray-500 mt-1 text-center">Gerado em: ${currentDate}</p>
-            
-            <div class="border rounded-lg p-4 bg-gray-50">
-                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <div><p class="text-2xl font-bold text-indigo-600">${filteredIncidents.size}</p><p class="text-xs font-medium text-gray-500 uppercase">Total de Incidentes</p></div>
-                    <div><p class="text-2xl font-bold text-indigo-600">${totalStudents}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos</p></div>
-                    <div><p class="text-lg font-bold text-indigo-600">${sortedTypes.length > 0 ? sortedTypes[0][0] : 'N/A'}</p><p class="text-xs font-medium text-gray-500 uppercase">Principal Tipo</p></div>
-                </div>
-                ${(startDate || endDate || status !== 'all' || type !== 'all' || studentFilter) ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong></p><ul class="list-disc list-inside ml-2">${startDate ? `<li>De: <strong>${formatDate(startDate)}</strong></li>` : ''}${endDate ? `<li>Até: <strong>${formatDate(endDate)}</strong></li>` : ''}${status !== 'all' ? `<li>Status: <strong>${status}</strong></li>` : ''}${type !== 'all' ? `<li>Tipo: <strong>${type}</strong></li>` : ''}${studentFilter ? `<li>Aluno: <strong>"${formatText(studentFilter)}"</strong></li>` : ''}</ul></div>` : ''}
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="border rounded-lg p-4 shadow-sm bg-white">
-                    <h5 class="font-semibold text-center mb-2">Ocorrências por Tipo</h5>
-                    <canvas id="report-chart-by-type" data-labels='${JSON.stringify(chartDataByType.labels)}' data-data='${JSON.stringify(chartDataByType.data)}'></canvas>
-                </div>
-                <div class="border rounded-lg p-4 shadow-sm bg-white">
-                    <h5 class="font-semibold text-center mb-2">Ocorrências por Status (Geral)</h5>
-                    <canvas id="report-chart-by-status" data-labels='${JSON.stringify(chartDataByStatus.labels)}' data-data='${JSON.stringify(chartDataByStatus.data)}'></canvas>
-                </div>
-            </div>
-
-            <div>
-                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Incidentes</h4>
-                <div class="space-y-6">
-                ${[...filteredIncidents.values()].sort((a,b) => new Date(b.records[0].date) - new Date(a.records[0].date)).map(incident => {
-                    const mainRecord = incident.records[0];
-                    const studentNames = [...incident.studentsInvolved.values()].map(s => s.name).join(', ');
-                    return `
-                    <div class="border rounded-lg overflow-hidden break-inside-avoid">
-                        <div class="bg-gray-100 p-3 flex justify-between items-center">
-                            <div>
-                                <p class="font-bold text-gray-800">${mainRecord.occurrenceType}</p>
-                                <p class="text-xs text-gray-600">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
-                            </div>
-                            ${getStatusBadge(incident.overallStatus)}
-                        </div>
-                        <div class="p-4 space-y-3">
-                            <p><strong>Alunos Envolvidos:</strong> ${studentNames}</p>
-                            <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição do Fato</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
-                            ${incident.records.map(rec => {
-                                const student = incident.studentsInvolved.get(rec.studentId);
-                                return `<div class="text-xs border-t mt-2 pt-2"><p class="font-bold">${student?.name || ''} (${rec.statusIndividual || 'Pendente'})</p><p><strong>Providências Escola:</strong> ${formatText(rec.schoolActionsIndividual)}</p><p><strong>Providências Família:</strong> ${formatText(rec.providenciasFamilia)}</p><p><strong>Parecer:</strong> ${formatText(rec.parecerIndividual)}</p></div>`;
-                            }).join('')}
-                        </div>
-                    </div>`;
-                }).join('')}
-                </div>
-            </div>
-            
-            <div class="signature-block pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
-        </div>
-    `;
-
-    document.getElementById('report-view-title').textContent = "Relatório Geral de Ocorrências";
-    document.getElementById('report-view-content').innerHTML = reportHTML;
-    openModal(dom.reportViewModalBackdrop);
-
-    try {
-        const typeCtx = document.getElementById('report-chart-by-type').getContext('2d');
-        new Chart(typeCtx, {
-            type: 'bar',
-            data: { labels: chartDataByType.labels, datasets: [{ label: 'Total', data: chartDataByType.data, backgroundColor: '#4f46e5' }] },
-            options: { responsive: true, plugins: { legend: { display: false } } }
-        });
-
-        const statusCtx = document.getElementById('report-chart-by-status').getContext('2d');
-        new Chart(statusCtx, {
-            type: 'doughnut',
-            data: { labels: chartDataByStatus.labels, datasets: [{ data: chartDataByStatus.data, backgroundColor: ['#f59e0b', '#10b981', '#6b7280'] }] }, // Amarelo, Verde, Cinza
-            options: { responsive: true }
-        });
-    } catch (e) {
-        console.warn("Chart.js não está carregado. Gráficos não serão exibidos.");
-        document.getElementById('report-chart-by-type').parentElement.innerHTML = "<p class='text-center text-red-500 text-xs'>Chart.js não foi carregado. Gráficos indisponíveis.</p>";
-        document.getElementById('report-chart-by-status').parentElement.innerHTML = "";
-    }
-};
-
-
-/**
- * Gera o relatório geral de Busca Ativa com gráficos.
- */
-export const generateAndShowBuscaAtivaReport = () => {
-    // 1. Agrupa todas as ações por 'processId'
-    const groupedByProcess = state.absences.reduce((acc, action) => {
-        const key = action.processId || `no-proc-${action.id}`;
-        if (!acc[key]) acc[key] = { id: key, actions: [], studentId: action.studentId };
-        acc[key].actions.push(action);
-        return acc;
-    }, {});
-
-    const processes = Object.values(groupedByProcess);
-    if (processes.length === 0) {
-        return showToast('Nenhum processo de Busca Ativa encontrado.');
-    }
-
-    const { processStatus, pendingAction, returnStatus } = state.filtersAbsences;
-    const studentFilter = state.filterAbsences;
-    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-
-    let statusConcluido = 0, statusEmAndamento = 0;
-    let retornoSim = 0, retornoNao = 0, retornoPendente = 0;
-    let pendenteContato = 0, pendenteDevolutiva = 0;
-
-    const filteredProcesses = processes.filter(proc => {
-        proc.actions.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-        const lastAction = proc.actions[proc.actions.length - 1];
-        const student = state.students.find(s => s.matricula === proc.studentId);
-        
-        if (studentFilter && (!student || !student.name.toLowerCase().includes(studentFilter.toLowerCase()))) return false;
-        
-        const isConcluded = proc.actions.some(a => a.actionType === 'analise');
-        if (processStatus === 'in_progress' && isConcluded) return false;
-        if (processStatus === 'concluded' && !isConcluded) return false;
-
-        const lastReturnAction = [...proc.actions].reverse().find(a => a.contactReturned || a.visitReturned || a.ctReturned);
-        const lastReturnStatus = lastReturnAction ? (lastReturnAction.contactReturned || lastReturnAction.visitReturned || lastReturnAction.ctReturned) : 'pending';
-        
-        if (returnStatus === 'returned' && lastReturnStatus !== 'yes') return false;
-        if (returnStatus === 'not_returned' && lastReturnStatus !== 'no') return false;
-        if (returnStatus === 'pending' && lastReturnStatus !== 'pending') return false;
-
-        let isPendingContact = false, isPendingFeedback = false;
-        if (!isConcluded) {
-            isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null);
-            
-            const ctAction = proc.actions.find(a => a.actionType === 'encaminhamento_ct');
-            isPendingFeedback = ctAction && !ctAction.ctFeedback;
-        }
-
-        if (pendingAction === 'pending_contact' && !isPendingContact) return false;
-        if (pendingAction === 'pending_feedback' && !isPendingFeedback) return false;
-        
-        isConcluded ? statusConcluido++ : statusEmAndamento++;
-        if (lastReturnStatus === 'yes') retornoSim++;
-        else if (lastReturnStatus === 'no') retornoNao++;
-        else retornoPendente++;
-        
-        if (isPendingContact) pendenteContato++;
-        if (isPendingFeedback) pendenteDevolutiva++;
-
-        return true;
-    });
-
-    if (filteredProcesses.length === 0) {
-        return showToast('Nenhum processo encontrado para os filtros selecionados.');
-    }
-
-    const chartDataStatus = { labels: ['Em Andamento', 'Concluídos'], data: [statusEmAndamento, statusConcluido] };
-    const chartDataRetorno = { labels: ['Retornou', 'Não Retornou', 'Pendente'], data: [retornoSim, retornoNao, retornoPendente] };
-    const chartDataPendente = { labels: ['Aguard. Contato', 'Aguard. Devolutiva CT'], data: [pendenteContato, pendenteDevolutiva] };
-
-    const reportHTML = `
-        <div class="space-y-8 text-sm font-sans">
-            ${getReportHeaderHTML()}
-            <h3 class="text-xl font-semibold text-gray-700 mt-2 text-center">Relatório Geral de Busca Ativa</h3>
-            <p class="text-gray-500 mt-1 text-center">Gerado em: ${currentDate}</p>
-
-            <div class="border rounded-lg p-4 bg-gray-50">
-                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <div><p class="text-2xl font-bold text-indigo-600">${filteredProcesses.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Processos Filtrados</p></div>
-                    <div><p class="text-2xl font-bold text-indigo-600">${statusEmAndamento}</p><p class="text-xs font-medium text-gray-500 uppercase">Em Andamento</p></div>
-                    <div><p class="text-2xl font-bold text-indigo-600">${retornoSim}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Retornaram</p></div>
-                </div>
-                </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Status dos Processos</h5><canvas id="ba-chart-status"></canvas></div>
-                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Status de Retorno</h5><canvas id="ba-chart-retorno"></canvas></div>
-                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Ações Pendentes (Em Andamento)</h5><canvas id="ba-chart-pendente"></canvas></div>
-            </div>
-
-            <div>
-                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Processos</h4>
-                <div class="space-y-4">
-                ${filteredProcesses.sort((a,b) => (b.actions[b.actions.length-1].createdAt?.seconds || 0) - (a.actions[a.actions.length-1].createdAt?.seconds || 0)).map(proc => {
-                    const student = state.students.find(s => s.matricula === proc.studentId);
-                    const lastAction = proc.actions[proc.actions.length - 1];
-                    const isConcluded = lastAction.actionType === 'analise';
-                    return `
-                    <div class="border rounded-lg overflow-hidden break-inside-avoid">
-                        <div class="bg-gray-100 p-3 flex justify-between items-center">
-                            <div>
-                                <p class="font-bold text-gray-800">${student ? student.name : 'Aluno Removido'}</p>
-                                <p class="text-xs text-gray-600">Turma: ${student ? student.class : 'N/A'} | ID: ${proc.id}</p>
-                            </div>
-                            ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : '<span class="text-xs font-bold text-white bg-yellow-600 px-2 py-1 rounded-full">EM ANDAMENTO</span>'}
-                        </div>
-                        <div class="p-4">
-                            <h5 class="text-xs font-semibold uppercase text-gray-500 mb-2">Resumo das Ações (${proc.actions.length})</h5>
-                            <ul class="list-disc list-inside text-xs space-y-1">
-                                ${proc.actions.map(a => `<li><strong>${actionDisplayTitles[a.actionType]}</strong> (em ${formatDate(a.createdAt?.toDate())})</li>`).join('')}
-                            </ul>
-                            ${isConcluded ? `<div class="mt-3 border-t pt-2"><h5 class="text-xs font-semibold uppercase text-gray-500">Parecer Final</h5><p class="text-xs whitespace-pre-wrap">${formatText(lastAction.ctParecer)}</p></div>` : ''}
-                        </div>
-                    </div>`;
-                }).join('')}
-                </div>
-            </div>
-            
-            <div class="signature-block pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
-        </div>
-    `;
-
-    document.getElementById('report-view-title').textContent = "Relatório Geral de Busca Ativa";
-    document.getElementById('report-view-content').innerHTML = reportHTML;
-    openModal(dom.reportViewModalBackdrop);
-
-    try {
-        new Chart(document.getElementById('ba-chart-status').getContext('2d'), {
-            type: 'doughnut',
-            data: { labels: chartDataStatus.labels, datasets: [{ data: chartDataStatus.data, backgroundColor: ['#f59e0b', '#10b981'] }] },
-            options: { responsive: true }
-        });
-        new Chart(document.getElementById('ba-chart-retorno').getContext('2d'), {
-            type: 'pie',
-            data: { labels: chartDataRetorno.labels, datasets: [{ data: chartDataRetorno.data, backgroundColor: ['#10b981', '#ef4444', '#6b7280'] }] },
-            options: { responsive: true }
-        });
-         new Chart(document.getElementById('ba-chart-pendente').getContext('2d'), {
-            type: 'bar',
-            data: { labels: chartDataPendente.labels, datasets: [{ label: 'Total', data: chartDataPendente.data, backgroundColor: ['#3b82f6', '#f97316'] }] },
-            options: { responsive: true, plugins: { legend: { display: false } } }
-        });
-    } catch (e) {
-        console.warn("Chart.js não está carregado. Gráficos não serão exibidos.");
-    }
-};
-
-
-/**
- * Abre a ficha de notificação de Busca Ativa.
+ * Abre a ficha de notificação de Busca Ativa (usada pelos botões de notificação).
  */
 export const openFichaViewModal = (id) => {
     const record = state.absences.find(abs => abs.id === id);
@@ -577,19 +370,22 @@ export const openFichaViewModal = (id) => {
     
     let body = '';
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
 
     switch (record.actionType) {
         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
             body = `
-                <p class="mt-4 text-justify">Prezados(as) Responsáveis, <strong>${responsaveis}</strong>,</p>
+                <p class="mt-4 text-justify">Prezados(as) Responsáveis, <strong>${formatText(responsaveis)}</strong>,</p>
                 <p class="mt-4 text-justify">
-                    Vimos por meio desta notificar que o(a) estudante supracitado(a) acumulou <strong>${formatText(record.absenceCount)} faltas</strong> no período ${formatPeriodo(record.periodoFaltasStart, record.periodoFaltasEnd)}, 
+                    Vimos por meio desta notificar que o(a) estudante supracitado(a) acumulou <strong>${formatText(record.absenceCount)} faltas</strong> no período de ${formatDate(record.periodoFaltasStart)} a ${formatDate(record.periodoFaltasEnd)}, 
                     configurando baixa frequência escolar. Esta é a <strong>${attemptLabels[record.actionType]} tentativa de contato</strong> realizada pela escola.
                 </p>
                 <p class="mt-4 text-justify bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
                     Ressaltamos que, conforme a Lei de Diretrizes e Bases da Educação Nacional (LDB - Lei 9.394/96) e o Estatuto da Criança e do Adolescente (ECA - Lei 8.069/90), 
                     é dever da família zelar pela frequência do(a) estudante à escola. A persistência das faltas implicará no acionamento do Conselho Tutelar para as devidas providências.
                 </p>
+                ${(record.meetingDate && record.meetingTime) ? `
                 <p class="mt-4 text-justify">
                     Diante do exposto, solicitamos o comparecimento de um(a) responsável na <strong>coordenação pedagógica</strong> desta unidade escolar para tratarmos do assunto na data e horário abaixo:
                 </p>
@@ -597,6 +393,9 @@ export const openFichaViewModal = (id) => {
                     <p><strong>Data:</strong> ${formatDate(record.meetingDate)}</p>
                     <p><strong>Horário:</strong> ${formatTime(record.meetingTime)}</p>
                 </div>
+                ` : `
+                <p class="mt-4 text-justify">Diante do exposto, solicitamos o comparecimento de um(a) responsável na <strong>coordenação pedagógica</strong> desta unidade escolar com urgência para tratarmos do assunto.</p>
+                `}
             `;
             break;
         case 'visita':
@@ -613,6 +412,9 @@ export const openFichaViewModal = (id) => {
         <div class="space-y-6 text-sm text-gray-800">
             ${getReportHeaderHTML()}
             <h3 class="font-semibold mt-1 uppercase text-center">${title}</h3>
+            
+             <p class="text-right mt-4">Data de Emissão: ${currentDate}</p>
+
 
             <div class="pt-4 border-t mt-4">
                 <p><strong>Aluno(a):</strong> ${student.name}</p>
@@ -627,12 +429,19 @@ export const openFichaViewModal = (id) => {
                     <p class="text-center mt-1">Ciente do Responsável</p>
                 </div>
             </div>
+             <div class="border-t pt-16 mt-16">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="text-center mt-1">Assinatura da Gestão Escolar</p>
+                </div>
+            </div>
         </div>`;
 
     document.getElementById('ficha-view-title').textContent = title;
     document.getElementById('ficha-view-content').innerHTML = contentHTML;
     openModal(dom.fichaViewModalBackdrop);
 };
+
 
 /**
  * Gera a Ficha Consolidada de Busca Ativa.
@@ -642,22 +451,31 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
     
     if (processId) {
         studentActions = studentActions.filter(action => action.processId === processId);
+    } else {
+        // Se não foi passado um processId, pega apenas as ações do último ciclo
+        const { currentCycleActions } = getStudentProcessInfo(studentId);
+        studentActions = currentCycleActions;
     }
 
     studentActions.sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
 
-    if (studentActions.length === 0) return showToast('Nenhuma ação para este aluno neste processo.');
+    if (studentActions.length === 0) return showToast('Nenhuma ação para este aluno neste processo/ciclo.');
     const studentData = state.students.find(s => s.matricula === studentId);
+    if (!studentData) return showToast('Dados do aluno não encontrados.');
+
 
     const findAction = (type) => studentActions.find(a => a.actionType === type) || {};
     const t1 = findAction('tentativa_1'), t2 = findAction('tentativa_2'), t3 = findAction('tentativa_3'), visita = findAction('visita'), ct = findAction('encaminhamento_ct'), analise = findAction('analise');
     
-    const faltasData = t1.periodoFaltasStart ? t1 : (t2.periodoFaltasStart ? t2 : (t3.periodoFaltasStart ? t3 : (visita.periodoFaltasStart ? visita : {})));
+    // Procura o registro de faltas no ciclo atual
+    const faltasData = studentActions.find(a => a.periodoFaltasStart) || {};
+    const currentProcessId = processId || faltasData.processId || 'N/A'; // Usa o ID do processo se disponível
 
     const fichaHTML = `
         <div class="space-y-4 text-sm">
             ${getReportHeaderHTML()}
-            <h3 class="font-semibold mt-1 text-center">Ficha de Acompanhamento da Busca Ativa</h3>
+            <h3 class="font-semibold mt-1 text-center uppercase">Ficha de Acompanhamento da Busca Ativa</h3>
+             <p class="text-xs text-gray-500 text-center">ID do Processo: ${currentProcessId}</p>
             
             <div class="border rounded-md p-3">
                 <h4 class="font-semibold text-base mb-2">Identificação</h4>
@@ -665,6 +483,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
                 <p><strong>Ano/Ciclo:</strong> ${studentData.class || ''}</p>
                 <p><strong>Endereço:</strong> ${formatText(studentData.endereco)}</p>
                 <p><strong>Contato:</strong> ${formatText(studentData.contato)}</p>
+                <p><strong>Responsáveis:</strong> ${[studentData.resp1, studentData.resp2].filter(Boolean).join(' / ')}</p>
             </div>
 
             <div class="border rounded-md p-3">
@@ -678,6 +497,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
                 <h4 class="font-semibold text-base">Tentativas de contato com o responsável pelo estudante (ligações, whatsApp ou carta ao responsável)</h4>
                 <div class="pl-4">
                     <p class="font-medium underline">1ª Tentativa:</p>
+                    <p><strong>Data da Convocação:</strong> ${formatDate(t1.meetingDate)} às ${formatTime(t1.meetingTime)}</p>
                     <p><strong>Conseguiu contato?</strong> ${t1.contactSucceeded === 'yes' ? 'Sim' : t1.contactSucceeded === 'no' ? 'Não' : ''}</p>
                     <p><strong>Tipo de Contato:</strong> ${formatText(t1.contactType)}</p>
                     <p><strong>Dia do contato:</strong> ${formatDate(t1.contactDate)}</p>
@@ -687,6 +507,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
                 </div>
                 <div class="pl-4 border-t pt-2">
                     <p class="font-medium underline">2ª Tentativa:</p>
+                    <p><strong>Data da Convocação:</strong> ${formatDate(t2.meetingDate)} às ${formatTime(t2.meetingTime)}</p>
                     <p><strong>Conseguiu contato?</strong> ${t2.contactSucceeded === 'yes' ? 'Sim' : t2.contactSucceeded === 'no' ? 'Não' : ''}</p>
                     <p><strong>Tipo de Contato:</strong> ${formatText(t2.contactType)}</p>
                     <p><strong>Dia do contato:</strong> ${formatDate(t2.contactDate)}</p>
@@ -696,6 +517,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
                 </div>
                 <div class="pl-4 border-t pt-2">
                     <p class="font-medium underline">3ª Tentativa:</p>
+                     <p><strong>Data da Convocação:</strong> ${formatDate(t3.meetingDate)} às ${formatTime(t3.meetingTime)}</p>
                     <p><strong>Conseguiu contato?</strong> ${t3.contactSucceeded === 'yes' ? 'Sim' : t3.contactSucceeded === 'no' ? 'Não' : ''}</p>
                     <p><strong>Tipo de Contato:</strong> ${formatText(t3.contactType)}</p>
                     <p><strong>Dia do contato:</strong> ${formatDate(t3.contactDate)}</p>
@@ -719,6 +541,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
             <div class="border rounded-md p-3 space-y-2">
                 <h4 class="font-semibold text-base">Encaminhamento ao Conselho Tutelar</h4>
                 <p><strong>Data de envio:</strong> ${formatDate(ct.ctSentDate)}</p>
+                 <p><strong>Nº Ofício:</strong> ${formatText(ct.oficioNumber)}/${formatText(ct.oficioYear)}</p>
                 <p><strong>Devolutiva:</strong> ${formatText(ct.ctFeedback)}</p>
                 <p><strong>Aluno retornou?</strong> ${ct.ctReturned === 'yes' ? 'Sim' : ct.ctReturned === 'no' ? 'Não' : ''}</p>
             </div>
@@ -750,22 +573,28 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
 export const generateAndShowOficio = (action, oficioNumber = null) => {
     if (!action) return showToast('Ação de origem não encontrada.');
     
+    // Usa o número do ofício fornecido ou o armazenado na ação
     const finalOficioNumber = oficioNumber || action.oficioNumber;
     const finalOficioYear = action.oficioYear || new Date().getFullYear();
 
-    if (!finalOficioNumber) return showToast('Número do ofício não encontrado para este registro.');
+    // Valida se temos um número de ofício para exibir/gerar
+    if (!finalOficioNumber) return showToast('Número do ofício não fornecido ou não encontrado para este registro.');
 
     const student = state.students.find(s => s.matricula === action.studentId);
     if (!student) return showToast('Aluno não encontrado.');
 
+    // Busca todas as ações do mesmo processo para consolidar informações
     const processActions = state.absences
         .filter(a => a.processId === action.processId)
-        .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+        .sort((a, b) => (a.createdAt?.seconds || new Date(a.createdAt).getTime()) - (b.createdAt?.seconds || new Date(b.createdAt).getTime()));
 
     if (processActions.length === 0) return showToast('Nenhuma ação encontrada para este processo.');
 
+    // Encontra a primeira ação que contém os dados de falta (normalmente a tentativa_1)
     const firstActionWithAbsenceData = processActions.find(a => a.periodoFaltasStart);
+    // Encontra a ação de visita, se existir
     const visitAction = processActions.find(a => a.actionType === 'visita');
+    // Coleta todas as tentativas de contato
     const contactAttempts = processActions.filter(a => a.actionType.startsWith('tentativa'));
     
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -773,9 +602,12 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
     const schoolName = state.config?.schoolName || "Nome da Escola";
     const city = state.config?.city || "Cidade";
 
+    // Cria um resumo das tentativas de contato
     let attemptsSummary = contactAttempts.map((attempt, index) => {
+        // Usa a data do contato se disponível, senão a data de criação do registro
+        const attemptDate = attempt.contactDate || attempt.createdAt?.toDate();
         return `
-            <p class="ml-4">- <strong>${index + 1}ª Tentativa (${formatDate(attempt.contactDate || attempt.createdAt?.toDate())}):</strong> 
+            <p class="ml-4">- <strong>${index + 1}ª Tentativa (${formatDate(attemptDate)}):</strong> 
             ${attempt.contactSucceeded === 'yes' 
                 ? `Contato realizado com ${formatText(attempt.contactPerson)} (Tipo: ${formatText(attempt.contactType)}). Justificativa: ${formatText(attempt.contactReason)}.` 
                 : 'Não foi possível estabelecer contato.'}
@@ -783,6 +615,14 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
         `;
     }).join('');
     if (!attemptsSummary) attemptsSummary = "<p class='ml-4'>Nenhuma tentativa de contato registrada.</p>";
+
+    // Formatação do período de faltas
+    const formatPeriodoLocal = (start, end) => {
+        if (start && end) return `de ${formatDate(start)} a ${formatDate(end)}`;
+        if (start) return `a partir de ${formatDate(start)}`;
+        if (end) return `até ${formatDate(end)}`;
+        return '(não informado)';
+    }
 
     const oficioHTML = `
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
@@ -798,7 +638,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
             <div class="mt-8">
                 <p><strong>Ao</strong></p>
                 <p><strong>Conselho Tutelar</strong></p>
-                <p><strong>Nesta</strong></p>
+                <p><strong>${city}</strong></p>
             </div>
 
             <div class="mt-8">
@@ -810,22 +650,24 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
                 <p class="mt-4 indent-8">
                     Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>,
                     regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino,
-                    filho(a) de <strong>${responsaveis}</strong>, residente no endereço: ${formatText(student.endereco)}.
+                    filho(a) de <strong>${formatText(responsaveis)}</strong>, residente no endereço: ${formatText(student.endereco)}.
                 </p>
                 <p class="mt-4 indent-8">
-                    O(A) referido(a) aluno(a) apresenta um número de <strong>${firstActionWithAbsenceData?.absenceCount || '(não informado)'} faltas</strong>,
-                    apuradas no período de ${formatPeriodo(firstActionWithAbsenceData?.periodoFaltasStart, firstActionWithAbsenceData?.periodoFaltasEnd)}.
+                    O(A) referido(a) aluno(a) apresenta um número de <strong>${formatText(firstActionWithAbsenceData?.absenceCount) || '(não informado)'} faltas</strong>,
+                    apuradas no período ${formatPeriodoLocal(firstActionWithAbsenceData?.periodoFaltasStart, firstActionWithAbsenceData?.periodoFaltasEnd)}.
                 </p>
                 <p class="mt-4 indent-8">
                     Informamos que a escola esgotou as tentativas de contato com a família, conforme descrito abaixo:
                 </p>
                 <div class="mt-2">${attemptsSummary}</div>
+                ${visitAction ? `
                 <p class="mt-4 indent-8">
                     Adicionalmente, foi realizada uma visita in loco em <strong>${formatDate(visitAction?.visitDate)}</strong> pelo agente escolar <strong>${formatText(visitAction?.visitAgent)}</strong>.
                     Durante a visita, ${visitAction?.visitSucceeded === 'yes' 
                         ? `foi possível conversar com ${formatText(visitAction?.visitContactPerson)}, que justificou a ausência devido a: ${formatText(visitAction?.visitReason)}.`
                         : 'não foi possível localizar ou contatar os responsáveis.'}
                 </p>
+                ` : '<p class="mt-4 indent-8">Não foi registrada visita in loco neste processo.</p>'}
                 <p class="mt-4 indent-8">
                     Diante do exposto e considerando o que preceitua o Art. 56 do Estatuto da Criança e do Adolescente (ECA), solicitamos as devidas providências deste Conselho para garantir o direito à educação do(a) aluno(a).
                 </p>
@@ -840,12 +682,395 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
                     <div class="border-t border-gray-400"></div>
                     <p class="mt-1">Diretor(a)</p>
                 </div>
+                 <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                     <p class="mt-1">Coordenador(a) Pedagógico(a)</p>
+                </div>
             </div>
         </div>
     `;
 
-    document.getElementById('report-view-title').textContent = `Ofício Nº ${finalOficioNumber}`;
+    document.getElementById('report-view-title').textContent = `Ofício Nº ${finalOficioNumber}/${finalOficioYear}`;
     document.getElementById('report-view-content').innerHTML = oficioHTML;
     openModal(dom.reportViewModalBackdrop);
+};
+
+// --- GRÁFICOS (dependem de Chart.js) ---
+/**
+ * Gera o relatório geral de ocorrências com gráficos.
+ */
+export const generateAndShowGeneralReport = () => {
+    // Reimplementando a lógica de busca do incidente aqui
+     const filteredIncidentsMap = state.occurrences.reduce((acc, occ) => {
+         const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
+         if (!acc.has(groupId)) {
+             acc.set(groupId, { id: groupId, records: [], studentsInvolved: new Map(), overallStatus: 'Pendente' });
+         }
+         const incident = acc.get(groupId);
+         incident.records.push(occ);
+         const student = state.students.find(s => s.matricula === occ.studentId);
+         if (student && !incident.studentsInvolved.has(student.matricula)) {
+             incident.studentsInvolved.set(student.matricula, student);
+         }
+         // Calcula status geral para cada incidente ao final
+         const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
+         incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
+
+         return acc;
+     }, new Map());
+
+     // Aplica filtros
+     const filteredIncidents = [...filteredIncidentsMap.values()].filter(incident => {
+        const mainRecord = incident.records[0];
+        if (!mainRecord) return false;
+        const { startDate, endDate, status, type } = state.filtersOccurrences;
+        const studentSearch = state.filterOccurrences.toLowerCase();
+
+        if (startDate && mainRecord.date < startDate) return false;
+        if (endDate && mainRecord.date > endDate) return false;
+        if (status !== 'all' && incident.overallStatus !== status) return false;
+        if (type !== 'all' && mainRecord.occurrenceType !== type) return false;
+        if (studentSearch && ![...incident.studentsInvolved.values()].some(s => s.name.toLowerCase().includes(studentSearch))) return false;
+        return true;
+     });
+
+
+    if (filteredIncidents.length === 0) {
+        return showToast('Nenhum incidente encontrado para os filtros selecionados.');
+    }
+
+    const { startDate, endDate, status, type } = state.filtersOccurrences;
+    const studentFilter = state.filterOccurrences;
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    const totalStudents = new Set(filteredIncidents.flatMap(i => [...i.studentsInvolved.keys()])).size;
+    
+    const occurrencesByType = filteredIncidents.reduce((acc, incident) => {
+        const occType = incident.records[0].occurrenceType || 'Não especificado';
+        acc[occType] = (acc[occType] || 0) + 1;
+        return acc;
+    }, {});
+    const sortedTypes = Object.entries(occurrencesByType).sort((a, b) => b[1] - a[1]);
+
+    const occurrencesByStatus = filteredIncidents.reduce((acc, incident) => {
+        const occStatus = incident.overallStatus || 'Pendente';
+        acc[occStatus] = (acc[occStatus] || 0) + 1;
+        return acc;
+    }, {});
+    
+    const chartDataByType = {
+        labels: sortedTypes.map(item => item[0]),
+        data: sortedTypes.map(item => item[1])
+    };
+    const chartDataByStatus = {
+        labels: Object.keys(occurrencesByStatus),
+        data: Object.values(occurrencesByStatus)
+    };
+
+    // Função local para getStatusBadge se necessário
+     const getStatusBadgeLocal = (status) => {
+         const statusMap = {
+            'Pendente': 'bg-yellow-100 text-yellow-800',
+            'Aguardando Contato': 'bg-blue-100 text-blue-800',
+            'Finalizada': 'bg-green-100 text-green-800',
+            'Resolvido': 'bg-green-100 text-green-800', 
+            'Cancelado': 'bg-gray-100 text-gray-800'
+        };
+        const colorClasses = statusMap[status] || 'bg-gray-100 text-gray-800';
+        return `<span class="text-xs font-medium px-2.5 py-0.5 rounded-full ${colorClasses}">${status || 'N/A'}</span>`;
+    };
+
+
+    const reportHTML = `
+        <div class="space-y-8 text-sm font-sans">
+            ${getReportHeaderHTML()}
+            <h3 class="text-xl font-semibold text-gray-700 mt-2 text-center">Relatório Geral de Ocorrências</h3>
+            <p class="text-gray-500 mt-1 text-center">Gerado em: ${currentDate}</p>
+            
+            <div class="border rounded-lg p-4 bg-gray-50">
+                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                    <div><p class="text-2xl font-bold text-indigo-600">${filteredIncidents.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Total de Incidentes</p></div>
+                    <div><p class="text-2xl font-bold text-indigo-600">${totalStudents}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos</p></div>
+                    <div><p class="text-lg font-bold text-indigo-600">${sortedTypes.length > 0 ? formatText(sortedTypes[0][0]) : 'N/A'}</p><p class="text-xs font-medium text-gray-500 uppercase">Principal Tipo</p></div>
+                </div>
+                ${(startDate || endDate || status !== 'all' || type !== 'all' || studentFilter) ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong></p><ul class="list-disc list-inside ml-2">${startDate ? `<li>De: <strong>${formatDate(startDate)}</strong></li>` : ''}${endDate ? `<li>Até: <strong>${formatDate(endDate)}</strong></li>` : ''}${status !== 'all' ? `<li>Status: <strong>${status}</strong></li>` : ''}${type !== 'all' ? `<li>Tipo: <strong>${formatText(type)}</strong></li>` : ''}${studentFilter ? `<li>Aluno: <strong>"${formatText(studentFilter)}"</strong></li>` : ''}</ul></div>` : ''}
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 break-inside-avoid">
+                <div class="border rounded-lg p-4 shadow-sm bg-white">
+                    <h5 class="font-semibold text-center mb-2">Ocorrências por Tipo</h5>
+                    <canvas id="report-chart-by-type" data-labels='${JSON.stringify(chartDataByType.labels)}' data-data='${JSON.stringify(chartDataByType.data)}'></canvas>
+                </div>
+                <div class="border rounded-lg p-4 shadow-sm bg-white">
+                    <h5 class="font-semibold text-center mb-2">Ocorrências por Status (Geral)</h5>
+                    <canvas id="report-chart-by-status" data-labels='${JSON.stringify(chartDataByStatus.labels)}' data-data='${JSON.stringify(chartDataByStatus.data)}'></canvas>
+                </div>
+            </div>
+
+            <div>
+                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Incidentes</h4>
+                <div class="space-y-6">
+                ${filteredIncidents.sort((a,b) => new Date(b.records[0].date) - new Date(a.records[0].date)).map(incident => {
+                    const mainRecord = incident.records[0];
+                    const studentNames = [...incident.studentsInvolved.values()].map(s => formatText(s.name)).join(', ');
+                    return `
+                    <div class="border rounded-lg overflow-hidden break-inside-avoid">
+                        <div class="bg-gray-100 p-3 flex justify-between items-center">
+                            <div>
+                                <p class="font-bold text-gray-800">${formatText(mainRecord.occurrenceType)}</p>
+                                <p class="text-xs text-gray-600">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
+                            </div>
+                            ${getStatusBadgeLocal(incident.overallStatus)}
+                        </div>
+                        <div class="p-4 space-y-3">
+                            <p><strong>Alunos Envolvidos:</strong> ${studentNames}</p>
+                            <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição do Fato</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
+                            ${incident.records.map(rec => {
+                                const student = incident.studentsInvolved.get(rec.studentId);
+                                return `<div class="text-xs border-t mt-2 pt-2"><p class="font-bold">${formatText(student?.name || '')} (${rec.statusIndividual || 'Pendente'})</p><p><strong>Providências Escola:</strong> ${formatText(rec.schoolActionsIndividual)}</p><p><strong>Providências Família:</strong> ${formatText(rec.providenciasFamilia)}</p><p><strong>Parecer:</strong> ${formatText(rec.parecerIndividual)}</p></div>`;
+                            }).join('')}
+                        </div>
+                    </div>`;
+                }).join('')}
+                </div>
+            </div>
+            
+            <div class="signature-block pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
+        </div>
+    `;
+
+    document.getElementById('report-view-title').textContent = "Relatório Geral de Ocorrências";
+    document.getElementById('report-view-content').innerHTML = reportHTML;
+    openModal(dom.reportViewModalBackdrop);
+
+    // Tenta renderizar os gráficos
+    setTimeout(() => { // Adiciona um pequeno delay para garantir que o DOM foi atualizado
+        try {
+            const typeCtx = document.getElementById('report-chart-by-type')?.getContext('2d');
+            if (typeCtx && typeof Chart !== 'undefined') {
+                new Chart(typeCtx, {
+                    type: 'bar',
+                    data: { labels: chartDataByType.labels, datasets: [{ label: 'Total', data: chartDataByType.data, backgroundColor: '#4f46e5' }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, indexAxis: 'y' } // Muda para barra horizontal se muitos tipos
+                });
+            } else if (!typeCtx) { console.warn("Canvas 'report-chart-by-type' não encontrado.");}
+
+            const statusCtx = document.getElementById('report-chart-by-status')?.getContext('2d');
+             if (statusCtx && typeof Chart !== 'undefined') {
+                new Chart(statusCtx, {
+                    type: 'doughnut',
+                    data: { labels: chartDataByStatus.labels, datasets: [{ data: chartDataByStatus.data, backgroundColor: ['#f59e0b', '#10b981', '#6b7280'] }] }, // Amarelo, Verde, Cinza
+                    options: { responsive: true }
+                });
+            } else if (!statusCtx) { console.warn("Canvas 'report-chart-by-status' não encontrado.");}
+
+            if (typeof Chart === 'undefined') {
+                 console.warn("Chart.js não está carregado. Gráficos não serão exibidos.");
+                 const chartAreas = document.querySelectorAll('#report-view-content canvas');
+                 chartAreas.forEach(canvas => {
+                     const parent = canvas.parentElement;
+                     if(parent) parent.innerHTML = "<p class='text-center text-red-500 text-xs'>Chart.js não carregado.</p>";
+                 });
+            }
+
+        } catch (e) {
+            console.error("Erro ao renderizar gráficos:", e);
+        }
+    }, 100); // Delay de 100ms
+};
+
+
+/**
+ * Gera o relatório geral de Busca Ativa com gráficos.
+ */
+export const generateAndShowBuscaAtivaReport = () => {
+    // 1. Agrupa todas as ações por 'processId'
+    const groupedByProcess = state.absences.reduce((acc, action) => {
+        const key = action.processId || `no-proc-${action.id}`;
+        if (!acc[key]) acc[key] = { id: key, actions: [], studentId: action.studentId };
+        acc[key].actions.push(action);
+        return acc;
+    }, {});
+
+    const processes = Object.values(groupedByProcess);
+    if (processes.length === 0) {
+        return showToast('Nenhum processo de Busca Ativa encontrado.');
+    }
+
+    const { processStatus, pendingAction, returnStatus } = state.filtersAbsences;
+    const studentFilter = state.filterAbsences;
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    let statusConcluido = 0, statusEmAndamento = 0;
+    let retornoSim = 0, retornoNao = 0, retornoPendente = 0;
+    let pendenteContato = 0, pendenteDevolutiva = 0;
+
+    const filteredProcesses = processes.filter(proc => {
+        proc.actions.sort((a, b) => (a.createdAt?.seconds || new Date(a.createdAt).getTime()) - (b.createdAt?.seconds || new Date(b.createdAt).getTime()));
+        const lastAction = proc.actions[proc.actions.length - 1];
+        if (!lastAction) return false; // Adiciona guarda para processo sem ações
+        
+        const student = state.students.find(s => s.matricula === proc.studentId);
+        
+        if (studentFilter && (!student || !student.name.toLowerCase().includes(studentFilter.toLowerCase()))) return false;
+        
+        const isConcluded = lastAction.actionType === 'analise'; // Simplificado: concluído se a última ação é 'analise'
+        if (processStatus === 'in_progress' && isConcluded) return false;
+        if (processStatus === 'concluded' && !isConcluded) return false;
+
+        // Verifica o status de retorno baseado na última ação que o possui
+        const lastReturnAction = [...proc.actions].reverse().find(a => a.contactReturned != null || a.visitReturned != null || a.ctReturned != null);
+        const lastReturnStatusValue = lastReturnAction ? (lastReturnAction.contactReturned ?? lastReturnAction.visitReturned ?? lastReturnAction.ctReturned) : 'pending';
+        
+        if (returnStatus === 'returned' && lastReturnStatusValue !== 'yes') return false;
+        if (returnStatus === 'not_returned' && lastReturnStatusValue !== 'no') return false;
+        // Para 'pending', precisamos verificar se *nenhuma* ação teve retorno 'yes' ou 'no'
+        const hasDefinitiveReturn = proc.actions.some(a => a.contactReturned === 'yes' || a.contactReturned === 'no' || a.visitReturned === 'yes' || a.visitReturned === 'no' || a.ctReturned === 'yes' || a.ctReturned === 'no');
+        if (returnStatus === 'pending' && hasDefinitiveReturn) return false;
+
+
+        let isPendingContact = false, isPendingFeedback = false;
+        if (!isConcluded) {
+            // Verifica se a última ação requer contato e se ele não foi feito
+             isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null);
+            
+            // Verifica se houve encaminhamento e se falta devolutiva
+            const ctAction = proc.actions.find(a => a.actionType === 'encaminhamento_ct');
+            isPendingFeedback = ctAction && !ctAction.ctFeedback; // Feedback é null ou vazio
+        }
+
+        if (pendingAction === 'pending_contact' && !isPendingContact) return false;
+        if (pendingAction === 'pending_feedback' && !isPendingFeedback) return false;
+        
+        // Contadores (só incrementa se passou nos filtros)
+        isConcluded ? statusConcluido++ : statusEmAndamento++;
+        
+        if (lastReturnStatusValue === 'yes') retornoSim++;
+        else if (lastReturnStatusValue === 'no') retornoNao++;
+        else if (!hasDefinitiveReturn) retornoPendente++; // Só conta como pendente se NUNCA teve sim/não
+        
+        if (isPendingContact) pendenteContato++;
+        if (isPendingFeedback) pendenteDevolutiva++;
+
+        return true; // Passou por todos os filtros
+    });
+
+    if (filteredProcesses.length === 0) {
+        return showToast('Nenhum processo encontrado para os filtros selecionados.');
+    }
+
+    const chartDataStatus = { labels: ['Em Andamento', 'Concluídos'], data: [statusEmAndamento, statusConcluido] };
+    const chartDataRetorno = { labels: ['Retornou', 'Não Retornou', 'Pendente'], data: [retornoSim, retornoNao, retornoPendente] };
+    const chartDataPendente = { labels: ['Aguard. Contato', 'Aguard. Devolutiva CT'], data: [pendenteContato, pendenteDevolutiva] };
+
+     const filterDescriptions = [];
+     if(processStatus !== 'all') filterDescriptions.push(`Status: ${processStatus === 'in_progress' ? 'Em Andamento' : 'Concluído'}`);
+     if(pendingAction !== 'all') filterDescriptions.push(`Pendente: ${pendingAction === 'pending_contact' ? 'Contato' : 'Devolutiva CT'}`);
+     if(returnStatus !== 'all') filterDescriptions.push(`Retorno: ${returnStatus === 'returned' ? 'Retornou' : (returnStatus === 'not_returned' ? 'Não Retornou' : 'Pendente')}`);
+     if(studentFilter) filterDescriptions.push(`Aluno: "${formatText(studentFilter)}"`);
+
+
+    const reportHTML = `
+        <div class="space-y-8 text-sm font-sans">
+            ${getReportHeaderHTML()}
+            <h3 class="text-xl font-semibold text-gray-700 mt-2 text-center">Relatório Geral de Busca Ativa</h3>
+            <p class="text-gray-500 mt-1 text-center">Gerado em: ${currentDate}</p>
+
+            <div class="border rounded-lg p-4 bg-gray-50">
+                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                    <div><p class="text-2xl font-bold text-indigo-600">${filteredProcesses.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Processos Filtrados</p></div>
+                    <div><p class="text-2xl font-bold text-indigo-600">${statusEmAndamento}</p><p class="text-xs font-medium text-gray-500 uppercase">Em Andamento</p></div>
+                    <div><p class="text-2xl font-bold text-indigo-600">${retornoSim}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Retornaram</p></div>
+                </div>
+                 ${filterDescriptions.length > 0 ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong> ${filterDescriptions.join('; ')}</p></div>` : ''}
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 break-inside-avoid">
+                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Status dos Processos</h5><canvas id="ba-chart-status"></canvas></div>
+                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Status de Retorno</h5><canvas id="ba-chart-retorno"></canvas></div>
+                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Ações Pendentes (Em Andamento)</h5><canvas id="ba-chart-pendente"></canvas></div>
+            </div>
+
+            <div>
+                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Processos</h4>
+                <div class="space-y-4">
+                ${filteredProcesses.sort((a,b) => (b.actions[b.actions.length-1].createdAt?.seconds || new Date(b.actions[b.actions.length-1].createdAt).getTime()) - (a.actions[a.actions.length-1].createdAt?.seconds || new Date(a.actions[a.actions.length-1].createdAt).getTime())).map(proc => {
+                    const student = state.students.find(s => s.matricula === proc.studentId);
+                    const lastAction = proc.actions[proc.actions.length - 1];
+                    const isConcluded = lastAction.actionType === 'analise';
+                    return `
+                    <div class="border rounded-lg overflow-hidden break-inside-avoid">
+                        <div class="bg-gray-100 p-3 flex justify-between items-center">
+                            <div>
+                                <p class="font-bold text-gray-800">${student ? formatText(student.name) : 'Aluno Removido'}</p>
+                                <p class="text-xs text-gray-600">Turma: ${student ? formatText(student.class) : 'N/A'} | ID: ${proc.id}</p>
+                            </div>
+                            ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : '<span class="text-xs font-bold text-white bg-yellow-600 px-2 py-1 rounded-full">EM ANDAMENTO</span>'}
+                        </div>
+                        <div class="p-4">
+                            <h5 class="text-xs font-semibold uppercase text-gray-500 mb-2">Resumo das Ações (${proc.actions.length})</h5>
+                            <ul class="list-disc list-inside text-xs space-y-1">
+                                ${proc.actions.map(a => `<li><strong>${formatText(actionDisplayTitles[a.actionType])}</strong> (em ${formatDate(a.createdAt?.toDate())})</li>`).join('')}
+                            </ul>
+                            ${isConcluded ? `<div class="mt-3 border-t pt-2"><h5 class="text-xs font-semibold uppercase text-gray-500">Parecer Final</h5><p class="text-xs whitespace-pre-wrap">${formatText(lastAction.ctParecer)}</p></div>` : ''}
+                        </div>
+                    </div>`;
+                }).join('')}
+                </div>
+            </div>
+            
+            <div class="signature-block pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
+        </div>
+    `;
+
+    document.getElementById('report-view-title').textContent = "Relatório Geral de Busca Ativa";
+    document.getElementById('report-view-content').innerHTML = reportHTML;
+    openModal(dom.reportViewModalBackdrop);
+
+     // Tenta renderizar os gráficos
+    setTimeout(() => { // Adiciona um pequeno delay
+        try {
+            const statusCtx = document.getElementById('ba-chart-status')?.getContext('2d');
+            if (statusCtx && typeof Chart !== 'undefined') {
+                new Chart(statusCtx, {
+                    type: 'doughnut',
+                    data: { labels: chartDataStatus.labels, datasets: [{ data: chartDataStatus.data, backgroundColor: ['#f59e0b', '#10b981'] }] }, // Amarelo, Verde
+                    options: { responsive: true }
+                });
+            } else if (!statusCtx) { console.warn("Canvas 'ba-chart-status' não encontrado."); }
+
+            const retornoCtx = document.getElementById('ba-chart-retorno')?.getContext('2d');
+             if (retornoCtx && typeof Chart !== 'undefined') {
+                new Chart(retornoCtx, {
+                    type: 'pie',
+                    data: { labels: chartDataRetorno.labels, datasets: [{ data: chartDataRetorno.data, backgroundColor: ['#10b981', '#ef4444', '#6b7280'] }] }, // Verde, Vermelho, Cinza
+                    options: { responsive: true }
+                });
+             } else if (!retornoCtx) { console.warn("Canvas 'ba-chart-retorno' não encontrado."); }
+
+             const pendenteCtx = document.getElementById('ba-chart-pendente')?.getContext('2d');
+             if (pendenteCtx && typeof Chart !== 'undefined') {
+                 new Chart(pendenteCtx, {
+                    type: 'bar',
+                    data: { labels: chartDataPendente.labels, datasets: [{ label: 'Total', data: chartDataPendente.data, backgroundColor: ['#3b82f6', '#f97316'] }] }, // Azul, Laranja
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } } // Garante eixo Y começando em 0 e com passos de 1
+                });
+             } else if (!pendenteCtx) { console.warn("Canvas 'ba-chart-pendente' não encontrado."); }
+
+             if (typeof Chart === 'undefined') {
+                 console.warn("Chart.js não está carregado. Gráficos não serão exibidos.");
+                 const chartAreas = document.querySelectorAll('#report-view-content canvas');
+                 chartAreas.forEach(canvas => {
+                     const parent = canvas.parentElement;
+                     if(parent) parent.innerHTML = "<p class='text-center text-red-500 text-xs'>Chart.js não carregado.</p>";
+                 });
+             }
+
+        } catch (e) {
+            console.error("Erro ao renderizar gráficos da Busca Ativa:", e);
+        }
+    }, 100); // Delay de 100ms
 };
 
