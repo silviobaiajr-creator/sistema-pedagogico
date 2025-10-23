@@ -3,17 +3,22 @@
 // RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra a lógica de
 // eventos, submissão de formulários e a comunicação entre a UI e o Firestore.
 //
-// ATUALIZAÇÃO (REFATORAÇÃO PASSO 1):
-// 1. As importações de funções de relatório (`generateAndShowGeneralReport`,
-//    `openOccurrenceRecordModal`, etc.) foram atualizadas para apontar
-//    para o novo arquivo `reports.js` em vez de `ui.js`.
-// 2. Nenhuma outra lógica foi alterada neste passo.
+// ATUALIZAÇÃO (REFATORAÇÃO PASSO 2):
+// 1. Funções de autenticação (`handleLogin`, `handleRegister`, `getAuthErrorMessage`)
+//    foram REMOVIDAS deste arquivo (movidas para `handlers/auth.js`).
+// 2. As importações de `createUserWithEmailAndPassword` e `signInWithEmailAndPassword`
+//    do Firebase Auth foram REMOVIDAS.
+// 3. Adicionada a importação de `handleLogin` e `handleRegister` do novo
+//    arquivo `handlers/auth.js`.
+// 4. Os `event listeners` para os formulários de login/registo foram mantidos,
+//    agora chamando as funções importadas.
 // =================================================================================
 
-// --- MÓDULOS IMPORTADOS ---
+// --- MÓDulos IMPORTADOS ---
 
 // Serviços do Firebase para autenticação e banco de dados
-import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+// createUserWithEmailAndPassword, signInWithEmailAndPassword REMOVIDOS daqui
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"; 
 import { onSnapshot, query, writeBatch, doc, setDoc, where, getDocs, collection, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Módulos internos da aplicação
@@ -29,27 +34,18 @@ import {
     openOccurrenceModal,
     handleNewAbsenceAction,
     setupAutocomplete,
-    // openStudentSelectionModal, // MOVIDO
-    // openOccurrenceRecordModal, // MOVIDO
-    // openHistoryModal, // MOVIDO
-    // openAbsenceHistoryModal, // MOVIDO
-    // openFichaViewModal, // MOVIDO
-    // generateAndShowConsolidatedFicha, // MOVIDO
-    // generateAndShowOficio, // MOVIDO
     openAbsenceModalForStudent,
     showLoginView,
     showRegisterView,
     resetStudentForm,
     toggleFamilyContactFields,
     toggleVisitContactFields,
-    // generateAndShowGeneralReport, // MOVIDO
-    // generateAndShowBuscaAtivaReport, // MOVIDO
     getFilteredOccurrences, // Necessário para handleEditOccurrence
     openSettingsModal,
     openFollowUpModal 
 } from './ui.js';
 
-// NOVO: Funções de relatório importadas de reports.js
+// Funções de relatório importadas de reports.js
 import {
     openStudentSelectionModal,
     openOccurrenceRecordModal,
@@ -62,18 +58,17 @@ import {
     generateAndShowBuscaAtivaReport
 } from './reports.js';
 
+// NOVO: Importa os handlers de autenticação
+import { handleLogin, handleRegister } from './handlers/auth.js'; 
+
 import * as logic from './logic.js';
 
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Popula as referências do DOM AGORA,
-    // garantindo que todos os elementos existem antes de usá-los.
     initializeDOMReferences();
+    state.db = db;
 
-    state.db = db; // Armazena a instância do DB no estado global
-
-    // Observador do estado de autenticação do Firebase
     onAuthStateChanged(auth, async user => {
         detachFirestoreListeners(); // Limpa listeners antigos para evitar duplicação
         
@@ -108,14 +103,11 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
-            render();
+            render(); // Renderiza o estado vazio/login
         }
     });
 
-    // Movido para ser chamado DEPOIS de initializeDOMReferences()
     setupEventListeners();
-    
-    // Configura autocomplete apenas para a Busca Ativa.
     setupAutocomplete('search-absences', 'absence-student-suggestions', handleNewAbsenceAction);
 });
 
@@ -147,7 +139,7 @@ function detachFirestoreListeners() {
 // --- CONFIGURAÇÃO CENTRAL DE EVENTOS DA UI ---
 
 function setupEventListeners() {
-    // Autenticação
+    // Autenticação (agora chama as funções importadas)
     dom.loginForm.addEventListener('submit', handleLogin);
     dom.registerForm.addEventListener('submit', handleRegister);
     dom.logoutBtn.addEventListener('click', () => signOut(auth));
@@ -198,31 +190,21 @@ function setupEventListeners() {
 
     // Ações em Modais
     document.getElementById('confirm-delete-btn').addEventListener('click', handleDeleteConfirmation);
-    document.getElementById('action-type').addEventListener('change', (e) => handleActionTypeChange(e.target.value));
+    // document.getElementById('action-type').addEventListener('change', (e) => handleActionTypeChange(e.target.value)); // Será movido
     
     // Listeners para os rádios da Busca Ativa (mostra/esconde campos)
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
     
-    // ATUALIZADO (PONTO 7): Listener para o rádio de contato no modal de ACOMPANHAMENTO.
-    // Agora também torna "Providências da Família" obrigatório.
     document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio => 
         radio.addEventListener('change', (e) => {
             const enable = e.target.value === 'yes';
-            
-            // 1. Lógica (agora corrigida via ui.js) para "Tipo" e "Data"
             toggleFamilyContactFields(enable, document.getElementById('follow-up-family-contact-fields'));
-            
-            // 2. Lógica para "Providências da Família" (Ponto 7)
             const familyActionsTextarea = document.getElementById('follow-up-family-actions');
             if (familyActionsTextarea) {
                 familyActionsTextarea.required = enable;
-                
-                // Feedback visual (opcional, mas recomendado)
-                // Procura o label associado ao textarea (assumindo que está no div pai)
                 const label = familyActionsTextarea.closest('div').querySelector('label');
                 if (label) {
-                    // Adiciona um asterisco vermelho se for obrigatório
                     label.innerHTML = enable 
                         ? 'Providências da Família <span class="text-red-500">*</span>' 
                         : 'Providências da Família';
@@ -230,58 +212,26 @@ function setupEventListeners() {
             }
         })
     );
-    // --- FIM DA ATUALIZAÇÃO (PONTO 7) ---
 
-
-    // ATUALIZADO (PONTO 1): Listener global para fechar menus kebab e restaurar overflow.
     document.addEventListener('click', (e) => {
-        // Se o clique NÃO foi dentro de um container de menu kebab
         if (!e.target.closest('.kebab-menu-container')) {
-            // Fecha todos os dropdowns de menu kebab
             document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
-            
-            // Restaura o 'overflow: hidden' em todos os acordeões ABERTOS
             document.querySelectorAll('.process-content').forEach(c => {
-                // Só aplica se ele estiver aberto (tiver maxHeight definido e diferente de 0px)
                 if (c.style.maxHeight && c.style.maxHeight !== '0px') {
                     c.style.overflow = 'hidden';
                 }
             });
         }
     });
-    // --- FIM DA ATUALIZAÇÃO (PONTO 1) ---
 }
 
 // --- HANDLERS E FUNÇÕES AUXILIARES ---
 
-// Funções de Autenticação
-async function handleLogin(e) { 
-    e.preventDefault(); 
-    try { 
-        await signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value); 
-    } catch (error) { 
-        console.error("Erro de Login:", error); 
-        showToast("Email ou senha inválidos."); 
-    } 
-}
-async function handleRegister(e) { 
-    e.preventDefault(); 
-    try { 
-        await createUserWithEmailAndPassword(auth, document.getElementById('register-email').value, document.getElementById('register-password').value); 
-    } catch (error) { 
-        console.error("Erro de Registo:", error); 
-        showToast(getAuthErrorMessage(error.code));
-    }
-}
+// REMOVIDO: handleLogin
+// REMOVIDO: handleRegister
+// REMOVIDO: getAuthErrorMessage
 
-function getAuthErrorMessage(code) {
-    switch (code) {
-        case 'auth/email-already-in-use': return "Este email já está a ser utilizado.";
-        case 'auth/weak-password': return "A sua senha é muito fraca.";
-        default: return "Erro ao criar a conta.";
-    }
-}
-
+// Função auxiliar para erros do Firestore (mantida)
 function getFirestoreErrorMessage(code) {
     switch (code) {
         case 'permission-denied':
@@ -293,7 +243,7 @@ function getFirestoreErrorMessage(code) {
     }
 }
 
-
+// Função para trocar abas (mantida)
 function switchTab(tabName) {
     state.activeTab = tabName;
     const isOccurrences = tabName === 'occurrences';
@@ -306,6 +256,7 @@ function switchTab(tabName) {
 
 /**
  * Lida com a submissão do formulário de ocorrências (criação ou edição do FATO COLETIVO).
+ * (Mantido por enquanto, será movido depois)
  */
 async function handleOccurrenceSubmit(e) {
     e.preventDefault();
@@ -434,6 +385,7 @@ async function handleOccurrenceSubmit(e) {
 
 /**
  * Lida com a submissão do formulário de acompanhamento individual.
+ * (Mantido por enquanto, será movido depois)
  */
 async function handleFollowUpSubmit(e) {
     e.preventDefault();
@@ -444,36 +396,26 @@ async function handleFollowUpSubmit(e) {
         return showToast("Erro: ID do aluno ou do registo não encontrado.");
     }
 
-    // Coleta todos os dados do formulário de acompanhamento
     const parecer = document.getElementById('follow-up-parecer').value.trim();
     const contactSucceededRadio = document.querySelector('input[name="follow-up-contact-succeeded"]:checked');
     const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
     
-    // --- LÓGICA DE STATUS AUTOMÁTICO ---
-    let newStatus = 'Pendente'; // Padrão: Contato feito, mas sem parecer
+    let newStatus = 'Pendente'; 
     if (parecer) {
         newStatus = 'Resolvido';
-    } else if (!contactSucceeded || contactSucceeded === 'no') { // Se não conseguiu contato ou marcou 'não'
+    } else if (!contactSucceeded || contactSucceeded === 'no') { 
         newStatus = 'Aguardando Contato';
     }
-    // --- Fim da Lógica ---
 
     const dataToUpdate = {
-        // Campos de Acompanhamento
         schoolActionsIndividual: document.getElementById('follow-up-actions').value.trim(),
         providenciasFamilia: document.getElementById('follow-up-family-actions').value.trim(), 
         parecerIndividual: parecer,
-        
-        // Campos Movidos (Convocação)
         meetingDate: document.getElementById('follow-up-meeting-date').value || null, 
         meetingTime: document.getElementById('follow-up-meeting-time').value || null, 
-        
-        // Campos Movidos (Contato)
         contactSucceeded: contactSucceeded,
         contactType: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-type').value : null, 
         contactDate: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-date').value : null, 
-
-        // Status Automático
         statusIndividual: newStatus
     };
     
@@ -489,7 +431,10 @@ async function handleFollowUpSubmit(e) {
     }
 }
 
-
+/**
+ * Lida com a submissão do formulário de Busca Ativa.
+ * (Mantido por enquanto, será movido depois)
+ */
 async function handleAbsenceSubmit(e) {
     e.preventDefault();
     const form = e.target;
@@ -527,6 +472,10 @@ async function handleAbsenceSubmit(e) {
     }
 }
 
+/**
+ * Lida com a submissão do formulário de Configurações.
+ * (Mantido por enquanto, será movido depois)
+ */
 async function handleSettingsSubmit(e) {
     e.preventDefault();
     const data = {
@@ -537,8 +486,8 @@ async function handleSettingsSubmit(e) {
 
     try {
         await saveSchoolConfig(data);
-        state.config = data; // Atualiza o estado local
-        dom.headerSchoolName.textContent = data.schoolName || 'Sistema de Acompanhamento'; // Atualiza a UI imediatamente
+        state.config = data; 
+        dom.headerSchoolName.textContent = data.schoolName || 'Sistema de Acompanhamento';
         showToast('Configurações salvas com sucesso!');
         closeModal(dom.settingsModal);
     } catch (error) {
@@ -548,6 +497,7 @@ async function handleSettingsSubmit(e) {
 }
 
 // Funções de Gerenciamento de Alunos
+// (Mantidas por enquanto, serão movidas depois)
 function handleCsvUpload() {
     const fileInput = document.getElementById('csv-file');
     const feedbackDiv = document.getElementById('csv-feedback');
@@ -622,6 +572,7 @@ async function handleStudentFormSubmit(e) {
 }
 
 // Ações (Excluir, Gerar Relatório)
+// (Mantidas por enquanto, serão movidas depois)
 async function handleDeleteConfirmation() {
     if (!state.recordToDelete) return;
     const { type, id } = state.recordToDelete;
@@ -659,12 +610,8 @@ function handleReportGeneration() {
     closeModal(dom.reportGeneratorModal);
 }
 
-// Lógica de UI e Dados (sem alterações significativas)
-function getOccurrenceHistoryMessage(original, updated) {
-    // ... (Esta função pode ser removida se não usada, pois o histórico agora é mais direto)
-    return "Dados do incidente foram atualizados.";
-}
-
+// Lógica de UI e Dados 
+// (Mantidas por enquanto, serão movidas depois)
 function getAbsenceFormData() {
     const studentName = document.getElementById('absence-student-name').value.trim();
     const student = state.students.find(s => s.name === studentName);
@@ -719,15 +666,10 @@ function getAbsenceFormData() {
     return data;
 }
 
-function handleActionTypeChange(action) {
-    document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
-    const groupToShow = action.startsWith('tentativa') ? 'group-tentativas' : `group-${action}`;
-    const groupElement = document.getElementById(groupToShow);
-    if (groupElement) groupElement.classList.remove('hidden');
-}
+// REMOVIDO: handleActionTypeChange (será movido para handlers/absences.js)
 
 // --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
-
+// (Mantida por enquanto)
 function setupModalCloseButtons() {
     const modalMap = {
         'close-modal-btn': dom.occurrenceModal, 'cancel-btn': dom.occurrenceModal,
@@ -767,9 +709,8 @@ function setupModalCloseButtons() {
 }
 
 /**
- * ATUALIZADO (PONTO 1 & 8): Lógica centralizada para cliques nas listas.
- * Inclui gestão do menu kebab e a nova ação 'follow-up' (ambos os modos).
- * Inclui correção para o bug do overflow no menu kebab da Busca Ativa.
+ * Lógica centralizada para cliques nas listas.
+ * (Mantida por enquanto)
  */
 function setupListClickListeners() {
     // Listener para a lista de OCORRÊNCIAS
@@ -777,24 +718,19 @@ function setupListClickListeners() {
         const button = e.target.closest('button');
         if (!button) return;
 
-        // --- INÍCIO DA ATUALIZAÇÃO (PONTO 8) ---
-        // NOVA LÓGICA: Clique direto no aluno para acompanhamento
         const followUpTrigger = e.target.closest('.student-follow-up-trigger');
         if (followUpTrigger) {
             e.stopPropagation();
             const groupId = followUpTrigger.dataset.groupId;
             const studentId = followUpTrigger.dataset.studentId;
-            openFollowUpModal(groupId, studentId); // Chama a função com o aluno pré-selecionado
-            return; // Encerra o processamento do clique aqui
+            openFollowUpModal(groupId, studentId); 
+            return; 
         }
-        // --- FIM DA ATUALIZAÇÃO (PONTO 8) ---
 
-        // Ação do menu Kebab (continua como antes)
         if (button.classList.contains('kebab-menu-btn')) {
             e.stopPropagation();
             const dropdown = button.nextElementSibling;
             if (dropdown) {
-                // Fecha outros menus abertos
                 document.querySelectorAll('.kebab-menu-dropdown').forEach(d => {
                     if (d !== dropdown) d.classList.add('hidden');
                 });
@@ -804,7 +740,7 @@ function setupListClickListeners() {
         }
 
         const groupId = button.dataset.groupId;
-        e.stopPropagation(); // Evita que o clique se propague para outros elementos
+        e.stopPropagation(); 
 
         if (button.classList.contains('notification-btn')) {
             openStudentSelectionModal(groupId);
@@ -815,9 +751,7 @@ function setupListClickListeners() {
             if (action === 'edit') handleEditOccurrence(groupId);
             else if (action === 'delete') handleDelete('occurrence', groupId);
             else if (action === 'history') openHistoryModal(groupId);
-            // ATUALIZAÇÃO (PONTO 8): Chamada sem pré-seleção (clique no kebab)
             else if (action === 'follow-up') openFollowUpModal(groupId); 
-            // Esconde o menu após a ação
             button.closest('.kebab-menu-dropdown').classList.add('hidden');
         }
     });
@@ -826,37 +760,30 @@ function setupListClickListeners() {
     dom.absencesListDiv.addEventListener('click', (e) => {
         const button = e.target.closest('button');
         if (button) {
-            e.stopPropagation(); // Evita propagação
+            e.stopPropagation(); 
 
-             // ---- INÍCIO DA CORREÇÃO (PONTO 1) ----
              if (button.classList.contains('kebab-menu-btn')) {
                 const dropdown = button.nextElementSibling;
                 if (dropdown) {
-                    // Fecha outros menus
                     document.querySelectorAll('.kebab-menu-dropdown').forEach(d => {
                         if (d !== dropdown) d.classList.add('hidden');
                     });
                     
-                    // Lógica de Overflow:
                     const contentParent = button.closest('.process-content');
-                    // Se o menu está prestes a abrir, remove o clip
                     if (contentParent && dropdown.classList.contains('hidden')) { 
                         contentParent.style.overflow = 'visible';
                     } else if (contentParent) {
-                        // Se está prestes a fechar, restaura (após um pequeno delay)
                         setTimeout(() => { 
-                            // Verifica se ainda está fechado antes de restaurar
                             if (dropdown.classList.contains('hidden')) {
                                 contentParent.style.overflow = 'hidden';
                             }
-                        }, 250); // Delay para permitir a animação do menu
+                        }, 250); 
                     }
                     
-                    dropdown.classList.toggle('hidden'); // Abre/Fecha o menu
+                    dropdown.classList.toggle('hidden'); 
                 }
-                return; // Encerra aqui para não executar outras lógicas de botão
+                return; 
             }
-             // ---- FIM DA CORREÇÃO (PONTO 1) ----
 
             const id = button.dataset.id;
             
@@ -869,16 +796,13 @@ function setupListClickListeners() {
                 if (action === 'edit') handleEditAbsence(id);
                 else if (action === 'delete') handleDeleteAbsence(id);
                 else if (action === 'history') openAbsenceHistoryModal(button.dataset.processId);
-                // Fecha o menu após a ação
                 button.closest('.kebab-menu-dropdown').classList.add('hidden');
-                // Restaura o overflow ao fechar o menu por clique em ação
                 const contentParent = button.closest('.process-content');
                 if(contentParent) contentParent.style.overflow = 'hidden';
             }
             return;
         }
 
-        // Clique para abrir/fechar o acordeão
         const header = e.target.closest('.process-header');
         if (header) {
             const id = header.dataset.processId;
@@ -888,18 +812,15 @@ function setupListClickListeners() {
                 const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px';
                 if (isHidden) {
                     content.style.maxHeight = `${content.scrollHeight}px`;
-                    // Não definir overflow: visible aqui, deixar o kebab controlar
                 } else {
                     content.style.maxHeight = null;
-                    // ---- CORREÇÃO (PONTO 1): Garante overflow hidden ao fechar ----
                     content.style.overflow = 'hidden'; 
                 }
                 icon?.classList.toggle('rotate-180', isHidden);
             }
-            return; // Impede que o clique no header feche menus abertos
+            return; 
         }
         
-        // Clique para iniciar nova ação a partir do histórico
         const newActionTrigger = e.target.closest('.new-action-from-history-btn');
         if (newActionTrigger) {
             e.stopPropagation();
@@ -909,7 +830,8 @@ function setupListClickListeners() {
     });
 }
 
-// Funções de Manipulação de Eventos das Listas (sem alterações significativas)
+// Funções de Manipulação de Eventos das Listas 
+// (Mantidas por enquanto)
 function handleEditOccurrence(groupId) {
     const incident = getFilteredOccurrences().get(groupId);
     if (incident) {
@@ -996,6 +918,7 @@ function handleNewAbsenceFromHistory(studentId) {
 
 /**
  * Lida com todas as ações na tabela de alunos usando delegação de eventos.
+ * (Mantida por enquanto)
  */
 async function handleStudentTableActions(e) {
     const editBtn = e.target.closest('.edit-student-btn');
@@ -1037,3 +960,4 @@ async function handleStudentTableActions(e) {
         }
     }
 }
+
