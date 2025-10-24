@@ -3,10 +3,11 @@
 // RESPONSABILIDADE: Todas as funções que manipulam a UI (desenhar,
 // abrir modais, gerar HTML).
 //
-// ATUALIZAÇÃO (REFATORAÇÃO PASSO 5 - LIMPEZA PÓS-ADMIN):
-// 1. Removidas as funções `renderStudentsList`, `resetStudentForm` e
-//    `openSettingsModal`.
-// 2. Essa responsabilidade agora pertence exclusivamente ao `module-admin.js`.
+// ATUALIZAÇÃO (REFATORAÇÃO PASSO 1 - CORREÇÃO):
+// 1. A constante `actionDisplayTitles` foi MOVIDA para `reports.js`.
+// 2. Adicionada a importação de `actionDisplayTitles` de `reports.js`
+//    para que as funções `renderAbsences` e `openAbsenceModalForStudent`
+//    continuem a funcionar corretamente.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -724,23 +725,56 @@ export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
 
 /**
  * Renderiza a lista de alunos no modal "Gerir Alunos".
- * (REMOVIDO - Movido para module-admin.js)
+ * A lógica de clique será gerenciada por delegação de eventos em `main.js`.
  */
-// export const renderStudentsList = () => { ... };
+export const renderStudentsList = () => {
+    const tableBody = document.getElementById('students-list-table');
+    if (!tableBody) return; // Adiciona guarda de segurança
+    
+    tableBody.innerHTML = ''; // Limpa a tabela antes de redesenhar.
+    
+    state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="px-4 py-2 text-sm text-gray-900">${student.name}</td>
+            <td class="px-4 py-2 text-sm text-gray-500">${student.class}</td>
+            <td class="px-4 py-2 text-right text-sm space-x-2">
+                <button class="edit-student-btn text-yellow-600 hover:text-yellow-900" data-id="${student.matricula}" title="Editar">
+                    <i class="fas fa-pencil-alt"></i>
+                </button>
+                <button class="delete-student-btn text-red-600 hover:text-red-900" data-id="${student.matricula}" title="Excluir">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>`;
+        tableBody.appendChild(row);
+    });
+};
 
 
 /**
  * Reseta o formulário de adição/edição de aluno.
- * (REMOVIDO - Movido para module-admin.js)
  */
-// export const resetStudentForm = () => { ... };
+export const resetStudentForm = () => {
+    document.getElementById('student-form-title').textContent = 'Adicionar Novo Aluno';
+    document.getElementById('student-form').reset();
+    document.getElementById('student-id-input').value = '';
+    document.getElementById('student-matricula-input').readOnly = false;
+    document.getElementById('student-matricula-input').classList.remove('bg-gray-100');
+    document.getElementById('cancel-edit-student-btn').classList.add('hidden');
+};
 
 /**
  * Funções de exibição das telas de login/registro.
- * (REMOVIDO - Movido para module-auth.js)
  */
-// export const showLoginView = () => { ... };
-// export const showRegisterView = () => { ... };
+export const showLoginView = () => {
+    dom.registerView.classList.add('hidden');
+    dom.loginView.classList.remove('hidden');
+};
+
+export const showRegisterView = () => {
+    dom.loginView.classList.add('hidden');
+    dom.registerView.classList.remove('hidden');
+};
 
 
 /**
@@ -952,7 +986,17 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 
 /**
  * Abre o modal de configurações e preenche com os dados atuais.
- * (REMOVIDO - Movido para module-admin.js)
  */
-// export const openSettingsModal = () => { ... };
+export const openSettingsModal = () => {
+    const settingsForm = document.getElementById('settings-form');
+    if (settingsForm) {
+        settingsForm.reset();
+    }
+
+    document.getElementById('school-name-input').value = state.config.schoolName || '';
+    document.getElementById('school-city-input').value = state.config.city || '';
+    document.getElementById('school-logo-input').value = state.config.schoolLogoUrl || '';
+
+    openModal(dom.settingsModal);
+};
 
