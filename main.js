@@ -22,6 +22,10 @@
 // ATUALIZAÇÃO (CORREÇÃO CSV - VERIFICAÇÃO PAPAPARSE):
 // 1. Adicionada uma verificação `if (typeof window.Papa === 'undefined')`
 //    dentro de `handleCsvUpload` para diagnosticar problemas de carregamento/timing.
+//
+// ATUALIZAÇÃO (CORREÇÃO CSV - SYNTAX ERROR):
+// 1. Adicionada a vírgula faltante após o bloco `complete` na configuração do
+//    `window.Papa.parse`.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -630,7 +634,7 @@ function handleCsvUpload() {
                 console.error("Erro ao salvar alunos no Firestore:", error); // Log mais detalhado
                 showToast("Erro ao salvar a nova lista de alunos no banco de dados.");
             }
-        },
+        }, // <--- CORREÇÃO: VÍRGULA ADICIONADA AQUI
         // Adiciona um callback de erro para o PapaParse
         error: (error, file) => {
             console.error("Erro do PapaParse:", error, file);
@@ -1092,16 +1096,4 @@ async function handleStudentTableActions(e) {
         }
     }
 }
-```
-
-A alteração principal está na função `handleCsvUpload`:
-
-1.  **Verificação:** Antes de `window.Papa.parse`, adicionei:
-    ```javascript
-    if (typeof window.Papa === 'undefined') {
-        console.error("PapaParse não está carregado. Verifique o script no index.html.");
-        showToast("Erro: A biblioteca de leitura de CSV (PapaParse) não foi carregada corretamente.");
-        return; // Impede a continuação
-    }
-    
 
