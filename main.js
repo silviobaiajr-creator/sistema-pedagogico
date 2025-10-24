@@ -3,79 +3,132 @@
 // RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra a lógica de
 // eventos, submissão de formulários e a comunicação entre a UI e o Firestore.
 //
-// ... (histórico anterior omitido para clareza) ...
+// ATUALIZAÇÃO (REFATORAÇÃO PASSO 1):
+// 1. As importações de funções de relatório (`generateAndShowGeneralReport`,
+//    `openOccurrenceRecordModal`, etc.) foram atualizadas para apontar
+//    para o novo arquivo `reports.js` em vez de `ui.js`.
+// 2. Nenhuma outra lógica foi alterada neste passo.
 //
-// ATUALIZAÇÃO (REFATORAÇÃO occurrence.js):
-// 1. Importado o novo módulo `initOccurrenceListeners`.
-// 2. Removidas as importações de `openOccurrenceModal`, `openFollowUpModal`, `getFilteredOccurrences` (de ui.js).
-// 3. Removidas as funções `handleOccurrenceSubmit`, `handleFollowUpSubmit`, `handleEditOccurrence`.
-// 4. `setupEventListeners` agora chama `initOccurrenceListeners()`.
-// 5. Ajustada a função `setupListClickListeners` para focar apenas em Busca Ativa.
+// ATUALIZAÇÃO (CORREÇÃO CSV):
+// 1. Alterados os `setupEventListeners` para usar as referências do objeto `dom`
+//    (ex: `dom.uploadCsvBtn`) em vez de `document.getElementById()`.
+// 2. Alterada a função `handleCsvUpload` para também usar as referências do
+//    objeto `dom` (ex: `dom.csvFile`, `dom.csvFeedback`).
+//
+// ATUALIZAÇÃO (CORREÇÃO CSV - PAPA.PARSE):
+// 1. Alterada a chamada `Papa.parse` para `window.Papa.parse` para corrigir
+//    o erro de escopo do módulo.
+//
+// ATUALIZAÇÃO (CORREÇÃO CSV - VERIFICAÇÃO PAPAPARSE):
+// 1. Adicionada uma verificação `if (typeof window.Papa === 'undefined')`
+//    dentro de `handleCsvUpload` para diagnosticar problemas de carregamento/timing.
+//
+// ATUALIZAÇÃO (CORREÇÃO CSV - SYNTAX ERROR):
+// 1. Adicionada a vírgula faltante após o bloco `complete` na configuração do
+//    `window.Papa.parse`.
+//
+// ATUALIZAÇÃO (CORREÇÃO CSV - IMPORT DINÂMICO):
+// 1. Removida a verificação `typeof window.Papa === 'undefined'`.
+// 2. Adicionada a lógica de `import()` dinâmico para carregar PapaParse
+//    somente quando a função `handleCsvUpload` for chamada.
+//
+// ATUALIZAÇÃO (REFATORAÇÃO auth.js):
+// 1. Importado o novo módulo `initAuthListeners`.
+// 2. Removidas as importações de `showLoginView` e `showRegisterView` (de ui.js).
+// 3. Removidas as funções `handleLogin`, `handleRegister` e `getAuthErrorMessage`.
+// 4. `setupEventListeners` agora chama `initAuthListeners()`.
+//
+// ATUALIZAÇÃO (REFATORAÇÃO settings.js):
+// 1. Importado o novo módulo `initSettingsListeners`.
+// 2. Removida a importação de `openSettingsModal` (de ui.js).
+// 3. Removida a função `handleSettingsSubmit`.
+// 4. `setupEventListeners` agora chama `initSettingsListeners()`.
+//
+// ATUALIZAÇÃO (REFATORAÇÃO students.js):
+// 1. Importado o novo módulo `initStudentListeners`.
+// 2. Removidas as importações de `renderStudentsList` e `resetStudentForm` (de ui.js).
+// 3. Removidas as funções `handleCsvUpload`, `handleStudentFormSubmit` e `handleStudentTableActions`.
+// 4. `setupEventListeners` agora chama `initStudentListeners()`.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
 
-// Serviços do Firebase
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+// Serviços do Firebase para autenticação e banco de dados
+import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { onSnapshot, query, writeBatch, doc, setDoc, where, getDocs, collection, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Módulos internos da aplicação
 import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
+// <-- CORREÇÃO: Importa a nova função 'loadScript' de utils.js
 import { showToast, closeModal, shareContent, openModal, loadScript } from './utils.js';
 import { loadStudents, saveSchoolConfig, loadSchoolConfig, getCollectionRef, getStudentsDocRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord } from './firestore.js';
 
-// Módulos de Funcionalidade
+// <-- MUDANÇA: Importa o novo módulo de autenticação
 import { initAuthListeners } from './auth.js';
+// <-- MUDANÇA: Importa o novo módulo de configurações
 import { initSettingsListeners } from './settings.js';
+// <-- MUDANÇA: Importa o novo módulo de alunos
 import { initStudentListeners } from './students.js';
-// <-- MUDANÇA: Importa o novo módulo de ocorrências
-import { initOccurrenceListeners } from './occurrence.js';
 
 // Funções de UI que *permaneceram* em ui.js
 import {
     render,
-    handleNewAbsenceAction, // Callback para autocomplete da Busca Ativa
+    // <-- MUDANÇA: renderStudentsList, (removido)
+    openOccurrenceModal,
+    handleNewAbsenceAction,
     setupAutocomplete,
-    openAbsenceModalForStudent, // Usado em handleAbsenceSubmit e handleEditAbsence
-    toggleFamilyContactFields, // Usado nos listeners de radio
-    toggleVisitContactFields, // Usado nos listeners de radio
-    // <-- MUDANÇA: getFilteredOccurrences, (removido)
-    // <-- MUDANÇA: openOccurrenceModal, (removido)
-    // <-- MUDANÇA: openFollowUpModal, (removido)
+    openAbsenceModalForStudent,
+    // <-- MUDANÇA: showLoginView, (removido)
+    // <-- MUDANÇA: showRegisterView, (removido)
+    // <-- MUDANÇA: resetStudentForm, (removido)
+    toggleFamilyContactFields,
+    toggleVisitContactFields,
+    getFilteredOccurrences, // Necessário para handleEditOccurrence
+    // <-- MUDANÇA: openSettingsModal, (removido)
+    openFollowUpModal
 } from './ui.js';
 
-// Funções de relatório importadas de reports.js
+// NOVO: Funções de relatório importadas de reports.js
 import {
-    // openStudentSelectionModal, // Chamado por occurrence.js agora
-    // openOccurrenceRecordModal, // Chamado por occurrence.js agora
-    // openHistoryModal, // Chamado por occurrence.js agora
-    openAbsenceHistoryModal, // Ainda chamado aqui (Busca Ativa)
-    openFichaViewModal, // Ainda chamado aqui (Busca Ativa)
-    generateAndShowConsolidatedFicha, // Ainda chamado aqui (Busca Ativa)
-    generateAndShowOficio, // Ainda chamado aqui (Busca Ativa)
-    generateAndShowGeneralReport, // Ainda chamado aqui (Botão Geral Ocorrências)
-    generateAndShowBuscaAtivaReport // Ainda chamado aqui (Botão Geral Busca Ativa)
+    openStudentSelectionModal,
+    openOccurrenceRecordModal,
+    openHistoryModal,
+    openAbsenceHistoryModal,
+    openFichaViewModal,
+    generateAndShowConsolidatedFicha,
+    generateAndShowOficio,
+    generateAndShowGeneralReport,
+    generateAndShowBuscaAtivaReport
 } from './reports.js';
 
-import * as logic from './logic.js'; // Usado em handleSendToCT
+import * as logic from './logic.js';
 
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Popula as referências do DOM AGORA,
+    // garantindo que todos os elementos existem antes de usá-los.
     initializeDOMReferences();
-    state.db = db;
 
+    state.db = db; // Armazena a instância do DB no estado global
+
+    // Observador do estado de autenticação do Firebase
     onAuthStateChanged(auth, async user => {
-        detachFirestoreListeners();
+        detachFirestoreListeners(); // Limpa listeners antigos para evitar duplicação
+
         if (user) {
+            // Utilizador AUTENTICADO
             state.userId = user.uid;
             state.userEmail = user.email;
             dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
+
             dom.loginScreen.classList.add('hidden');
             dom.mainContent.classList.remove('hidden');
             dom.userProfile.classList.remove('hidden');
+
             try {
+                // Carrega dados essenciais
                 await loadSchoolConfig();
                 await loadStudents();
                 dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
@@ -85,20 +138,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast(error.message);
             }
         } else {
+            // Utilizador NÃO AUTENTICADO
             state.userId = null;
             state.userEmail = null;
             state.students = [];
             state.occurrences = [];
             state.absences = [];
+
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
-            render();
+            render(); // Renderiza a tela de login vazia (ou estado inicial)
         }
     });
 
+    // Movido para ser chamado DEPOIS de initializeDOMReferences()
     setupEventListeners();
-    // Configura autocomplete apenas para a Busca Ativa (o de ocorrências está em occurrence.js agora).
+
+    // Configura autocomplete apenas para a Busca Ativa.
     setupAutocomplete('search-absences', 'absence-student-suggestions', handleNewAbsenceAction);
 });
 
@@ -110,14 +167,12 @@ function setupFirestoreListeners() {
     const occurrencesQuery = query(getCollectionRef('occurrence'));
     state.unsubscribeOccurrences = onSnapshot(occurrencesQuery, (snapshot) => {
         state.occurrences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Renderiza apenas se a aba ativa for a correta
         if (state.activeTab === 'occurrences') render();
     }, (error) => console.error("Erro ao buscar ocorrências:", error));
 
     const absencesQuery = query(getCollectionRef('absence'));
     state.unsubscribeAbsences = onSnapshot(absencesQuery, (snapshot) => {
         state.absences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Renderiza apenas se a aba ativa for a correta
         if (state.activeTab === 'absences') render();
     }, (error) => console.error("Erro ao buscar ações:", error));
 };
@@ -133,7 +188,7 @@ function detachFirestoreListeners() {
 
 function setupEventListeners() {
     // Autenticação
-    initAuthListeners();
+    initAuthListeners(); // Chama o inicializador do novo módulo
     dom.logoutBtn.addEventListener('click', () => signOut(auth));
 
     // Navegação por Abas
@@ -141,50 +196,59 @@ function setupEventListeners() {
     dom.tabAbsences.addEventListener('click', () => switchTab('absences'));
 
     // Submissão de Formulários (exceto os movidos)
-    // <-- MUDANÇA: occurrenceForm (removido, está em occurrence.js)
+    dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
-    // <-- MUDANÇA: followUpForm (removido, está em occurrence.js)
+    // <-- MUDANÇA: settingsForm (removido, está em settings.js)
+    dom.followUpForm.addEventListener('submit', handleFollowUpSubmit);
+    // <-- MUDANÇA: studentForm (removido, está em students.js)
 
     // Fechar Modais (Genérico)
     setupModalCloseButtons();
 
-    // --- Ocorrências: Listeners movidos para initOccurrenceListeners() ---
-    // document.getElementById('add-occurrence-btn').addEventListener('click', ...);
-    // dom.searchOccurrences.addEventListener('input', ...);
-    // dom.occurrenceStartDate.addEventListener('change', ...);
-    // dom.occurrenceEndDate.addEventListener('change', ...);
-    // document.getElementById('occurrence-filter-type').addEventListener('change', ...);
-    // document.getElementById('occurrence-filter-status').addEventListener('change', ...);
-    dom.generalReportBtn.addEventListener('click', generateAndShowGeneralReport); // Botão geral ainda fica aqui
+    // --- Ocorrências: Listeners ---
+    document.getElementById('add-occurrence-btn').addEventListener('click', () => openOccurrenceModal());
+    dom.searchOccurrences.addEventListener('input', (e) => { state.filterOccurrences = e.target.value; render(); });
+    dom.occurrenceStartDate.addEventListener('change', (e) => { state.filtersOccurrences.startDate = e.target.value; render(); });
+    dom.occurrenceEndDate.addEventListener('change', (e) => { state.filtersOccurrences.endDate = e.target.value; render(); });
+    document.getElementById('occurrence-filter-type').addEventListener('change', (e) => { state.filtersOccurrences.type = e.target.value; render(); });
+    document.getElementById('occurrence-filter-status').addEventListener('change', (e) => { state.filtersOccurrences.status = e.target.value; render(); });
+    dom.generalReportBtn.addEventListener('click', generateAndShowGeneralReport);
 
     // --- Busca Ativa: Listeners ---
-    document.getElementById('general-ba-report-btn').addEventListener('click', generateAndShowBuscaAtivaReport); // Botão geral
+    document.getElementById('general-ba-report-btn').addEventListener('click', generateAndShowBuscaAtivaReport);
     document.getElementById('filter-process-status').addEventListener('change', (e) => { state.filtersAbsences.processStatus = e.target.value; render(); });
     document.getElementById('filter-pending-action').addEventListener('change', (e) => { state.filtersAbsences.pendingAction = e.target.value; render(); });
     document.getElementById('filter-return-status').addEventListener('change', (e) => { state.filtersAbsences.returnStatus = e.target.value; render(); });
 
+    // <-- MUDANÇA: Gerenciamento de Alunos movido para initStudentListeners()
+    // document.getElementById('manage-students-btn').addEventListener('click', ...);
+    // dom.uploadCsvBtn.addEventListener('click', handleCsvUpload);
+    // dom.cancelEditStudentBtn.addEventListener('click', resetStudentForm);
+
+    // <-- MUDANÇA: Configurações movido para initSettingsListeners()
+    // dom.settingsBtn.addEventListener('click', openSettingsModal);
+
     // <-- MUDANÇA: Inicializa os módulos
     initSettingsListeners();
-    initStudentListeners();
-    initOccurrenceListeners(); // Chama o inicializador do novo módulo de ocorrências
+    initStudentListeners(); // Chama o inicializador do novo módulo de alunos
 
-    // <-- MUDANÇA: Ações nas Listas agora focada em Busca Ativa
-    setupListClickListeners_Absences(); // Renomeada para clareza
+    // Ações nas Listas (Ocorrências e Busca Ativa ainda aqui)
+    setupListClickListeners();
+
+    // <-- MUDANÇA: Listener da tabela de alunos movido para initStudentListeners()
+    // dom.studentsListTable.addEventListener('click', handleStudentTableActions);
 
     // Ações em Modais Genéricos
-    document.getElementById('confirm-delete-btn').addEventListener('click', handleDeleteConfirmation); // Handler genérico
-    // <-- MUDANÇA: action-type listener movido para absence.js
-    // document.getElementById('action-type').addEventListener('change', ...);
+    document.getElementById('confirm-delete-btn').addEventListener('click', handleDeleteConfirmation);
+    document.getElementById('action-type').addEventListener('change', (e) => handleActionTypeChange(e.target.value));
 
-    // Listeners para os rádios da Busca Ativa (ainda aqui)
+    // Listeners para os rádios da Busca Ativa (mostra/esconde campos)
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
-    // Listener do radio do modal de FollowUp (ocorrências) também fica aqui, pois `toggleFamilyContactFields` é compartilhado
     document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio =>
         radio.addEventListener('change', (e) => {
             const enable = e.target.value === 'yes';
             toggleFamilyContactFields(enable, document.getElementById('follow-up-family-contact-fields'));
-            // Lógica para tornar campo obrigatório (pode ser movida para occurrence.js se preferir)
             const familyActionsTextarea = document.getElementById('follow-up-family-actions');
             if (familyActionsTextarea) {
                 familyActionsTextarea.required = enable;
@@ -198,11 +262,10 @@ function setupEventListeners() {
         })
     );
 
-    // Listener para fechar menus kebab (genérico)
+    // Listener para fechar menus kebab
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.kebab-menu-container')) {
             document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
-            // Restaura overflow dos acordeões abertos ao clicar fora
             document.querySelectorAll('.process-content').forEach(c => {
                 if (c.style.maxHeight && c.style.maxHeight !== '0px') {
                     c.style.overflow = 'hidden';
@@ -233,539 +296,622 @@ function switchTab(tabName) {
     dom.tabAbsences.classList.toggle('tab-active', !isOccurrences);
     dom.tabContentOccurrences.classList.toggle('hidden', !isOccurrences);
     dom.tabContentAbsences.classList.toggle('hidden', isOccurrences);
-    render(); // Chama a renderização correta
+    render();
 }
 
-// <-- MUDANÇA: Função movida para occurrence.js
-// async function handleOccurrenceSubmit(e) { ... }
+/**
+ * Lida com a submissão do formulário de ocorrências (criação ou edição do FATO COLETIVO).
+ */
+async function handleOccurrenceSubmit(e) {
+    e.preventDefault();
+    const groupId = document.getElementById('occurrence-group-id').value;
 
-// <-- MUDANÇA: Função movida para occurrence.js
-// async function handleFollowUpSubmit(e) { ... }
+    if (state.selectedStudents.size === 0) {
+        return showToast("Selecione pelo menos um aluno.");
+    }
+
+    const collectiveData = {
+        date: document.getElementById('occurrence-date').value,
+        occurrenceType: document.getElementById('occurrence-type').value,
+        description: document.getElementById('description').value.trim(),
+    };
+
+    try {
+        if (groupId) {
+            // --- MODO DE EDIÇÃO DO FATO ---
+            const originalIncident = getFilteredOccurrences().get(groupId);
+            if (!originalIncident) throw new Error("Incidente original não encontrado.");
+
+            const historyAction = "Dados gerais do fato foram atualizados.";
+            const batch = writeBatch(db);
+            const studentIdsInvolved = [...state.selectedStudents.keys()];
+
+            // Atualiza os dados coletivos para todos os alunos que PERMANECEM no incidente.
+            originalIncident.records.forEach(record => {
+                if (studentIdsInvolved.includes(record.studentId)) {
+                    const recordRef = doc(getCollectionRef('occurrence'), record.id);
+                    batch.update(recordRef, collectiveData);
+                }
+            });
+
+            // Adiciona alunos novos ao incidente.
+            for (const studentId of studentIdsInvolved) {
+                const isNewStudent = !originalIncident.records.some(r => r.studentId === studentId);
+                if (isNewStudent) {
+                    const newRecordRef = doc(collection(db, getCollectionRef('occurrence').path));
+                    const templateRecord = originalIncident.records[0] || {};
+
+                    const newRecordData = {
+                        ...collectiveData,
+                        studentId,
+                        occurrenceGroupId: groupId,
+                        statusIndividual: 'Aguardando Contato',
+                        schoolActionsIndividual: '',
+                        providenciasFamilia: '',
+                        parecerIndividual: '',
+                        meetingDate: null,
+                        meetingTime: null,
+                        contactSucceeded: null,
+                        contactType: null,
+                        contactDate: null,
+                        history: templateRecord.history || [],
+                        createdAt: new Date(),
+                        createdBy: state.userEmail
+                    };
+                    batch.set(newRecordRef, newRecordData);
+                }
+            }
+
+            // Deleta registros de alunos que foram REMOVIDOS do incidente.
+            const removedStudentIds = originalIncident.records
+                .map(r => r.studentId)
+                .filter(id => !studentIdsInvolved.includes(id));
+
+            for (const studentId of removedStudentIds) {
+                const recordToDelete = originalIncident.records.find(r => r.studentId === studentId);
+                if (recordToDelete) {
+                    batch.delete(doc(getCollectionRef('occurrence'), recordToDelete.id));
+                }
+            }
+
+            // Adiciona a ação ao histórico de todos os registros que permanecerão.
+            const recordsToUpdateHistory = await getDocs(query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', groupId)));
+            recordsToUpdateHistory.docs.forEach(docSnapshot => {
+                 if (studentIdsInvolved.includes(docSnapshot.data().studentId)) {
+                    const newHistoryEntry = { action: historyAction, user: state.userEmail, timestamp: new Date() };
+                    const currentHistory = docSnapshot.data().history || [];
+                    batch.update(docSnapshot.ref, { history: [...currentHistory, newHistoryEntry] });
+                 }
+            });
+
+            await batch.commit();
+            showToast('Fato da ocorrência atualizado com sucesso!');
+
+        } else {
+            // --- MODO DE CRIAÇÃO ---
+            const counterRef = getCounterDocRef('occurrences');
+            const newGroupId = await runTransaction(db, async (transaction) => {
+                const counterDoc = await transaction.get(counterRef);
+                const currentYear = new Date().getFullYear();
+                let newCount = 1;
+                if (counterDoc.exists() && counterDoc.data().year === currentYear) {
+                    newCount = counterDoc.data().count + 1;
+                }
+                transaction.set(counterRef, { count: newCount, year: currentYear });
+                return `OCC-${currentYear}-${String(newCount).padStart(3, '0')}`;
+            });
+
+            for (const studentId of state.selectedStudents.keys()) {
+                const recordData = {
+                    ...collectiveData,
+                    studentId,
+                    occurrenceGroupId: newGroupId,
+                    statusIndividual: 'Aguardando Contato',
+                    schoolActionsIndividual: '',
+                    providenciasFamilia: '',
+                    parecerIndividual: '',
+                    meetingDate: null,
+                    meetingTime: null,
+                    contactSucceeded: null,
+                    contactType: null,
+                    contactDate: null,
+                };
+                await addRecordWithHistory('occurrence', recordData, 'Incidente registado', state.userEmail);
+            }
+            showToast(`Ocorrência ${newGroupId} registada com sucesso!`);
+        }
+        closeModal(dom.occurrenceModal);
+    } catch (error) {
+        console.error("Erro ao salvar ocorrência:", error);
+        showToast(getFirestoreErrorMessage(error.code) || 'Erro ao salvar a ocorrência.');
+    }
+}
+
+/**
+ * Lida com a submissão do formulário de acompanhamento individual.
+ */
+async function handleFollowUpSubmit(e) {
+    e.preventDefault();
+    const studentId = dom.followUpForm.dataset.studentId;
+    const recordId = dom.followUpForm.dataset.recordId;
+
+    if (!studentId || !recordId) {
+        return showToast("Erro: ID do aluno ou do registo não encontrado.");
+    }
+
+    // Coleta todos os dados do formulário de acompanhamento
+    const parecer = document.getElementById('follow-up-parecer').value.trim();
+    const contactSucceededRadio = document.querySelector('input[name="follow-up-contact-succeeded"]:checked');
+    const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
+
+    // --- LÓGICA DE STATUS AUTOMÁTICO ---
+    let newStatus = 'Pendente'; // Padrão: Contato feito, mas sem parecer
+    if (parecer) {
+        newStatus = 'Resolvido';
+    } else if (!contactSucceeded || contactSucceeded === 'no') { // Se não conseguiu contato ou marcou 'não'
+        newStatus = 'Aguardando Contato';
+    }
+    // --- Fim da Lógica ---
+
+    const dataToUpdate = {
+        // Campos de Acompanhamento
+        schoolActionsIndividual: document.getElementById('follow-up-actions').value.trim(),
+        providenciasFamilia: document.getElementById('follow-up-family-actions').value.trim(),
+        parecerIndividual: parecer,
+
+        // Campos Movidos (Convocação)
+        meetingDate: document.getElementById('follow-up-meeting-date').value || null,
+        meetingTime: document.getElementById('follow-up-meeting-time').value || null,
+
+        // Campos Movidos (Contato)
+        contactSucceeded: contactSucceeded,
+        contactType: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-type').value : null,
+        contactDate: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-date').value : null,
+
+        // Status Automático
+        statusIndividual: newStatus
+    };
+
+    const historyAction = `Acompanhamento atualizado (Status: ${dataToUpdate.statusIndividual}).`;
+
+    try {
+        await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
+        showToast("Acompanhamento salvo com sucesso!");
+        closeModal(dom.followUpModal);
+    } catch (error) {
+        console.error("Erro ao salvar acompanhamento:", error);
+        showToast(getFirestoreErrorMessage(error.code) || 'Erro ao salvar o acompanhamento.');
+    }
+}
 
 
 async function handleAbsenceSubmit(e) {
     e.preventDefault();
     const form = e.target;
-    // Validação básica do HTML5
     if (!form.checkValidity()) {
-        form.reportValidity(); // Mostra as mensagens de erro padrão do navegador
-        // Encontra o primeiro campo inválido para focar (melhora usabilidade)
-        const firstInvalidField = form.querySelector(':invalid');
-        if (firstInvalidField) {
-             firstInvalidField.focus();
-        }
-        return showToast('Por favor, preencha todos os campos obrigatórios marcados.');
+        form.reportValidity();
+        return showToast('Por favor, preencha todos os campos obrigatórios.');
     }
 
-    const data = getAbsenceFormData(); // Pega os dados do formulário
-    if (!data) return; // Se getAbsenceFormData retornar null (ex: aluno inválido)
+    const data = getAbsenceFormData();
+    if (!data) return;
 
     try {
-        const id = data.id; // Pega o ID (se estiver editando)
-        delete data.id; // Remove o ID do objeto de dados a ser salvo
+        const id = data.id;
+        delete data.id;
 
-        const historyAction = id ? "Dados da ação atualizados." : `Ação '${actionDisplayTitles[data.actionType] || data.actionType}' registada.`;
+        const historyAction = id ? "Dados da ação atualizados." : `Ação de Busca Ativa registada.`;
 
         if (id) {
-            // Atualiza registro existente
             await updateRecordWithHistory('absence', id, data, historyAction, state.userEmail);
         } else {
-            // Cria novo registro
             await addRecordWithHistory('absence', data, historyAction, state.userEmail);
         }
 
         showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
-        closeModal(dom.absenceModal); // Fecha o modal
+        closeModal(dom.absenceModal);
 
-        // Verifica se o aluno retornou e se a próxima ação é 'analise'
-        const studentReturned = data.contactReturned === 'yes' || data.visitReturned === 'yes' || data.ctReturned === 'yes';
-        const nextActionIsAnalise = determineNextActionForStudent(data.studentId) === 'analise';
-
-        // Se o aluno retornou E a próxima ação é análise, abre o modal de análise
-        // Evita abrir análise se já estiver concluído ou se a próxima ação for outra
-        if (studentReturned && nextActionIsAnalise) {
+        const studentReturned = data.contactReturned === 'yes' || data.visitReturned === 'yes';
+        if (studentReturned) {
             const student = state.students.find(s => s.matricula === data.studentId);
-            // Adiciona um pequeno delay para garantir que o modal anterior fechou
-            setTimeout(() => {
-                if(student) openAbsenceModalForStudent(student, 'analise');
-            }, 350);
+            setTimeout(() => openAbsenceModalForStudent(student, 'analise'), 350);
         }
     } catch (error) {
         console.error("Erro ao salvar ação de BA:", error);
-        const firestoreError = error.code ? getFirestoreErrorMessage(error.code) : null;
-        showToast(firestoreError || 'Erro ao salvar ação.');
+        showToast(getFirestoreErrorMessage(error.code) || 'Erro ao salvar ação.');
     }
 }
 
+// <-- MUDANÇA: Funções movidas para students.js
+// async function handleCsvUpload() { ... }
+// async function handleStudentFormSubmit(e) { ... }
 
-// Ações de Exclusão (Genérico)
-/**
- * Handler genérico chamado pelo botão "Excluir" no modal de confirmação.
- * Usa o estado `state.recordToDelete` que foi preparado pelo listener específico (ex: handleDeleteOccurrence).
- */
+// Ações (Excluir, Gerar Relatório)
 async function handleDeleteConfirmation() {
     if (!state.recordToDelete) return;
-
-    const { type, id } = state.recordToDelete; // 'id' pode ser groupId para ocorrência
-
+    const { type, id } = state.recordToDelete;
     try {
-        let successMessage = 'Registro excluído com sucesso.';
-
         if (type === 'occurrence') {
-            // Excluir incidente (grupo) e todos os registros individuais associados
             const q = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', id));
             const querySnapshot = await getDocs(q);
-            if (querySnapshot.empty) {
-                 // Segurança: Se não encontrou registros, talvez já tenha sido excluído?
-                 console.warn(`Nenhum registro encontrado para o grupo de ocorrência ${id} ao tentar excluir.`);
-                 // Poderia tentar excluir só pelo ID principal se fosse um registro individual sem grupo?
-                 // await deleteRecord('occurrence', id); // CUIDADO: verificar a lógica se isso for possível
-            } else {
-                const batch = writeBatch(db);
-                querySnapshot.forEach(doc => batch.delete(doc.ref)); // Adiciona todos ao batch
-                await batch.commit(); // Executa a exclusão em lote
-                successMessage = 'Incidente e todos os registros associados foram excluídos.';
-            }
+            const batch = writeBatch(db);
+            querySnapshot.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            showToast('Incidente e todos os registros associados foram excluídos.');
         } else if (type === 'absence-cascade') {
-            // Excluir ação de CT e a análise associada (se houver)
             const { ctId, analiseId } = state.recordToDelete;
             const batch = writeBatch(db);
-            batch.delete(doc(getCollectionRef('absence'), ctId)); // Deleta a ação CT
-            if (analiseId) {
-                batch.delete(doc(getCollectionRef('absence'), analiseId)); // Deleta a análise
-            }
+            batch.delete(doc(getCollectionRef('absence'), ctId));
+            if (analiseId) batch.delete(doc(getCollectionRef('absence'), analiseId));
             await batch.commit();
-            successMessage = 'Encaminhamento e Análise associada foram excluídos.';
-        } else if (type === 'absence') {
-             // Excluir uma única ação de busca ativa
-             await deleteRecord('absence', id);
-             successMessage = 'Ação de Busca Ativa excluída com sucesso.';
+            showToast('Encaminhamento e Análise excluídos.');
+        } else {
+            await deleteRecord(type, id);
+            showToast('Registro excluído com sucesso.');
         }
-        // Adicionar outros tipos aqui se necessário (ex: type === 'student')
-
-        showToast(successMessage);
-    } catch (error) {
-        console.error(`Erro ao excluir ${type} com id ${id}:`, error);
-        const firestoreError = error.code ? getFirestoreErrorMessage(error.code) : null;
-        showToast(firestoreError || 'Erro ao excluir.');
-    } finally {
-        state.recordToDelete = null; // Limpa o estado
-        closeModal(dom.deleteConfirmModal); // Fecha o modal de confirmação
-        // render(); // O onSnapshot deve cuidar da atualização da lista
-    }
+    } catch (error) { showToast('Erro ao excluir.'); console.error(error); } finally { state.recordToDelete = null; closeModal(dom.deleteConfirmModal); }
 }
 
+function handleReportGeneration() {
+    const studentId = document.getElementById('student-select').value;
+    if (!studentId) return showToast('Por favor, selecione um aluno.');
+    const reportType = dom.reportGeneratorModal.dataset.reportType;
+    if (reportType === 'occurrences') {
+        showToast("Use o Relatório Geral e o filtro de aluno para gerar relatórios individuais.");
+    } else {
+        generateAndShowConsolidatedFicha(studentId);
+    }
+    closeModal(dom.reportGeneratorModal);
+}
 
-// <-- MUDANÇA: Função movida para occurrence.js
-// function getOccurrenceHistoryMessage(original, updated) { ... }
+// Lógica de UI e Dados (sem alterações significativas)
+function getOccurrenceHistoryMessage(original, updated) {
+    // ... (Esta função pode ser removida se não usada, pois o histórico agora é mais direto)
+    return "Dados do incidente foram atualizados.";
+}
 
-/**
- * Coleta os dados do formulário de Busca Ativa.
- * (Movido de main.js, mas permanece aqui pois é chamado por handleAbsenceSubmit)
- */
 function getAbsenceFormData() {
     const studentName = document.getElementById('absence-student-name').value.trim();
     const student = state.students.find(s => s.name === studentName);
     if (!student) {
-        showToast("Aluno inválido selecionado no formulário.");
+        showToast("Aluno inválido.");
         return null;
     }
 
     const data = {
-        id: document.getElementById('absence-id').value || null, // ID para edição
+        id: document.getElementById('absence-id').value,
         studentId: student.matricula,
         actionType: document.getElementById('action-type').value,
         processId: document.getElementById('absence-process-id').value,
-        // Campos de Faltas (podem ser null se não for a 1ª ação)
         periodoFaltasStart: document.getElementById('absence-start-date').value || null,
         periodoFaltasEnd: document.getElementById('absence-end-date').value || null,
         absenceCount: document.getElementById('absence-count').value || null,
     };
 
-    // Coleta dados específicos do tipo de ação
     if (data.actionType.startsWith('tentativa')) {
-        const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
+        const contactSucceeded = document.querySelector('input[name="contact-succeeded"]:checked');
         data.meetingDate = document.getElementById('meeting-date').value || null;
         data.meetingTime = document.getElementById('meeting-time').value || null;
-        data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
-        // Só coleta detalhes do contato se 'Sim' foi marcado
+        data.contactSucceeded = contactSucceeded ? contactSucceeded.value : null;
         if (data.contactSucceeded === 'yes') {
             data.contactType = document.getElementById('absence-contact-type').value || null;
             data.contactDate = document.getElementById('contact-date').value || null;
-            data.contactPerson = document.getElementById('contact-person').value.trim() || null;
-            data.contactReason = document.getElementById('contact-reason').value.trim() || null;
-        } else {
-             // Garante que campos dependentes fiquem nulos se 'Não' ou não marcado
-             data.contactType = null;
-             data.contactDate = null;
-             data.contactPerson = null;
-             data.contactReason = null;
+            data.contactPerson = document.getElementById('contact-person').value || null;
+            data.contactReason = document.getElementById('contact-reason').value || null;
         }
-        const contactReturnedRadio = document.querySelector('input[name="contact-returned"]:checked');
-        data.contactReturned = contactReturnedRadio ? contactReturnedRadio.value : null;
-
+        const contactReturned = document.querySelector('input[name="contact-returned"]:checked');
+        data.contactReturned = contactReturned ? contactReturned.value : null;
     } else if (data.actionType === 'visita') {
-        const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
-        data.visitAgent = document.getElementById('visit-agent').value.trim() || null;
+        const visitSucceeded = document.querySelector('input[name="visit-succeeded"]:checked');
+        data.visitAgent = document.getElementById('visit-agent').value || null;
         data.visitDate = document.getElementById('visit-date').value || null;
-        data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
-        // Só coleta detalhes se 'Sim' foi marcado
+        data.visitSucceeded = visitSucceeded ? visitSucceeded.value : null;
         if (data.visitSucceeded === 'yes') {
-            data.visitContactPerson = document.getElementById('visit-contact-person').value.trim() || null;
-            data.visitReason = document.getElementById('visit-reason').value.trim() || null;
-            data.visitObs = document.getElementById('visit-obs').value.trim() || null;
-        } else {
-            // Garante que campos dependentes fiquem nulos
-            data.visitContactPerson = null;
-            data.visitReason = null;
-            data.visitObs = null;
+            data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
+            data.visitReason = document.getElementById('visit-reason').value || null;
+            data.visitObs = document.getElementById('visit-obs').value || null;
         }
-        const visitReturnedRadio = document.querySelector('input[name="visit-returned"]:checked');
-        data.visitReturned = visitReturnedRadio ? visitReturnedRadio.value : null;
-
+        const visitReturned = document.querySelector('input[name="visit-returned"]:checked');
+        data.visitReturned = visitReturned ? visitReturned.value : null;
     } else if (data.actionType === 'encaminhamento_ct') {
         data.ctSentDate = document.getElementById('ct-sent-date').value || null;
-        data.ctFeedback = document.getElementById('ct-feedback').value.trim() || null;
-        const ctReturnedRadio = document.querySelector('input[name="ct-returned"]:checked');
-        data.ctReturned = ctReturnedRadio ? ctReturnedRadio.value : null;
-        // Mantém número do ofício se já existir (ao editar)
-        const existingData = data.id ? state.absences.find(a => a.id === data.id) : null;
-        data.oficioNumber = existingData?.oficioNumber || null;
-        data.oficioYear = existingData?.oficioYear || null;
-
+        data.ctFeedback = document.getElementById('ct-feedback').value || null;
+        const ctReturned = document.querySelector('input[name="ct-returned"]:checked');
+        data.ctReturned = ctReturned ? ctReturned.value : null;
     } else if (data.actionType === 'analise') {
-        data.ctParecer = document.getElementById('ct-parecer').value.trim() || null;
+        data.ctParecer = document.getElementById('ct-parecer').value || null;
     }
-
-    // Remove o ID se for nulo (para evitar salvar um campo 'id: null' na criação)
-    if (data.id === null) {
-        delete data.id;
-    }
-
     return data;
 }
 
-// <-- MUDANÇA: Função movida para absence.js (ou ui.js, dependendo da decisão final)
-// function handleActionTypeChange(action) { ... }
+function handleActionTypeChange(action) {
+    document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
+    const groupToShow = action.startsWith('tentativa') ? 'group-tentativas' : `group-${action}`;
+    const groupElement = document.getElementById(groupToShow);
+    if (groupElement) groupElement.classList.remove('hidden');
+}
 
 // --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
 
-/**
- * Configura os botões de fechar para todos os modais.
- * (Movido de main.js, agora mais robusto)
- */
 function setupModalCloseButtons() {
     const modalMap = {
-        // IDs dos Botões de Fechar -> Referência do Modal no objeto dom
-        'close-modal-btn': dom.occurrenceModal,
-        'cancel-btn': dom.occurrenceModal, // Botão Cancelar do modal Ocorrência
-        'close-absence-modal-btn': dom.absenceModal,
-        'cancel-absence-btn': dom.absenceModal, // Botão Cancelar do modal Busca Ativa
-        'close-report-generator-btn': dom.reportGeneratorModal,
-        'cancel-report-generator-btn': dom.reportGeneratorModal, // Botão Cancelar do Gerador Relatório
+        'close-modal-btn': dom.occurrenceModal, 'cancel-btn': dom.occurrenceModal,
+        'close-absence-modal-btn': dom.absenceModal, 'cancel-absence-btn': dom.absenceModal,
+        'close-report-generator-btn': dom.reportGeneratorModal, 'cancel-report-generator-btn': dom.reportGeneratorModal,
         'close-notification-btn': dom.notificationModalBackdrop,
-        'close-student-selection-modal-btn': document.getElementById('student-selection-modal'), // Este modal não está no dom object
+        'close-student-selection-modal-btn': document.getElementById('student-selection-modal'),
         'close-report-view-btn': dom.reportViewModalBackdrop,
         'close-ficha-view-btn': dom.fichaViewModalBackdrop,
-        'close-history-view-btn': document.getElementById('history-view-modal-backdrop'), // Este modal não está no dom object
-        'close-students-modal-btn': dom.studentsModal,
-        'cancel-delete-btn': dom.deleteConfirmModal, // Botão Cancelar do modal de Exclusão
-        'close-settings-modal-btn': dom.settingsModal,
-        'cancel-settings-btn': dom.settingsModal, // Botão Cancelar do modal Configurações
+        'close-history-view-btn': document.getElementById('history-view-modal-backdrop'),
+        'close-students-modal-btn': dom.studentsModal, // Continua aqui, o listener está no main
+        'cancel-delete-btn': dom.deleteConfirmModal,
+        'close-settings-modal-btn': dom.settingsModal, // Continua aqui
+        'cancel-settings-btn': dom.settingsModal, // Continua aqui
         'close-follow-up-modal-btn': dom.followUpModal,
-        'cancel-follow-up-btn': dom.followUpModal // Botão Cancelar do modal Acompanhamento
+        'cancel-follow-up-btn': dom.followUpModal
     };
 
-    for (const [buttonId, modalElement] of Object.entries(modalMap)) {
-        const button = document.getElementById(buttonId);
-        if (button && modalElement) {
-            // Remove listener antigo se existir (para evitar duplicação em recarregamentos HMR)
+    for (const [id, modal] of Object.entries(modalMap)) {
+        const button = document.getElementById(id);
+        if (button && modal) {
+            // Remove listener antigo se existir (segurança)
             const oldListener = button.__clickListener;
             if (oldListener) {
                 button.removeEventListener('click', oldListener);
             }
-            // Adiciona o novo listener
-            const newListener = () => closeModal(modalElement);
+            // Adiciona novo listener
+            const newListener = () => closeModal(modal);
             button.addEventListener('click', newListener);
-            button.__clickListener = newListener; // Guarda referência
+            button.__clickListener = newListener; // Guarda referência para remover depois se necessário
 
-             // Remove atributo onclick antigo, se houver
+            // Remove atributo onclick se existir
              if (button.hasAttribute('onclick')) {
                 button.removeAttribute('onclick');
             }
-        } else if (!button) {
-            // Avisa se um botão esperado não for encontrado (ajuda a depurar HTML)
-            // console.warn(`Botão com ID "${buttonId}" não encontrado no DOM.`);
-        } else if (!modalElement) {
-            // Avisa se o modal correspondente não foi encontrado (ajuda a depurar state.js/HTML)
-            console.warn(`Modal para o botão "${buttonId}" não encontrado.`);
+        } else if (!button && modal === dom.studentsModal) {
+             console.warn(`O botão '${id}' do modal de alunos não foi encontrado.`);
+        } else if (!button && modal === dom.settingsModal) {
+             console.warn(`O botão '${id}' do modal de configurações não foi encontrado.`);
         }
     }
 
-    // Listeners dos botões de Partilhar e Imprimir (mantêm-se iguais)
-    document.getElementById('share-btn')?.addEventListener('click', () => shareContent(document.getElementById('notification-title')?.textContent || 'Notificação', document.getElementById('notification-content')?.innerText || ''));
-    document.getElementById('report-share-btn')?.addEventListener('click', () => shareContent(document.getElementById('report-view-title')?.textContent || 'Relatório', document.getElementById('report-view-content')?.innerText || ''));
-    document.getElementById('ficha-share-btn')?.addEventListener('click', () => shareContent(document.getElementById('ficha-view-title')?.textContent || 'Documento', document.getElementById('ficha-view-content')?.innerText || ''));
-    document.getElementById('print-btn')?.addEventListener('click', () => window.print());
-    document.getElementById('report-print-btn')?.addEventListener('click', () => window.print());
-    document.getElementById('ficha-print-btn')?.addEventListener('click', () => window.print());
+    // Botões de Partilhar e Imprimir (mantêm-se iguais)
+    document.getElementById('share-btn').addEventListener('click', () => shareContent(document.getElementById('notification-title').textContent, document.getElementById('notification-content').innerText));
+    document.getElementById('report-share-btn').addEventListener('click', () => shareContent(document.getElementById('report-view-title').textContent, document.getElementById('report-view-content').innerText));
+    document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
+    document.getElementById('print-btn').addEventListener('click', () => window.print());
+    document.getElementById('report-print-btn').addEventListener('click', () => window.print());
+    document.getElementById('ficha-print-btn').addEventListener('click', () => window.print());
 }
 
 /**
- * Configura os listeners de clique APENAS para a lista de Busca Ativa.
- * A lógica de ocorrências foi movida para occurrence.js.
+ * ATUALIZADO (PONTO 1 & 8): Lógica centralizada para cliques nas listas.
+ * Inclui gestão do menu kebab e a nova ação 'follow-up' (ambos os modos).
+ * Inclui correção para o bug do overflow no menu kebab da Busca Ativa.
  */
-// <-- MUDANÇA: Renomeada para clareza
-function setupListClickListeners_Absences() {
+function setupListClickListeners() {
+    // Listener para a lista de OCORRÊNCIAS
+    dom.occurrencesListDiv.addEventListener('click', (e) => {
+        const button = e.target.closest('button');
+        if (!button) return;
 
-    // Listener para a lista de BUSCA ATIVA
-    if (dom.absencesListDiv) {
-        dom.absencesListDiv.addEventListener('click', (e) => {
-            const button = e.target.closest('button');
-            if (button) {
-                e.stopPropagation(); // Evita propagação
+        // --- INÍCIO DA ATUALIZAÇÃO (PONTO 8) ---
+        // NOVA LÓGICA: Clique direto no aluno para acompanhamento
+        const followUpTrigger = e.target.closest('.student-follow-up-trigger');
+        if (followUpTrigger) {
+            e.stopPropagation();
+            const groupId = followUpTrigger.dataset.groupId;
+            const studentId = followUpTrigger.dataset.studentId;
+            openFollowUpModal(groupId, studentId); // Chama a função com o aluno pré-selecionado
+            return; // Encerra o processamento do clique aqui
+        }
+        // --- FIM DA ATUALIZAÇÃO (PONTO 8) ---
 
-                 // Ação do menu Kebab
-                 if (button.classList.contains('kebab-menu-btn')) {
-                    const dropdown = button.nextElementSibling;
-                    if (dropdown) {
-                        // Fecha outros menus
-                        document.querySelectorAll('.kebab-menu-dropdown').forEach(d => {
-                            if (d !== dropdown) d.classList.add('hidden');
-                        });
-
-                        // Lógica de Overflow para o acordeão
-                        const contentParent = button.closest('.process-content');
-                        if (contentParent && dropdown.classList.contains('hidden')) { // Abrindo
-                            contentParent.style.overflow = 'visible';
-                        } else if (contentParent) { // Fechando
-                            setTimeout(() => {
-                                if (dropdown.classList.contains('hidden')) {
-                                    contentParent.style.overflow = 'hidden';
-                                }
-                            }, 250);
-                        }
-                        dropdown.classList.toggle('hidden'); // Abre/Fecha
-                    }
-                    return; // Encerra aqui
-                }
-
-                const id = button.dataset.id; // ID do registro Firestore da ação específica
-
-                // Botões de Ação Principais da Linha
-                if (button.classList.contains('notification-btn')) openFichaViewModal(id);
-                else if (button.classList.contains('send-ct-btn')) handleSendToCT(id);
-                else if (button.classList.contains('view-oficio-btn')) handleViewOficio(id);
-                else if (button.classList.contains('generate-ficha-btn-row')) generateAndShowConsolidatedFicha(button.dataset.studentId, button.dataset.processId);
-                // Ações do Menu Kebab
-                else if (button.classList.contains('kebab-action-btn')) {
-                    const action = button.dataset.action;
-                    if (action === 'edit') handleEditAbsence(id);
-                    else if (action === 'delete') handleDeleteAbsence(id); // Prepara para confirmação
-                    else if (action === 'history') openAbsenceHistoryModal(button.dataset.processId);
-
-                    // Fecha o menu após a ação e restaura overflow
-                    const dropdown = button.closest('.kebab-menu-dropdown');
-                    if (dropdown) dropdown.classList.add('hidden');
-                    const contentParent = button.closest('.process-content');
-                    if(contentParent) contentParent.style.overflow = 'hidden';
-                }
-                return; // Encerra se clicou num botão
+        // Ação do menu Kebab (continua como antes)
+        if (button.classList.contains('kebab-menu-btn')) {
+            e.stopPropagation();
+            const dropdown = button.nextElementSibling;
+            if (dropdown) {
+                // Fecha outros menus abertos
+                document.querySelectorAll('.kebab-menu-dropdown').forEach(d => {
+                    if (d !== dropdown) d.classList.add('hidden');
+                });
+                dropdown.classList.toggle('hidden');
             }
+            return;
+        }
 
-            // Clique para abrir/fechar o acordeão (Acordeão = Processo)
-            const header = e.target.closest('.process-header');
-            if (header) {
-                const processId = header.dataset.processId;
-                const content = document.getElementById(`content-${processId}`);
-                const icon = header.querySelector('i.fa-chevron-down');
-                if (content) {
-                    const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px';
-                    if (isHidden) {
-                        // Ao abrir, define maxHeight para a altura do conteúdo e permite overflow visível
-                        content.style.maxHeight = `${content.scrollHeight}px`;
-                         // A lógica de overflow agora é controlada pelo Kebab
-                        // content.style.overflow = 'visible'; // Permite que o dropdown Kebab apareça
-                    } else {
-                        // Ao fechar, reseta maxHeight e garante overflow hidden
-                        content.style.maxHeight = null; // Equivalente a '0px' na transição
-                        content.style.overflow = 'hidden';
-                    }
-                    icon?.classList.toggle('rotate-180', isHidden); // Gira o ícone
-                }
-                return; // Impede que o clique no header feche menus Kebab abertos
-            }
+        const groupId = button.dataset.groupId;
+        e.stopPropagation(); // Evita que o clique se propague para outros elementos
 
-            // Clique para iniciar nova ação a partir do nome do aluno no histórico
-            const newActionTrigger = e.target.closest('.new-action-from-history-btn');
-            if (newActionTrigger) {
-                e.stopPropagation();
-                handleNewAbsenceFromHistory(newActionTrigger.dataset.studentId);
-                return;
-            }
-        });
-    } // Fim if (dom.absencesListDiv)
-}
-
-// <-- MUDANÇA: Função movida para occurrence.js
-// function handleEditOccurrence(groupId) { ... }
-
-// <-- MUDANÇA: Lógica específica movida para handleDeleteOccurrence em occurrence.js
-// function handleDelete(type, id) { ... } // A função genérica handleDeleteConfirmation permanece
-
-
-/**
- * Lida com a ação de editar uma ação de Busca Ativa.
- * (Movido de main.js, mas permanece aqui pois é chamado pelo listener da lista de BA)
- */
-function handleEditAbsence(id) {
-    const data = state.absences.find(a => a.id === id);
-    if (!data) return showToast("Registro da ação não encontrado.");
-
-    const student = state.students.find(s => s.matricula === data.studentId);
-    if (!student) return showToast("Aluno associado a esta ação não encontrado.");
-
-    // Abre o modal de Busca Ativa em modo de edição, forçando o tipo da ação existente
-    openAbsenceModalForStudent(student, data.actionType, data);
-}
-
-/**
- * Prepara a exclusão de uma ação de Busca Ativa, verificando dependências.
- * (Movido de main.js, mas permanece aqui pois é chamado pelo listener da lista de BA)
- */
-function handleDeleteAbsence(id) {
-    const actionToDelete = state.absences.find(a => a.id === id);
-    if (!actionToDelete) return showToast("Registro da ação não encontrado.");
-
-    // Define a sequência lógica das ações
-    const sequence = ['tentativa_1', 'tentativa_2', 'tentativa_3', 'visita', 'encaminhamento_ct', 'analise'];
-    // Encontra todas as ações do mesmo processo
-    const processActions = state.absences.filter(a => a.processId === actionToDelete.processId);
-    // Encontra o índice da ação a ser excluída na sequência
-    const deleteIndex = sequence.indexOf(actionToDelete.actionType);
-
-    // Verifica se existe alguma ação posterior no mesmo processo
-    const hasLaterAction = processActions.some(a => {
-        const actionIndex = sequence.indexOf(a.actionType);
-        // Considera uma ação como posterior se seu índice na sequência for maior
-        return actionIndex > deleteIndex;
+        if (button.classList.contains('notification-btn')) {
+            openStudentSelectionModal(groupId);
+        } else if (button.classList.contains('record-btn')) {
+            openOccurrenceRecordModal(groupId);
+        } else if (button.classList.contains('kebab-action-btn')) {
+            const action = button.dataset.action;
+            if (action === 'edit') handleEditOccurrence(groupId);
+            else if (action === 'delete') handleDelete('occurrence', groupId);
+            else if (action === 'history') openHistoryModal(groupId);
+            // ATUALIZAÇÃO (PONTO 8): Chamada sem pré-seleção (clique no kebab)
+            else if (action === 'follow-up') openFollowUpModal(groupId);
+            // Esconde o menu após a ação
+            button.closest('.kebab-menu-dropdown').classList.add('hidden');
+        }
     });
 
-    // Se houver ação posterior, impede a exclusão
-    if (hasLaterAction) {
-        return showToast("Não é possível excluir esta etapa. Exclua a(s) etapa(s) mais recente(s) do processo primeiro.");
-    }
+    // Listener para a lista de BUSCA ATIVA
+    dom.absencesListDiv.addEventListener('click', (e) => {
+        const button = e.target.closest('button');
+        if (button) {
+            e.stopPropagation(); // Evita propagação
 
-    // Lógica específica se for excluir o Encaminhamento CT
-    if (actionToDelete.actionType === 'encaminhamento_ct') {
-        // Verifica se existe uma ação de Análise no mesmo processo
-        const analiseAction = processActions.find(a => a.actionType === 'analise');
-        // Prepara para exclusão em cascata (CT + Análise)
-        document.getElementById('delete-confirm-message').textContent = 'A etapa de Análise associada (se existir) também será excluída. Deseja continuar?';
-        state.recordToDelete = {
-            type: 'absence-cascade', // Tipo especial para indicar cascata
-            ctId: id, // ID da ação CT a ser excluída
-            analiseId: analiseAction ? analiseAction.id : null // ID da análise (ou null se não existir)
-        };
+             // ---- INÍCIO DA CORREÇÃO (PONTO 1) ----
+             if (button.classList.contains('kebab-menu-btn')) {
+                const dropdown = button.nextElementSibling;
+                if (dropdown) {
+                    // Fecha outros menus
+                    document.querySelectorAll('.kebab-menu-dropdown').forEach(d => {
+                        if (d !== dropdown) d.classList.add('hidden');
+                    });
+
+                    // Lógica de Overflow:
+                    const contentParent = button.closest('.process-content');
+                    // Se o menu está prestes a abrir, remove o clip
+                    if (contentParent && dropdown.classList.contains('hidden')) {
+                        contentParent.style.overflow = 'visible';
+                    } else if (contentParent) {
+                        // Se está prestes a fechar, restaura (após um pequeno delay)
+                        setTimeout(() => {
+                            // Verifica se ainda está fechado antes de restaurar
+                            if (dropdown.classList.contains('hidden')) {
+                                contentParent.style.overflow = 'hidden';
+                            }
+                        }, 250); // Delay para permitir a animação do menu
+                    }
+
+                    dropdown.classList.toggle('hidden'); // Abre/Fecha o menu
+                }
+                return; // Encerra aqui para não executar outras lógicas de botão
+            }
+             // ---- FIM DA CORREÇÃO (PONTO 1) ----
+
+            const id = button.dataset.id;
+
+            if (button.classList.contains('notification-btn')) openFichaViewModal(id);
+            else if (button.classList.contains('send-ct-btn')) handleSendToCT(id);
+            else if (button.classList.contains('view-oficio-btn')) handleViewOficio(id);
+            else if (button.classList.contains('generate-ficha-btn-row')) generateAndShowConsolidatedFicha(button.dataset.studentId, button.dataset.processId);
+            else if (button.classList.contains('kebab-action-btn')) {
+                const action = button.dataset.action;
+                if (action === 'edit') handleEditAbsence(id);
+                else if (action === 'delete') handleDeleteAbsence(id);
+                else if (action === 'history') openAbsenceHistoryModal(button.dataset.processId);
+                // Fecha o menu após a ação
+                button.closest('.kebab-menu-dropdown').classList.add('hidden');
+                // Restaura o overflow ao fechar o menu por clique em ação
+                const contentParent = button.closest('.process-content');
+                if(contentParent) contentParent.style.overflow = 'hidden';
+            }
+            return;
+        }
+
+        // Clique para abrir/fechar o acordeão
+        const header = e.target.closest('.process-header');
+        if (header) {
+            const id = header.dataset.processId;
+            const content = document.getElementById(`content-${id}`);
+            const icon = header.querySelector('i.fa-chevron-down');
+            if (content) {
+                const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px';
+                if (isHidden) {
+                    content.style.maxHeight = `${content.scrollHeight}px`;
+                    // Não definir overflow: visible aqui, deixar o kebab controlar
+                } else {
+                    content.style.maxHeight = null;
+                    // ---- CORREÇÃO (PONTO 1): Garante overflow hidden ao fechar ----
+                    content.style.overflow = 'hidden';
+                }
+                icon?.classList.toggle('rotate-180', isHidden);
+            }
+            return; // Impede que o clique no header feche menus abertos
+        }
+
+        // Clique para iniciar nova ação a partir do histórico
+        const newActionTrigger = e.target.closest('.new-action-from-history-btn');
+        if (newActionTrigger) {
+            e.stopPropagation();
+            handleNewAbsenceFromHistory(newActionTrigger.dataset.studentId);
+            return;
+        }
+    });
+}
+
+// Funções de Manipulação de Eventos das Listas (sem alterações significativas)
+function handleEditOccurrence(groupId) {
+    const incident = getFilteredOccurrences().get(groupId);
+    if (incident) {
+        openOccurrenceModal(incident);
     } else {
-        // Exclusão normal de uma única ação
-        document.getElementById('delete-confirm-message').textContent = `Tem certeza que deseja excluir a ação "${actionDisplayTitles[actionToDelete.actionType] || actionToDelete.actionType}"?`;
-        state.recordToDelete = { type: 'absence', id: id };
+        showToast('Incidente não encontrado para edição.');
     }
+}
 
-    // Abre o modal de confirmação genérico
+function handleDelete(type, id) {
+    document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este incidente e todos os seus registros? Esta ação não pode ser desfeita.';
+    state.recordToDelete = { type, id };
     openModal(dom.deleteConfirmModal);
 }
 
-/**
- * Lida com o clique no botão "Enviar ao C.T.", gerando ofício e criando a ação.
- * (Movido de main.js, mas permanece aqui pois é chamado pelo listener da lista de BA)
- */
+function handleEditAbsence(id) {
+    const data = state.absences.find(a => a.id === id);
+    const student = data ? state.students.find(s => s.matricula === data.studentId) : null;
+    if (student) openAbsenceModalForStudent(student, data.actionType, data);
+}
+
+function handleDeleteAbsence(id) {
+    const actionToDelete = state.absences.find(a => a.id === id);
+    if (!actionToDelete) return;
+
+    const sequence = ['tentativa_1', 'tentativa_2', 'tentativa_3', 'visita', 'encaminhamento_ct', 'analise'];
+    const processActions = state.absences.filter(a => a.processId === actionToDelete.processId);
+    const deleteIndex = sequence.indexOf(actionToDelete.actionType);
+    const hasLaterAction = processActions.some(a => sequence.indexOf(a.actionType) > deleteIndex);
+
+    if (hasLaterAction) return showToast("Exclua a etapa mais recente do processo primeiro.");
+
+    if (actionToDelete.actionType === 'encaminhamento_ct') {
+        const analiseAction = processActions.find(a => a.actionType === 'analise');
+        document.getElementById('delete-confirm-message').textContent = 'A etapa de Análise associada também será excluída. Deseja continuar?';
+        state.recordToDelete = { type: 'absence-cascade', ctId: id, analiseId: analiseAction ? analiseAction.id : null };
+    } else {
+        document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este registro?';
+        state.recordToDelete = { type: 'absence', id: id };
+    }
+    openModal(dom.deleteConfirmModal);
+}
+
 async function handleSendToCT(id) {
-    const visitAction = state.absences.find(a => a.id === id);
-    if (!visitAction || visitAction.actionType !== 'visita') {
-        return showToast("Ação de visita não encontrada ou inválida.");
-    }
+    const oficioNumber = prompt("Por favor, insira o número do ofício:");
+    if (oficioNumber?.trim()) {
+        const visitAction = state.absences.find(a => a.id === id);
+        if (visitAction) {
+            generateAndShowOficio(visitAction, oficioNumber);
+            const student = state.students.find(s => s.matricula === visitAction.studentId);
+            if (!student) return;
 
-    // Pede o número do ofício ANTES de gerar
-    const oficioNumber = prompt("Por favor, insira o número do ofício para este encaminhamento:");
-    // Verifica se o usuário inseriu algo e não cancelou
-    if (oficioNumber === null) return; // Usuário cancelou
-    if (!oficioNumber.trim()) {
-         return showToast("Número do ofício inválido.");
-    }
+            const { processId, currentCycleActions } = logic.getStudentProcessInfo(student.matricula);
+            if (currentCycleActions.some(a => a.actionType === 'encaminhamento_ct')) return;
 
-    // Gera e mostra o ofício primeiro (visualização)
-    generateAndShowOficio(visitAction, oficioNumber.trim());
-
-    // --- Lógica para salvar a ação 'encaminhamento_ct' ---
-    const student = state.students.find(s => s.matricula === visitAction.studentId);
-    if (!student) {
-        console.error("Aluno da visita não encontrado para salvar encaminhamento.");
-        return; // Não salva se não encontrar o aluno
-    }
-
-    // Verifica se já existe uma ação 'encaminhamento_ct' neste ciclo para evitar duplicar
-    const { processId, currentCycleActions } = logic.getStudentProcessInfo(student.matricula);
-    if (currentCycleActions.some(a => a.actionType === 'encaminhamento_ct')) {
-         console.log("Ação 'encaminhamento_ct' já existe para este ciclo. Não será criada novamente.");
-         return; // Não cria se já existe
-    }
-
-    // Encontra a primeira ação do ciclo que contém os dados das faltas
-    const firstAction = currentCycleActions.find(a => a.periodoFaltasStart);
-
-    // Prepara os dados para a nova ação 'encaminhamento_ct'
-    const dataForCt = {
-        studentId: student.matricula,
-        actionType: 'encaminhamento_ct',
-        processId: processId, // Usa o ID do processo atual
-        ctSentDate: new Date().toISOString().split('T')[0], // Data de hoje
-        oficioNumber: oficioNumber.trim(),
-        oficioYear: new Date().getFullYear(),
-        // Copia dados das faltas da primeira ação do ciclo
-        periodoFaltasStart: firstAction?.periodoFaltasStart || null,
-        periodoFaltasEnd: firstAction?.periodoFaltasEnd || null,
-        absenceCount: firstAction?.absenceCount || null,
-        // Campos de feedback e retorno começam vazios
-        ctFeedback: null,
-        ctReturned: null
-    };
-
-    try {
-        // Adiciona o novo registro ao Firestore
-        await addRecordWithHistory('absence', dataForCt, "Ação 'Encaminhamento ao CT' registada automaticamente após gerar ofício.", state.userEmail);
-        showToast("Registro de 'Encaminhamento ao CT' salvo automaticamente.");
-        // O onSnapshot atualizará a lista, mostrando a nova ação.
-    } catch(err) {
-        console.error("Erro ao salvar encaminhamento automático:", err);
-        showToast("Erro ao salvar o registro do encaminhamento automático.");
+            const firstAction = currentCycleActions.find(a => a.periodoFaltasStart);
+            const dataForCt = {
+                studentId: student.matricula, actionType: 'encaminhamento_ct', processId,
+                ctSentDate: new Date().toISOString().split('T')[0],
+                oficioNumber, oficioYear: new Date().getFullYear(),
+                periodoFaltasStart: firstAction?.periodoFaltasStart || null,
+                periodoFaltasEnd: firstAction?.periodoFaltasEnd || null,
+                absenceCount: firstAction?.absenceCount || null,
+            };
+            try {
+                await addRecordWithHistory('absence', dataForCt, "Ação 'Encaminhamento ao CT' registada.", state.userEmail);
+                showToast("Registro de 'Encaminhamento ao CT' salvo automaticamente.");
+            } catch(err) {
+                showToast("Erro ao salvar o encaminhamento automático.");
+            }
+        }
     }
 }
 
-/**
- * Lida com o clique para visualizar um ofício já existente.
- * (Movido de main.js, mas permanece aqui pois é chamado pelo listener da lista de BA)
- */
 function handleViewOficio(id) {
     const ctAction = state.absences.find(a => a.id === id);
-    if (ctAction && ctAction.actionType === 'encaminhamento_ct') {
-        generateAndShowOficio(ctAction); // Gera usando os dados existentes (incluindo oficioNumber)
-    } else {
-        showToast("Registro de encaminhamento não encontrado ou inválido.");
-    }
+    if (ctAction) generateAndShowOficio(ctAction);
 }
 
-/**
- * Lida com o clique no nome do aluno no histórico para iniciar uma nova ação.
- * (Movido de main.js, mas permanece aqui pois é chamado pelo listener da lista de BA)
- */
 function handleNewAbsenceFromHistory(studentId) {
     const student = state.students.find(s => s.matricula === studentId);
-    if (student) {
-        handleNewAbsenceAction(student); // Chama a função que abre o modal apropriado
-    } else {
-        showToast("Aluno não encontrado.");
-    }
+    if (student) handleNewAbsenceAction(student);
 }
+
+// <-- MUDANÇA: Função movida para students.js
+// async function handleStudentTableActions(e) { ... }
 
