@@ -3,11 +3,9 @@
 // RESPONSABILIDADE: Todas as funções que manipulam a UI (desenhar,
 // abrir modais, gerar HTML).
 //
-// ATUALIZAÇÃO (REFATORAÇÃO PASSO 1 - CORREÇÃO):
-// 1. A constante `actionDisplayTitles` foi MOVIDA para `reports.js`.
-// 2. Adicionada a importação de `actionDisplayTitles` de `reports.js`
-//    para que as funções `renderAbsences` e `openAbsenceModalForStudent`
-//    continuem a funcionar corretamente.
+// ATUALIZAÇÃO (REFATORAÇÃO PASSO 3 - LIMPEZA PÓS-AUTH):
+// 1. Removidas as funções `showLoginView` e `showRegisterView`.
+// 2. Essa responsabilidade agora pertence exclusivamente ao `module-auth.js`.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -765,16 +763,10 @@ export const resetStudentForm = () => {
 
 /**
  * Funções de exibição das telas de login/registro.
+ * REMOVIDAS em 23/10/2025 - Agora em module-auth.js
  */
-export const showLoginView = () => {
-    dom.registerView.classList.add('hidden');
-    dom.loginView.classList.remove('hidden');
-};
-
-export const showRegisterView = () => {
-    dom.loginView.classList.add('hidden');
-    dom.registerView.classList.remove('hidden');
-};
+// export const showLoginView = () => { ... };
+// export const showRegisterView = () => { ... };
 
 
 /**
@@ -999,4 +991,3 @@ export const openSettingsModal = () => {
 
     openModal(dom.settingsModal);
 };
-
