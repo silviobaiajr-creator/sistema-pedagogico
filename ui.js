@@ -3,9 +3,10 @@
 // RESPONSABILIDADE: Todas as funções que manipulam a UI (desenhar,
 // abrir modais, gerar HTML).
 //
-// ATUALIZAÇÃO (REFATORAÇÃO PASSO 3 - LIMPEZA PÓS-AUTH):
-// 1. Removidas as funções `showLoginView` e `showRegisterView`.
-// 2. Essa responsabilidade agora pertence exclusivamente ao `module-auth.js`.
+// ATUALIZAÇÃO (REFATORAÇÃO PASSO 5 - LIMPEZA PÓS-ADMIN):
+// 1. Removidas as funções `renderStudentsList`, `resetStudentForm` e
+//    `openSettingsModal`.
+// 2. Essa responsabilidade agora pertence exclusivamente ao `module-admin.js`.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -723,47 +724,20 @@ export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
 
 /**
  * Renderiza a lista de alunos no modal "Gerir Alunos".
- * A lógica de clique será gerenciada por delegação de eventos em `main.js`.
+ * (REMOVIDO - Movido para module-admin.js)
  */
-export const renderStudentsList = () => {
-    const tableBody = document.getElementById('students-list-table');
-    if (!tableBody) return; // Adiciona guarda de segurança
-    
-    tableBody.innerHTML = ''; // Limpa a tabela antes de redesenhar.
-    
-    state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td class="px-4 py-2 text-sm text-gray-900">${student.name}</td>
-            <td class="px-4 py-2 text-sm text-gray-500">${student.class}</td>
-            <td class="px-4 py-2 text-right text-sm space-x-2">
-                <button class="edit-student-btn text-yellow-600 hover:text-yellow-900" data-id="${student.matricula}" title="Editar">
-                    <i class="fas fa-pencil-alt"></i>
-                </button>
-                <button class="delete-student-btn text-red-600 hover:text-red-900" data-id="${student.matricula}" title="Excluir">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </td>`;
-        tableBody.appendChild(row);
-    });
-};
+// export const renderStudentsList = () => { ... };
 
 
 /**
  * Reseta o formulário de adição/edição de aluno.
+ * (REMOVIDO - Movido para module-admin.js)
  */
-export const resetStudentForm = () => {
-    document.getElementById('student-form-title').textContent = 'Adicionar Novo Aluno';
-    document.getElementById('student-form').reset();
-    document.getElementById('student-id-input').value = '';
-    document.getElementById('student-matricula-input').readOnly = false;
-    document.getElementById('student-matricula-input').classList.remove('bg-gray-100');
-    document.getElementById('cancel-edit-student-btn').classList.add('hidden');
-};
+// export const resetStudentForm = () => { ... };
 
 /**
  * Funções de exibição das telas de login/registro.
- * REMOVIDAS em 23/10/2025 - Agora em module-auth.js
+ * (REMOVIDO - Movido para module-auth.js)
  */
 // export const showLoginView = () => { ... };
 // export const showRegisterView = () => { ... };
@@ -978,16 +952,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 
 /**
  * Abre o modal de configurações e preenche com os dados atuais.
+ * (REMOVIDO - Movido para module-admin.js)
  */
-export const openSettingsModal = () => {
-    const settingsForm = document.getElementById('settings-form');
-    if (settingsForm) {
-        settingsForm.reset();
-    }
+// export const openSettingsModal = () => { ... };
 
-    document.getElementById('school-name-input').value = state.config.schoolName || '';
-    document.getElementById('school-city-input').value = state.config.city || '';
-    document.getElementById('school-logo-input').value = state.config.schoolLogoUrl || '';
-
-    openModal(dom.settingsModal);
-};
