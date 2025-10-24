@@ -31,6 +31,12 @@
 // 1. Removida a verificação `typeof window.Papa === 'undefined'`.
 // 2. Adicionada a lógica de `import()` dinâmico para carregar PapaParse
 //    somente quando a função `handleCsvUpload` for chamada.
+//
+// ATUALIZAÇÃO (REFATORAÇÃO auth.js):
+// 1. Importado o novo módulo `initAuthListeners`.
+// 2. Removidas as importações de `showLoginView` e `showRegisterView` (de ui.js).
+// 3. Removidas as funções `handleLogin`, `handleRegister` e `getAuthErrorMessage`.
+// 4. `setupEventListeners` agora chama `initAuthListeners()`.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -46,6 +52,9 @@ import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, shareContent, openModal, loadScript } from './utils.js';
 import { loadStudents, saveSchoolConfig, loadSchoolConfig, getCollectionRef, getStudentsDocRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord } from './firestore.js';
 
+// <-- MUDANÇA: Importa o novo módulo de autenticação
+import { initAuthListeners } from './auth.js'; 
+
 // Funções de UI que *permaneceram* em ui.js
 import {
     render,
@@ -54,8 +63,8 @@ import {
     handleNewAbsenceAction,
     setupAutocomplete,
     openAbsenceModalForStudent,
-    showLoginView,
-    showRegisterView,
+    // <-- MUDANÇA: showLoginView, (removido)
+    // <-- MUDANÇA: showRegisterView, (removido)
     resetStudentForm,
     toggleFamilyContactFields,
     toggleVisitContactFields,
@@ -162,12 +171,15 @@ function detachFirestoreListeners() {
 // --- CONFIGURAÇÃO CENTRAL DE EVENTOS DA UI ---
 
 function setupEventListeners() {
+    // <-- MUDANÇA: Os listeners de autenticação foram substituídos
     // Autenticação
-    dom.loginForm.addEventListener('submit', handleLogin);
-    dom.registerForm.addEventListener('submit', handleRegister);
+    initAuthListeners(); // Chama o inicializador do novo módulo
     dom.logoutBtn.addEventListener('click', () => signOut(auth));
-    dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
-    dom.showLoginViewBtn.addEventListener('click', showLoginView);
+    // <-- MUDANÇA: Linhas removidas:
+    // dom.loginForm.addEventListener('submit', handleLogin);
+    // dom.registerForm.addEventListener('submit', handleRegister);
+    // dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
+    // dom.showLoginViewBtn.addEventListener('click', showLoginView);
 
     // Navegação por Abas
     dom.tabOccurrences.addEventListener('click', () => switchTab('occurrences'));
@@ -252,33 +264,8 @@ function setupEventListeners() {
 
 // --- HANDLERS E FUNÇÕES AUXILIARES ---
 
-// Funções de Autenticação
-async function handleLogin(e) {
-    e.preventDefault();
-    try {
-        await signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value);
-    } catch (error) {
-        console.error("Erro de Login:", error);
-        showToast("Email ou senha inválidos.");
-    }
-}
-async function handleRegister(e) {
-    e.preventDefault();
-    try {
-        await createUserWithEmailAndPassword(auth, document.getElementById('register-email').value, document.getElementById('register-password').value);
-    } catch (error) {
-        console.error("Erro de Registo:", error);
-        showToast(getAuthErrorMessage(error.code));
-    }
-}
-
-function getAuthErrorMessage(code) {
-    switch (code) {
-        case 'auth/email-already-in-use': return "Este email já está a ser utilizado.";
-        case 'auth/weak-password': return "A sua senha é muito fraca.";
-        default: return "Erro ao criar a conta.";
-    }
-}
+// <-- MUDANÇA: Funções `handleLogin`, `handleRegister`, e `getAuthErrorMessage` removidas daqui.
+// Elas agora estão em `auth.js`.
 
 function getFirestoreErrorMessage(code) {
     switch (code) {
