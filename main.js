@@ -14,6 +14,10 @@
 //    (ex: `dom.uploadCsvBtn`) em vez de `document.getElementById()`.
 // 2. Alterada a função `handleCsvUpload` para também usar as referências do
 //    objeto `dom` (ex: `dom.csvFile`, `dom.csvFeedback`).
+//
+// ATUALIZAÇÃO (CORREÇÃO CSV - PAPA.PARSE):
+// 1. Alterada a chamada `Papa.parse` para `window.Papa.parse` para corrigir
+//    o erro de escopo do módulo.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -568,7 +572,9 @@ function handleCsvUpload() {
 
     if (fileInput.files.length === 0) return showToast("Por favor, selecione um ficheiro CSV.");
     
-    Papa.parse(fileInput.files[0], {
+    // --- ATUALIZAÇÃO (CORREÇÃO PAPA.PARSE) ---
+    // Alterado para usar `window.Papa.parse`
+    window.Papa.parse(fileInput.files[0], {
         header: true,
         skipEmptyLines: true,
         transformHeader: header => header.toLowerCase().trim().replace(/\s+/g, ''),
