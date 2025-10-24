@@ -26,6 +26,11 @@
 // ATUALIZAÇÃO (CORREÇÃO CSV - SYNTAX ERROR):
 // 1. Adicionada a vírgula faltante após o bloco `complete` na configuração do
 //    `window.Papa.parse`.
+//
+// ATUALIZAÇÃO (CORREÇÃO CSV - IMPORT DINÂMICO):
+// 1. Removida a verificação `typeof window.Papa === 'undefined'`.
+// 2. Adicionada a lógica de `import()` dinâmico para carregar PapaParse
+//    somente quando a função `handleCsvUpload` for chamada.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -47,21 +52,12 @@ import {
     openOccurrenceModal,
     handleNewAbsenceAction,
     setupAutocomplete,
-    // openStudentSelectionModal, // MOVIDO
-    // openOccurrenceRecordModal, // MOVIDO
-    // openHistoryModal, // MOVIDO
-    // openAbsenceHistoryModal, // MOVIDO
-    // openFichaViewModal, // MOVIDO
-    // generateAndShowConsolidatedFicha, // MOVIDO
-    // generateAndShowOficio, // MOVIDO
     openAbsenceModalForStudent,
     showLoginView,
     showRegisterView,
     resetStudentForm,
     toggleFamilyContactFields,
     toggleVisitContactFields,
-    // generateAndShowGeneralReport, // MOVIDO
-    // generateAndShowBuscaAtivaReport, // MOVIDO
     getFilteredOccurrences, // Necessário para handleEditOccurrence
     openSettingsModal,
     openFollowUpModal
@@ -203,12 +199,9 @@ function setupEventListeners() {
     // Gerenciamento de Alunos e Configurações
     document.getElementById('manage-students-btn').addEventListener('click', () => { renderStudentsList(); openModal(dom.studentsModal); });
 
-    // --- ATUALIZAÇÃO (CORREÇÃO CSV) ---
-    // Alterado para usar o objeto `dom`
     dom.uploadCsvBtn.addEventListener('click', handleCsvUpload);
     dom.studentForm.addEventListener('submit', handleStudentFormSubmit);
     dom.cancelEditStudentBtn.addEventListener('click', resetStudentForm);
-    // --- FIM DA ATUALIZAÇÃO ---
 
     dom.settingsBtn.addEventListener('click', openSettingsModal);
 
@@ -227,25 +220,15 @@ function setupEventListeners() {
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
 
-    // ATUALIZADO (PONTO 7): Listener para o rádio de contato no modal de ACOMPANHAMENTO.
-    // Agora também torna "Providências da Família" obrigatório.
     document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio =>
         radio.addEventListener('change', (e) => {
             const enable = e.target.value === 'yes';
-
-            // 1. Lógica (agora corrigida via ui.js) para "Tipo" e "Data"
             toggleFamilyContactFields(enable, document.getElementById('follow-up-family-contact-fields'));
-
-            // 2. Lógica para "Providências da Família" (Ponto 7)
             const familyActionsTextarea = document.getElementById('follow-up-family-actions');
             if (familyActionsTextarea) {
                 familyActionsTextarea.required = enable;
-
-                // Feedback visual (opcional, mas recomendado)
-                // Procura o label associado ao textarea (assumindo que está no div pai)
                 const label = familyActionsTextarea.closest('div').querySelector('label');
                 if (label) {
-                    // Adiciona um asterisco vermelho se for obrigatório
                     label.innerHTML = enable
                         ? 'Providências da Família <span class="text-red-500">*</span>'
                         : 'Providências da Família';
@@ -253,26 +236,17 @@ function setupEventListeners() {
             }
         })
     );
-    // --- FIM DA ATUALIZAÇÃO (PONTO 7) ---
 
-
-    // ATUALIZADO (PONTO 1): Listener global para fechar menus kebab e restaurar overflow.
     document.addEventListener('click', (e) => {
-        // Se o clique NÃO foi dentro de um container de menu kebab
         if (!e.target.closest('.kebab-menu-container')) {
-            // Fecha todos os dropdowns de menu kebab
             document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
-
-            // Restaura o 'overflow: hidden' em todos os acordeões ABERTOS
             document.querySelectorAll('.process-content').forEach(c => {
-                // Só aplica se ele estiver aberto (tiver maxHeight definido e diferente de 0px)
                 if (c.style.maxHeight && c.style.maxHeight !== '0px') {
                     c.style.overflow = 'hidden';
                 }
             });
         }
     });
-    // --- FIM DA ATUALIZAÇÃO (PONTO 1) ---
 }
 
 // --- HANDLERS E FUNÇÕES AUXILIARES ---
@@ -571,77 +545,86 @@ async function handleSettingsSubmit(e) {
 }
 
 // Funções de Gerenciamento de Alunos
-function handleCsvUpload() {
-    // --- ATUALIZAÇÃO (CORREÇÃO CSV) ---
-    // Alterado para usar o objeto `dom`
+// --- ATUALIZAÇÃO (CORREÇÃO CSV - IMPORT DINÂMICO) ---
+// Transformada em async para usar await com import()
+async function handleCsvUpload() {
     const fileInput = dom.csvFile;
     const feedbackDiv = dom.csvFeedback;
-    // --- FIM DA ATUALIZAÇÃO ---
 
     if (fileInput.files.length === 0) return showToast("Por favor, selecione um ficheiro CSV.");
 
-    // --- ATUALIZAÇÃO (CORREÇÃO PAPAPARSE - VERIFICAÇÃO) ---
-    // Adiciona uma verificação para garantir que window.Papa está definido
-    if (typeof window.Papa === 'undefined') {
-        console.error("PapaParse não está carregado. Verifique o script no index.html.");
-        showToast("Erro: A biblioteca de leitura de CSV (PapaParse) não foi carregada corretamente.");
-        return; // Impede a continuação se PapaParse não estiver pronto
-    }
-    // --- FIM DA ATUALIZAÇÃO ---
-
-    // --- ATUALIZAÇÃO (CORREÇÃO PAPA.PARSE) ---
-    // Alterado para usar `window.Papa.parse`
-    window.Papa.parse(fileInput.files[0], {
-        header: true,
-        skipEmptyLines: true,
-        transformHeader: header => header.toLowerCase().trim().replace(/\s+/g, ''),
-        complete: async (results) => {
-            // Verifica se results.meta e results.meta.fields existem
-            if (!results.meta || !results.meta.fields) {
-                feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Não foi possível ler os cabeçalhos do ficheiro CSV.</p>`;
-                console.error("Erro ao processar CSV: Metadados inválidos", results);
-                return;
+    try {
+        // Verifica se Papa já está carregado (pode ter sido carregado em clique anterior)
+        if (typeof window.Papa === 'undefined') {
+            feedbackDiv.innerHTML = `<p class="text-blue-500">A carregar biblioteca de CSV...</p>`;
+            // Carrega PapaParse dinamicamente do CDN
+            // Usamos a URL completa, pois 'import()' relativo não funciona com CDNs
+            const papaScriptUrl = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js';
+            await import(papaScriptUrl);
+            // Após o await, o script foi executado e window.Papa deve estar definido
+            if (typeof window.Papa === 'undefined') {
+                 throw new Error("Falha ao carregar PapaParse dinamicamente.");
             }
-
-            const requiredHeaders = ['matricula', 'nome', 'turma', 'endereco', 'contato', 'resp1', 'resp2'];
-            const hasAllHeaders = requiredHeaders.every(h => results.meta.fields.includes(h));
-            if (!hasAllHeaders) {
-                feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Faltam colunas. O ficheiro CSV deve conter: ${requiredHeaders.join(', ')}.</p>`;
-                return;
-            }
-
-            // Verifica se results.data existe e é um array
-            if (!Array.isArray(results.data)) {
-                 feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Não foi possível ler os dados do ficheiro CSV.</p>`;
-                 console.error("Erro ao processar CSV: Dados inválidos", results);
-                 return;
-            }
-
-            const newStudentList = results.data.map(row => ({
-                matricula: row.matricula || '', name: row.nome || '', class: row.turma || '',
-                endereco: row.endereco || '', contato: row.contato || '',
-                resp1: row.resp1 || '', resp2: row.resp2 || ''
-            })).filter(s => s.name && s.matricula);
-
-            try {
-                await setDoc(getStudentsDocRef(), { list: newStudentList });
-                state.students = newStudentList;
-                renderStudentsList();
-                showToast(`${newStudentList.length} alunos importados com sucesso!`);
-                fileInput.value = '';
-                feedbackDiv.innerHTML = '';
-            } catch(error) {
-                console.error("Erro ao salvar alunos no Firestore:", error); // Log mais detalhado
-                showToast("Erro ao salvar a nova lista de alunos no banco de dados.");
-            }
-        }, // <--- CORREÇÃO: VÍRGULA ADICIONADA AQUI
-        // Adiciona um callback de erro para o PapaParse
-        error: (error, file) => {
-            console.error("Erro do PapaParse:", error, file);
-            feedbackDiv.innerHTML = `<p class="text-red-500">Erro ao processar o ficheiro CSV: ${error.message}</p>`;
+            feedbackDiv.innerHTML = ''; // Limpa mensagem de carregamento
         }
-    });
+
+        // Agora window.Papa está garantido (se o import funcionou)
+        window.Papa.parse(fileInput.files[0], {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: header => header.toLowerCase().trim().replace(/\s+/g, ''),
+            complete: async (results) => {
+                if (!results.meta || !results.meta.fields) {
+                    feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Não foi possível ler os cabeçalhos do ficheiro CSV.</p>`;
+                    console.error("Erro ao processar CSV: Metadados inválidos", results);
+                    return;
+                }
+
+                const requiredHeaders = ['matricula', 'nome', 'turma', 'endereco', 'contato', 'resp1', 'resp2'];
+                const hasAllHeaders = requiredHeaders.every(h => results.meta.fields.includes(h));
+                if (!hasAllHeaders) {
+                    feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Faltam colunas. O ficheiro CSV deve conter: ${requiredHeaders.join(', ')}.</p>`;
+                    return;
+                }
+
+                if (!Array.isArray(results.data)) {
+                     feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Não foi possível ler os dados do ficheiro CSV.</p>`;
+                     console.error("Erro ao processar CSV: Dados inválidos", results);
+                     return;
+                }
+
+                const newStudentList = results.data.map(row => ({
+                    matricula: row.matricula || '', name: row.nome || '', class: row.turma || '',
+                    endereco: row.endereco || '', contato: row.contato || '',
+                    resp1: row.resp1 || '', resp2: row.resp2 || ''
+                })).filter(s => s.name && s.matricula);
+
+                try {
+                    await setDoc(getStudentsDocRef(), { list: newStudentList });
+                    state.students = newStudentList;
+                    renderStudentsList();
+                    showToast(`${newStudentList.length} alunos importados com sucesso!`);
+                    fileInput.value = '';
+                    feedbackDiv.innerHTML = '';
+                } catch(error) {
+                    console.error("Erro ao salvar alunos no Firestore:", error);
+                    showToast("Erro ao salvar a nova lista de alunos no banco de dados.");
+                }
+            },
+            error: (error, file) => {
+                console.error("Erro do PapaParse:", error, file);
+                feedbackDiv.innerHTML = `<p class="text-red-500">Erro ao processar o ficheiro CSV: ${error.message}</p>`;
+            }
+        });
+
+    } catch (error) {
+        // Captura erros do import() dinâmico ou se window.Papa ainda for undefined
+        console.error("Erro ao carregar ou usar PapaParse:", error);
+        feedbackDiv.innerHTML = `<p class="text-red-500">Erro crítico ao carregar a biblioteca de CSV. Tente novamente.</p>`;
+        showToast("Erro ao carregar a biblioteca de leitura de CSV.");
+    }
 }
+// --- FIM DA ATUALIZAÇÃO ---
 
 
 async function handleStudentFormSubmit(e) {
