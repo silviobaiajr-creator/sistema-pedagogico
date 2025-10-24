@@ -1,18 +1,16 @@
+// =================================================================================
 // ARQUIVO: reports.js
 // RESPONSABILIDADE: Gerar todos os documentos e relatórios (Atas, Fichas, Ofícios, Relatórios Gerais).
-// ATUALIZAÇÃO:
-// 1. Adicionada a constante `actionDisplayTitles` (movida de ui.js).
-// 2. Removidas importações não utilizadas (`getFilteredOccurrences`, `getStatusBadge`, `formatPeriodo`).
 //
-// ATUALIZAÇÃO (CORREÇÃO CONFIG):
-// 1. Alterada 'getReportHeaderHTML' para incluir state.config.city.
-// 2. Alterada 'generateAndShowOficio' para evitar duplicação de dados do cabeçalho.
+// CORREÇÃO (24/10/2025): Descomentada a definição da variável `schoolName`
+// dentro de `generateAndShowOficio`. Ela estava causando um ReferenceError
+// pois era usada no template HTML (mesmo que em um comentário HTML).
 // =================================================================================
 
 
 import { state, dom } from './state.js';
 // formatPeriodo foi removido dos imports de utils.js pois não é usado aqui diretamente agora
-import { formatDate, formatTime, formatText, showToast, openModal, closeModal } from './utils.js';
+import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
 // Imports de ui.js removidos pois não são necessários aqui
 // import { getFilteredOccurrences, getStatusBadge } from './ui.js'; 
 
@@ -28,26 +26,23 @@ export const actionDisplayTitles = {
 
 /**
  * Helper para gerar o cabeçalho com logo.
- * // <-- CORREÇÃO: Agora inclui a Cidade.
  * @returns {string} HTML do cabeçalho do relatório.
  */
 export const getReportHeaderHTML = () => {
     const logoUrl = state.config?.schoolLogoUrl || null;
     const schoolName = state.config?.schoolName || "Nome da Escola";
-    const city = state.config?.city || "Cidade"; // <-- CORREÇÃO: Busca a cidade do estado
+    const city = state.config?.city || "Cidade"; 
 
     if (logoUrl) {
         // Adiciona onerror para fallback caso a URL da imagem falhe
         return `
             <div class="text-center mb-4">
                 <img src="${logoUrl}" alt="Logo da Escola" class="max-w-full max-h-40 mx-auto" onerror="this.onerror=null; this.src='https://placehold.co/150x50/indigo/white?text=Logo'; this.alt='Logo Placeholder';">
-                <!-- CORREÇÃO: Adiciona nome e cidade abaixo do logo -->
                 <h2 class="text-xl font-bold uppercase mt-2">${schoolName}</h2>
                 <p class="text-sm text-gray-600">${city}</p>
             </div>`;
     }
     
-    // CORREÇÃO: Adiciona nome e cidade se não houver logo
     return `
         <div class="text-center border-b pb-4">
             <h2 class="text-xl font-bold uppercase">${schoolName}</h2>
@@ -61,8 +56,6 @@ export const getReportHeaderHTML = () => {
  * de um incidente a notificação deve ser gerada.
  */
 export const openStudentSelectionModal = (groupId) => {
-    // Precisa importar getFilteredOccurrences de ui.js se for usar aqui, 
-    // mas vamos assumir que state.occurrences está atualizado e filtrar diretamente
     const incident = state.occurrences.reduce((acc, occ) => {
          const currentGroupId = occ.occurrenceGroupId || `individual-${occ.id}`;
          if (currentGroupId === groupId) {
@@ -82,7 +75,6 @@ export const openStudentSelectionModal = (groupId) => {
 
     const students = [...incident.studentsInvolved.values()];
     
-    // Se houver apenas um aluno, gera a notificação diretamente sem perguntar.
     if (students.length === 1) {
         openIndividualNotificationModal(incident, students[0]);
         return;
@@ -95,9 +87,8 @@ export const openStudentSelectionModal = (groupId) => {
         return showToast('Erro: O modal de seleção de aluno não foi encontrado na página.');
     }
 
-    modalBody.innerHTML = ''; // Limpa o conteúdo anterior
+    modalBody.innerHTML = ''; 
 
-    // Cria um botão para cada aluno envolvido.
     students.forEach(student => {
         const btn = document.createElement('button');
         btn.className = 'w-full text-left bg-gray-50 hover:bg-indigo-100 p-3 rounded-lg transition';
@@ -113,8 +104,7 @@ export const openStudentSelectionModal = (groupId) => {
 }
 
 /**
- * ATUALIZADO: (PONTO 6) Gera e exibe a notificação formal.
- * Adiciona uma verificação para data/hora da reunião.
+ * Gera e exibe a notificação formal.
  * @param {object} incident - O objeto completo do incidente (com records e studentsInvolved).
  * @param {object} student - O objeto do aluno selecionado.
  */
@@ -126,15 +116,11 @@ export const openIndividualNotificationModal = (incident, student) => {
         return;
     }
     
-    // ---- INÍCIO DA VERIFICAÇÃO (PONTO 6) ----
-    // Verifica se os campos movidos (agora no acompanhamento) estão preenchidos
     if (!data.meetingDate || !data.meetingTime) {
-        // Usa showToast, que já está importado
         showToast(`Erro: É necessário definir a Data e o Horário da convocação para ${student.name}.`);
         showToast("Defina a Data e Horário no 'Acompanhamento' primeiro.");
-        return; // Interrompe a geração da notificação
+        return; 
     }
-    // ---- FIM DA VERIFICAÇÃO ----
     
     const responsibleNames = [student.resp1, student.resp2].filter(Boolean).join(' e ');
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -200,7 +186,6 @@ export const openIndividualNotificationModal = (incident, student) => {
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openOccurrenceRecordModal = (groupId) => {
-    // Reimplementando a lógica de busca do incidente aqui, já que getFilteredOccurrences foi removido
      const incident = state.occurrences.reduce((acc, occ) => {
          const currentGroupId = occ.occurrenceGroupId || `individual-${occ.id}`;
          if (currentGroupId === groupId) {
@@ -218,11 +203,10 @@ export const openOccurrenceRecordModal = (groupId) => {
 
     if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
 
-    // Calcula o status geral aqui
     const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
     incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
     
-    const data = incident.records[0]; // Pega o registro principal para dados coletivos
+    const data = incident.records[0];
     const students = [...incident.studentsInvolved.values()];
     const studentNames = students.map(s => `${s.name} (Turma: ${s.class})`).join('<br>');
     const responsibleNames = [...new Set(students.flatMap(s => [s.resp1, s.resp2]).filter(Boolean))].join(' e ');
@@ -252,24 +236,12 @@ export const openOccurrenceRecordModal = (groupId) => {
                         const student = incident.studentsInvolved.get(rec.studentId);
                         const statusIndividual = rec.statusIndividual || 'Pendente'; 
                         
-                        // Importa getStatusBadge para usar aqui
-                        const getStatusBadgeLocal = (status) => {
-                             const statusMap = {
-                                'Pendente': 'bg-yellow-100 text-yellow-800',
-                                'Aguardando Contato': 'bg-blue-100 text-blue-800',
-                                'Finalizada': 'bg-green-100 text-green-800',
-                                'Resolvido': 'bg-green-100 text-green-800', 
-                                'Cancelado': 'bg-gray-100 text-gray-800'
-                            };
-                            const colorClasses = statusMap[status] || 'bg-gray-100 text-gray-800';
-                            return `<span class="text-xs font-medium px-2.5 py-0.5 rounded-full ${colorClasses}">${status || 'N/A'}</span>`;
-                        };
-
+                        // Usamos a função getStatusBadge importada de utils.js
                         return `
                         <div class="mt-2 p-3 border rounded-md bg-gray-50 break-inside-avoid">
                             <div class="flex justify-between items-center">
                                 <p class="font-semibold">${student?.name || 'Aluno desconhecido'}</p>
-                                ${getStatusBadgeLocal(statusIndividual)}
+                                ${getStatusBadge(statusIndividual)}
                             </div>
                             
                             ${(rec.meetingDate) ? `
@@ -303,12 +275,11 @@ export const openOccurrenceRecordModal = (groupId) => {
  * Abre o modal de histórico de alterações de uma ocorrência.
  */
 export const openHistoryModal = (groupId) => {
-     // Reimplementando a lógica de busca do incidente
      const incident = state.occurrences.reduce((acc, occ) => {
          const currentGroupId = occ.occurrenceGroupId || `individual-${occ.id}`;
          if (currentGroupId === groupId) {
              if (!acc) {
-                acc = { id: groupId, records: [], date: occ.date }; // Armazena a data
+                acc = { id: groupId, records: [], date: occ.date };
              }
              acc.records.push(occ);
          }
@@ -317,10 +288,8 @@ export const openHistoryModal = (groupId) => {
 
     if (!incident) return showToast('Incidente não encontrado.');
 
-    // Pega o histórico de todos os registros e junta
     const allHistory = incident.records.flatMap(r => r.history || []);
     
-    // Ordena o histórico combinado pela data
     const history = allHistory.sort((a, b) => (b.timestamp?.seconds || new Date(b.timestamp).getTime()) - (a.timestamp?.seconds || new Date(a.timestamp).getTime()));
 
     const historyHTML = history.length > 0
@@ -345,13 +314,12 @@ export const openAbsenceHistoryModal = (processId) => {
     
     const allHistory = processActions.flatMap(a => a.history || []);
     
-    // Adiciona a criação como evento se não houver histórico gravado
     processActions.forEach(action => {
         if (!action.history || action.history.length === 0) {
             allHistory.push({
                 action: `Ação "${actionDisplayTitles[action.actionType]}" criada.`,
                 user: action.createdBy || 'Sistema',
-                timestamp: action.createdAt // Mantém como objeto Timestamp ou Date
+                timestamp: action.createdAt
             });
         }
     });
@@ -471,7 +439,6 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
     if (processId) {
         studentActions = studentActions.filter(action => action.processId === processId);
     } else {
-        // Se não foi passado um processId, pega apenas as ações do último ciclo
         const { currentCycleActions } = getStudentProcessInfo(studentId);
         studentActions = currentCycleActions;
     }
@@ -486,9 +453,8 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
     const findAction = (type) => studentActions.find(a => a.actionType === type) || {};
     const t1 = findAction('tentativa_1'), t2 = findAction('tentativa_2'), t3 = findAction('tentativa_3'), visita = findAction('visita'), ct = findAction('encaminhamento_ct'), analise = findAction('analise');
     
-    // Procura o registro de faltas no ciclo atual
     const faltasData = studentActions.find(a => a.periodoFaltasStart) || {};
-    const currentProcessId = processId || faltasData.processId || 'N/A'; // Usa o ID do processo se disponível
+    const currentProcessId = processId || faltasData.processId || 'N/A'; 
 
     const fichaHTML = `
         <div class="space-y-4 text-sm">
@@ -592,38 +558,36 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
 export const generateAndShowOficio = (action, oficioNumber = null) => {
     if (!action) return showToast('Ação de origem não encontrada.');
     
-    // Usa o número do ofício fornecido ou o armazenado na ação
     const finalOficioNumber = oficioNumber || action.oficioNumber;
     const finalOficioYear = action.oficioYear || new Date().getFullYear();
 
-    // Valida se temos um número de ofício para exibir/gerar
     if (!finalOficioNumber) return showToast('Número do ofício não fornecido ou não encontrado para este registro.');
 
     const student = state.students.find(s => s.matricula === action.studentId);
     if (!student) return showToast('Aluno não encontrado.');
 
-    // Busca todas as ações do mesmo processo para consolidar informações
     const processActions = state.absences
         .filter(a => a.processId === action.processId)
         .sort((a, b) => (a.createdAt?.seconds || new Date(a.createdAt).getTime()) - (b.createdAt?.seconds || new Date(b.createdAt).getTime()));
 
     if (processActions.length === 0) return showToast('Nenhuma ação encontrada para este processo.');
 
-    // Encontra a primeira ação que contém os dados de falta (normalmente a tentativa_1)
     const firstActionWithAbsenceData = processActions.find(a => a.periodoFaltasStart);
-    // Encontra a ação de visita, se existir
     const visitAction = processActions.find(a => a.actionType === 'visita');
-    // Coleta todas as tentativas de contato
     const contactAttempts = processActions.filter(a => a.actionType.startsWith('tentativa'));
     
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
-    // const schoolName = state.config?.schoolName || "Nome da Escola"; // <-- CORREÇÃO: Removido, pois já está no header
-    const city = state.config?.city || "Cidade"; // <-- CORREÇÃO: Mantido apenas para a data
+    
+    // =======================================================================
+    // AQUI ESTÁ A CORREÇÃO
+    // Esta linha estava comentada no seu arquivo original, causando o erro.
+    const schoolName = state.config?.schoolName || "Nome da Escola";
+    // =======================================================================
+    
+    const city = state.config?.city || "Cidade"; 
 
-    // Cria um resumo das tentativas de contato
     let attemptsSummary = contactAttempts.map((attempt, index) => {
-        // Usa a data do contato se disponível, senão a data de criação do registro
         const attemptDate = attempt.contactDate || attempt.createdAt?.toDate();
         return `
             <p class="ml-4">- <strong>${index + 1}ª Tentativa (${formatDate(attemptDate)}):</strong> 
@@ -635,7 +599,6 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
     }).join('');
     if (!attemptsSummary) attemptsSummary = "<p class='ml-4'>Nenhuma tentativa de contato registrada.</p>";
 
-    // Formatação do período de faltas
     const formatPeriodoLocal = (start, end) => {
         if (start && end) return `de ${formatDate(start)} a ${formatDate(end)}`;
         if (start) return `a partir de ${formatDate(start)}`;
@@ -647,7 +610,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             <div class="text-center">
                 ${getReportHeaderHTML()}
-                <!-- <p class="font-bold uppercase mt-4">${schoolName}</p> --> <!-- <-- CORREÇÃO: Removido para evitar duplicata -->
+                <!-- <p class="font-bold uppercase mt-4">${schoolName}</p> --> <!-- Esta linha pode ser descomentada se você quiser o nome da escola DUAS VEZES -->
                 <p>${city}, ${currentDate}.</p>
             </div>
 
@@ -720,7 +683,6 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
  * Gera o relatório geral de ocorrências com gráficos.
  */
 export const generateAndShowGeneralReport = () => {
-    // Reimplementando a lógica de busca do incidente aqui
      const filteredIncidentsMap = state.occurrences.reduce((acc, occ) => {
          const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
          if (!acc.has(groupId)) {
@@ -732,19 +694,17 @@ export const generateAndShowGeneralReport = () => {
          if (student && !incident.studentsInvolved.has(student.matricula)) {
              incident.studentsInvolved.set(student.matricula, student);
          }
-         // Calcula status geral para cada incidente ao final
          const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
          incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
 
          return acc;
      }, new Map());
 
-     // Aplica filtros
      const filteredIncidents = [...filteredIncidentsMap.values()].filter(incident => {
         const mainRecord = incident.records[0];
         if (!mainRecord) return false;
         const { startDate, endDate, status, type } = state.filtersOccurrences;
-        const studentSearch = state.filterOccurrences.toLowerCase();
+        const studentSearch = state.filterOccurrences.toLowerCase(); // <-- CORREÇÃO: era filterOccurrences.toLowerCase()
 
         if (startDate && mainRecord.date < startDate) return false;
         if (endDate && mainRecord.date > endDate) return false;
@@ -787,20 +747,6 @@ export const generateAndShowGeneralReport = () => {
         data: Object.values(occurrencesByStatus)
     };
 
-    // Função local para getStatusBadge se necessário
-     const getStatusBadgeLocal = (status) => {
-         const statusMap = {
-            'Pendente': 'bg-yellow-100 text-yellow-800',
-            'Aguardando Contato': 'bg-blue-100 text-blue-800',
-            'Finalizada': 'bg-green-100 text-green-800',
-            'Resolvido': 'bg-green-100 text-green-800', 
-            'Cancelado': 'bg-gray-100 text-gray-800'
-        };
-        const colorClasses = statusMap[status] || 'bg-gray-100 text-gray-800';
-        return `<span class="text-xs font-medium px-2.5 py-0.5 rounded-full ${colorClasses}">${status || 'N/A'}</span>`;
-    };
-
-
     const reportHTML = `
         <div class="space-y-8 text-sm font-sans">
             ${getReportHeaderHTML()}
@@ -841,7 +787,7 @@ export const generateAndShowGeneralReport = () => {
                                 <p class="font-bold text-gray-800">${formatText(mainRecord.occurrenceType)}</p>
                                 <p class="text-xs text-gray-600">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
                             </div>
-                            ${getStatusBadgeLocal(incident.overallStatus)}
+                            ${getStatusBadge(incident.overallStatus)}
                         </div>
                         <div class="p-4 space-y-3">
                             <p><strong>Alunos Envolvidos:</strong> ${studentNames}</p>
@@ -864,15 +810,14 @@ export const generateAndShowGeneralReport = () => {
     document.getElementById('report-view-content').innerHTML = reportHTML;
     openModal(dom.reportViewModalBackdrop);
 
-    // Tenta renderizar os gráficos
-    setTimeout(() => { // Adiciona um pequeno delay para garantir que o DOM foi atualizado
+    setTimeout(() => { 
         try {
             const typeCtx = document.getElementById('report-chart-by-type')?.getContext('2d');
             if (typeCtx && typeof Chart !== 'undefined') {
                 new Chart(typeCtx, {
                     type: 'bar',
                     data: { labels: chartDataByType.labels, datasets: [{ label: 'Total', data: chartDataByType.data, backgroundColor: '#4f46e5' }] },
-                    options: { responsive: true, plugins: { legend: { display: false } }, indexAxis: 'y' } // Muda para barra horizontal se muitos tipos
+                    options: { responsive: true, plugins: { legend: { display: false } }, indexAxis: 'y' } 
                 });
             } else if (!typeCtx) { console.warn("Canvas 'report-chart-by-type' não encontrado.");}
 
@@ -880,7 +825,7 @@ export const generateAndShowGeneralReport = () => {
              if (statusCtx && typeof Chart !== 'undefined') {
                 new Chart(statusCtx, {
                     type: 'doughnut',
-                    data: { labels: chartDataByStatus.labels, datasets: [{ data: chartDataByStatus.data, backgroundColor: ['#f59e0b', '#10b981', '#6b7280'] }] }, // Amarelo, Verde, Cinza
+                    data: { labels: chartDataByStatus.labels, datasets: [{ data: chartDataByStatus.data, backgroundColor: ['#f59e0b', '#10b981', '#6b7280'] }] }, 
                     options: { responsive: true }
                 });
             } else if (!statusCtx) { console.warn("Canvas 'report-chart-by-status' não encontrado.");}
@@ -897,7 +842,7 @@ export const generateAndShowGeneralReport = () => {
         } catch (e) {
             console.error("Erro ao renderizar gráficos:", e);
         }
-    }, 100); // Delay de 100ms
+    }, 100); 
 };
 
 
@@ -905,7 +850,6 @@ export const generateAndShowGeneralReport = () => {
  * Gera o relatório geral de Busca Ativa com gráficos.
  */
 export const generateAndShowBuscaAtivaReport = () => {
-    // 1. Agrupa todas as ações por 'processId'
     const groupedByProcess = state.absences.reduce((acc, action) => {
         const key = action.processId || `no-proc-${action.id}`;
         if (!acc[key]) acc[key] = { id: key, actions: [], studentId: action.studentId };
@@ -929,51 +873,46 @@ export const generateAndShowBuscaAtivaReport = () => {
     const filteredProcesses = processes.filter(proc => {
         proc.actions.sort((a, b) => (a.createdAt?.seconds || new Date(a.createdAt).getTime()) - (b.createdAt?.seconds || new Date(b.createdAt).getTime()));
         const lastAction = proc.actions[proc.actions.length - 1];
-        if (!lastAction) return false; // Adiciona guarda para processo sem ações
+        if (!lastAction) return false;
         
         const student = state.students.find(s => s.matricula === proc.studentId);
         
         if (studentFilter && (!student || !student.name.toLowerCase().includes(studentFilter.toLowerCase()))) return false;
         
-        const isConcluded = lastAction.actionType === 'analise'; // Simplificado: concluído se a última ação é 'analise'
+        const isConcluded = lastAction.actionType === 'analise'; 
         if (processStatus === 'in_progress' && isConcluded) return false;
         if (processStatus === 'concluded' && !isConcluded) return false;
 
-        // Verifica o status de retorno baseado na última ação que o possui
         const lastReturnAction = [...proc.actions].reverse().find(a => a.contactReturned != null || a.visitReturned != null || a.ctReturned != null);
         const lastReturnStatusValue = lastReturnAction ? (lastReturnAction.contactReturned ?? lastReturnAction.visitReturned ?? lastReturnAction.ctReturned) : 'pending';
         
         if (returnStatus === 'returned' && lastReturnStatusValue !== 'yes') return false;
         if (returnStatus === 'not_returned' && lastReturnStatusValue !== 'no') return false;
-        // Para 'pending', precisamos verificar se *nenhuma* ação teve retorno 'yes' ou 'no'
         const hasDefinitiveReturn = proc.actions.some(a => a.contactReturned === 'yes' || a.contactReturned === 'no' || a.visitReturned === 'yes' || a.visitReturned === 'no' || a.ctReturned === 'yes' || a.ctReturned === 'no');
         if (returnStatus === 'pending' && hasDefinitiveReturn) return false;
 
 
         let isPendingContact = false, isPendingFeedback = false;
         if (!isConcluded) {
-            // Verifica se a última ação requer contato e se ele não foi feito
              isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null);
             
-            // Verifica se houve encaminhamento e se falta devolutiva
             const ctAction = proc.actions.find(a => a.actionType === 'encaminhamento_ct');
-            isPendingFeedback = ctAction && !ctAction.ctFeedback; // Feedback é null ou vazio
+            isPendingFeedback = ctAction && !ctAction.ctFeedback;
         }
 
         if (pendingAction === 'pending_contact' && !isPendingContact) return false;
         if (pendingAction === 'pending_feedback' && !isPendingFeedback) return false;
         
-        // Contadores (só incrementa se passou nos filtros)
         isConcluded ? statusConcluido++ : statusEmAndamento++;
         
         if (lastReturnStatusValue === 'yes') retornoSim++;
         else if (lastReturnStatusValue === 'no') retornoNao++;
-        else if (!hasDefinitiveReturn) retornoPendente++; // Só conta como pendente se NUNCA teve sim/não
+        else if (!hasDefinitiveReturn) retornoPendente++;
         
         if (isPendingContact) pendenteContato++;
         if (isPendingFeedback) pendenteDevolutiva++;
 
-        return true; // Passou por todos os filtros
+        return true; 
     });
 
     if (filteredProcesses.length === 0) {
@@ -1049,14 +988,13 @@ export const generateAndShowBuscaAtivaReport = () => {
     document.getElementById('report-view-content').innerHTML = reportHTML;
     openModal(dom.reportViewModalBackdrop);
 
-     // Tenta renderizar os gráficos
-    setTimeout(() => { // Adiciona um pequeno delay
+     setTimeout(() => { 
         try {
             const statusCtx = document.getElementById('ba-chart-status')?.getContext('2d');
             if (statusCtx && typeof Chart !== 'undefined') {
                 new Chart(statusCtx, {
                     type: 'doughnut',
-                    data: { labels: chartDataStatus.labels, datasets: [{ data: chartDataStatus.data, backgroundColor: ['#f59e0b', '#10b981'] }] }, // Amarelo, Verde
+                    data: { labels: chartDataStatus.labels, datasets: [{ data: chartDataStatus.data, backgroundColor: ['#f59e0b', '#10b981'] }] },
                     options: { responsive: true }
                 });
             } else if (!statusCtx) { console.warn("Canvas 'ba-chart-status' não encontrado."); }
@@ -1065,7 +1003,7 @@ export const generateAndShowBuscaAtivaReport = () => {
              if (retornoCtx && typeof Chart !== 'undefined') {
                 new Chart(retornoCtx, {
                     type: 'pie',
-                    data: { labels: chartDataRetorno.labels, datasets: [{ data: chartDataRetorno.data, backgroundColor: ['#10b981', '#ef4444', '#6b7280'] }] }, // Verde, Vermelho, Cinza
+                    data: { labels: chartDataRetorno.labels, datasets: [{ data: chartDataRetorno.data, backgroundColor: ['#10b981', '#ef4444', '#6b7280'] }] },
                     options: { responsive: true }
                 });
              } else if (!retornoCtx) { console.warn("Canvas 'ba-chart-retorno' não encontrado."); }
@@ -1074,8 +1012,8 @@ export const generateAndShowBuscaAtivaReport = () => {
              if (pendenteCtx && typeof Chart !== 'undefined') {
                  new Chart(pendenteCtx, {
                     type: 'bar',
-                    data: { labels: chartDataPendente.labels, datasets: [{ label: 'Total', data: chartDataPendente.data, backgroundColor: ['#3b82f6', '#f97316'] }] }, // Azul, Laranja
-                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } } // Garante eixo Y começando em 0 e com passos de 1
+                    data: { labels: chartDataPendente.labels, datasets: [{ label: 'Total', data: chartDataPendente.data, backgroundColor: ['#3b82f6', '#f97316'] }] },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } } 
                 });
              } else if (!pendenteCtx) { console.warn("Canvas 'ba-chart-pendente' não encontrado."); }
 
@@ -1091,5 +1029,5 @@ export const generateAndShowBuscaAtivaReport = () => {
         } catch (e) {
             console.error("Erro ao renderizar gráficos da Busca Ativa:", e);
         }
-    }, 100); // Delay de 100ms
+    }, 100); 
 };
