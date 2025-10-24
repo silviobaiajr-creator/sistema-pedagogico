@@ -7,6 +7,10 @@
 // a ação "Encaminhamento" no Firestore ANTES de tentar gerar o
 // documento do ofício, garantindo que os dados (como o nº do ofício)
 // estejam disponíveis para o relatório.
+//
+// CORREÇÃO (24/10/2025 - V2): Removida a atualização manual do state.absences
+// e a chamada manual renderAbsences() de handleSendToCT para evitar TypeError
+// com o objeto Date vs Timestamp. O listener onSnapshot cuidará da renderização.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -86,6 +90,8 @@ export const renderAbsences = () => {
 
     const filteredGroupKeys = Object.keys(groupedByProcess).filter(processId => {
         const actions = groupedByProcess[processId];
+        // Adiciona verificação para evitar erro se actions for undefined ou vazio
+        if (!actions || actions.length === 0) return false;
         actions.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
         const { processStatus, pendingAction, returnStatus } = state.filtersAbsences;
         const isConcluded = actions.some(a => a.actionType === 'analise');
@@ -101,18 +107,22 @@ export const renderAbsences = () => {
             if (pendingAction === 'pending_feedback') {
                 const hasCtAction = actions.some(a => a.actionType === 'encaminhamento_ct');
                 const ctAction = actions.find(a => a.actionType === 'encaminhamento_ct');
-                const isPendingFeedback = hasCtAction && !ctAction.ctFeedback;
+                const isPendingFeedback = hasCtAction && !ctAction?.ctFeedback; // Adiciona ? para segurança
                 if (!isPendingFeedback) return false;
             }
         }
         if (returnStatus !== 'all') {
             const lastActionWithReturnInfo = [...actions].reverse().find(a => (a.contactReturned != null) || (a.visitReturned != null) || (a.ctReturned != null));
             if (!lastActionWithReturnInfo) {
+                // Se nenhum retorno foi definido e o filtro é 'retornou' ou 'não retornou', exclui
                 if (returnStatus === 'returned' || returnStatus === 'not_returned') return false;
+                 // Se o filtro é 'pendente' e não há info, mantém (mas isso pode ser ajustado conforme regra de negócio)
             } else {
                 const lastStatus = lastActionWithReturnInfo.contactReturned || lastActionWithReturnInfo.visitReturned || lastActionWithReturnInfo.ctReturned;
                 if (returnStatus === 'returned' && lastStatus !== 'yes') return false;
                 if (returnStatus === 'not_returned' && lastStatus !== 'no') return false;
+                // Se o filtro é 'pendente' mas já existe 'sim' ou 'não', exclui
+                 if (returnStatus === 'pending' && (lastStatus === 'yes' || lastStatus === 'no')) return false;
             }
         }
         return true;
@@ -124,14 +134,23 @@ export const renderAbsences = () => {
     } else {
         dom.emptyStateAbsences.classList.add('hidden');
         const sortedGroupKeys = filteredGroupKeys.sort((a, b) => {
-            const lastActionA = groupedByProcess[a].sort((x, y) => (y.createdAt?.seconds || 0) - (x.createdAt?.seconds || 0))[0];
-            const lastActionB = groupedByProcess[b].sort((x, y) => (y.createdAt?.seconds || 0) - (x.createdAt?.seconds || 0))[0];
+            const actionsA = groupedByProcess[a];
+            const actionsB = groupedByProcess[b];
+            // Adiciona verificação para evitar erro se actions for undefined ou vazio
+            const lastActionA = actionsA?.length > 0 ? actionsA.sort((x, y) => (y.createdAt?.seconds || 0) - (x.createdAt?.seconds || 0))[0] : null;
+            const lastActionB = actionsB?.length > 0 ? actionsB.sort((x, y) => (y.createdAt?.seconds || 0) - (x.createdAt?.seconds || 0))[0] : null;
+            // Ordena colocando processos sem ação válida por último ou no início, dependendo da preferência
+            if (!lastActionA && !lastActionB) return 0;
+            if (!lastActionA) return 1; // Coloca A depois de B
+            if (!lastActionB) return -1; // Coloca B depois de A
             return (lastActionB.createdAt?.seconds || 0) - (lastActionA.createdAt?.seconds || 0);
         });
 
         let html = '';
         for (const processId of sortedGroupKeys) {
             const actions = groupedByProcess[processId].sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+             // Adiciona verificação para evitar erro se actions for undefined ou vazio
+            if (!actions || actions.length === 0) continue;
             const firstAction = actions[0];
             const student = state.students.find(s => s.matricula === firstAction.studentId);
             if (!student) continue;
@@ -295,9 +314,9 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 
     if (readOnlyAbsenceData) {
         const source = firstAbsenceRecordInCycle || data;
-        document.getElementById('absence-start-date').value = source.periodoFaltasStart || '';
-        document.getElementById('absence-end-date').value = source.periodoFaltasEnd || '';
-        document.getElementById('absence-count').value = source.absenceCount || '';
+        document.getElementById('absence-start-date').value = source?.periodoFaltasStart || ''; // Adiciona ?
+        document.getElementById('absence-end-date').value = source?.periodoFaltasEnd || '';   // Adiciona ?
+        document.getElementById('absence-count').value = source?.absenceCount || '';     // Adiciona ?
         absenceInputs.forEach(input => input.readOnly = true);
     } else {
         absenceInputs.forEach(input => input.readOnly = false);
@@ -335,12 +354,16 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 if(data.contactSucceeded) {
                     const radio = document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`);
                     if(radio) { radio.checked = true; radio.dispatchEvent(new Event('change')); }
+                } else { // Garante que radio desmarcado e campos escondidos se contactSucceeded for null
+                     document.querySelectorAll(`input[name="contact-succeeded"]`).forEach(r => r.checked = false);
+                     toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
                 }
                 document.getElementById('absence-contact-type').value = data.contactType || '';
                 document.getElementById('contact-date').value = data.contactDate || '';
                 document.getElementById('contact-person').value = data.contactPerson || '';
                 document.getElementById('contact-reason').value = data.contactReason || '';
                 if(data.contactReturned) document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`).checked = true;
+                else document.querySelectorAll(`input[name="contact-returned"]`).forEach(r => r.checked = false); // Desmarca se null
                 break;
             case 'visita':
                 document.getElementById('visit-agent').value = data.visitAgent || '';
@@ -348,25 +371,33 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 if(data.visitSucceeded) {
                     const radio = document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`);
                     if(radio) { radio.checked = true; radio.dispatchEvent(new Event('change')); }
+                } else { // Garante estado inicial correto
+                     document.querySelectorAll(`input[name="visit-succeeded"]`).forEach(r => r.checked = false);
+                     toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
                 }
                 document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
                 document.getElementById('visit-reason').value = data.visitReason || '';
                 document.getElementById('visit-obs').value = data.visitObs || '';
                 if (data.visitReturned) document.querySelector(`input[name="visit-returned"][value="${data.visitReturned}"]`).checked = true;
+                else document.querySelectorAll(`input[name="visit-returned"]`).forEach(r => r.checked = false); // Desmarca se null
                 break;
             case 'encaminhamento_ct':
                 document.getElementById('ct-sent-date').value = data.ctSentDate || '';
                 document.getElementById('ct-feedback').value = data.ctFeedback || '';
                 if (data.ctReturned) document.querySelector(`input[name="ct-returned"][value="${data.ctReturned}"]`).checked = true;
+                else document.querySelectorAll(`input[name="ct-returned"]`).forEach(r => r.checked = false); // Desmarca se null
                 break;
             case 'analise':
                 document.getElementById('ct-parecer').value = data.ctParecer || '';
                 break;
         }
     } else {
-        // Garante que os campos dinâmicos comecem escondidos
+        // Garante que os campos dinâmicos comecem escondidos ao criar
         toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
         toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
+         // Garante que rádios de retorno comecem desmarcados
+        document.querySelectorAll('input[name="contact-returned"], input[name="visit-returned"], input[name="ct-returned"]').forEach(r => r.checked = false);
+
     }
     openModal(dom.absenceModal);
 };
@@ -391,7 +422,7 @@ async function handleAbsenceSubmit(e) {
     try {
         const id = data.id;
         delete data.id;
-        const historyAction = id ? "Dados da ação atualizados." : `Ação de Busca Ativa registada.`;
+        const historyAction = id ? "Dados da ação atualizados." : `Ação de Busca Ativa registada (${actionDisplayTitles[data.actionType]}).`; // Melhoria no histórico
 
         if (id) await updateRecordWithHistory('absence', id, data, historyAction, state.userEmail);
         else await addRecordWithHistory('absence', data, historyAction, state.userEmail);
@@ -399,10 +430,15 @@ async function handleAbsenceSubmit(e) {
         showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
         closeModal(dom.absenceModal);
 
-        const studentReturned = data.contactReturned === 'yes' || data.visitReturned === 'yes';
-        if (studentReturned) {
+        // Verifica se o aluno retornou E se a ação atual NÃO é a de análise
+        const studentReturned = (data.contactReturned === 'yes' || data.visitReturned === 'yes' || data.ctReturned === 'yes');
+        if (studentReturned && data.actionType !== 'analise') {
             const student = state.students.find(s => s.matricula === data.studentId);
-            setTimeout(() => openAbsenceModalForStudent(student, 'analise'), 350);
+            // Verifica se já existe uma ação de análise no ciclo atual ANTES de abrir o modal
+             const { currentCycleActions } = getStudentProcessInfo(student.matricula);
+             if (!currentCycleActions.some(a => a.actionType === 'analise')) {
+                setTimeout(() => openAbsenceModalForStudent(student, 'analise'), 350);
+             }
         }
     } catch (error) {
         console.error("Erro ao salvar ação de BA:", error);
@@ -429,38 +465,49 @@ function getAbsenceFormData() {
         periodoFaltasStart: document.getElementById('absence-start-date').value || null,
         periodoFaltasEnd: document.getElementById('absence-end-date').value || null,
         absenceCount: document.getElementById('absence-count').value || null,
+         // Garante valores nulos para campos não preenchidos
+        meetingDate: null, meetingTime: null, contactSucceeded: null, contactType: null, contactDate: null, contactPerson: null, contactReason: null, contactReturned: null,
+        visitAgent: null, visitDate: null, visitSucceeded: null, visitContactPerson: null, visitReason: null, visitObs: null, visitReturned: null,
+        ctSentDate: null, ctFeedback: null, ctReturned: null, oficioNumber: null, oficioYear: null, // Inclui campos de ofício
+        ctParecer: null
     };
 
     if (data.actionType.startsWith('tentativa')) {
-        const contactSucceeded = document.querySelector('input[name="contact-succeeded"]:checked');
+        const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
         data.meetingDate = document.getElementById('meeting-date').value || null;
         data.meetingTime = document.getElementById('meeting-time').value || null;
-        data.contactSucceeded = contactSucceeded ? contactSucceeded.value : null;
+        data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
         if (data.contactSucceeded === 'yes') {
             data.contactType = document.getElementById('absence-contact-type').value || null;
             data.contactDate = document.getElementById('contact-date').value || null;
             data.contactPerson = document.getElementById('contact-person').value || null;
             data.contactReason = document.getElementById('contact-reason').value || null;
         }
-        const contactReturned = document.querySelector('input[name="contact-returned"]:checked');
-        data.contactReturned = contactReturned ? contactReturned.value : null;
+        const contactReturnedRadio = document.querySelector('input[name="contact-returned"]:checked');
+        data.contactReturned = contactReturnedRadio ? contactReturnedRadio.value : null;
     } else if (data.actionType === 'visita') {
-        const visitSucceeded = document.querySelector('input[name="visit-succeeded"]:checked');
+        const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
         data.visitAgent = document.getElementById('visit-agent').value || null;
         data.visitDate = document.getElementById('visit-date').value || null;
-        data.visitSucceeded = visitSucceeded ? visitSucceeded.value : null;
+        data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
         if (data.visitSucceeded === 'yes') {
             data.visitContactPerson = document.getElementById('visit-contact-person').value || null;
             data.visitReason = document.getElementById('visit-reason').value || null;
             data.visitObs = document.getElementById('visit-obs').value || null;
         }
-        const visitReturned = document.querySelector('input[name="visit-returned"]:checked');
-        data.visitReturned = visitReturned ? visitReturned.value : null;
+        const visitReturnedRadio = document.querySelector('input[name="visit-returned"]:checked');
+        data.visitReturned = visitReturnedRadio ? visitReturnedRadio.value : null;
     } else if (data.actionType === 'encaminhamento_ct') {
         data.ctSentDate = document.getElementById('ct-sent-date').value || null;
         data.ctFeedback = document.getElementById('ct-feedback').value || null;
-        const ctReturned = document.querySelector('input[name="ct-returned"]:checked');
-        data.ctReturned = ctReturned ? ctReturned.value : null;
+        const ctReturnedRadio = document.querySelector('input[name="ct-returned"]:checked');
+        data.ctReturned = ctReturnedRadio ? ctReturnedRadio.value : null;
+         // Coleta dados do ofício se já existirem (ao editar)
+         const existingAction = state.absences.find(a => a.id === data.id);
+         if (existingAction) {
+             data.oficioNumber = existingAction.oficioNumber;
+             data.oficioYear = existingAction.oficioYear;
+         }
     } else if (data.actionType === 'analise') {
         data.ctParecer = document.getElementById('ct-parecer').value || null;
     }
@@ -479,8 +526,7 @@ function handleActionTypeChange(action) {
 
 /**
  * Lida com o clique de "Enviar ao CT".
- * CORRIGIDO: Agora salva a ação "Encaminhamento" PRIMEIRO,
- * atualiza o estado local, e SÓ ENTÃO gera o ofício.
+ * CORRIGIDO V2: Salva primeiro, passa dados para gerar ofício, deixa onSnapshot renderizar.
  */
 async function handleSendToCT(id) {
     const oficioNumber = prompt("Por favor, insira o número do ofício:");
@@ -493,7 +539,6 @@ async function handleSendToCT(id) {
             // 1. Prepara os dados da nova ação "Encaminhamento"
             const { processId, currentCycleActions } = getStudentProcessInfo(student.matricula);
             
-            // Verifica se já existe (segurança)
             if (currentCycleActions.some(a => a.actionType === 'encaminhamento_ct')) {
                 showToast("Encaminhamento já realizado.");
                 return;
@@ -510,32 +555,31 @@ async function handleSendToCT(id) {
                 periodoFaltasStart: firstAction?.periodoFaltasStart || null,
                 periodoFaltasEnd: firstAction?.periodoFaltasEnd || null,
                 absenceCount: firstAction?.absenceCount || null,
+                // Inicializa outros campos como null para consistência
+                ctFeedback: null,
+                ctReturned: null
             };
             
             try {
                 // 2. Salva a nova ação PRIMEIRO
-                const historyAction = "Ação 'Encaminhamento ao CT' registada.";
+                const historyAction = `Ação 'Encaminhamento ao CT' registada (Ofício Nº ${oficioNumber}/${dataForCt.oficioYear}).`; // Histórico mais descritivo
                 const docRef = await addRecordWithHistory('absence', dataForCt, historyAction, state.userEmail);
                 showToast("Registro de 'Encaminhamento ao CT' salvo automaticamente.");
 
-                // 3. Atualiza o estado LOCALMENTE (para o gerador de relatório funcionar)
-                // O listener do Firestore vai atualizar, mas fazemos isso manualmente
-                // para garantir que o generateAndShowOficio tenha os dados corretos AGORA.
-                const newActionData = { 
+                // 3. Prepara dados simulados para gerar o ofício imediatamente
+                //    (sem modificar o state global diretamente)
+                const newActionDataForReport = { 
                     ...dataForCt, 
                     id: docRef.id, 
-                    createdAt: new Date(), // Simula o timestamp
+                    createdAt: new Date(), // Usa Date aqui, generateAndShowOficio não usa toDate()
                     history: [{ action: historyAction, user: state.userEmail, timestamp: new Date() }]
                 };
-                state.absences.push(newActionData);
 
-                // 4. Gera o ofício AGORA (usando o state atualizado)
-                // Passamos a nova ação, pois generateAndShowOficio usa o action.processId
-                generateAndShowOficio(newActionData, oficioNumber);
+                // 4. Gera o ofício AGORA usando os dados preparados
+                generateAndShowOficio(newActionDataForReport, oficioNumber);
 
-                // 5. Força a renderização da lista
-                // (O listener do Firestore faria isso, mas garantimos aqui)
-                renderAbsences(); 
+                // 5. NÃO chama renderAbsences() aqui.
+                //    O listener onSnapshot vai receber o dado do Firestore e atualizar a UI.
 
             } catch(err) {
                 console.error("Erro ao salvar ou gerar ofício:", err);
@@ -550,7 +594,7 @@ async function handleSendToCT(id) {
  */
 function handleViewOficio(id) {
     const ctAction = state.absences.find(a => a.id === id);
-    if (ctAction) generateAndShowOficio(ctAction);
+    if (ctAction) generateAndShowOficio(ctAction); // Passa a ação existente
 }
 
 /**
