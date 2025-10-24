@@ -122,13 +122,16 @@ async function handleSettingsSubmit(e) {
 /**
  * Lida com o upload do arquivo CSV de alunos.
  * (Movido de main.js)
+ * (ATUALIZAÇÃO: Corrigido 'Papa.parse' para 'window.Papa.parse')
  */
 function handleCsvUpload() {
     const fileInput = document.getElementById('csv-file');
     const feedbackDiv = document.getElementById('csv-feedback');
     if (fileInput.files.length === 0) return showToast("Por favor, selecione um ficheiro CSV.");
     
-    Papa.parse(fileInput.files[0], {
+    // CORREÇÃO: Módulos ES não enxergam variáveis globais diretamente.
+    // Precisamos acessar o 'Papa' através do objeto 'window'.
+    window.Papa.parse(fileInput.files[0], {
         header: true,
         skipEmptyLines: true,
         transformHeader: header => header.toLowerCase().trim().replace(/\s+/g, ''),
