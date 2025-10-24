@@ -42,7 +42,8 @@ import { onSnapshot, query, writeBatch, doc, setDoc, where, getDocs, collection,
 // Módulos internos da aplicação
 import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
-import { showToast, closeModal, shareContent, openModal } from './utils.js';
+// <-- CORREÇÃO: Importa a nova função 'loadScript' de utils.js
+import { showToast, closeModal, shareContent, openModal, loadScript } from './utils.js';
 import { loadStudents, saveSchoolConfig, loadSchoolConfig, getCollectionRef, getStudentsDocRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord } from './firestore.js';
 
 // Funções de UI que *permaneceram* em ui.js
@@ -560,7 +561,10 @@ async function handleCsvUpload() {
             // Carrega PapaParse dinamicamente do CDN
             // Usamos a URL completa, pois 'import()' relativo não funciona com CDNs
             const papaScriptUrl = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js';
-            await import(papaScriptUrl);
+            
+            // <-- CORREÇÃO: Substituído 'import()' por 'loadScript()'
+            await loadScript(papaScriptUrl); 
+            
             // Após o await, o script foi executado e window.Papa deve estar definido
             if (typeof window.Papa === 'undefined') {
                  throw new Error("Falha ao carregar PapaParse dinamicamente.");
@@ -1079,4 +1083,3 @@ async function handleStudentTableActions(e) {
         }
     }
 }
-
