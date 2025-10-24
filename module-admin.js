@@ -14,9 +14,12 @@ import { setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-fires
 
 /**
  * Inicializa o módulo de Admin, configurando os event listeners necessários.
+ * ESTA FUNÇÃO SÓ DEVE SER CHAMADA DEPOIS QUE O DOM ESTIVER PRONTO E `dom` POPULADO.
  */
 export const initAdmin = () => {
     console.log("Módulo de Admin (module-admin.js) Inicializado."); // Log para depuração
+
+    // ---- CORREÇÃO: Mover a adição de listeners PARA DENTRO DE initAdmin ----
 
     // Botões no Cabeçalho
     if (dom.settingsBtn) {
@@ -26,12 +29,13 @@ export const initAdmin = () => {
     }
 
     if (dom.manageStudentsBtn) {
-        dom.manageStudentsBtn.addEventListener('click', () => { 
+        dom.manageStudentsBtn.addEventListener('click', () => {
             renderStudentsList(); // Renderiza a lista ao abrir o modal
-            openModal(dom.studentsModal); 
+            openModal(dom.studentsModal);
         });
     } else {
-        console.error("Botão #manage-students-btn não encontrado.");
+        // Log de erro aqui é importante, pois indica um problema na inicialização
+        console.error("Erro Crítico: Botão #manage-students-btn não encontrado no DOM quando initAdmin foi chamado.");
     }
 
     // Formulário de Configurações
@@ -76,6 +80,7 @@ export const initAdmin = () => {
     } else {
          console.error("Modal #students-modal não encontrado.");
     }
+     // ---- FIM DA CORREÇÃO ----
 };
 
 // --- HANDLERS DE EVENTOS ---
@@ -96,6 +101,13 @@ async function handleSettingsSubmit(e) {
         return showToast("O nome da escola é obrigatório.");
     }
 
+    // Desabilita botão durante o salvamento
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>A Salvar...';
+
+
     try {
         await saveSchoolConfig(data);
         state.config = data; // Atualiza o estado local
@@ -103,10 +115,16 @@ async function handleSettingsSubmit(e) {
             dom.headerSchoolName.textContent = data.schoolName; // Atualiza a UI imediatamente
         }
         showToast('Configurações salvas com sucesso!');
-        // closeModal(dom.settingsModal); // Fechar modal é gerenciado pelo main.js/setupModalCloseButtons
+        // Fechar modal agora é tratado pelo listener genérico em main.js
+        // import { closeModal } from './utils.js'; // Importar se necessário fechar aqui
+        // closeModal(dom.settingsModal);
     } catch (error) {
         console.error("Erro ao salvar configurações:", error);
         showToast('Erro ao salvar as configurações.');
+    } finally {
+        // Reabilita o botão
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
     }
 }
 
@@ -119,7 +137,7 @@ async function handleStudentFormSubmit(e) {
     const id = document.getElementById('student-id-input').value; // Usado para saber se é edição
     const matricula = document.getElementById('student-matricula-input').value.trim();
     const name = document.getElementById('student-name-input').value.trim();
-    
+
     // Validações básicas
     if (!matricula || !name) {
          return showToast("Matrícula e Nome Completo são obrigatórios.");
@@ -130,24 +148,24 @@ async function handleStudentFormSubmit(e) {
      if (!document.getElementById('student-resp1-input').value.trim()) {
          return showToast("O Responsável 1 é obrigatório.");
     }
-    
+
     let updatedList = [...state.students]; // Cria cópia da lista atual
-    
+
     // Prepara os dados do aluno
-    const studentData = { 
-        matricula, name, 
+    const studentData = {
+        matricula, name,
         class: document.getElementById('student-class-input').value.trim(),
         endereco: document.getElementById('student-endereco-input').value.trim() || '', // Garante string vazia se nulo
         contato: document.getElementById('student-contato-input').value.trim() || '',
         resp1: document.getElementById('student-resp1-input').value.trim(),
         resp2: document.getElementById('student-resp2-input').value.trim() || ''
     };
-    
+
     if (id) {
         // Modo Edição: Atualiza o aluno existente
         const index = updatedList.findIndex(s => s.matricula === id);
         if (index > -1) {
-            // Verifica se a matrícula (chave primária) foi alterada E se já existe
+            // Verifica se a matrícula (chave primária) foi alterada E se já existe para OUTRO aluno
             if (id !== matricula && updatedList.some((s, i) => i !== index && s.matricula === matricula)) {
                  return showToast("Erro: A nova matrícula já existe para outro aluno.");
             }
@@ -163,9 +181,16 @@ async function handleStudentFormSubmit(e) {
         updatedList.push(studentData);
     }
 
+    // Desabilita botão durante o salvamento
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>A Salvar...';
+
+
     try {
         // Salva a lista COMPLETA no Firestore (sobrescreve)
-        await setDoc(getStudentsDocRef(), { list: updatedList }); 
+        await setDoc(getStudentsDocRef(), { list: updatedList });
         state.students = updatedList; // Atualiza o estado local
         renderStudentsList(); // Re-renderiza a tabela no modal
         resetStudentForm(); // Limpa o formulário
@@ -173,6 +198,10 @@ async function handleStudentFormSubmit(e) {
     } catch(error) {
         console.error("Erro ao salvar dados do aluno:", error);
         showToast("Erro ao salvar dados do aluno.");
+    } finally {
+        // Reabilita o botão
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
     }
 }
 
@@ -190,8 +219,6 @@ async function handleStudentTableActions(e) {
             document.getElementById('student-form-title').textContent = 'Editar Aluno';
             document.getElementById('student-id-input').value = student.matricula; // Guarda a matrícula ORIGINAL para busca
             document.getElementById('student-matricula-input').value = student.matricula;
-            // document.getElementById('student-matricula-input').readOnly = true; // Permite editar matrícula agora
-            // document.getElementById('student-matricula-input').classList.add('bg-gray-100');
             document.getElementById('student-name-input').value = student.name;
             document.getElementById('student-class-input').value = student.class;
             document.getElementById('student-endereco-input').value = student.endereco || '';
@@ -200,7 +227,7 @@ async function handleStudentTableActions(e) {
             document.getElementById('student-resp2-input').value = student.resp2 || '';
             document.getElementById('cancel-edit-student-btn').classList.remove('hidden'); // Mostra botão Cancelar
              // Foca no campo nome para facilitar a edição
-            document.getElementById('student-name-input').focus(); 
+            document.getElementById('student-name-input').focus();
         }
         return; // Impede que o clique no botão de editar também dispare o de excluir
     }
@@ -210,6 +237,11 @@ async function handleStudentTableActions(e) {
         const id = deleteBtn.dataset.id; // Matrícula do aluno a excluir
         const student = state.students.find(s => s.matricula === id);
         if (student && confirm(`Tem a certeza que quer remover o aluno "${student.name}"? Esta ação não pode ser desfeita.`)) {
+
+             // Adiciona estado de loading visualmente se necessário
+             deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+             deleteBtn.disabled = true;
+
             const updatedList = state.students.filter(s => s.matricula !== id);
             try {
                 await setDoc(getStudentsDocRef(), { list: updatedList }); // Salva a lista sem o aluno
@@ -220,9 +252,13 @@ async function handleStudentTableActions(e) {
             } catch(error) {
                 console.error("Erro ao remover aluno:", error);
                 // Usar getFirestoreErrorMessage se existir globalmente, senão mensagem genérica
-                // showToast(getFirestoreErrorMessage(error.code) || "Erro ao remover aluno."); 
+                // showToast(getFirestoreErrorMessage(error.code) || "Erro ao remover aluno.");
                 showToast("Erro ao remover aluno.");
+                // Restaura o botão em caso de erro
+                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                deleteBtn.disabled = false;
             }
+            // Não precisa restaurar o botão em caso de sucesso, pois a linha será removida
         }
     }
 }
@@ -237,14 +273,14 @@ let papaLoadingPromise = null; // Guarda a promessa de carregamento
  * @returns {Promise<boolean>} Resolve true se carregado, rejeita em caso de erro.
  */
 function loadPapaParser() {
-    if (typeof window.Papa !== 'undefined') {
+    if (typeof window.Papa !== 'undefined' && window.Papa.parse) { // Verifica se a função parse existe
         return Promise.resolve(true); // Já carregado
     }
     if (papaLoadingPromise) {
         return papaLoadingPromise; // Já está a carregar
     }
 
-    console.log("PapaParse não encontrado, a iniciar carregamento dinâmico..."); // Log
+    console.log("PapaParse não encontrado ou incompleto, a iniciar carregamento dinâmico..."); // Log
     const feedbackDiv = document.getElementById('csv-feedback');
     if(feedbackDiv) feedbackDiv.innerHTML = `<p class="text-blue-500">A carregar biblioteca de CSV...</p>`;
 
@@ -253,15 +289,23 @@ function loadPapaParser() {
         script.src = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/paparse.min.js';
         script.async = true;
         script.onload = () => {
-            console.log("PapaParse carregado com sucesso."); // Log
-            if(feedbackDiv) feedbackDiv.innerHTML = ''; // Limpa feedback
-            resolve(true);
+             // Adiciona pequena verificação extra
+             if (typeof window.Papa !== 'undefined' && window.Papa.parse) {
+                console.log("PapaParse carregado com sucesso."); // Log
+                if(feedbackDiv) feedbackDiv.innerHTML = ''; // Limpa feedback
+                resolve(true);
+             } else {
+                 console.error("PapaParse carregado, mas objeto Papa ou função parse não encontrados.");
+                 if(feedbackDiv) feedbackDiv.innerHTML = `<p class="text-red-500">Erro interno ao carregar biblioteca CSV.</p>`;
+                 papaLoadingPromise = null;
+                 reject(new Error("Falha ao inicializar PapaParse após carregamento."));
+             }
         };
         script.onerror = (error) => {
-            console.error("Erro ao carregar PapaParse:", error); // Log
-            if(feedbackDiv) feedbackDiv.innerHTML = `<p class="text-red-500">Erro ao carregar a biblioteca necessária para ler o CSV.</p>`;
+            console.error("Erro de rede ao carregar PapaParse:", error); // Log
+            if(feedbackDiv) feedbackDiv.innerHTML = `<p class="text-red-500">Erro de rede ao carregar a biblioteca CSV. Verifique a conexão.</p>`;
             papaLoadingPromise = null; // Permite tentar carregar novamente
-            reject(new Error("Falha ao carregar PapaParse."));
+            reject(new Error("Falha de rede ao carregar PapaParse."));
         };
         document.body.appendChild(script);
     });
@@ -289,7 +333,7 @@ async function handleCsvUpload() {
 
     try {
         // Garante que PapaParse está carregado
-        await loadPapaParser(); 
+        await loadPapaParser();
 
         // Agora podemos usar window.Papa com segurança
         window.Papa.parse(file, {
@@ -298,14 +342,15 @@ async function handleCsvUpload() {
             // Transforma cabeçalhos para minúsculas, sem espaços e acentos
             transformHeader: header => header.toLowerCase().trim()
                                            .replace(/\s+/g, '')
-                                           .normalize("NFD").replace(/[\u0300-\u036f]/g, ""), 
+                                           .normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
             complete: async (results) => {
                 // Cabeçalhos esperados (já normalizados)
                 const requiredHeaders = ['matricula', 'nome', 'turma', 'endereco', 'contato', 'resp1', 'resp2'];
-                const fileHeaders = results.meta.fields.map(h => h.toLowerCase().trim()
+                // Normaliza os cabeçalhos do ficheiro da mesma forma
+                const fileHeaders = (results.meta.fields || []).map(h => h.toLowerCase().trim()
                                                                   .replace(/\s+/g, '')
-                                                                  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")); 
-                
+                                                                  .normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+
                 // Verifica se todos os cabeçalhos necessários estão presentes
                 const missingHeaders = requiredHeaders.filter(h => !fileHeaders.includes(h));
                 if (missingHeaders.length > 0) {
@@ -316,7 +361,7 @@ async function handleCsvUpload() {
 
                 // Processa os dados
                 const newStudentList = results.data.map(row => {
-                     // Mapeia usando os nomes normalizados
+                     // Mapeia usando os nomes normalizados para encontrar os valores
                      const normalizedRow = {};
                      for (const key in row) {
                          const normalizedKey = key.toLowerCase().trim()
@@ -324,21 +369,21 @@ async function handleCsvUpload() {
                                                   .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                          normalizedRow[normalizedKey] = row[key];
                      }
-                     
+
                      return {
                         // Usa os nomes normalizados para buscar os dados
-                        matricula: normalizedRow.matricula || '', 
+                        matricula: normalizedRow.matricula || '',
                         name: normalizedRow.nome || '', // 'nome' em vez de 'name'
                         class: normalizedRow.turma || '', // 'turma' em vez de 'class'
-                        endereco: normalizedRow.endereco || '', 
+                        endereco: normalizedRow.endereco || '',
                         contato: normalizedRow.contato || '',
-                        resp1: normalizedRow.resp1 || '', 
+                        resp1: normalizedRow.resp1 || '',
                         resp2: normalizedRow.resp2 || ''
                      };
                 }).filter(s => s.matricula && s.name && s.class && s.resp1); // Validação mínima mais forte
 
                 if (newStudentList.length === 0) {
-                     if(feedbackDiv) feedbackDiv.innerHTML = `<p class="text-yellow-500">Nenhum aluno válido encontrado no ficheiro. Verifique os dados e os cabeçalhos.</p>`;
+                     if(feedbackDiv) feedbackDiv.innerHTML = `<p class="text-yellow-500">Nenhum aluno válido encontrado no ficheiro. Verifique os dados (matrícula, nome, turma, resp1 são obrigatórios) e os cabeçalhos.</p>`;
                      resetUploadButton();
                      return;
                 }
@@ -359,9 +404,9 @@ async function handleCsvUpload() {
                     resetUploadButton();
                 }
             },
-            error: (err) => {
-                 console.error("Erro ao parsear CSV:", err);
-                 if(feedbackDiv) feedbackDiv.innerHTML = `<p class="text-red-500">Erro ao ler o ficheiro CSV: ${err.message}</p>`;
+            error: (err, file) => { // PapaParse passa o ficheiro no erro
+                 console.error("Erro ao parsear CSV:", err, file);
+                 if(feedbackDiv) feedbackDiv.innerHTML = `<p class="text-red-500">Erro ao ler o ficheiro CSV: ${err.message || 'Verifique o formato do ficheiro.'}</p>`;
                  showToast("Erro ao processar o ficheiro CSV.");
                  resetUploadButton();
             }
@@ -369,6 +414,7 @@ async function handleCsvUpload() {
     } catch (loadError) {
         // Erro vindo do loadPapaParser()
         showToast(loadError.message); // Mostra a mensagem de erro do carregamento
+        if(feedbackDiv) feedbackDiv.innerHTML = `<p class="text-red-500">${loadError.message}</p>`;
         resetUploadButton();
     }
 }
@@ -393,11 +439,11 @@ function renderStudentsList() {
     const tableBody = dom.studentsListTable; // Usa a referência direta do dom
     if (!tableBody) {
         console.error("Elemento #students-list-table não encontrado para renderizar.");
-        return; 
+        return;
     }
-    
+
     tableBody.innerHTML = ''; // Limpa a tabela antes de redesenhar.
-    
+
     // Ordena alfabeticamente antes de renderizar
     state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
         const row = document.createElement('tr');
@@ -432,14 +478,11 @@ function resetStudentForm() {
     const form = document.getElementById('student-form');
     if(form) form.reset(); // Limpa os campos
     document.getElementById('student-id-input').value = ''; // Limpa o ID oculto
-    
-    // Libera o campo matrícula para adição
-    const matriculaInput = document.getElementById('student-matricula-input');
-    // matriculaInput.readOnly = false; // Não é mais readonly
-    // matriculaInput.classList.remove('bg-gray-100');
-    
+
     // Esconde o botão Cancelar
     document.getElementById('cancel-edit-student-btn').classList.add('hidden');
+    // Garante que o foco vá para o campo matrícula ao resetar
+    document.getElementById('student-matricula-input').focus();
 }
 
 /**
