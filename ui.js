@@ -16,6 +16,10 @@
 // ATUALIZAÇÃO (REFATORAÇÃO settings.js):
 // 1. Removida a função `openSettingsModal`.
 //    Ela foi movida para o novo módulo `settings.js`.
+//
+// ATUALIZAÇÃO (REFATORAÇÃO students.js):
+// 1. Removidas as funções `renderStudentsList` e `resetStudentForm`.
+//    Elas foram movidas para o novo módulo `students.js`.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -731,52 +735,15 @@ export const setupAutocomplete = (inputId, suggestionsId, onSelectCallback) => {
     });
 };
 
-/**
- * Renderiza a lista de alunos no modal "Gerir Alunos".
- * A lógica de clique será gerenciada por delegação de eventos em `main.js`.
+/*
+ * (MOVIDO PARA students.js)
  */
-export const renderStudentsList = () => {
-    const tableBody = document.getElementById('students-list-table');
-    if (!tableBody) return; // Adiciona guarda de segurança
-    
-    tableBody.innerHTML = ''; // Limpa a tabela antes de redesenhar.
-    
-    state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td class="px-4 py-2 text-sm text-gray-900">${student.name}</td>
-            <td class="px-4 py-2 text-sm text-gray-500">${student.class}</td>
-            <td class="px-4 py-2 text-right text-sm space-x-2">
-                <button class="edit-student-btn text-yellow-600 hover:text-yellow-900" data-id="${student.matricula}" title="Editar">
-                    <i class="fas fa-pencil-alt"></i>
-                </button>
-                <button class="delete-student-btn text-red-600 hover:text-red-900" data-id="${student.matricula}" title="Excluir">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </td>`;
-        tableBody.appendChild(row);
-    });
-};
+// export const renderStudentsList = () => { ... };
 
-
-/**
- * Reseta o formulário de adição/edição de aluno.
+/*
+ * (MOVIDO PARA students.js)
  */
-export const resetStudentForm = () => {
-    document.getElementById('student-form-title').textContent = 'Adicionar Novo Aluno';
-    document.getElementById('student-form').reset();
-    document.getElementById('student-id-input').value = '';
-    document.getElementById('student-matricula-input').readOnly = false;
-    document.getElementById('student-matricula-input').classList.remove('bg-gray-100');
-    document.getElementById('cancel-edit-student-btn').classList.add('hidden');
-};
-
-/**
- * Funções de exibição das telas de login/registro.
- * (MOVIDAS PARA auth.js)
- */
-// export const showLoginView = () => { ... };
-// export const showRegisterView = () => { ... };
+// export const resetStudentForm = () => { ... };
 
 
 /**
@@ -985,9 +952,4 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     
     openModal(dom.absenceModal);
 };
-
-/*
- * (MOVIDO PARA settings.js)
- */
-// export const openSettingsModal = () => { ... };
 
