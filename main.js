@@ -37,6 +37,12 @@
 // 2. Removidas as importações de `showLoginView` e `showRegisterView` (de ui.js).
 // 3. Removidas as funções `handleLogin`, `handleRegister` e `getAuthErrorMessage`.
 // 4. `setupEventListeners` agora chama `initAuthListeners()`.
+//
+// ATUALIZAÇÃO (REFATORAÇÃO settings.js):
+// 1. Importado o novo módulo `initSettingsListeners`.
+// 2. Removida a importação de `openSettingsModal` (de ui.js).
+// 3. Removida a função `handleSettingsSubmit`.
+// 4. `setupEventListeners` agora chama `initSettingsListeners()`.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -54,6 +60,8 @@ import { loadStudents, saveSchoolConfig, loadSchoolConfig, getCollectionRef, get
 
 // <-- MUDANÇA: Importa o novo módulo de autenticação
 import { initAuthListeners } from './auth.js'; 
+// <-- MUDANÇA: Importa o novo módulo de configurações
+import { initSettingsListeners } from './settings.js'; 
 
 // Funções de UI que *permaneceram* em ui.js
 import {
@@ -69,7 +77,7 @@ import {
     toggleFamilyContactFields,
     toggleVisitContactFields,
     getFilteredOccurrences, // Necessário para handleEditOccurrence
-    openSettingsModal,
+    // <-- MUDANÇA: openSettingsModal, (removido)
     openFollowUpModal
 } from './ui.js';
 
@@ -171,15 +179,9 @@ function detachFirestoreListeners() {
 // --- CONFIGURAÇÃO CENTRAL DE EVENTOS DA UI ---
 
 function setupEventListeners() {
-    // <-- MUDANÇA: Os listeners de autenticação foram substituídos
     // Autenticação
     initAuthListeners(); // Chama o inicializador do novo módulo
     dom.logoutBtn.addEventListener('click', () => signOut(auth));
-    // <-- MUDANÇA: Linhas removidas:
-    // dom.loginForm.addEventListener('submit', handleLogin);
-    // dom.registerForm.addEventListener('submit', handleRegister);
-    // dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
-    // dom.showLoginViewBtn.addEventListener('click', showLoginView);
 
     // Navegação por Abas
     dom.tabOccurrences.addEventListener('click', () => switchTab('occurrences'));
@@ -188,7 +190,7 @@ function setupEventListeners() {
     // Submissão de Formulários
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
-    dom.settingsForm.addEventListener('submit', handleSettingsSubmit);
+    // <-- MUDANÇA: dom.settingsForm.addEventListener('submit', handleSettingsSubmit); (removido)
     dom.followUpForm.addEventListener('submit', handleFollowUpSubmit);
 
     // Fechar Modais
@@ -216,8 +218,10 @@ function setupEventListeners() {
     dom.studentForm.addEventListener('submit', handleStudentFormSubmit);
     dom.cancelEditStudentBtn.addEventListener('click', resetStudentForm);
 
-    dom.settingsBtn.addEventListener('click', openSettingsModal);
+    // <-- MUDANÇA: dom.settingsBtn.addEventListener('click', openSettingsModal); (removido)
 
+    // <-- MUDANÇA: Inicializa o módulo de configurações
+    initSettingsListeners();
 
     // Ações nas Listas
     setupListClickListeners();
@@ -263,9 +267,6 @@ function setupEventListeners() {
 }
 
 // --- HANDLERS E FUNÇÕES AUXILIARES ---
-
-// <-- MUDANÇA: Funções `handleLogin`, `handleRegister`, e `getAuthErrorMessage` removidas daqui.
-// Elas agora estão em `auth.js`.
 
 function getFirestoreErrorMessage(code) {
     switch (code) {
@@ -512,25 +513,8 @@ async function handleAbsenceSubmit(e) {
     }
 }
 
-async function handleSettingsSubmit(e) {
-    e.preventDefault();
-    const data = {
-        schoolName: document.getElementById('school-name-input').value.trim(),
-        city: document.getElementById('school-city-input').value.trim(),
-        schoolLogoUrl: document.getElementById('school-logo-input').value.trim()
-    };
-
-    try {
-        await saveSchoolConfig(data);
-        state.config = data; // Atualiza o estado local
-        dom.headerSchoolName.textContent = data.schoolName || 'Sistema de Acompanhamento'; // Atualiza a UI imediatamente
-        showToast('Configurações salvas com sucesso!');
-        closeModal(dom.settingsModal);
-    } catch (error) {
-        console.error("Erro ao salvar configurações:", error);
-        showToast('Erro ao salvar as configurações.');
-    }
-}
+// <-- MUDANÇA: A função `handleSettingsSubmit` foi removida daqui
+// (ela agora está em `settings.js`)
 
 // Funções de Gerenciamento de Alunos
 // --- ATUALIZAÇÃO (CORREÇÃO CSV - IMPORT DINÂMICO) ---
@@ -1070,3 +1054,4 @@ async function handleStudentTableActions(e) {
         }
     }
 }
+
