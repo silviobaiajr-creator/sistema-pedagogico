@@ -43,6 +43,12 @@
 // 2. Removida a importação de `openSettingsModal` (de ui.js).
 // 3. Removida a função `handleSettingsSubmit`.
 // 4. `setupEventListeners` agora chama `initSettingsListeners()`.
+//
+// ATUALIZAÇÃO (REFATORAÇÃO students.js):
+// 1. Importado o novo módulo `initStudentListeners`.
+// 2. Removidas as importações de `renderStudentsList` e `resetStudentForm` (de ui.js).
+// 3. Removidas as funções `handleCsvUpload`, `handleStudentFormSubmit` e `handleStudentTableActions`.
+// 4. `setupEventListeners` agora chama `initStudentListeners()`.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -59,21 +65,23 @@ import { showToast, closeModal, shareContent, openModal, loadScript } from './ut
 import { loadStudents, saveSchoolConfig, loadSchoolConfig, getCollectionRef, getStudentsDocRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord } from './firestore.js';
 
 // <-- MUDANÇA: Importa o novo módulo de autenticação
-import { initAuthListeners } from './auth.js'; 
+import { initAuthListeners } from './auth.js';
 // <-- MUDANÇA: Importa o novo módulo de configurações
-import { initSettingsListeners } from './settings.js'; 
+import { initSettingsListeners } from './settings.js';
+// <-- MUDANÇA: Importa o novo módulo de alunos
+import { initStudentListeners } from './students.js';
 
 // Funções de UI que *permaneceram* em ui.js
 import {
     render,
-    renderStudentsList,
+    // <-- MUDANÇA: renderStudentsList, (removido)
     openOccurrenceModal,
     handleNewAbsenceAction,
     setupAutocomplete,
     openAbsenceModalForStudent,
     // <-- MUDANÇA: showLoginView, (removido)
     // <-- MUDANÇA: showRegisterView, (removido)
-    resetStudentForm,
+    // <-- MUDANÇA: resetStudentForm, (removido)
     toggleFamilyContactFields,
     toggleVisitContactFields,
     getFilteredOccurrences, // Necessário para handleEditOccurrence
@@ -140,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
-            render();
+            render(); // Renderiza a tela de login vazia (ou estado inicial)
         }
     });
 
@@ -187,13 +195,14 @@ function setupEventListeners() {
     dom.tabOccurrences.addEventListener('click', () => switchTab('occurrences'));
     dom.tabAbsences.addEventListener('click', () => switchTab('absences'));
 
-    // Submissão de Formulários
+    // Submissão de Formulários (exceto os movidos)
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
-    // <-- MUDANÇA: dom.settingsForm.addEventListener('submit', handleSettingsSubmit); (removido)
+    // <-- MUDANÇA: settingsForm (removido, está em settings.js)
     dom.followUpForm.addEventListener('submit', handleFollowUpSubmit);
+    // <-- MUDANÇA: studentForm (removido, está em students.js)
 
-    // Fechar Modais
+    // Fechar Modais (Genérico)
     setupModalCloseButtons();
 
     // --- Ocorrências: Listeners ---
@@ -211,32 +220,31 @@ function setupEventListeners() {
     document.getElementById('filter-pending-action').addEventListener('change', (e) => { state.filtersAbsences.pendingAction = e.target.value; render(); });
     document.getElementById('filter-return-status').addEventListener('change', (e) => { state.filtersAbsences.returnStatus = e.target.value; render(); });
 
-    // Gerenciamento de Alunos e Configurações
-    document.getElementById('manage-students-btn').addEventListener('click', () => { renderStudentsList(); openModal(dom.studentsModal); });
+    // <-- MUDANÇA: Gerenciamento de Alunos movido para initStudentListeners()
+    // document.getElementById('manage-students-btn').addEventListener('click', ...);
+    // dom.uploadCsvBtn.addEventListener('click', handleCsvUpload);
+    // dom.cancelEditStudentBtn.addEventListener('click', resetStudentForm);
 
-    dom.uploadCsvBtn.addEventListener('click', handleCsvUpload);
-    dom.studentForm.addEventListener('submit', handleStudentFormSubmit);
-    dom.cancelEditStudentBtn.addEventListener('click', resetStudentForm);
+    // <-- MUDANÇA: Configurações movido para initSettingsListeners()
+    // dom.settingsBtn.addEventListener('click', openSettingsModal);
 
-    // <-- MUDANÇA: dom.settingsBtn.addEventListener('click', openSettingsModal); (removido)
-
-    // <-- MUDANÇA: Inicializa o módulo de configurações
+    // <-- MUDANÇA: Inicializa os módulos
     initSettingsListeners();
+    initStudentListeners(); // Chama o inicializador do novo módulo de alunos
 
-    // Ações nas Listas
+    // Ações nas Listas (Ocorrências e Busca Ativa ainda aqui)
     setupListClickListeners();
 
-    // Listener centralizado para a tabela de alunos.
-    dom.studentsListTable.addEventListener('click', handleStudentTableActions);
+    // <-- MUDANÇA: Listener da tabela de alunos movido para initStudentListeners()
+    // dom.studentsListTable.addEventListener('click', handleStudentTableActions);
 
-    // Ações em Modais
+    // Ações em Modais Genéricos
     document.getElementById('confirm-delete-btn').addEventListener('click', handleDeleteConfirmation);
     document.getElementById('action-type').addEventListener('change', (e) => handleActionTypeChange(e.target.value));
 
     // Listeners para os rádios da Busca Ativa (mostra/esconde campos)
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
-
     document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio =>
         radio.addEventListener('change', (e) => {
             const enable = e.target.value === 'yes';
@@ -254,6 +262,7 @@ function setupEventListeners() {
         })
     );
 
+    // Listener para fechar menus kebab
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.kebab-menu-container')) {
             document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
@@ -513,130 +522,9 @@ async function handleAbsenceSubmit(e) {
     }
 }
 
-// <-- MUDANÇA: A função `handleSettingsSubmit` foi removida daqui
-// (ela agora está em `settings.js`)
-
-// Funções de Gerenciamento de Alunos
-// --- ATUALIZAÇÃO (CORREÇÃO CSV - IMPORT DINÂMICO) ---
-// Transformada em async para usar await com import()
-async function handleCsvUpload() {
-    const fileInput = dom.csvFile;
-    const feedbackDiv = dom.csvFeedback;
-
-    if (fileInput.files.length === 0) return showToast("Por favor, selecione um ficheiro CSV.");
-
-    try {
-        // Verifica se Papa já está carregado (pode ter sido carregado em clique anterior)
-        if (typeof window.Papa === 'undefined') {
-            feedbackDiv.innerHTML = `<p class="text-blue-500">A carregar biblioteca de CSV...</p>`;
-            // Carrega PapaParse dinamicamente do CDN
-            // Usamos a URL completa, pois 'import()' relativo não funciona com CDNs
-            const papaScriptUrl = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js';
-            
-            // <-- CORREÇÃO: Substituído 'import()' por 'loadScript()'
-            await loadScript(papaScriptUrl); 
-            
-            // Após o await, o script foi executado e window.Papa deve estar definido
-            if (typeof window.Papa === 'undefined') {
-                 throw new Error("Falha ao carregar PapaParse dinamicamente.");
-            }
-            feedbackDiv.innerHTML = ''; // Limpa mensagem de carregamento
-        }
-
-        // Agora window.Papa está garantido (se o import funcionou)
-        window.Papa.parse(fileInput.files[0], {
-            header: true,
-            skipEmptyLines: true,
-            transformHeader: header => header.toLowerCase().trim().replace(/\s+/g, ''),
-            complete: async (results) => {
-                if (!results.meta || !results.meta.fields) {
-                    feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Não foi possível ler os cabeçalhos do ficheiro CSV.</p>`;
-                    console.error("Erro ao processar CSV: Metadados inválidos", results);
-                    return;
-                }
-
-                const requiredHeaders = ['matricula', 'nome', 'turma', 'endereco', 'contato', 'resp1', 'resp2'];
-                const hasAllHeaders = requiredHeaders.every(h => results.meta.fields.includes(h));
-                if (!hasAllHeaders) {
-                    feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Faltam colunas. O ficheiro CSV deve conter: ${requiredHeaders.join(', ')}.</p>`;
-                    return;
-                }
-
-                if (!Array.isArray(results.data)) {
-                     feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Não foi possível ler os dados do ficheiro CSV.</p>`;
-                     console.error("Erro ao processar CSV: Dados inválidos", results);
-                     return;
-                }
-
-                const newStudentList = results.data.map(row => ({
-                    matricula: row.matricula || '', name: row.nome || '', class: row.turma || '',
-                    endereco: row.endereco || '', contato: row.contato || '',
-                    resp1: row.resp1 || '', resp2: row.resp2 || ''
-                })).filter(s => s.name && s.matricula);
-
-                try {
-                    await setDoc(getStudentsDocRef(), { list: newStudentList });
-                    state.students = newStudentList;
-                    renderStudentsList();
-                    showToast(`${newStudentList.length} alunos importados com sucesso!`);
-                    fileInput.value = '';
-                    feedbackDiv.innerHTML = '';
-                } catch(error) {
-                    console.error("Erro ao salvar alunos no Firestore:", error);
-                    showToast("Erro ao salvar a nova lista de alunos no banco de dados.");
-                }
-            },
-            error: (error, file) => {
-                console.error("Erro do PapaParse:", error, file);
-                feedbackDiv.innerHTML = `<p class="text-red-500">Erro ao processar o ficheiro CSV: ${error.message}</p>`;
-            }
-        });
-
-    } catch (error) {
-        // Captura erros do import() dinâmico ou se window.Papa ainda for undefined
-        console.error("Erro ao carregar ou usar PapaParse:", error);
-        feedbackDiv.innerHTML = `<p class="text-red-500">Erro crítico ao carregar a biblioteca de CSV. Tente novamente.</p>`;
-        showToast("Erro ao carregar a biblioteca de leitura de CSV.");
-    }
-}
-// --- FIM DA ATUALIZAÇÃO ---
-
-
-async function handleStudentFormSubmit(e) {
-    e.preventDefault();
-    const id = document.getElementById('student-id-input').value;
-    const matricula = document.getElementById('student-matricula-input').value.trim();
-    const name = document.getElementById('student-name-input').value.trim();
-    if (!matricula || !name) return showToast("Matrícula e Nome são obrigatórios.");
-
-    let updatedList = [...state.students];
-    const studentData = {
-        matricula, name,
-        class: document.getElementById('student-class-input').value.trim(),
-        endereco: document.getElementById('student-endereco-input').value.trim(),
-        contato: document.getElementById('student-contato-input').value.trim(),
-        resp1: document.getElementById('student-resp1-input').value.trim(),
-        resp2: document.getElementById('student-resp2-input').value.trim()
-    };
-
-    if (id) {
-        const index = updatedList.findIndex(s => s.matricula === id);
-        if (index > -1) updatedList[index] = studentData;
-    } else {
-        if (updatedList.some(s => s.matricula === matricula)) return showToast("Erro: Matrícula já existe.");
-        updatedList.push(studentData);
-    }
-
-    try {
-        await setDoc(getStudentsDocRef(), { list: updatedList });
-        state.students = updatedList;
-        renderStudentsList();
-        resetStudentForm();
-        showToast(`Aluno ${id ? 'atualizado' : 'adicionado'} com sucesso.`);
-    } catch(error) {
-        showToast("Erro ao salvar dados do aluno.");
-    }
-}
+// <-- MUDANÇA: Funções movidas para students.js
+// async function handleCsvUpload() { ... }
+// async function handleStudentFormSubmit(e) { ... }
 
 // Ações (Excluir, Gerar Relatório)
 async function handleDeleteConfirmation() {
@@ -755,10 +643,10 @@ function setupModalCloseButtons() {
         'close-report-view-btn': dom.reportViewModalBackdrop,
         'close-ficha-view-btn': dom.fichaViewModalBackdrop,
         'close-history-view-btn': document.getElementById('history-view-modal-backdrop'),
-        'close-students-modal-btn': dom.studentsModal,
+        'close-students-modal-btn': dom.studentsModal, // Continua aqui, o listener está no main
         'cancel-delete-btn': dom.deleteConfirmModal,
-        'close-settings-modal-btn': dom.settingsModal,
-        'cancel-settings-btn': dom.settingsModal,
+        'close-settings-modal-btn': dom.settingsModal, // Continua aqui
+        'cancel-settings-btn': dom.settingsModal, // Continua aqui
         'close-follow-up-modal-btn': dom.followUpModal,
         'cancel-follow-up-btn': dom.followUpModal
     };
@@ -766,15 +654,28 @@ function setupModalCloseButtons() {
     for (const [id, modal] of Object.entries(modalMap)) {
         const button = document.getElementById(id);
         if (button && modal) {
-            if (button.hasAttribute('onclick')) {
+            // Remove listener antigo se existir (segurança)
+            const oldListener = button.__clickListener;
+            if (oldListener) {
+                button.removeEventListener('click', oldListener);
+            }
+            // Adiciona novo listener
+            const newListener = () => closeModal(modal);
+            button.addEventListener('click', newListener);
+            button.__clickListener = newListener; // Guarda referência para remover depois se necessário
+
+            // Remove atributo onclick se existir
+             if (button.hasAttribute('onclick')) {
                 button.removeAttribute('onclick');
             }
-            button.addEventListener('click', () => closeModal(modal));
-        } else if (!button && (id === 'cancel-follow-up-btn' || id === 'close-follow-up-modal-btn')) {
-             console.warn(`O botão '${id}' não foi encontrado. Verifique o ID no index.html.`);
+        } else if (!button && modal === dom.studentsModal) {
+             console.warn(`O botão '${id}' do modal de alunos não foi encontrado.`);
+        } else if (!button && modal === dom.settingsModal) {
+             console.warn(`O botão '${id}' do modal de configurações não foi encontrado.`);
         }
     }
 
+    // Botões de Partilhar e Imprimir (mantêm-se iguais)
     document.getElementById('share-btn').addEventListener('click', () => shareContent(document.getElementById('notification-title').textContent, document.getElementById('notification-content').innerText));
     document.getElementById('report-share-btn').addEventListener('click', () => shareContent(document.getElementById('report-view-title').textContent, document.getElementById('report-view-content').innerText));
     document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
@@ -1011,47 +912,6 @@ function handleNewAbsenceFromHistory(studentId) {
     if (student) handleNewAbsenceAction(student);
 }
 
-/**
- * Lida com todas as ações na tabela de alunos usando delegação de eventos.
- */
-async function handleStudentTableActions(e) {
-    const editBtn = e.target.closest('.edit-student-btn');
-    if (editBtn) {
-        const id = editBtn.dataset.id;
-        const student = state.students.find(s => s.matricula === id);
-        if (student) {
-            document.getElementById('student-form-title').textContent = 'Editar Aluno';
-            document.getElementById('student-id-input').value = student.matricula;
-            document.getElementById('student-matricula-input').value = student.matricula;
-            document.getElementById('student-matricula-input').readOnly = true;
-            document.getElementById('student-matricula-input').classList.add('bg-gray-100');
-            document.getElementById('student-name-input').value = student.name;
-            document.getElementById('student-class-input').value = student.class;
-            document.getElementById('student-endereco-input').value = student.endereco || '';
-            document.getElementById('student-contato-input').value = student.contato || '';
-            document.getElementById('student-resp1-input').value = student.resp1;
-            document.getElementById('student-resp2-input').value = student.resp2;
-            document.getElementById('cancel-edit-student-btn').classList.remove('hidden');
-        }
-        return;
-    }
-
-    const deleteBtn = e.target.closest('.delete-student-btn');
-    if (deleteBtn) {
-        const id = deleteBtn.dataset.id;
-        const student = state.students.find(s => s.matricula === id);
-        if (student && confirm(`Tem a certeza que quer remover o aluno "${student.name}"?`)) {
-            const updatedList = state.students.filter(s => s.matricula !== id);
-            try {
-                await setDoc(getStudentsDocRef(), { list: updatedList });
-                state.students = updatedList;
-                renderStudentsList();
-                showToast("Aluno removido com sucesso.");
-            } catch(error) {
-                console.error("Erro ao remover aluno:", error);
-                showToast(getFirestoreErrorMessage(error.code) || "Erro ao remover aluno.");
-            }
-        }
-    }
-}
+// <-- MUDANÇA: Função movida para students.js
+// async function handleStudentTableActions(e) { ... }
 
