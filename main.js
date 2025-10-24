@@ -3,21 +3,22 @@
 // RESPONSABILIDADE: Ponto de entrada da aplicação. Orquestra a lógica de
 // eventos, submissão de formulários e a comunicação entre a UI e o Firestore.
 //
-// ATUALIZAÇÃO (REFATORAÇÃO PASSO 1):
-// 1. As importações de funções de relatório (`generateAndShowGeneralReport`,
-//    `openOccurrenceRecordModal`, etc.) foram atualizadas para apontar
-//    para o novo arquivo `reports.js` em vez de `ui.js`.
-// 2. Nenhuma outra lógica foi alterada neste passo.
+// ATUALIZAÇÃO (REFATORAÇÃO PASSO 2 - MÓDULO DE AUTENTICAÇÃO):
+// 1. As importações de 'firebase/auth' foram REMOVIDAS.
+// 2. A importação de 'initAuth' de 'module-auth.js' foi ADICIONADA.
+// 3. As funções 'handleLogin', 'handleRegister' e 'getAuthErrorMessage' foram REMOVIDAS.
+// 4. O bloco 'onAuthStateChanged' foi SUBSTITUÍDO pela chamada 'initAuth'.
+// 5. Novas funções 'initializeAppState' e 'clearAppState' foram criadas
+//    para servirem como callbacks para o 'initAuth'.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
 
-// Serviços do Firebase para autenticação e banco de dados
-import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+// Serviços do Firebase (AUTENTICAÇÃO REMOVIDA)
 import { onSnapshot, query, writeBatch, doc, setDoc, where, getDocs, collection, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Módulos internos da aplicação
-import { auth, db } from './firebase.js';
+import { db } from './firebase.js'; // 'auth' removido
 import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, shareContent, openModal } from './utils.js';
 import { loadStudents, saveSchoolConfig, loadSchoolConfig, getCollectionRef, getStudentsDocRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord } from './firestore.js';
@@ -37,8 +38,8 @@ import {
     // generateAndShowConsolidatedFicha, // MOVIDO
     // generateAndShowOficio, // MOVIDO
     openAbsenceModalForStudent,
-    showLoginView,
-    showRegisterView,
+    // showLoginView, // MOVIDO para module-auth.js
+    // showRegisterView, // MOVIDO para module-auth.js
     resetStudentForm,
     toggleFamilyContactFields,
     toggleVisitContactFields,
@@ -62,6 +63,9 @@ import {
     generateAndShowBuscaAtivaReport
 } from './reports.js';
 
+// NOVO: Importação do módulo de autenticação
+import { initAuth } from './module-auth.js';
+
 import * as logic from './logic.js';
 
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
@@ -73,44 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     state.db = db; // Armazena a instância do DB no estado global
 
-    // Observador do estado de autenticação do Firebase
-    onAuthStateChanged(auth, async user => {
-        detachFirestoreListeners(); // Limpa listeners antigos para evitar duplicação
-        
-        if (user) {
-            // Utilizador AUTENTICADO
-            state.userId = user.uid;
-            state.userEmail = user.email;
-            dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
-            
-            dom.loginScreen.classList.add('hidden');
-            dom.mainContent.classList.remove('hidden');
-            dom.userProfile.classList.remove('hidden');
-            
-            try {
-                // Carrega dados essenciais
-                await loadSchoolConfig(); 
-                await loadStudents();
-                dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
-                setupFirestoreListeners();
-                render();
-            } catch (error) {
-                showToast(error.message);
-            }
-        } else {
-            // Utilizador NÃO AUTENTICADO
-            state.userId = null;
-            state.userEmail = null;
-            state.students = [];
-            state.occurrences = [];
-            state.absences = [];
-            
-            dom.mainContent.classList.add('hidden');
-            dom.userProfile.classList.add('hidden');
-            dom.loginScreen.classList.remove('hidden');
-            render();
-        }
-    });
+    // Observador do estado de autenticação (AGORA DELEGADO para module-auth.js)
+    // Substitui o 'onAuthStateChanged' que estava aqui
+    initAuth(initializeAppState, clearAppState);
 
     // Movido para ser chamado DEPOIS de initializeDOMReferences()
     setupEventListeners();
@@ -118,6 +87,50 @@ document.addEventListener('DOMContentLoaded', () => {
     // Configura autocomplete apenas para a Busca Ativa.
     setupAutocomplete('search-absences', 'absence-student-suggestions', handleNewAbsenceAction);
 });
+
+// --- NOVAS FUNÇÕES DE CALLBACK PARA AUTENTICAÇÃO ---
+
+/**
+ * Chamada pelo initAuth quando o usuário faz login.
+ * Responsável por carregar todos os dados da aplicação.
+ * @param {object} user - O objeto do usuário do Firebase.
+ */
+async function initializeAppState(user) {
+    // Lógica movida do antigo 'onAuthStateChanged' (bloco if (user))
+    detachFirestoreListeners(); // Limpa listeners antigos para evitar duplicação
+
+    state.userId = user.uid;
+    state.userEmail = user.email;
+    
+    try {
+        // Carrega dados essenciais
+        await loadSchoolConfig(); 
+        await loadStudents();
+        dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
+        setupFirestoreListeners();
+        render();
+    } catch (error) {
+        showToast(error.message);
+    }
+}
+
+/**
+ * Chamada pelo initAuth quando o usuário faz logout.
+ * Responsável por limpar o estado da aplicação.
+ */
+function clearAppState() {
+    // Lógica movida do antigo 'onAuthStateChanged' (bloco else)
+    detachFirestoreListeners(); // Limpa listeners antigos para evitar duplicação
+
+    state.userId = null;
+    state.userEmail = null;
+    state.students = [];
+    state.occurrences = [];
+    state.absences = [];
+    
+    render();
+}
+
 
 // --- SINCRONIZAÇÃO COM O BANCO DE DADOS (FIRESTORE) ---
 
@@ -147,12 +160,12 @@ function detachFirestoreListeners() {
 // --- CONFIGURAÇÃO CENTRAL DE EVENTOS DA UI ---
 
 function setupEventListeners() {
-    // Autenticação
-    dom.loginForm.addEventListener('submit', handleLogin);
-    dom.registerForm.addEventListener('submit', handleRegister);
-    dom.logoutBtn.addEventListener('click', () => signOut(auth));
-    dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
-    dom.showLoginViewBtn.addEventListener('click', showLoginView);
+    // Autenticação (REMOVIDO - agora em module-auth.js)
+    // dom.loginForm.addEventListener('submit', handleLogin);
+    // dom.registerForm.addEventListener('submit', handleRegister);
+    // dom.logoutBtn.addEventListener('click', () => signOut(auth));
+    // dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
+    // dom.showLoginViewBtn.addEventListener('click', showLoginView);
     
     // Navegação por Abas
     dom.tabOccurrences.addEventListener('click', () => switchTab('occurrences'));
@@ -254,33 +267,10 @@ function setupEventListeners() {
 
 // --- HANDLERS E FUNÇÕES AUXILIARES ---
 
-// Funções de Autenticação
-async function handleLogin(e) { 
-    e.preventDefault(); 
-    try { 
-        await signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value); 
-    } catch (error) { 
-        console.error("Erro de Login:", error); 
-        showToast("Email ou senha inválidos."); 
-    } 
-}
-async function handleRegister(e) { 
-    e.preventDefault(); 
-    try { 
-        await createUserWithEmailAndPassword(auth, document.getElementById('register-email').value, document.getElementById('register-password').value); 
-    } catch (error) { 
-        console.error("Erro de Registo:", error); 
-        showToast(getAuthErrorMessage(error.code));
-    }
-}
-
-function getAuthErrorMessage(code) {
-    switch (code) {
-        case 'auth/email-already-in-use': return "Este email já está a ser utilizado.";
-        case 'auth/weak-password': return "A sua senha é muito fraca.";
-        default: return "Erro ao criar a conta.";
-    }
-}
+// Funções de Autenticação (REMOVIDAS - agora em module-auth.js)
+// async function handleLogin(e) { ... }
+// async function handleRegister(e) { ... }
+// function getAuthErrorMessage(code) { ... }
 
 function getFirestoreErrorMessage(code) {
     switch (code) {
@@ -1037,3 +1027,4 @@ async function handleStudentTableActions(e) {
         }
     }
 }
+
