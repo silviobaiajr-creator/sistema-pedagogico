@@ -15,12 +15,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- PapaParse para processar arquivos CSV (upload de alunos) -->
-    <!-- ATUALIZAÇÃO: Adicionado 'defer' para garantir que carregue antes do main.js (módulo) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/paparse.min.js" defer></script>
+    <!-- ATUALIZAÇÃO: Removido 'defer' para garantir carregamento síncrono ANTES do main.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/paparse.min.js"></script>
 
     <!-- Chart.js para gráficos nos relatórios -->
-    <!-- ATUALIZAÇÃO: Adicionado 'defer' também para consistência -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+    <!-- ATUALIZAÇÃO: Removido 'defer' para consistência -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- Folha de estilos personalizada -->
     <link rel="stylesheet" href="style.css">
@@ -444,3 +444,4 @@
 
 </body>
 </html>
+
