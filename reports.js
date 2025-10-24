@@ -3,6 +3,12 @@
 // ATUALIZAÇÃO:
 // 1. Adicionada a constante `actionDisplayTitles` (movida de ui.js).
 // 2. Removidas importações não utilizadas (`getFilteredOccurrences`, `getStatusBadge`, `formatPeriodo`).
+//
+// ATUALIZAÇÃO (CORREÇÃO CONFIG):
+// 1. Alterada 'getReportHeaderHTML' para incluir state.config.city.
+// 2. Alterada 'generateAndShowOficio' para evitar duplicação de dados do cabeçalho.
+// =================================================================================
+
 
 import { state, dom } from './state.js';
 // formatPeriodo foi removido dos imports de utils.js pois não é usado aqui diretamente agora
@@ -22,18 +28,31 @@ export const actionDisplayTitles = {
 
 /**
  * Helper para gerar o cabeçalho com logo.
+ * // <-- CORREÇÃO: Agora inclui a Cidade.
  * @returns {string} HTML do cabeçalho do relatório.
  */
 export const getReportHeaderHTML = () => {
     const logoUrl = state.config?.schoolLogoUrl || null;
     const schoolName = state.config?.schoolName || "Nome da Escola";
+    const city = state.config?.city || "Cidade"; // <-- CORREÇÃO: Busca a cidade do estado
 
     if (logoUrl) {
         // Adiciona onerror para fallback caso a URL da imagem falhe
-        return `<div class="text-center mb-4"><img src="${logoUrl}" alt="Logo da Escola" class="max-w-full max-h-40 mx-auto" onerror="this.onerror=null; this.src='https://placehold.co/150x50/indigo/white?text=Logo'; this.alt='Logo Placeholder';"></div>`;
+        return `
+            <div class="text-center mb-4">
+                <img src="${logoUrl}" alt="Logo da Escola" class="max-w-full max-h-40 mx-auto" onerror="this.onerror=null; this.src='https://placehold.co/150x50/indigo/white?text=Logo'; this.alt='Logo Placeholder';">
+                <!-- CORREÇÃO: Adiciona nome e cidade abaixo do logo -->
+                <h2 class="text-xl font-bold uppercase mt-2">${schoolName}</h2>
+                <p class="text-sm text-gray-600">${city}</p>
+            </div>`;
     }
     
-    return `<div class="text-center border-b pb-4"><h2 class="text-xl font-bold uppercase">${schoolName}</h2></div>`;
+    // CORREÇÃO: Adiciona nome e cidade se não houver logo
+    return `
+        <div class="text-center border-b pb-4">
+            <h2 class="text-xl font-bold uppercase">${schoolName}</h2>
+            <p class="text-sm text-gray-600">${city}</p>
+        </div>`;
 };
 
 
@@ -599,8 +618,8 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
     
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
-    const schoolName = state.config?.schoolName || "Nome da Escola";
-    const city = state.config?.city || "Cidade";
+    // const schoolName = state.config?.schoolName || "Nome da Escola"; // <-- CORREÇÃO: Removido, pois já está no header
+    const city = state.config?.city || "Cidade"; // <-- CORREÇÃO: Mantido apenas para a data
 
     // Cria um resumo das tentativas de contato
     let attemptsSummary = contactAttempts.map((attempt, index) => {
@@ -627,7 +646,8 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
     const oficioHTML = `
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             <div class="text-center">
-                ${getReportHeaderHTML()} <p class="font-bold uppercase mt-4">${schoolName}</p>
+                ${getReportHeaderHTML()}
+                <!-- <p class="font-bold uppercase mt-4">${schoolName}</p> --> <!-- <-- CORREÇÃO: Removido para evitar duplicata -->
                 <p>${city}, ${currentDate}.</p>
             </div>
 
@@ -1073,4 +1093,3 @@ export const generateAndShowBuscaAtivaReport = () => {
         }
     }, 100); // Delay de 100ms
 };
-
