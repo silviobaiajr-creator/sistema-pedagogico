@@ -8,6 +8,12 @@
 //    `openOccurrenceRecordModal`, etc.) foram atualizadas para apontar
 //    para o novo arquivo `reports.js` em vez de `ui.js`.
 // 2. Nenhuma outra lógica foi alterada neste passo.
+//
+// ATUALIZAÇÃO (CORREÇÃO CSV):
+// 1. Alterados os `setupEventListeners` para usar as referências do objeto `dom`
+//    (ex: `dom.uploadCsvBtn`) em vez de `document.getElementById()`.
+// 2. Alterada a função `handleCsvUpload` para também usar as referências do
+//    objeto `dom` (ex: `dom.csvFile`, `dom.csvFeedback`).
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -184,9 +190,14 @@ function setupEventListeners() {
     
     // Gerenciamento de Alunos e Configurações
     document.getElementById('manage-students-btn').addEventListener('click', () => { renderStudentsList(); openModal(dom.studentsModal); });
-    document.getElementById('upload-csv-btn').addEventListener('click', handleCsvUpload);
-    document.getElementById('student-form').addEventListener('submit', handleStudentFormSubmit);
-    document.getElementById('cancel-edit-student-btn').addEventListener('click', resetStudentForm);
+    
+    // --- ATUALIZAÇÃO (CORREÇÃO CSV) ---
+    // Alterado para usar o objeto `dom`
+    dom.uploadCsvBtn.addEventListener('click', handleCsvUpload);
+    dom.studentForm.addEventListener('submit', handleStudentFormSubmit);
+    dom.cancelEditStudentBtn.addEventListener('click', resetStudentForm);
+    // --- FIM DA ATUALIZAÇÃO ---
+
     dom.settingsBtn.addEventListener('click', openSettingsModal);
 
 
@@ -549,8 +560,12 @@ async function handleSettingsSubmit(e) {
 
 // Funções de Gerenciamento de Alunos
 function handleCsvUpload() {
-    const fileInput = document.getElementById('csv-file');
-    const feedbackDiv = document.getElementById('csv-feedback');
+    // --- ATUALIZAÇÃO (CORREÇÃO CSV) ---
+    // Alterado para usar o objeto `dom`
+    const fileInput = dom.csvFile;
+    const feedbackDiv = dom.csvFeedback;
+    // --- FIM DA ATUALIZAÇÃO ---
+
     if (fileInput.files.length === 0) return showToast("Por favor, selecione um ficheiro CSV.");
     
     Papa.parse(fileInput.files[0], {
@@ -1037,3 +1052,4 @@ async function handleStudentTableActions(e) {
         }
     }
 }
+
