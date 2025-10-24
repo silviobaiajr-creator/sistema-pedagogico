@@ -12,6 +12,10 @@
 // ATUALIZAÇÃO (REFATORAÇÃO auth.js):
 // 1. Removidas as funções `showLoginView` e `showRegisterView`.
 //    Elas foram movidas para o novo módulo `auth.js`.
+//
+// ATUALIZAÇÃO (REFATORAÇÃO settings.js):
+// 1. Removida a função `openSettingsModal`.
+//    Ela foi movida para o novo módulo `settings.js`.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -982,18 +986,8 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     openModal(dom.absenceModal);
 };
 
-/**
- * Abre o modal de configurações e preenche com os dados atuais.
+/*
+ * (MOVIDO PARA settings.js)
  */
-export const openSettingsModal = () => {
-    const settingsForm = document.getElementById('settings-form');
-    if (settingsForm) {
-        settingsForm.reset();
-    }
+// export const openSettingsModal = () => { ... };
 
-    document.getElementById('school-name-input').value = state.config.schoolName || '';
-    document.getElementById('school-city-input').value = state.config.city || '';
-    document.getElementById('school-logo-input').value = state.config.schoolLogoUrl || '';
-
-    openModal(dom.settingsModal);
-};
