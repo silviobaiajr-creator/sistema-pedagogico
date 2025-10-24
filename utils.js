@@ -73,3 +73,30 @@ export const shareContent = async (title, text) => {
     }
 };
 
+/**
+ * Carrega um script dinamicamente no DOM e espera pelo seu carregamento.
+ * @param {string} url - A URL do script a ser carregado.
+ * @returns {Promise<void>}
+ */
+export const loadScript = (url) => {
+  return new Promise((resolve, reject) => {
+    // Verifica se o script já não foi carregado
+    if (document.querySelector(`script[src="${url}"]`)) {
+      return resolve();
+    }
+
+    const script = document.createElement('script');
+    script.src = url;
+    script.async = true;
+
+    script.onload = () => {
+      resolve();
+    };
+
+    script.onerror = () => {
+      reject(new Error(`Falha ao carregar o script: ${url}`));
+    };
+
+    document.body.appendChild(script);
+  });
+};
