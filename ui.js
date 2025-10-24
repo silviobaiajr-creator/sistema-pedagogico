@@ -8,6 +8,10 @@
 // 2. Adicionada a importação de `actionDisplayTitles` de `reports.js`
 //    para que as funções `renderAbsences` e `openAbsenceModalForStudent`
 //    continuem a funcionar corretamente.
+//
+// ATUALIZAÇÃO (REFATORAÇÃO auth.js):
+// 1. Removidas as funções `showLoginView` e `showRegisterView`.
+//    Elas foram movidas para o novo módulo `auth.js`.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -765,16 +769,10 @@ export const resetStudentForm = () => {
 
 /**
  * Funções de exibição das telas de login/registro.
+ * (MOVIDAS PARA auth.js)
  */
-export const showLoginView = () => {
-    dom.registerView.classList.add('hidden');
-    dom.loginView.classList.remove('hidden');
-};
-
-export const showRegisterView = () => {
-    dom.loginView.classList.add('hidden');
-    dom.registerView.classList.remove('hidden');
-};
+// export const showLoginView = () => { ... };
+// export const showRegisterView = () => { ... };
 
 
 /**
@@ -999,4 +997,3 @@ export const openSettingsModal = () => {
 
     openModal(dom.settingsModal);
 };
-
