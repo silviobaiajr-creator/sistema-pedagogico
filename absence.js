@@ -1,7 +1,12 @@
 // =================================================================================
-// ARQUIVO: absence.js (NOVO)
+// ARQUIVO: absence.js (NOVO E CORRIGIDO)
 // RESPONSABILIDADE: Gerenciar toda a lógica, UI e eventos da
 // funcionalidade "Busca Ativa".
+//
+// CORREÇÃO (24/10/2025): A função handleSendToCT foi ajustada para salvar
+// a ação "Encaminhamento" no Firestore ANTES de tentar gerar o
+// documento do ofício, garantindo que os dados (como o nº do ofício)
+// estejam disponíveis para o relatório.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -474,32 +479,66 @@ function handleActionTypeChange(action) {
 
 /**
  * Lida com o clique de "Enviar ao CT".
+ * CORRIGIDO: Agora salva a ação "Encaminhamento" PRIMEIRO,
+ * atualiza o estado local, e SÓ ENTÃO gera o ofício.
  */
 async function handleSendToCT(id) {
     const oficioNumber = prompt("Por favor, insira o número do ofício:");
     if (oficioNumber?.trim()) {
-        const visitAction = state.absences.find(a => a.id === id);
+        const visitAction = state.absences.find(a => a.id === id); // Pega a ação de Visita (origem)
         if (visitAction) {
-            generateAndShowOficio(visitAction, oficioNumber);
             const student = state.students.find(s => s.matricula === visitAction.studentId);
             if (!student) return;
 
+            // 1. Prepara os dados da nova ação "Encaminhamento"
             const { processId, currentCycleActions } = getStudentProcessInfo(student.matricula);
-            if (currentCycleActions.some(a => a.actionType === 'encaminhamento_ct')) return;
+            
+            // Verifica se já existe (segurança)
+            if (currentCycleActions.some(a => a.actionType === 'encaminhamento_ct')) {
+                showToast("Encaminhamento já realizado.");
+                return;
+            }
 
             const firstAction = currentCycleActions.find(a => a.periodoFaltasStart);
             const dataForCt = {
-                studentId: student.matricula, actionType: 'encaminhamento_ct', processId,
+                studentId: student.matricula, 
+                actionType: 'encaminhamento_ct', 
+                processId,
                 ctSentDate: new Date().toISOString().split('T')[0],
-                oficioNumber, oficioYear: new Date().getFullYear(),
+                oficioNumber, 
+                oficioYear: new Date().getFullYear(),
                 periodoFaltasStart: firstAction?.periodoFaltasStart || null,
                 periodoFaltasEnd: firstAction?.periodoFaltasEnd || null,
                 absenceCount: firstAction?.absenceCount || null,
             };
+            
             try {
-                await addRecordWithHistory('absence', dataForCt, "Ação 'Encaminhamento ao CT' registada.", state.userEmail);
+                // 2. Salva a nova ação PRIMEIRO
+                const historyAction = "Ação 'Encaminhamento ao CT' registada.";
+                const docRef = await addRecordWithHistory('absence', dataForCt, historyAction, state.userEmail);
                 showToast("Registro de 'Encaminhamento ao CT' salvo automaticamente.");
+
+                // 3. Atualiza o estado LOCALMENTE (para o gerador de relatório funcionar)
+                // O listener do Firestore vai atualizar, mas fazemos isso manualmente
+                // para garantir que o generateAndShowOficio tenha os dados corretos AGORA.
+                const newActionData = { 
+                    ...dataForCt, 
+                    id: docRef.id, 
+                    createdAt: new Date(), // Simula o timestamp
+                    history: [{ action: historyAction, user: state.userEmail, timestamp: new Date() }]
+                };
+                state.absences.push(newActionData);
+
+                // 4. Gera o ofício AGORA (usando o state atualizado)
+                // Passamos a nova ação, pois generateAndShowOficio usa o action.processId
+                generateAndShowOficio(newActionData, oficioNumber);
+
+                // 5. Força a renderização da lista
+                // (O listener do Firestore faria isso, mas garantimos aqui)
+                renderAbsences(); 
+
             } catch(err) {
+                console.error("Erro ao salvar ou gerar ofício:", err);
                 showToast("Erro ao salvar o encaminhamento automático.");
             }
         }
