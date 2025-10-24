@@ -12,6 +12,11 @@
 // 5. (Item 3a) Adicionada referência para a tabela de alunos (otimização).
 // 6. (CORREÇÃO GERAL) Movida a atribuição do DOM para uma função
 //    `initializeDOMReferences` para evitar erros de timing no carregamento.
+//
+// ATUALIZAÇÃO (CORREÇÃO CSV):
+// 1. Adicionadas referências para os elementos do modal de Alunos
+//    (student-form, cancel-edit-student-btn, csv-file, upload-csv-btn, csv-feedback)
+//    ao objeto `dom` para garantir que sejam encontrados após o DOM carregar.
 // =================================================================================
 
 export const state = {
@@ -127,5 +132,13 @@ export const initializeDOMReferences = () => {
     dom.settingsBtn = document.getElementById('settings-btn');
     dom.generalReportBtn = document.getElementById('general-report-btn');
     dom.generalBaReportBtn = document.getElementById('general-ba-report-btn');
+
+    // --- CORREÇÃO CSV: Adicionando referências do modal de alunos ---
+    dom.studentForm = document.getElementById('student-form');
+    dom.cancelEditStudentBtn = document.getElementById('cancel-edit-student-btn');
+    dom.csvFile = document.getElementById('csv-file');
+    dom.uploadCsvBtn = document.getElementById('upload-csv-btn');
+    dom.csvFeedback = document.getElementById('csv-feedback');
+    // --- Fim da Correção ---
 };
 
