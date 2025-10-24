@@ -18,6 +18,10 @@
 // ATUALIZAÇÃO (CORREÇÃO CSV - PAPA.PARSE):
 // 1. Alterada a chamada `Papa.parse` para `window.Papa.parse` para corrigir
 //    o erro de escopo do módulo.
+//
+// ATUALIZAÇÃO (CORREÇÃO CSV - VERIFICAÇÃO PAPAPARSE):
+// 1. Adicionada uma verificação `if (typeof window.Papa === 'undefined')`
+//    dentro de `handleCsvUpload` para diagnosticar problemas de carregamento/timing.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -33,9 +37,9 @@ import { showToast, closeModal, shareContent, openModal } from './utils.js';
 import { loadStudents, saveSchoolConfig, loadSchoolConfig, getCollectionRef, getStudentsDocRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord } from './firestore.js';
 
 // Funções de UI que *permaneceram* em ui.js
-import { 
-    render, 
-    renderStudentsList, 
+import {
+    render,
+    renderStudentsList,
     openOccurrenceModal,
     handleNewAbsenceAction,
     setupAutocomplete,
@@ -56,7 +60,7 @@ import {
     // generateAndShowBuscaAtivaReport, // MOVIDO
     getFilteredOccurrences, // Necessário para handleEditOccurrence
     openSettingsModal,
-    openFollowUpModal 
+    openFollowUpModal
 } from './ui.js';
 
 // NOVO: Funções de relatório importadas de reports.js
@@ -86,20 +90,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Observador do estado de autenticação do Firebase
     onAuthStateChanged(auth, async user => {
         detachFirestoreListeners(); // Limpa listeners antigos para evitar duplicação
-        
+
         if (user) {
             // Utilizador AUTENTICADO
             state.userId = user.uid;
             state.userEmail = user.email;
             dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
-            
+
             dom.loginScreen.classList.add('hidden');
             dom.mainContent.classList.remove('hidden');
             dom.userProfile.classList.remove('hidden');
-            
+
             try {
                 // Carrega dados essenciais
-                await loadSchoolConfig(); 
+                await loadSchoolConfig();
                 await loadStudents();
                 dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
                 setupFirestoreListeners();
@@ -114,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.students = [];
             state.occurrences = [];
             state.absences = [];
-            
+
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
@@ -124,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Movido para ser chamado DEPOIS de initializeDOMReferences()
     setupEventListeners();
-    
+
     // Configura autocomplete apenas para a Busca Ativa.
     setupAutocomplete('search-absences', 'absence-student-suggestions', handleNewAbsenceAction);
 });
@@ -163,7 +167,7 @@ function setupEventListeners() {
     dom.logoutBtn.addEventListener('click', () => signOut(auth));
     dom.showRegisterViewBtn.addEventListener('click', showRegisterView);
     dom.showLoginViewBtn.addEventListener('click', showLoginView);
-    
+
     // Navegação por Abas
     dom.tabOccurrences.addEventListener('click', () => switchTab('occurrences'));
     dom.tabAbsences.addEventListener('click', () => switchTab('absences'));
@@ -191,10 +195,10 @@ function setupEventListeners() {
     document.getElementById('filter-process-status').addEventListener('change', (e) => { state.filtersAbsences.processStatus = e.target.value; render(); });
     document.getElementById('filter-pending-action').addEventListener('change', (e) => { state.filtersAbsences.pendingAction = e.target.value; render(); });
     document.getElementById('filter-return-status').addEventListener('change', (e) => { state.filtersAbsences.returnStatus = e.target.value; render(); });
-    
+
     // Gerenciamento de Alunos e Configurações
     document.getElementById('manage-students-btn').addEventListener('click', () => { renderStudentsList(); openModal(dom.studentsModal); });
-    
+
     // --- ATUALIZAÇÃO (CORREÇÃO CSV) ---
     // Alterado para usar o objeto `dom`
     dom.uploadCsvBtn.addEventListener('click', handleCsvUpload);
@@ -214,32 +218,32 @@ function setupEventListeners() {
     // Ações em Modais
     document.getElementById('confirm-delete-btn').addEventListener('click', handleDeleteConfirmation);
     document.getElementById('action-type').addEventListener('change', (e) => handleActionTypeChange(e.target.value));
-    
+
     // Listeners para os rádios da Busca Ativa (mostra/esconde campos)
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
-    
+
     // ATUALIZADO (PONTO 7): Listener para o rádio de contato no modal de ACOMPANHAMENTO.
     // Agora também torna "Providências da Família" obrigatório.
-    document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio => 
+    document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio =>
         radio.addEventListener('change', (e) => {
             const enable = e.target.value === 'yes';
-            
+
             // 1. Lógica (agora corrigida via ui.js) para "Tipo" e "Data"
             toggleFamilyContactFields(enable, document.getElementById('follow-up-family-contact-fields'));
-            
+
             // 2. Lógica para "Providências da Família" (Ponto 7)
             const familyActionsTextarea = document.getElementById('follow-up-family-actions');
             if (familyActionsTextarea) {
                 familyActionsTextarea.required = enable;
-                
+
                 // Feedback visual (opcional, mas recomendado)
                 // Procura o label associado ao textarea (assumindo que está no div pai)
                 const label = familyActionsTextarea.closest('div').querySelector('label');
                 if (label) {
                     // Adiciona um asterisco vermelho se for obrigatório
-                    label.innerHTML = enable 
-                        ? 'Providências da Família <span class="text-red-500">*</span>' 
+                    label.innerHTML = enable
+                        ? 'Providências da Família <span class="text-red-500">*</span>'
                         : 'Providências da Família';
                 }
             }
@@ -254,7 +258,7 @@ function setupEventListeners() {
         if (!e.target.closest('.kebab-menu-container')) {
             // Fecha todos os dropdowns de menu kebab
             document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
-            
+
             // Restaura o 'overflow: hidden' em todos os acordeões ABERTOS
             document.querySelectorAll('.process-content').forEach(c => {
                 // Só aplica se ele estiver aberto (tiver maxHeight definido e diferente de 0px)
@@ -270,21 +274,21 @@ function setupEventListeners() {
 // --- HANDLERS E FUNÇÕES AUXILIARES ---
 
 // Funções de Autenticação
-async function handleLogin(e) { 
-    e.preventDefault(); 
-    try { 
-        await signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value); 
-    } catch (error) { 
-        console.error("Erro de Login:", error); 
-        showToast("Email ou senha inválidos."); 
-    } 
+async function handleLogin(e) {
+    e.preventDefault();
+    try {
+        await signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value);
+    } catch (error) {
+        console.error("Erro de Login:", error);
+        showToast("Email ou senha inválidos.");
+    }
 }
-async function handleRegister(e) { 
-    e.preventDefault(); 
-    try { 
-        await createUserWithEmailAndPassword(auth, document.getElementById('register-email').value, document.getElementById('register-password').value); 
-    } catch (error) { 
-        console.error("Erro de Registo:", error); 
+async function handleRegister(e) {
+    e.preventDefault();
+    try {
+        await createUserWithEmailAndPassword(auth, document.getElementById('register-email').value, document.getElementById('register-password').value);
+    } catch (error) {
+        console.error("Erro de Registo:", error);
         showToast(getAuthErrorMessage(error.code));
     }
 }
@@ -325,18 +329,18 @@ function switchTab(tabName) {
 async function handleOccurrenceSubmit(e) {
     e.preventDefault();
     const groupId = document.getElementById('occurrence-group-id').value;
-    
+
     if (state.selectedStudents.size === 0) {
         return showToast("Selecione pelo menos um aluno.");
     }
-    
-    const collectiveData = { 
-        date: document.getElementById('occurrence-date').value, 
+
+    const collectiveData = {
+        date: document.getElementById('occurrence-date').value,
         occurrenceType: document.getElementById('occurrence-type').value,
-        description: document.getElementById('description').value.trim(), 
+        description: document.getElementById('description').value.trim(),
     };
 
-    try { 
+    try {
         if (groupId) {
             // --- MODO DE EDIÇÃO DO FATO ---
             const originalIncident = getFilteredOccurrences().get(groupId);
@@ -360,21 +364,21 @@ async function handleOccurrenceSubmit(e) {
                 if (isNewStudent) {
                     const newRecordRef = doc(collection(db, getCollectionRef('occurrence').path));
                     const templateRecord = originalIncident.records[0] || {};
-                    
-                    const newRecordData = { 
-                        ...collectiveData, 
-                        studentId, 
+
+                    const newRecordData = {
+                        ...collectiveData,
+                        studentId,
                         occurrenceGroupId: groupId,
-                        statusIndividual: 'Aguardando Contato', 
+                        statusIndividual: 'Aguardando Contato',
                         schoolActionsIndividual: '',
-                        providenciasFamilia: '', 
+                        providenciasFamilia: '',
                         parecerIndividual: '',
-                        meetingDate: null, 
-                        meetingTime: null, 
-                        contactSucceeded: null, 
-                        contactType: null, 
-                        contactDate: null, 
-                        history: templateRecord.history || [], 
+                        meetingDate: null,
+                        meetingTime: null,
+                        contactSucceeded: null,
+                        contactType: null,
+                        contactDate: null,
+                        history: templateRecord.history || [],
                         createdAt: new Date(),
                         createdBy: state.userEmail
                     };
@@ -393,7 +397,7 @@ async function handleOccurrenceSubmit(e) {
                     batch.delete(doc(getCollectionRef('occurrence'), recordToDelete.id));
                 }
             }
-            
+
             // Adiciona a ação ao histórico de todos os registros que permanecerão.
             const recordsToUpdateHistory = await getDocs(query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', groupId)));
             recordsToUpdateHistory.docs.forEach(docSnapshot => {
@@ -422,28 +426,28 @@ async function handleOccurrenceSubmit(e) {
             });
 
             for (const studentId of state.selectedStudents.keys()) {
-                const recordData = { 
-                    ...collectiveData, 
+                const recordData = {
+                    ...collectiveData,
                     studentId,
                     occurrenceGroupId: newGroupId,
-                    statusIndividual: 'Aguardando Contato', 
+                    statusIndividual: 'Aguardando Contato',
                     schoolActionsIndividual: '',
-                    providenciasFamilia: '', 
+                    providenciasFamilia: '',
                     parecerIndividual: '',
-                    meetingDate: null, 
-                    meetingTime: null, 
-                    contactSucceeded: null, 
-                    contactType: null, 
-                    contactDate: null, 
+                    meetingDate: null,
+                    meetingTime: null,
+                    contactSucceeded: null,
+                    contactType: null,
+                    contactDate: null,
                 };
                 await addRecordWithHistory('occurrence', recordData, 'Incidente registado', state.userEmail);
             }
-            showToast(`Ocorrência ${newGroupId} registada com sucesso!`); 
+            showToast(`Ocorrência ${newGroupId} registada com sucesso!`);
         }
-        closeModal(dom.occurrenceModal); 
-    } catch (error) { 
+        closeModal(dom.occurrenceModal);
+    } catch (error) {
         console.error("Erro ao salvar ocorrência:", error);
-        showToast(getFirestoreErrorMessage(error.code) || 'Erro ao salvar a ocorrência.'); 
+        showToast(getFirestoreErrorMessage(error.code) || 'Erro ao salvar a ocorrência.');
     }
 }
 
@@ -454,7 +458,7 @@ async function handleFollowUpSubmit(e) {
     e.preventDefault();
     const studentId = dom.followUpForm.dataset.studentId;
     const recordId = dom.followUpForm.dataset.recordId;
-    
+
     if (!studentId || !recordId) {
         return showToast("Erro: ID do aluno ou do registo não encontrado.");
     }
@@ -463,7 +467,7 @@ async function handleFollowUpSubmit(e) {
     const parecer = document.getElementById('follow-up-parecer').value.trim();
     const contactSucceededRadio = document.querySelector('input[name="follow-up-contact-succeeded"]:checked');
     const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
-    
+
     // --- LÓGICA DE STATUS AUTOMÁTICO ---
     let newStatus = 'Pendente'; // Padrão: Contato feito, mas sem parecer
     if (parecer) {
@@ -476,22 +480,22 @@ async function handleFollowUpSubmit(e) {
     const dataToUpdate = {
         // Campos de Acompanhamento
         schoolActionsIndividual: document.getElementById('follow-up-actions').value.trim(),
-        providenciasFamilia: document.getElementById('follow-up-family-actions').value.trim(), 
+        providenciasFamilia: document.getElementById('follow-up-family-actions').value.trim(),
         parecerIndividual: parecer,
-        
+
         // Campos Movidos (Convocação)
-        meetingDate: document.getElementById('follow-up-meeting-date').value || null, 
-        meetingTime: document.getElementById('follow-up-meeting-time').value || null, 
-        
+        meetingDate: document.getElementById('follow-up-meeting-date').value || null,
+        meetingTime: document.getElementById('follow-up-meeting-time').value || null,
+
         // Campos Movidos (Contato)
         contactSucceeded: contactSucceeded,
-        contactType: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-type').value : null, 
-        contactDate: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-date').value : null, 
+        contactType: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-type').value : null,
+        contactDate: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-date').value : null,
 
         // Status Automático
         statusIndividual: newStatus
     };
-    
+
     const historyAction = `Acompanhamento atualizado (Status: ${dataToUpdate.statusIndividual}).`;
 
     try {
@@ -512,14 +516,14 @@ async function handleAbsenceSubmit(e) {
         form.reportValidity();
         return showToast('Por favor, preencha todos os campos obrigatórios.');
     }
-    
+
     const data = getAbsenceFormData();
     if (!data) return;
 
     try {
         const id = data.id;
         delete data.id;
-        
+
         const historyAction = id ? "Dados da ação atualizados." : `Ação de Busca Ativa registada.`;
 
         if (id) {
@@ -530,15 +534,15 @@ async function handleAbsenceSubmit(e) {
 
         showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
         closeModal(dom.absenceModal);
-        
+
         const studentReturned = data.contactReturned === 'yes' || data.visitReturned === 'yes';
         if (studentReturned) {
             const student = state.students.find(s => s.matricula === data.studentId);
             setTimeout(() => openAbsenceModalForStudent(student, 'analise'), 350);
         }
-    } catch (error) { 
+    } catch (error) {
         console.error("Erro ao salvar ação de BA:", error);
-        showToast(getFirestoreErrorMessage(error.code) || 'Erro ao salvar ação.'); 
+        showToast(getFirestoreErrorMessage(error.code) || 'Erro ao salvar ação.');
     }
 }
 
@@ -571,7 +575,16 @@ function handleCsvUpload() {
     // --- FIM DA ATUALIZAÇÃO ---
 
     if (fileInput.files.length === 0) return showToast("Por favor, selecione um ficheiro CSV.");
-    
+
+    // --- ATUALIZAÇÃO (CORREÇÃO PAPAPARSE - VERIFICAÇÃO) ---
+    // Adiciona uma verificação para garantir que window.Papa está definido
+    if (typeof window.Papa === 'undefined') {
+        console.error("PapaParse não está carregado. Verifique o script no index.html.");
+        showToast("Erro: A biblioteca de leitura de CSV (PapaParse) não foi carregada corretamente.");
+        return; // Impede a continuação se PapaParse não estiver pronto
+    }
+    // --- FIM DA ATUALIZAÇÃO ---
+
     // --- ATUALIZAÇÃO (CORREÇÃO PAPA.PARSE) ---
     // Alterado para usar `window.Papa.parse`
     window.Papa.parse(fileInput.files[0], {
@@ -579,11 +592,25 @@ function handleCsvUpload() {
         skipEmptyLines: true,
         transformHeader: header => header.toLowerCase().trim().replace(/\s+/g, ''),
         complete: async (results) => {
+            // Verifica se results.meta e results.meta.fields existem
+            if (!results.meta || !results.meta.fields) {
+                feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Não foi possível ler os cabeçalhos do ficheiro CSV.</p>`;
+                console.error("Erro ao processar CSV: Metadados inválidos", results);
+                return;
+            }
+
             const requiredHeaders = ['matricula', 'nome', 'turma', 'endereco', 'contato', 'resp1', 'resp2'];
             const hasAllHeaders = requiredHeaders.every(h => results.meta.fields.includes(h));
             if (!hasAllHeaders) {
                 feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Faltam colunas. O ficheiro CSV deve conter: ${requiredHeaders.join(', ')}.</p>`;
                 return;
+            }
+
+            // Verifica se results.data existe e é um array
+            if (!Array.isArray(results.data)) {
+                 feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Não foi possível ler os dados do ficheiro CSV.</p>`;
+                 console.error("Erro ao processar CSV: Dados inválidos", results);
+                 return;
             }
 
             const newStudentList = results.data.map(row => ({
@@ -600,11 +627,18 @@ function handleCsvUpload() {
                 fileInput.value = '';
                 feedbackDiv.innerHTML = '';
             } catch(error) {
-                showToast("Erro ao salvar a nova lista de alunos.");
+                console.error("Erro ao salvar alunos no Firestore:", error); // Log mais detalhado
+                showToast("Erro ao salvar a nova lista de alunos no banco de dados.");
             }
+        },
+        // Adiciona um callback de erro para o PapaParse
+        error: (error, file) => {
+            console.error("Erro do PapaParse:", error, file);
+            feedbackDiv.innerHTML = `<p class="text-red-500">Erro ao processar o ficheiro CSV: ${error.message}</p>`;
         }
     });
 }
+
 
 async function handleStudentFormSubmit(e) {
     e.preventDefault();
@@ -612,17 +646,17 @@ async function handleStudentFormSubmit(e) {
     const matricula = document.getElementById('student-matricula-input').value.trim();
     const name = document.getElementById('student-name-input').value.trim();
     if (!matricula || !name) return showToast("Matrícula e Nome são obrigatórios.");
-    
+
     let updatedList = [...state.students];
-    const studentData = { 
-        matricula, name, 
+    const studentData = {
+        matricula, name,
         class: document.getElementById('student-class-input').value.trim(),
         endereco: document.getElementById('student-endereco-input').value.trim(),
         contato: document.getElementById('student-contato-input').value.trim(),
         resp1: document.getElementById('student-resp1-input').value.trim(),
         resp2: document.getElementById('student-resp2-input').value.trim()
     };
-    
+
     if (id) {
         const index = updatedList.findIndex(s => s.matricula === id);
         if (index > -1) updatedList[index] = studentData;
@@ -762,9 +796,9 @@ function setupModalCloseButtons() {
         'close-students-modal-btn': dom.studentsModal,
         'cancel-delete-btn': dom.deleteConfirmModal,
         'close-settings-modal-btn': dom.settingsModal,
-        'cancel-settings-btn': dom.settingsModal, 
+        'cancel-settings-btn': dom.settingsModal,
         'close-follow-up-modal-btn': dom.followUpModal,
-        'cancel-follow-up-btn': dom.followUpModal 
+        'cancel-follow-up-btn': dom.followUpModal
     };
 
     for (const [id, modal] of Object.entries(modalMap)) {
@@ -821,7 +855,7 @@ function setupListClickListeners() {
                 });
                 dropdown.classList.toggle('hidden');
             }
-            return; 
+            return;
         }
 
         const groupId = button.dataset.groupId;
@@ -837,7 +871,7 @@ function setupListClickListeners() {
             else if (action === 'delete') handleDelete('occurrence', groupId);
             else if (action === 'history') openHistoryModal(groupId);
             // ATUALIZAÇÃO (PONTO 8): Chamada sem pré-seleção (clique no kebab)
-            else if (action === 'follow-up') openFollowUpModal(groupId); 
+            else if (action === 'follow-up') openFollowUpModal(groupId);
             // Esconde o menu após a ação
             button.closest('.kebab-menu-dropdown').classList.add('hidden');
         }
@@ -857,22 +891,22 @@ function setupListClickListeners() {
                     document.querySelectorAll('.kebab-menu-dropdown').forEach(d => {
                         if (d !== dropdown) d.classList.add('hidden');
                     });
-                    
+
                     // Lógica de Overflow:
                     const contentParent = button.closest('.process-content');
                     // Se o menu está prestes a abrir, remove o clip
-                    if (contentParent && dropdown.classList.contains('hidden')) { 
+                    if (contentParent && dropdown.classList.contains('hidden')) {
                         contentParent.style.overflow = 'visible';
                     } else if (contentParent) {
                         // Se está prestes a fechar, restaura (após um pequeno delay)
-                        setTimeout(() => { 
+                        setTimeout(() => {
                             // Verifica se ainda está fechado antes de restaurar
                             if (dropdown.classList.contains('hidden')) {
                                 contentParent.style.overflow = 'hidden';
                             }
                         }, 250); // Delay para permitir a animação do menu
                     }
-                    
+
                     dropdown.classList.toggle('hidden'); // Abre/Fecha o menu
                 }
                 return; // Encerra aqui para não executar outras lógicas de botão
@@ -880,7 +914,7 @@ function setupListClickListeners() {
              // ---- FIM DA CORREÇÃO (PONTO 1) ----
 
             const id = button.dataset.id;
-            
+
             if (button.classList.contains('notification-btn')) openFichaViewModal(id);
             else if (button.classList.contains('send-ct-btn')) handleSendToCT(id);
             else if (button.classList.contains('view-oficio-btn')) handleViewOficio(id);
@@ -913,13 +947,13 @@ function setupListClickListeners() {
                 } else {
                     content.style.maxHeight = null;
                     // ---- CORREÇÃO (PONTO 1): Garante overflow hidden ao fechar ----
-                    content.style.overflow = 'hidden'; 
+                    content.style.overflow = 'hidden';
                 }
                 icon?.classList.toggle('rotate-180', isHidden);
             }
             return; // Impede que o clique no header feche menus abertos
         }
-        
+
         // Clique para iniciar nova ação a partir do histórico
         const newActionTrigger = e.target.closest('.new-action-from-history-btn');
         if (newActionTrigger) {
@@ -962,7 +996,7 @@ function handleDeleteAbsence(id) {
     const hasLaterAction = processActions.some(a => sequence.indexOf(a.actionType) > deleteIndex);
 
     if (hasLaterAction) return showToast("Exclua a etapa mais recente do processo primeiro.");
-    
+
     if (actionToDelete.actionType === 'encaminhamento_ct') {
         const analiseAction = processActions.find(a => a.actionType === 'analise');
         document.getElementById('delete-confirm-message').textContent = 'A etapa de Análise associada também será excluída. Deseja continuar?';
@@ -1058,4 +1092,16 @@ async function handleStudentTableActions(e) {
         }
     }
 }
+```
+
+A alteração principal está na função `handleCsvUpload`:
+
+1.  **Verificação:** Antes de `window.Papa.parse`, adicionei:
+    ```javascript
+    if (typeof window.Papa === 'undefined') {
+        console.error("PapaParse não está carregado. Verifique o script no index.html.");
+        showToast("Erro: A biblioteca de leitura de CSV (PapaParse) não foi carregada corretamente.");
+        return; // Impede a continuação
+    }
+    
 
