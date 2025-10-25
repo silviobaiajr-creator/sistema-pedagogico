@@ -2,12 +2,21 @@
 // ARQUIVO: occurrence.js (NOVO)
 // RESPONSABILIDADE: Gerenciar toda a lógica, UI e eventos da
 // funcionalidade "Ocorrências".
+//
+// ATUALIZAÇÃO (SOLICITAÇÃO DO USUÁRIO - 24/10/2025):
+// 1. (Sugestão 2) Importada a nova função `generateAndShowOccurrenceOficio`.
+// 2. (Sugestão 2) `openFollowUpModal` agora preenche os novos campos de C.T.
+// 3. (Sugestão 2) `handleFollowUpSubmit` agora salva os novos campos de C.T.
+// 4. (Sugestão 2) `initOccurrenceListeners` adiciona o listener para o
+//    novo botão "Gerar Ofício".
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate } from './utils.js';
 import { getCollectionRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord } from './firestore.js';
-import { openStudentSelectionModal, openOccurrenceRecordModal, openHistoryModal, generateAndShowGeneralReport } from './reports.js';
+// --- NOVO (Sugestão 2): Importa a nova função de gerar ofício ---
+import { openStudentSelectionModal, openOccurrenceRecordModal, openHistoryModal, generateAndShowGeneralReport, generateAndShowOccurrenceOficio } from './reports.js';
+// --- FIM NOVO ---
 import { writeBatch, doc, collection, query, where, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db } from './firebase.js';
 
@@ -290,6 +299,17 @@ export const openFollowUpModal = (groupId, studentIdToPreselect = null) => {
             document.getElementById('follow-up-meeting-date').value = record.meetingDate || ''; 
             document.getElementById('follow-up-meeting-time').value = record.meetingTime || ''; 
 
+            // ==============================================================================
+            // --- NOVO (Sugestão 2): Popula os campos de C.T. ---
+            // ==============================================================================
+            document.getElementById('follow-up-oficio-number').value = record.oficioNumber || '';
+            document.getElementById('follow-up-oficio-year').value = record.oficioYear || '';
+            document.getElementById('follow-up-ct-sent-date').value = record.ctSentDate || '';
+            document.getElementById('follow-up-ct-feedback').value = record.ctFeedback || '';
+            // ==============================================================================
+            // --- FIM NOVO ---
+            // ==============================================================================
+
             const contactRadio = document.querySelector(`input[name="follow-up-contact-succeeded"][value="${record.contactSucceeded}"]`);
             if (contactRadio) contactRadio.checked = true;
             else document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio => radio.checked = false);
@@ -442,7 +462,18 @@ async function handleFollowUpSubmit(e) {
         contactSucceeded: contactSucceeded,
         contactType: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-type').value : null,
         contactDate: contactSucceeded === 'yes' ? document.getElementById('follow-up-contact-date').value : null,
-        statusIndividual: newStatus
+        statusIndividual: newStatus,
+
+        // ==============================================================================
+        // --- NOVO (Sugestão 2): Adiciona os campos de C.T. ao salvamento ---
+        // ==============================================================================
+        oficioNumber: document.getElementById('follow-up-oficio-number').value.trim() || null,
+        oficioYear: document.getElementById('follow-up-oficio-year').value.trim() || null,
+        ctSentDate: document.getElementById('follow-up-ct-sent-date').value || null,
+        ctFeedback: document.getElementById('follow-up-ct-feedback').value.trim() || null
+        // ==============================================================================
+        // --- FIM NOVO ---
+        // ==============================================================================
     };
 
     const historyAction = `Acompanhamento atualizado (Status: ${dataToUpdate.statusIndividual}).`;
@@ -568,4 +599,36 @@ export const initOccurrenceListeners = () => {
             }
         })
     );
+
+    // ==============================================================================
+    // --- NOVO (Sugestão 2): Listener do botão "Gerar Ofício" (Ocorrências) ---
+    // ==============================================================================
+    document.getElementById('generate-occurrence-oficio-btn').addEventListener('click', () => {
+        const studentId = dom.followUpForm.dataset.studentId;
+        const recordId = dom.followUpForm.dataset.recordId;
+        
+        // Pega os dados do ofício do formulário
+        const oficioNumber = document.getElementById('follow-up-oficio-number').value.trim();
+        const oficioYear = document.getElementById('follow-up-oficio-year').value.trim();
+
+        if (!oficioNumber || !oficioYear) {
+            showToast('Para gerar o ofício, preencha o "Nº Ofício" e o "Ano" no formulário.');
+            return;
+        }
+
+        // Busca os dados completos do aluno e do registro
+        const student = state.students.find(s => s.matricula === studentId);
+        const record = state.occurrences.find(o => o.id === recordId);
+        
+        if (student && record) {
+            // Chama a nova função (que será criada em reports.js)
+            // Passa o registro (com a descrição do fato), o aluno, e os dados do ofício
+            generateAndShowOccurrenceOficio(record, student, oficioNumber, oficioYear);
+        } else {
+            showToast('Erro: Aluno ou registro não encontrado para gerar o ofício.');
+        }
+    });
+    // ==============================================================================
+    // --- FIM NOVO ---
+    // ==============================================================================
 };
