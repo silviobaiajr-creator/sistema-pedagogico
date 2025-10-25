@@ -18,9 +18,11 @@
 //    (student-form, cancel-edit-student-btn, csv-file, upload-csv-btn, csv-feedback)
 //    ao objeto `dom` para garantir que sejam encontrados após o DOM carregar.
 //
-// ATUALIZAÇÃO (SOLICITAÇÃO DO USUÁRIO - 24/10/2025):
-// 1. (Sugestão 1) Adicionados campos `startDate` e `endDate` ao objeto
-//    `filtersAbsences` para suportar o filtro de data na Busca Ativa.
+// ATUALIZAÇÃO (FILTRO DATA BA - 24/10/2025):
+// 1. Adicionados `startDate` e `endDate` a `filtersAbsences`.
+//
+// ATUALIZAÇÃO (NOVO FLUXO CT OCORRÊNCIA - 24/10/2025):
+// 1. Adicionadas referências DOM para o novo modal `send-occurrence-ct-modal`.
 // =================================================================================
 
 export const state = {
@@ -51,9 +53,9 @@ export const state = {
         processStatus: 'all',
         pendingAction: 'all',
         returnStatus: 'all',
-        // --- NOVO (Sugestão 1) ---
-        startDate: null,
-        endDate: null
+        // --- NOVO (Sugestão 1): Filtros de Data para Busca Ativa ---
+        startDate: null, 
+        endDate: null    
         // --- FIM NOVO ---
     },
     
@@ -105,8 +107,13 @@ export const initializeDOMReferences = () => {
     dom.reportGeneratorModal = document.getElementById('report-generator-modal');
     dom.reportViewModalBackdrop = document.getElementById('report-view-modal-backdrop');
     dom.fichaViewModalBackdrop = document.getElementById('ficha-view-modal-backdrop');
-    // NOVO: (Arquitetura Item 2) Referência para o novo modal
     dom.followUpModal = document.getElementById('follow-up-modal');
+    // --- NOVO (V2): Referências para o novo modal "Enviar ao CT" ---
+    dom.sendOccurrenceCtModal = document.getElementById('send-occurrence-ct-modal'); 
+    dom.sendOccurrenceCtForm = document.getElementById('send-occurrence-ct-form');
+    dom.sendCtStudentSelect = document.getElementById('send-ct-student-select');
+    dom.sendCtOficioNumberInput = document.getElementById('send-ct-oficio-number');
+    // --- FIM NOVO ---
     
     // Listas e estados de carregamento
     dom.occurrencesListDiv = document.getElementById('occurrences-list');
@@ -115,14 +122,12 @@ export const initializeDOMReferences = () => {
     dom.emptyStateAbsences = document.getElementById('empty-state-absences');
     dom.loadingOccurrences = document.getElementById('loading-occurrences');
     dom.loadingAbsences = document.getElementById('loading-absences');
-    // NOVO: (Otimização Item 3a) Referência para a tabela de alunos
     dom.studentsListTable = document.getElementById('students-list-table');
     
     // Formulários
     dom.occurrenceForm = document.getElementById('occurrence-form');
     dom.absenceForm = document.getElementById('absence-form');
     dom.settingsForm = document.getElementById('settings-form'); 
-    // NOVO: (Arquitetura Item 2) Referência para o novo formulário
     dom.followUpForm = document.getElementById('follow-up-form');
     
     // Navegação e Filtros
@@ -149,3 +154,4 @@ export const initializeDOMReferences = () => {
     dom.csvFeedback = document.getElementById('csv-feedback');
     // --- Fim da Correção ---
 };
+
