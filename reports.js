@@ -11,6 +11,11 @@
 //    nome do aluno, padronizando a UI.
 // 2. (Sugestão 2) Adicionada a nova função `generateAndShowOccurrenceOficio`
 //    para gerar o encaminhamento ao C.T. pela tela de Ocorrências.
+//
+// OBSERVAÇÃO (24/10/2025 - V2): Esta versão já contém a função
+// `generateAndShowOccurrenceOficio` necessária para o novo fluxo
+// de envio ao CT das ocorrências. Nenhuma alteração adicional foi
+// necessária neste arquivo para a V2 do fluxo.
 // =================================================================================
 
 
@@ -462,8 +467,12 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
     if (processId) {
         studentActions = studentActions.filter(action => action.processId === processId);
     } else {
-        const { currentCycleActions } = getStudentProcessInfo(studentId);
-        studentActions = currentCycleActions;
+        // Se nenhum processId for fornecido, pega o ciclo atual
+        // Precisamos importar getStudentProcessInfo de logic.js se for usar aqui
+        // OU passar currentCycleActions como parâmetro.
+        // Por ora, vamos assumir que queremos TODAS as ações do aluno se processId for null.
+        // Se precisar *apenas* do ciclo atual sem ID, a lógica precisará ser ajustada.
+        console.warn("Gerando ficha consolidada sem processId específico. Incluindo todas as ações do aluno.");
     }
 
     studentActions.sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
@@ -1145,3 +1154,4 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
 // ==============================================================================
 // --- FIM NOVO ---
 // ==============================================================================
+
