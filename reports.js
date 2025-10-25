@@ -5,6 +5,12 @@
 // CORREÇÃO (24/10/2025): Descomentada a definição da variável `schoolName`
 // dentro de `generateAndShowOficio`. Ela estava causando um ReferenceError
 // pois era usada no template HTML (mesmo que em um comentário HTML).
+//
+// ATUALIZAÇÃO (SOLICITAÇÃO DO USUÁRIO - 24/10/2025):
+// 1. (Sugestão 3) `openAbsenceHistoryModal` foi atualizada para exibir o
+//    nome do aluno, padronizando a UI.
+// 2. (Sugestão 2) Adicionada a nova função `generateAndShowOccurrenceOficio`
+//    para gerar o encaminhamento ao C.T. pela tela de Ocorrências.
 // =================================================================================
 
 
@@ -311,6 +317,18 @@ export const openHistoryModal = (groupId) => {
 export const openAbsenceHistoryModal = (processId) => {
     const processActions = state.absences.filter(a => a.processId === processId);
     if (processActions.length === 0) return showToast('Processo não encontrado.');
+
+    // ==============================================================================
+    // --- NOVO (Sugestão 3): Busca o nome do aluno ---
+    // ==============================================================================
+    // 1. Pega o ID do aluno da primeira ação (todas as ações no processo são do mesmo aluno)
+    const studentId = processActions[0].studentId;
+    // 2. Encontra o aluno no estado global
+    const student = state.students.find(s => s.matricula === studentId);
+    const studentName = student ? formatText(student.name) : 'Aluno Desconhecido';
+    // ==============================================================================
+    // --- FIM NOVO ---
+    // ==============================================================================
     
     const allHistory = processActions.flatMap(a => a.history || []);
     
@@ -338,7 +356,12 @@ export const openAbsenceHistoryModal = (processId) => {
         : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este processo.</p>';
 
     document.getElementById('history-view-title').textContent = `Histórico do Processo`;
-    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${processId}`;
+    // --- LINHA MODIFICADA (Sugestão 3) ---
+    document.getElementById('history-view-subtitle').innerHTML = `
+        <strong>Aluno:</strong> ${studentName}<br>
+        <strong class="text-xs">ID do Processo:</strong> ${processId}
+    `;
+    // --- FIM DA MODIFICAÇÃO ---
     document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
     openModal(document.getElementById('history-view-modal-backdrop'));
 };
@@ -553,7 +576,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
 };
 
 /**
- * Gera o Ofício para o Conselho Tutelar.
+ * Gera o Ofício para o Conselho Tutelar (Busca Ativa).
  */
 export const generateAndShowOficio = (action, oficioNumber = null) => {
     if (!action) return showToast('Ação de origem não encontrada.');
@@ -1031,3 +1054,94 @@ export const generateAndShowBuscaAtivaReport = () => {
         }
     }, 100); 
 };
+
+
+// ==============================================================================
+// --- NOVO (Sugestão 2): Ofício para Ocorrências ---
+// ==============================================================================
+
+/**
+ * Gera o Ofício para o Conselho Tutelar (baseado em Ocorrência).
+ * @param {object} record - O registro individual da ocorrência.
+ * @param {object} student - O objeto do aluno.
+ * @param {string} oficioNumber - O número do ofício (do formulário).
+ * @param {string} oficioYear - O ano do ofício (do formulário).
+ */
+export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, oficioYear) => {
+    if (!record || !student || !oficioNumber || !oficioYear) {
+        return showToast('Dados insuficientes para gerar o ofício.');
+    }
+
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+    const schoolName = state.config?.schoolName || "Nome da Escola";
+    const city = state.config?.city || "Cidade"; 
+
+    const oficioHTML = `
+        <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+            <div class="text-center">
+                ${getReportHeaderHTML()}
+                <p>${city}, ${currentDate}.</p>
+            </div>
+
+            <div class="mt-8">
+                <p class="font-bold text-base">OFÍCIO Nº ${String(oficioNumber).padStart(3, '0')}/${oficioYear}</p>
+            </div>
+
+            <div class="mt-8">
+                <p><strong>Ao</strong></p>
+                <p><strong>Conselho Tutelar</strong></p>
+                <p><strong>${city}</strong></p>
+            </div>
+
+            <div class="mt-8">
+                <p><strong>Assunto:</strong> Encaminhamento de aluno por ocorrência disciplinar.</p>
+            </div>
+
+            <div class="mt-8 text-justify">
+                <p class="indent-8">Prezados(as) Conselheiros(as),</p>
+                <p class="mt-4 indent-8">
+                    Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>,
+                    regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino,
+                    filho(a) de <strong>${formatText(responsaveis)}</strong>, residente no endereço: ${formatText(student.endereco)}.
+                </p>
+                <p class="mt-4 indent-8">
+                    O(A) referido(a) aluno(a) esteve envolvido(a) em um incidente em <strong>${formatDate(record.date)}</strong>,
+                    classificado como <strong>"${formatText(record.occurrenceType)}"</strong>, conforme descrição abaixo:
+                </p>
+                <p class="mt-2 p-3 bg-gray-100 border rounded" style="font-family: 'Inter', sans-serif;">
+                    ${formatText(record.description)}
+                </p>
+                <p class="mt-4 indent-8">
+                    Informamos que a escola já realizou as seguintes providências (individuais): 
+                    <strong>${formatText(record.schoolActionsIndividual) || 'Nenhuma providência individual registrada ainda.'}</strong>
+                </p>
+                <p class="mt-4 indent-8">
+                    Diante do exposto e considerando a necessidade de acompanhamento, solicitamos as devidas providências deste Conselho para garantir o bem-estar e o direito à educação do(a) aluno(a).
+                </p>
+            </div>
+
+            <div class="mt-12 text-center">
+                <p>Atenciosamente,</p>
+            </div>
+            
+            <div class="signature-block pt-16 mt-8 space-y-12">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="mt-1">Diretor(a)</p>
+                </div>
+                 <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                     <p class="mt-1">Coordenador(a) Pedagógico(a)</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNumber}/${oficioYear}`;
+    document.getElementById('report-view-content').innerHTML = oficioHTML;
+    openModal(dom.reportViewModalBackdrop);
+};
+// ==============================================================================
+// --- FIM NOVO ---
+// ==============================================================================
