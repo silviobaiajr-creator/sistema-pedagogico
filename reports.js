@@ -2,20 +2,15 @@
 // ARQUIVO: reports.js
 // RESPONSABILIDADE: Gerar todos os documentos e relatórios (Atas, Fichas, Ofícios, Relatórios Gerais).
 //
-// CORREÇÃO (24/10/2025): Descomentada a definição da variável `schoolName`
-// dentro de `generateAndShowOficio`. Ela estava causando um ReferenceError
-// pois era usada no template HTML (mesmo que em um comentário HTML).
-//
-// ATUALIZAÇÃO (SOLICITAÇÃO DO USUÁRIO - 24/10/2025):
-// 1. (Sugestão 3) `openAbsenceHistoryModal` foi atualizada para exibir o
-//    nome do aluno, padronizando a UI.
-// 2. (Sugestão 2) Adicionada a nova função `generateAndShowOccurrenceOficio`
-//    para gerar o encaminhamento ao C.T. pela tela de Ocorrências.
-//
-// OBSERVAÇÃO (24/10/2025 - V2): Esta versão já contém a função
-// `generateAndShowOccurrenceOficio` necessária para o novo fluxo
-// de envio ao CT das ocorrências. Nenhuma alteração adicional foi
-// necessária neste arquivo para a V2 do fluxo.
+// ATUALIZAÇÃO (FLUXO V3):
+// 1. (Ação 1) `openOccurrenceRecordModal` atualizada para exibir o novo
+//    campo "Providências da Escola" (do Fato) na ata.
+// 2. (Ações 2-6) `openOccurrenceRecordModal` (Ata) atualizada para ler
+//    e exibir os dados de todas as novas etapas: Convocação (Ação 2),
+//    Providências Família (Ação 3), Encaminhamento (Ação 4), Devolutiva (Ação 5)
+//    e Parecer Final (Ação 6), substituindo os campos antigos.
+// 3. (Ação 4) `generateAndShowOccurrenceOficio` atualizada para usar o
+//    campo `providenciasEscola` (Ação 1) em vez do antigo `schoolActionsIndividual`.
 // =================================================================================
 
 
@@ -116,6 +111,7 @@ export const openStudentSelectionModal = (groupId) => {
 
 /**
  * Gera e exibe a notificação formal.
+ * (MODIFICADO V3: Checagem de `meetingDate` e `meetingTime` (Ação 2) mantida)
  * @param {object} incident - O objeto completo do incidente (com records e studentsInvolved).
  * @param {object} student - O objeto do aluno selecionado.
  */
@@ -127,9 +123,10 @@ export const openIndividualNotificationModal = (incident, student) => {
         return;
     }
     
+    // (V3) Esta checagem agora valida se a Ação 2 (Convocação) foi concluída.
     if (!data.meetingDate || !data.meetingTime) {
-        showToast(`Erro: É necessário definir a Data e o Horário da convocação para ${student.name}.`);
-        showToast("Defina a Data e Horário no 'Acompanhamento' primeiro.");
+        showToast(`Erro: É necessário agendar a Convocação (Ação 2) para ${student.name}.`);
+        showToast("Clique no nome do aluno na lista para avançar a etapa.");
         return; 
     }
     
@@ -194,6 +191,7 @@ export const openIndividualNotificationModal = (incident, student) => {
 
 /**
  * Gera a Ata Formal, incluindo "Providências da Família".
+ * (MODIFICADO V3: Atualizado para ler os campos das novas 6 etapas)
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openOccurrenceRecordModal = (groupId) => {
@@ -214,10 +212,11 @@ export const openOccurrenceRecordModal = (groupId) => {
 
     if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
 
+    // (V3) Status geral baseado no `statusIndividual` de CADA registro
     const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
-    incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
+    incident.overallStatus = allResolved ? 'Finalizada' : 'Resolvido'; // 'Resolvido' para consistência
     
-    const data = incident.records[0];
+    const data = incident.records[0]; // Pega o primeiro registro para dados do FATO
     const students = [...incident.studentsInvolved.values()];
     const studentNames = students.map(s => `${s.name} (Turma: ${s.class})`).join('<br>');
     const responsibleNames = [...new Set(students.flatMap(s => [s.resp1, s.resp2]).filter(Boolean))].join(' e ');
@@ -239,15 +238,19 @@ export const openOccurrenceRecordModal = (groupId) => {
             </div>
 
             <div class="border-t pt-4 space-y-4">
-                <div><h4 class="font-semibold mb-1">Descrição Detalhada dos Fatos:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
+                <!-- (MODIFICADO V3) Adicionados campos da Ação 1 -->
+                <div><h4 class="font-semibold mb-1">Ação 1: Descrição Detalhada dos Fatos:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
+                <div><h4 class="font-semibold mb-1">Ação 1: Providências Imediatas da Escola:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.providenciasEscola)}</p></div>
                 
                 <div class="border-t pt-4">
-                    <h4 class="text-md font-semibold text-gray-700 mb-2">Acompanhamentos Individuais</h4>
+                    <h4 class="text-md font-semibold text-gray-700 mb-2">Acompanhamentos Individuais (Ações 2-6)</h4>
+                    
+                    <!-- (MODIFICADO V3) Loop atualizado para ler os novos campos -->
                     ${incident.records.map(rec => {
                         const student = incident.studentsInvolved.get(rec.studentId);
-                        const statusIndividual = rec.statusIndividual || 'Pendente'; 
+                        // (V3) Usa o status individual real
+                        const statusIndividual = rec.statusIndividual || 'Aguardando Convocação'; 
                         
-                        // Usamos a função getStatusBadge importada de utils.js
                         return `
                         <div class="mt-2 p-3 border rounded-md bg-gray-50 break-inside-avoid">
                             <div class="flex justify-between items-center">
@@ -255,17 +258,29 @@ export const openOccurrenceRecordModal = (groupId) => {
                                 ${getStatusBadge(statusIndividual)}
                             </div>
                             
+                            <!-- Ação 2: Convocação -->
                             ${(rec.meetingDate) ? `
                             <div class="mt-2 p-2 bg-indigo-50 rounded-md text-sm">
-                                <p><strong>Reunião Agendada:</strong> Data: ${formatDate(rec.meetingDate)} | Horário: ${formatTime(rec.meetingTime)}</p>
+                                <p><strong>Ação 2 - Convocação:</strong> Data: ${formatDate(rec.meetingDate)} | Horário: ${formatTime(rec.meetingTime)}</p>
                             </div>
                             ` : ''}
 
-                            <p class="mt-2"><strong>Providências da Escola:</strong> ${formatText(rec.schoolActionsIndividual)}</p>
-                            
-                            <p class="mt-1"><strong>Providências da Família:</strong> ${formatText(rec.providenciasFamilia)}</p>
+                            <!-- Ação 3: Contato com Família -->
+                            <p class="mt-1"><strong>Ação 3 - Providências da Família:</strong> ${formatText(rec.providenciasFamilia)}</p>
+                            ${(rec.contactSucceeded) ? `
+                            <p class="text-xs text-gray-600 ml-2">↳ Contato em ${formatDate(rec.contactDate)} (${rec.contactType}) foi ${rec.contactSucceeded === 'yes' ? 'realizado.' : 'sem sucesso.'}</p>
+                            ` : ''}
 
-                            <p class="mt-1"><strong>Parecer/Desfecho:</strong> ${formatText(rec.parecerIndividual)}</p>
+                            <!-- Ação 4: Encaminhamento CT -->
+                            ${(rec.oficioNumber) ? `
+                            <p class="mt-1"><strong>Ação 4 - Encaminhamento ao CT:</strong> Ofício Nº ${formatText(rec.oficioNumber)}/${formatText(rec.oficioYear)} (Enviado em: ${formatDate(rec.ctSentDate)})</p>
+                            ` : ''}
+
+                            <!-- Ação 5: Devolutiva CT -->
+                            <p class="mt-1"><strong>Ação 5 - Devolutiva do CT:</strong> ${formatText(rec.ctFeedback)}</p>
+
+                            <!-- Ação 6: Parecer Final -->
+                            <p class="mt-1"><strong>Ação 6 - Parecer/Desfecho:</strong> ${formatText(rec.parecerFinal)}</p>
                         </div>
                         `;
                     }).join('')}
@@ -299,6 +314,8 @@ export const openHistoryModal = (groupId) => {
 
     if (!incident) return showToast('Incidente não encontrado.');
 
+    // (V3) O histórico agora está espalhado por múltiplos documentos.
+    // Esta função agrupa o histórico de todos os registros do incidente.
     const allHistory = incident.records.flatMap(r => r.history || []);
     
     const history = allHistory.sort((a, b) => (b.timestamp?.seconds || new Date(b.timestamp).getTime()) - (a.timestamp?.seconds || new Date(a.timestamp).getTime()));
@@ -324,7 +341,7 @@ export const openAbsenceHistoryModal = (processId) => {
     if (processActions.length === 0) return showToast('Processo não encontrado.');
 
     // ==============================================================================
-    // --- NOVO (Sugestão 3): Busca o nome do aluno ---
+    // --- (NOVO) Busca o nome do aluno ---
     // ==============================================================================
     // 1. Pega o ID do aluno da primeira ação (todas as ações no processo são do mesmo aluno)
     const studentId = processActions[0].studentId;
@@ -361,7 +378,7 @@ export const openAbsenceHistoryModal = (processId) => {
         : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este processo.</p>';
 
     document.getElementById('history-view-title').textContent = `Histórico do Processo`;
-    // --- LINHA MODIFICADA (Sugestão 3) ---
+    // --- LINHA MODIFICADA ---
     document.getElementById('history-view-subtitle').innerHTML = `
         <strong>Aluno:</strong> ${studentName}<br>
         <strong class="text-xs">ID do Processo:</strong> ${processId}
@@ -612,8 +629,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
     
     // =======================================================================
-    // AQUI ESTÁ A CORREÇÃO
-    // Esta linha estava comentada no seu arquivo original, causando o erro.
+    // CORREÇÃO (Mantida)
     const schoolName = state.config?.schoolName || "Nome da Escola";
     // =======================================================================
     
@@ -642,7 +658,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             <div class="text-center">
                 ${getReportHeaderHTML()}
-                <!-- <p class="font-bold uppercase mt-4">${schoolName}</p> --> <!-- Esta linha pode ser descomentada se você quiser o nome da escola DUAS VEZES -->
+                <!-- <p class="font-bold uppercase mt-4">${schoolName}</p> -->
                 <p>${city}, ${currentDate}.</p>
             </div>
 
@@ -713,11 +729,14 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
 // --- GRÁFICOS (dependem de Chart.js) ---
 /**
  * Gera o relatório geral de ocorrências com gráficos.
+ * (MODIFICADO V3: Atualizado para ler o status individual V3)
  */
 export const generateAndShowGeneralReport = () => {
+     // (V3) Lógica de agrupamento e filtragem
      const filteredIncidentsMap = state.occurrences.reduce((acc, occ) => {
          const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
          if (!acc.has(groupId)) {
+             // (V3) Status geral inicializado
              acc.set(groupId, { id: groupId, records: [], studentsInvolved: new Map(), overallStatus: 'Pendente' });
          }
          const incident = acc.get(groupId);
@@ -726,6 +745,7 @@ export const generateAndShowGeneralReport = () => {
          if (student && !incident.studentsInvolved.has(student.matricula)) {
              incident.studentsInvolved.set(student.matricula, student);
          }
+         // (V3) Status geral recalculado
          const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
          incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
 
@@ -736,11 +756,11 @@ export const generateAndShowGeneralReport = () => {
         const mainRecord = incident.records[0];
         if (!mainRecord) return false;
         const { startDate, endDate, status, type } = state.filtersOccurrences;
-        const studentSearch = state.filterOccurrences.toLowerCase(); // <-- CORREÇÃO: era filterOccurrences.toLowerCase()
+        const studentSearch = state.filterOccurrences.toLowerCase(); 
 
         if (startDate && mainRecord.date < startDate) return false;
         if (endDate && mainRecord.date > endDate) return false;
-        if (status !== 'all' && incident.overallStatus !== status) return false;
+        if (status !== 'all' && incident.overallStatus !== status) return false; // Filtra pelo status geral
         if (type !== 'all' && mainRecord.occurrenceType !== type) return false;
         if (studentSearch && ![...incident.studentsInvolved.values()].some(s => s.name.toLowerCase().includes(studentSearch))) return false;
         return true;
@@ -765,7 +785,7 @@ export const generateAndShowGeneralReport = () => {
     const sortedTypes = Object.entries(occurrencesByType).sort((a, b) => b[1] - a[1]);
 
     const occurrencesByStatus = filteredIncidents.reduce((acc, incident) => {
-        const occStatus = incident.overallStatus || 'Pendente';
+        const occStatus = incident.overallStatus || 'Pendente'; // Usa o status geral
         acc[occStatus] = (acc[occStatus] || 0) + 1;
         return acc;
     }, {});
@@ -823,10 +843,20 @@ export const generateAndShowGeneralReport = () => {
                         </div>
                         <div class="p-4 space-y-3">
                             <p><strong>Alunos Envolvidos:</strong> ${studentNames}</p>
-                            <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição do Fato</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
+                            <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição do Fato (Ação 1)</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
+                            
+                            <!-- (MODIFICADO V3) Loop de acompanhamento individual -->
                             ${incident.records.map(rec => {
                                 const student = incident.studentsInvolved.get(rec.studentId);
-                                return `<div class="text-xs border-t mt-2 pt-2"><p class="font-bold">${formatText(student?.name || '')} (${rec.statusIndividual || 'Pendente'})</p><p><strong>Providências Escola:</strong> ${formatText(rec.schoolActionsIndividual)}</p><p><strong>Providências Família:</strong> ${formatText(rec.providenciasFamilia)}</p><p><strong>Parecer:</strong> ${formatText(rec.parecerIndividual)}</p></div>`;
+                                return `<div class="text-xs border-t mt-2 pt-2">
+                                    <p class="font-bold">${formatText(student?.name || '')} (${rec.statusIndividual || 'Pendente'})</p>
+                                    ${rec.meetingDate ? `<p><strong>Ação 2 - Convocação:</strong> ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}</p>` : ''}
+                                    ${rec.contactSucceeded ? `<p><strong>Ação 3 - Contato:</strong> Sim (${formatDate(rec.contactDate)})</p>` : ''}
+                                    <p><strong>Ação 3 - Provid. Família:</strong> ${formatText(rec.providenciasFamilia)}</p>
+                                    ${rec.oficioNumber ? `<p><strong>Ação 4 - Enc. CT:</strong> Ofício ${rec.oficioNumber}/${rec.oficioYear}</p>` : ''}
+                                    <p><strong>Ação 5 - Devolutiva CT:</strong> ${formatText(rec.ctFeedback)}</p>
+                                    <p><strong>Ação 6 - Parecer Final:</strong> ${formatText(rec.parecerFinal)}</p>
+                                </div>`;
                             }).join('')}
                         </div>
                     </div>`;
@@ -1066,11 +1096,12 @@ export const generateAndShowBuscaAtivaReport = () => {
 
 
 // ==============================================================================
-// --- NOVO (Sugestão 2): Ofício para Ocorrências ---
+// --- (MODIFICADO V3) Ofício para Ocorrências ---
 // ==============================================================================
 
 /**
  * Gera o Ofício para o Conselho Tutelar (baseado em Ocorrência).
+ * (MODIFICADO V3: Atualizado para ler `providenciasEscola` (Ação 1))
  * @param {object} record - O registro individual da ocorrência.
  * @param {object} student - O objeto do aluno.
  * @param {string} oficioNumber - O número do ofício (do formulário).
@@ -1122,8 +1153,9 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
                     ${formatText(record.description)}
                 </p>
                 <p class="mt-4 indent-8">
-                    Informamos que a escola já realizou as seguintes providências (individuais): 
-                    <strong>${formatText(record.schoolActionsIndividual) || 'Nenhuma providência individual registrada ainda.'}</strong>
+                    <!-- (MODIFICADO V3) Lendo 'providenciasEscola' (Ação 1) -->
+                    Informamos que a escola já realizou as seguintes providências imediatas (Ação 1): 
+                    <strong>${formatText(record.providenciasEscola) || 'Nenhuma providência imediata registrada.'}</strong>
                 </p>
                 <p class="mt-4 indent-8">
                     Diante do exposto e considerando a necessidade de acompanhamento, solicitamos as devidas providências deste Conselho para garantir o bem-estar e o direito à educação do(a) aluno(a).
@@ -1154,4 +1186,3 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
 // ==============================================================================
 // --- FIM NOVO ---
 // ==============================================================================
-
