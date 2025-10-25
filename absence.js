@@ -11,6 +11,10 @@
 // CORREÇÃO (24/10/2025 - V2): Removida a atualização manual do state.absences
 // e a chamada manual renderAbsences() de handleSendToCT para evitar TypeError
 // com o objeto Date vs Timestamp. O listener onSnapshot cuidará da renderização.
+//
+// ATUALIZAÇÃO (SOLICITAÇÃO DO USUÁRIO - 24/10/2025):
+// 1. (Sugestão 1) Adicionada lógica de filtragem por data em `renderAbsences`.
+// 2. (Sugestão 1) Adicionados listeners para os novos filtros de data em `initAbsenceListeners`.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -92,7 +96,33 @@ export const renderAbsences = () => {
         const actions = groupedByProcess[processId];
         // Adiciona verificação para evitar erro se actions for undefined ou vazio
         if (!actions || actions.length === 0) return false;
+        
+        // Ordena as ações pela data de criação
         actions.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+
+        // ==============================================================================
+        // --- NOVO (Sugestão 1): Lógica do Filtro de Data ---
+        // ==============================================================================
+        const { startDate, endDate } = state.filtersAbsences; // Pega as datas do state
+        const firstAction = actions[0];
+        const processDate = firstAction.createdAt?.toDate ? firstAction.createdAt.toDate() : new Date(firstAction.createdAt);
+            
+        // Compara com a data de início (se existir)
+        if (startDate) {
+            // Adiciona T00:00:00 para garantir que o dia todo seja coberto
+            const filterStartDate = new Date(startDate + 'T00:00:00'); 
+            if (processDate < filterStartDate) return false; // Se o processo for anterior, exclui
+        }
+        // Compara com a data de fim (se existir)
+        if (endDate) {
+            // Adiciona T23:59:59 para garantir que o dia todo seja coberto
+            const filterEndDate = new Date(endDate + 'T23:59:59'); 
+            if (processDate > filterEndDate) return false; // Se o processo for posterior, exclui
+        }
+        // ==============================================================================
+        // --- FIM NOVO ---
+        // ==============================================================================
+
         const { processStatus, pendingAction, returnStatus } = state.filtersAbsences;
         const isConcluded = actions.some(a => a.actionType === 'analise');
         if (processStatus === 'in_progress' && isConcluded) return false;
@@ -653,6 +683,21 @@ export const initAbsenceListeners = () => {
     document.getElementById('filter-process-status').addEventListener('change', (e) => { state.filtersAbsences.processStatus = e.target.value; renderAbsences(); });
     document.getElementById('filter-pending-action').addEventListener('change', (e) => { state.filtersAbsences.pendingAction = e.target.value; renderAbsences(); });
     document.getElementById('filter-return-status').addEventListener('change', (e) => { state.filtersAbsences.returnStatus = e.target.value; renderAbsences(); });
+
+    // ==============================================================================
+    // --- NOVO (Sugestão 1): Listeners dos Filtros de Data ---
+    // ==============================================================================
+    document.getElementById('absence-start-date-filter').addEventListener('change', (e) => { 
+        state.filtersAbsences.startDate = e.target.value; 
+        renderAbsences(); 
+    });
+    document.getElementById('absence-end-date-filter').addEventListener('change', (e) => { 
+        state.filtersAbsences.endDate = e.target.value; 
+        renderAbsences(); 
+    });
+    // ==============================================================================
+    // --- FIM NOVO ---
+    // ==============================================================================
 
     // Autocomplete da Busca
     setupAbsenceAutocomplete();
