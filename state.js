@@ -17,6 +17,10 @@
 // 1. Adicionadas referências para os elementos do modal de Alunos
 //    (student-form, cancel-edit-student-btn, csv-file, upload-csv-btn, csv-feedback)
 //    ao objeto `dom` para garantir que sejam encontrados após o DOM carregar.
+//
+// ATUALIZAÇÃO (SOLICITAÇÃO DO USUÁRIO - 24/10/2025):
+// 1. (Sugestão 1) Adicionados campos `startDate` e `endDate` ao objeto
+//    `filtersAbsences` para suportar o filtro de data na Busca Ativa.
 // =================================================================================
 
 export const state = {
@@ -46,7 +50,11 @@ export const state = {
     filtersAbsences: {
         processStatus: 'all',
         pendingAction: 'all',
-        returnStatus: 'all'
+        returnStatus: 'all',
+        // --- NOVO (Sugestão 1) ---
+        startDate: null,
+        endDate: null
+        // --- FIM NOVO ---
     },
     
     // Controle de estado da UI
@@ -141,4 +149,3 @@ export const initializeDOMReferences = () => {
     dom.csvFeedback = document.getElementById('csv-feedback');
     // --- Fim da Correção ---
 };
-
