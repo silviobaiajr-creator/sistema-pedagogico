@@ -1,12 +1,31 @@
 // =================================================================================
-// ARQUIVO: utils.js (REFATORADO)
+// ARQUIVO: utils.js (REFATORADO E CORRIGIDO)
 // RESPONSABILIDADE: Funções pequenas e reutilizáveis (helpers).
 // ATUALIZAÇÃO: Adicionada a função getStatusBadge (movida de ui.js).
+// CORREÇÃO (24/10/2025): A função formatText foi robustecida para converter
+// explicitamente o input para string antes de usar .replace(), evitando
+// TypeErrors quando recebe números ou outros tipos não-string.
 // =================================================================================
 
 export const formatDate = (dateString) => dateString ? new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '';
 export const formatTime = (timeString) => timeString || '';
-export const formatText = (text) => text ? text.replace(/</g, "&lt;").replace(/>/g, "&gt;") : 'Não informado';
+
+// CORRIGIDO: Garante que 'text' seja tratado como string
+export const formatText = (text) => {
+    // Verifica se text é null ou undefined primeiro
+    if (text == null) { // Usar == null cobre undefined também
+        return 'Não informado';
+    }
+    // Converte explicitamente para string ANTES de usar replace
+    const textAsString = String(text);
+    // Remove espaços em branco extras antes de verificar se está vazio
+    if (textAsString.trim() === '') {
+        return 'Não informado';
+    }
+    // Agora é seguro usar replace
+    return textAsString.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+};
+
 export const formatPeriodo = (start, end) => {
     if (start && end) return `de ${formatDate(start)} a ${formatDate(end)}`;
     if (start) return `a partir de ${formatDate(start)}`;
@@ -22,22 +41,32 @@ export const showToast = (message) => {
 };
 
 export const openModal = (modalElement) => {
+     // Garante que modalElement não seja nulo
+     if (!modalElement) {
+         console.error("Tentativa de abrir um modal nulo.");
+         return;
+     }
     modalElement.classList.remove('hidden');
     setTimeout(() => {
         modalElement.classList.remove('opacity-0');
-        modalElement.firstElementChild.classList.remove('scale-95', 'opacity-0');
+        // Garante que firstElementChild existe
+        if (modalElement.firstElementChild) {
+            modalElement.firstElementChild.classList.remove('scale-95', 'opacity-0');
+        }
     }, 10);
 };
 
 export const closeModal = (modalElement) => {
     if (!modalElement) return;
     modalElement.classList.add('opacity-0');
-    modalElement.firstElementChild.classList.add('scale-95', 'opacity-0');
+    // Garante que firstElementChild existe
+    if (modalElement.firstElementChild) {
+        modalElement.firstElementChild.classList.add('scale-95', 'opacity-0');
+    }
     setTimeout(() => modalElement.classList.add('hidden'), 300);
 };
 
 /**
- * NOVO: (Movido de ui.js)
  * Retorna o HTML para um selo (badge) de status.
  * @param {string} status - O status ('Pendente', 'Finalizada', 'Aguardando Contato', etc.)
  * @returns {string} HTML do selo de status.
