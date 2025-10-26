@@ -15,6 +15,15 @@
 // 5. `initOccurrenceListeners`: Modifica listener do botão "Notificação" para
 //    funcionar ao lado do nome do aluno, chamando diretamente a geração.
 // 6. Adiciona `handleGenerateNotification` para lidar com o clique no novo botão.
+//
+// ATUALIZAÇÃO (MELHORIA DE LAYOUT - 26/10/2025):
+// 1. `renderOccurrences`: Modificado o layout de exibição dos alunos.
+//    - O contêiner principal agora usa CSS Grid (grid-cols-1 sm:grid-cols-2 xl:grid-cols-3)
+//      para melhor responsividade.
+//    - Cada aluno agora é renderizado em um bloco vertical.
+//    - O nome do aluno fica na primeira linha.
+//    - O status e os botões ("Notificação", "Ver Ofício") ficam na segunda linha,
+//      abaixo do nome, para uma UI mais limpa e organizada em dispositivos móveis.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -181,6 +190,7 @@ export const getFilteredOccurrences = () => {
 /**
  * Renderiza a lista de ocorrências.
  * (MODIFICADO UI Refinada: Remove botão CT, move e condiciona Notificação)
+ * (MODIFICADO LAYOUT 26/10: Usa Grid e empilha info do aluno)
  */
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
@@ -219,7 +229,7 @@ export const renderOccurrences = () => {
                 // Botão Ver Ofício (mantido)
                 const viewOficioBtn = record?.oficioNumber ? `
                     <button type="button"
-                            class="view-occurrence-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50 hover:bg-green-100 ml-1"
+                            class="view-occurrence-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50 hover:bg-green-100"
                             data-record-id="${recordId}"
                             title="Ver Ofício Nº ${record.oficioNumber}/${record.oficioYear || ''}">
                         <i class="fas fa-file-alt"></i> Ver Ofício
@@ -229,7 +239,7 @@ export const renderOccurrences = () => {
                 // (NOVO UI Refinada) Botão Notificação condicional
                 const notificationBtn = (record && record.meetingDate && record.meetingTime) ? `
                     <button type="button"
-                            class="notification-student-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100 ml-1"
+                            class="notification-student-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100"
                             data-record-id="${recordId}"
                             data-student-id="${student.matricula}"
                             data-group-id="${incident.id}"
@@ -238,21 +248,26 @@ export const renderOccurrences = () => {
                     </button>
                 ` : '';
 
+                // --- INÍCIO DA MODIFICAÇÃO (Organização Vertical Conforme Solicitado) ---
                 return `
-                    <div class="flex items-center gap-1.5 py-1 px-2 rounded-lg border ${borderClass} ${hoverClass} transition-colors">
+                    <div class="py-2 px-3 rounded-lg border ${borderClass} ${hoverClass} transition-colors">
+                        
                         <button type="button"
-                                class="student-follow-up-trigger flex items-center gap-1"
+                                class="student-follow-up-trigger"
                                 data-group-id="${incident.id}"
                                 data-student-id="${student.matricula}"
                                 data-record-id="${recordId}"
                                 title="Abrir acompanhamento de ${student.name}">
                             <span class="${nameClass}">${student.name}</span>
-                            ${getStatusBadge(status)}
                         </button>
-                        <!-- (NOVO UI Refinada) Botões ao lado do nome -->
-                        ${notificationBtn}
-                        ${viewOficioBtn}
+                        
+                        <div class="flex items-center flex-wrap gap-2 mt-1 pt-1 border-t ${borderClass}">
+                            ${getStatusBadge(status)}
+                            ${notificationBtn}
+                            ${viewOficioBtn}
+                        </div>
                     </div>`;
+                // --- FIM DA MODIFICAÇÃO ---
             }).join('');
 
         return `
@@ -265,18 +280,14 @@ export const renderOccurrences = () => {
                         </div>
                         <div class="text-sm text-gray-600 mt-2">
                             <strong class="block text-gray-500 text-xs font-bold uppercase mb-1.5">Alunos Envolvidos:</strong>
-                            <div class="flex flex-wrap gap-2">${studentDetailsHTML}</div>
-                        </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">${studentDetailsHTML}</div>
+                            </div>
                         <p class="text-xs text-gray-400 mt-2">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
                     </div>
                     <div class="flex-shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-stretch sm:self-center">
-                        <!-- (REMOVIDO UI Refinada) Botão Notificação movido -->
-                        <!-- <button class="notification-btn ..."></button> -->
                         <button class="record-btn text-gray-600 hover:text-gray-900 text-xs font-semibold py-2 px-3 rounded-md bg-gray-50 hover:bg-gray-100 border border-gray-300 text-center" data-group-id="${incident.id}" title="Gerar Ata de Ocorrência">
                             <i class="fas fa-file-invoice mr-1"></i> Gerar Ata
                         </button>
-                        <!-- (REMOVIDO UI Refinada) Botão Enviar ao CT removido -->
-                        <!-- <button class="send-occurrence-ct-btn ..."></button> -->
                         <div class="relative kebab-menu-container self-center">
                             <button class="kebab-menu-btn text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100" data-group-id="${incident.id}" title="Mais Opções">
                                 <i class="fas fa-ellipsis-v"></i>
@@ -1007,4 +1018,3 @@ export const initOccurrenceListeners = () => {
     if (closeSendCtBtn && sendCtModal) closeSendCtBtn.onclick = () => closeModal(sendCtModal);
     if (cancelSendCtBtn && sendCtModal) cancelSendCtBtn.onclick = () => closeModal(sendCtModal);
 };
-
