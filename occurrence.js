@@ -1,5 +1,5 @@
 // =================================================================================
-// ARQUIVO: occurrence.js (Fluxo V3 - CORRIGIDO)
+// ARQUIVO: occurrence.js (Fluxo V3 - CORREÇÃO Validação)
 // RESPONSABILIDADE: Gerenciar toda a lógica, UI e eventos da
 // funcionalidade "Ocorrências".
 //
@@ -12,7 +12,7 @@
 //    e atualiza o `statusIndividual` do aluno para a próxima etapa.
 // 4. `renderOccurrences` exibe cada aluno/registro individualmente.
 //
-// CORREÇÃO (25/10/2025):
+// CORREÇÃO (25/10/2025 - v1):
 // 1. `getFilteredOccurrences`: Adiciona checagem (`!occ || !occ.studentId`)
 //    para ignorar registros inválidos no `reduce`.
 // 2. `getFilteredOccurrences`: Alinha `overallStatus` para 'Finalizada'
@@ -20,19 +20,28 @@
 // 3. `renderOccurrences`: Adiciona checagem `(incident.studentsInvolved ? ... : [])`
 //    para prevenir o `TypeError: (reading 'map')` se `studentsInvolved`
 //    estiver inesperadamente `undefined`.
+//
+// CORREÇÃO (25/10/2025 - v2 - Validação):
+// 1. `openOccurrenceStepModal`: Modificada para DESABILITAR campos de etapas
+//    não visíveis e HABILITAR campos da etapa visível.
+// 2. `openOccurrenceStepModal`: Adiciona/remove dinamicamente o atributo `required`
+//    APENAS nos campos relevantes para a etapa atual, corrigindo erros
+//    de validação "not focusable".
+// 3. `renderOccurrences`: Adiciona mais checagens internas nos loops `.map()`
+//    para maior robustez contra dados potencialmente indefinidos (`record`, `student`).
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
 import { getCollectionRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord } from './firestore.js';
 // (V3) Importa a nova lógica de determinação de etapa
-import { determineNextOccurrenceStep } from './logic.js'; 
-import { 
-    openStudentSelectionModal, 
-    openOccurrenceRecordModal, 
-    openHistoryModal, 
-    generateAndShowGeneralReport, 
-    generateAndShowOccurrenceOficio 
+import { determineNextOccurrenceStep } from './logic.js';
+import {
+    openStudentSelectionModal,
+    openOccurrenceRecordModal,
+    openHistoryModal,
+    generateAndShowGeneralReport,
+    generateAndShowOccurrenceOficio
 } from './reports.js';
 import { writeBatch, doc, collection, query, where, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db } from './firebase.js';
@@ -95,7 +104,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
         const filteredStudents = state.students
             .filter(s => !state.selectedStudents.has(s.matricula) && s.name.toLowerCase().includes(value))
             .slice(0, 5);
-        
+
         if (filteredStudents.length > 0) {
             suggestionsElement.classList.remove('hidden');
             filteredStudents.forEach(student => {
@@ -114,7 +123,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             suggestionsElement.classList.add('hidden');
         }
     });
-    
+
     document.addEventListener('click', (e) => {
         if (!suggestionsElement.contains(e.target) && e.target !== inputElement) {
             suggestionsElement.classList.add('hidden');
@@ -133,21 +142,21 @@ export const getFilteredOccurrences = () => {
     // 1. Agrupa por incidente
     const groupedByIncident = state.occurrences.reduce((acc, occ) => {
         // (CORREÇÃO) Pula registros inválidos
-        if (!occ || !occ.studentId) return acc; 
+        if (!occ || !occ.studentId) return acc;
 
         const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
         if (!acc.has(groupId)) {
             // (V3) Inicializa o incidente
-            acc.set(groupId, { 
-                id: groupId, 
-                records: [], 
-                studentsInvolved: new Map(), 
+            acc.set(groupId, {
+                id: groupId,
+                records: [],
+                studentsInvolved: new Map(),
                 overallStatus: 'Aguardando Convocação' // Status inicial (será recalculado)
             });
         }
         const incident = acc.get(groupId);
         incident.records.push(occ);
-        
+
         // (V3) Adiciona o aluno ao Map
         const student = state.students.find(s => s.matricula === occ.studentId);
         if (student) {
@@ -159,25 +168,28 @@ export const getFilteredOccurrences = () => {
     // 2. Filtra os incidentes agrupados
     const filteredIncidents = new Map();
     for (const [groupId, incident] of groupedByIncident.entries()) {
-        const mainRecord = incident.records[0];
-        if (!mainRecord) continue; 
-        
+        // (CORREÇÃO v2) Garante que records existe e tem pelo menos um item
+        const mainRecord = incident.records && incident.records.length > 0 ? incident.records[0] : null;
+        if (!mainRecord) continue;
+
         const { startDate, endDate, status, type } = state.filtersOccurrences;
         const studentSearch = state.filterOccurrences.toLowerCase();
 
         // (V3) Calcula o status geral (para o filtro)
         const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
-        
+
         // (CORREÇÃO) Alinha 'Resolvido' (lógica) com 'Finalizada' (UI)
-        incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente'; 
+        incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
 
         if (startDate && mainRecord.date < startDate) continue;
         if (endDate && mainRecord.date > endDate) continue;
         if (status !== 'all' && incident.overallStatus !== status) continue;
         if (type !== 'all' && mainRecord.occurrenceType !== type) continue;
-        
+
         if (studentSearch) {
-            const hasMatchingStudent = [...incident.studentsInvolved.values()].some(s => 
+             // (CORREÇÃO v2) Garante que studentsInvolved existe antes de usar values()
+            const students = incident.studentsInvolved ? [...incident.studentsInvolved.values()] : [];
+            const hasMatchingStudent = students.some(s =>
                 s.name.toLowerCase().includes(studentSearch)
             );
             if (!hasMatchingStudent) continue;
@@ -191,6 +203,7 @@ export const getFilteredOccurrences = () => {
  * Renderiza a lista de ocorrências.
  * (MODIFICADO V3: Renderiza alunos individuais e seus status)
  * (CORRIGIDO 25/10): Adiciona checagem `(incident.studentsInvolved ? ... : [])`
+ * (CORRIGIDO 25/10 - v2): Adiciona mais checagens internas (`record`, `student`)
  */
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
@@ -203,54 +216,59 @@ export const renderOccurrences = () => {
          return;
     }
     dom.emptyStateOccurrences.classList.add('hidden');
-    
-    const sortedIncidents = [...filteredIncidents.values()].sort((a, b) => 
-        new Date(b.records[0].date) - new Date(a.records[0].date)
+
+    const sortedIncidents = [...filteredIncidents.values()].sort((a, b) =>
+        (b.records && b.records.length > 0 ? new Date(b.records[0].date) : 0) -
+        (a.records && a.records.length > 0 ? new Date(a.records[0].date) : 0)
     );
 
     let html = sortedIncidents.map(incident => {
-        const mainRecord = incident.records[0];
+        // (CORREÇÃO v2) Garante que mainRecord existe
+        const mainRecord = incident.records && incident.records.length > 0 ? incident.records[0] : null;
+        if (!mainRecord) return ''; // Pula incidentes sem registros válidos
+
         const studentSearch = state.filterOccurrences.toLowerCase();
 
-        // (V3) Itera sobre os alunos de CADA incidente para renderizá-los
         // (CORREÇÃO) Adiciona checagem `incident.studentsInvolved ? ... : []`
-        const studentDetailsHTML = (incident.studentsInvolved ? [...incident.studentsInvolved.values()] : []).map(student => {
-            const record = incident.records.find(r => r.studentId === student.matricula);
-            
-            // (V3) Status individual vem do registro do aluno
-            const status = record?.statusIndividual || 'Aguardando Convocação'; 
-            const isMatch = studentSearch && student.name.toLowerCase().includes(studentSearch);
-            const nameClass = isMatch ? 'font-bold text-yellow-800' : 'font-medium text-gray-700';
-            let borderClass = isMatch ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-gray-50';
-            let hoverClass = isMatch ? 'hover:bg-yellow-100' : 'hover:bg-indigo-50';
-            
-            // (V3) Pega o ID do registro individual para o botão
-            const recordId = record?.id || ''; 
+        const studentDetailsHTML = (incident.studentsInvolved ? [...incident.studentsInvolved.values()] : [])
+            .map(student => {
+                // (CORREÇÃO v2) Garante que student existe
+                if (!student) return '';
 
-            const viewOficioBtn = record?.oficioNumber ? `
-                <button type="button" 
-                        class="view-occurrence-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50 hover:bg-green-100 ml-1" 
-                        data-record-id="${recordId}"
-                        title="Ver Ofício Nº ${record.oficioNumber}/${record.oficioYear || ''}">
-                    <i class="fas fa-file-alt"></i> Ver Ofício
-                </button>
-            ` : '';
+                const record = incident.records.find(r => r && r.studentId === student.matricula); // Adiciona checagem r
+                // (CORREÇÃO v2) Garante que record existe antes de pegar ID
+                const recordId = record?.id || '';
+                // (V3) Status individual vem do registro do aluno
+                const status = record?.statusIndividual || 'Aguardando Convocação';
+                const isMatch = studentSearch && student.name.toLowerCase().includes(studentSearch);
+                const nameClass = isMatch ? 'font-bold text-yellow-800' : 'font-medium text-gray-700';
+                let borderClass = isMatch ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-gray-50';
+                let hoverClass = isMatch ? 'hover:bg-yellow-100' : 'hover:bg-indigo-50';
 
-            return `
-                <div class="flex items-center gap-1.5 py-1 px-2 rounded-lg border ${borderClass} ${hoverClass} transition-colors">
-                    <!-- (V3) Botão agora é o gatilho para a PRÓXIMA ETAPA -->
-                    <button type="button" 
-                            class="student-follow-up-trigger flex items-center gap-1"
-                            data-group-id="${incident.id}"
-                            data-student-id="${student.matricula}"
-                            data-record-id="${recordId}" 
-                            title="Abrir acompanhamento de ${student.name}">
-                        <span class="${nameClass}">${student.name}</span>
-                        ${getStatusBadge(status)}
+                const viewOficioBtn = record?.oficioNumber ? `
+                    <button type="button"
+                            class="view-occurrence-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50 hover:bg-green-100 ml-1"
+                            data-record-id="${recordId}"
+                            title="Ver Ofício Nº ${record.oficioNumber}/${record.oficioYear || ''}">
+                        <i class="fas fa-file-alt"></i> Ver Ofício
                     </button>
-                    ${viewOficioBtn}
-                </div>`;
-        }).join('');
+                ` : '';
+
+                return `
+                    <div class="flex items-center gap-1.5 py-1 px-2 rounded-lg border ${borderClass} ${hoverClass} transition-colors">
+                        <!-- (V3) Botão agora é o gatilho para a PRÓXIMA ETAPA -->
+                        <button type="button"
+                                class="student-follow-up-trigger flex items-center gap-1"
+                                data-group-id="${incident.id}"
+                                data-student-id="${student.matricula}"
+                                data-record-id="${recordId}"
+                                title="Abrir acompanhamento de ${student.name}">
+                            <span class="${nameClass}">${student.name}</span>
+                            ${getStatusBadge(status)}
+                        </button>
+                        ${viewOficioBtn}
+                    </div>`;
+            }).join('');
 
         return `
             <div class="border rounded-lg bg-white shadow-sm">
@@ -282,8 +300,6 @@ export const renderOccurrences = () => {
                                 <i class="fas fa-ellipsis-v"></i>
                             </button>
                             <div class="kebab-menu-dropdown hidden absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border z-10">
-                                <!-- (V3) Botão de Acompanhamento removido (agora é no nome) -->
-                                <!-- <button class="kebab-action-btn menu-item w-full text-left" data-action="follow-up" data-group-id="${incident.id}"><i class="fas fa-user-check mr-2 w-4"></i>Acompanhamento</button> -->
                                 <button class="kebab-action-btn menu-item w-full text-left" data-action="edit" data-group-id="${incident.id}"><i class="fas fa-pencil-alt mr-2 w-4"></i>Editar Fato</button>
                                 <button class="kebab-action-btn menu-item w-full text-left" data-action="history" data-group-id="${incident.id}"><i class="fas fa-history mr-2 w-4"></i>Histórico</button>
                                 <button class="kebab-action-btn menu-item menu-item-danger w-full text-left" data-action="delete" data-group-id="${incident.id}"><i class="fas fa-trash mr-2 w-4"></i>Excluir</button>
@@ -335,19 +351,21 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
 const toggleOccurrenceContactFields = (enable) => {
     const fieldsContainer = document.getElementById('group-contato-fields');
     if (!fieldsContainer) return;
-    
+
     fieldsContainer.classList.toggle('hidden', !enable);
     const detailFields = fieldsContainer.querySelectorAll('select, input[type="date"], textarea');
-    
+
+    // (CORREÇÃO v2) Gerencia 'disabled' e 'required' dinamicamente
     detailFields.forEach(input => {
         input.disabled = !enable;
-        input.required = enable; // Torna obrigatório se "Sim"
+        input.required = enable; // Torna obrigatório SOMENTE se "Sim"
     });
 };
 
 /**
  * (NOVO V3) Abre o modal de ACOMPANHAMENTO e exibe APENAS a etapa atual.
  * Substitui o antigo `openFollowUpModal`.
+ * (CORRIGIDO 25/10 - v2): Gerencia 'disabled' e 'required' dos campos.
  */
 export const openOccurrenceStepModal = (student, record, actionType) => {
     const followUpForm = document.getElementById('follow-up-form');
@@ -359,100 +377,132 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
     // Preenche dados do aluno
     document.getElementById('follow-up-student-name').value = student.name;
 
-    // (V3) Define o título do modal e o status
+    // Define o título do modal e o status
     const statusDisplay = document.getElementById('follow-up-status-display');
     const modalTitle = document.getElementById('follow-up-modal-title');
-    
     modalTitle.textContent = occurrenceActionTitles[actionType] || 'Acompanhamento Individual';
     statusDisplay.innerHTML = `<strong>Status:</strong> ${getStatusBadge(record.statusIndividual || 'Aguardando Convocação')}`;
 
-    // (V3) Esconde TODOS os grupos de campos
-    document.querySelectorAll('.dynamic-occurrence-step').forEach(group => group.classList.add('hidden'));
+    // Esconde TODOS os grupos e DESABILITA todos os campos DENTRO deles
+    document.querySelectorAll('.dynamic-occurrence-step').forEach(group => {
+        group.classList.add('hidden');
+        group.querySelectorAll('input, select, textarea').forEach(el => {
+            el.disabled = true;
+            el.required = false; // Remove 'required' de todos por padrão
+        });
+    });
 
-    // (V3) Lógica para exibir o(s) grupo(s) correto(s)
+    // Lógica para exibir o(s) grupo(s) correto(s), HABILITAR seus campos e definir 'required'
     let requiredFieldsValid = true;
+    let currentGroup = null; // Guarda o fieldset da etapa atual
 
     switch (actionType) {
         case 'convocacao': // Ação 2
-            document.getElementById('group-convocacao').classList.remove('hidden');
-            document.getElementById('follow-up-meeting-date').value = record.meetingDate || '';
-            document.getElementById('follow-up-meeting-time').value = record.meetingTime || '';
+            currentGroup = document.getElementById('group-convocacao');
+            if (currentGroup) {
+                currentGroup.classList.remove('hidden');
+                const dateInput = document.getElementById('follow-up-meeting-date');
+                const timeInput = document.getElementById('follow-up-meeting-time');
+                dateInput.value = record.meetingDate || '';
+                timeInput.value = record.meetingTime || '';
+                dateInput.disabled = false; dateInput.required = true;
+                timeInput.disabled = false; timeInput.required = true;
+            }
             break;
-        
+
         case 'contato_familia': // Ação 3
-            // Verifica se a Ação 2 foi preenchida
             if (!record.meetingDate || !record.meetingTime) {
                 showToast('Erro: Preencha a Ação 2 (Convocação) primeiro.');
                 requiredFieldsValid = false;
             } else {
-                document.getElementById('group-contato').classList.remove('hidden');
-                // Preenche dados existentes (se houver)
-                const radio = document.querySelector(`input[name="follow-up-contact-succeeded"][value="${record.contactSucceeded}"]`);
-                if (radio) {
-                    radio.checked = true;
-                } else {
-                    // Garante que os rádios estejam desmarcados se `record.contactSucceeded` for null
-                    document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(r => r.checked = false);
+                currentGroup = document.getElementById('group-contato');
+                if (currentGroup) {
+                    currentGroup.classList.remove('hidden');
+                    // Habilita os rádios
+                    const radios = currentGroup.querySelectorAll('input[name="follow-up-contact-succeeded"]');
+                    radios.forEach(r => { r.disabled = false; r.required = true; });
+
+                    const radioChecked = document.querySelector(`input[name="follow-up-contact-succeeded"][value="${record.contactSucceeded}"]`);
+                    if (radioChecked) {
+                        radioChecked.checked = true;
+                    } else {
+                        radios.forEach(r => r.checked = false);
+                    }
+                    // Campos de detalhe são gerenciados por toggleOccurrenceContactFields
+                    toggleOccurrenceContactFields(record.contactSucceeded === 'yes');
+                    document.getElementById('follow-up-contact-type').value = record.contactType || '';
+                    document.getElementById('follow-up-contact-date').value = record.contactDate || '';
+                    document.getElementById('follow-up-family-actions').value = record.providenciasFamilia || '';
                 }
-                toggleOccurrenceContactFields(record.contactSucceeded === 'yes'); // Mostra/esconde campos
-                document.getElementById('follow-up-contact-type').value = record.contactType || '';
-                document.getElementById('follow-up-contact-date').value = record.contactDate || '';
-                document.getElementById('follow-up-family-actions').value = record.providenciasFamilia || '';
             }
             break;
-        
+
         case 'desfecho_ou_ct': // Ação 4 ou 6 (Decisão)
-            // Verifica se a Ação 3 foi preenchida
-            if (record.contactSucceeded == null) { // == null cobre 'undefined' e 'null'
+             if (record.contactSucceeded == null) {
                 showToast('Erro: Preencha a Ação 3 (Contato com Família) primeiro.');
                 requiredFieldsValid = false;
             } else {
-                // Mostra AMBOS os grupos para o usuário decidir
-                document.getElementById('group-encaminhamento-ct').classList.remove('hidden');
-                document.getElementById('group-parecer-final').classList.remove('hidden');
-                // Preenche dados existentes (se houver)
-                document.getElementById('follow-up-oficio-number').value = record.oficioNumber || '';
-                document.getElementById('follow-up-ct-sent-date').value = record.ctSentDate || '';
-                document.getElementById('follow-up-parecer-final').value = record.parecerFinal || '';
+                // Mostra AMBOS os grupos e HABILITA seus campos
+                const groupCt = document.getElementById('group-encaminhamento-ct');
+                const groupParecer = document.getElementById('group-parecer-final');
+
+                if (groupCt) {
+                    groupCt.classList.remove('hidden');
+                    const oficioInput = document.getElementById('follow-up-oficio-number');
+                    const dateCtInput = document.getElementById('follow-up-ct-sent-date');
+                    oficioInput.value = record.oficioNumber || '';
+                    dateCtInput.value = record.ctSentDate || '';
+                    oficioInput.disabled = false; // Não são required aqui, pois são opcionais
+                    dateCtInput.disabled = false;
+                }
+                if (groupParecer) {
+                    groupParecer.classList.remove('hidden');
+                    const parecerInput = document.getElementById('follow-up-parecer-final');
+                    parecerInput.value = record.parecerFinal || '';
+                    parecerInput.disabled = false; // Não é required aqui
+                }
             }
             break;
-            
+
         case 'devolutiva_ct': // Ação 5
-            // Verifica se a Ação 4 foi preenchida
             if (!record.oficioNumber || !record.ctSentDate) {
                 showToast('Erro: Preencha a Ação 4 (Encaminhamento ao CT) primeiro.');
                 requiredFieldsValid = false;
             } else {
-                document.getElementById('group-devolutiva-ct').classList.remove('hidden');
-                document.getElementById('follow-up-ct-feedback').value = record.ctFeedback || '';
+                currentGroup = document.getElementById('group-devolutiva-ct');
+                if (currentGroup) {
+                    currentGroup.classList.remove('hidden');
+                    const feedbackInput = document.getElementById('follow-up-ct-feedback');
+                    feedbackInput.value = record.ctFeedback || '';
+                    feedbackInput.disabled = false; feedbackInput.required = true;
+                }
             }
             break;
-            
-        case 'parecer_final': // Ação 6 (Pós-CT ou Pós-Contato)
-            // Verifica se Ação 5 (se via CT) ou Ação 3 (se direto) foi preenchida
-            if (record.oficioNumber && record.ctFeedback == null) { // Veio do CT mas não preencheu devolutiva
+
+        case 'parecer_final': // Ação 6
+            if (record.oficioNumber && record.ctFeedback == null) {
                 showToast('Erro: Preencha a Ação 5 (Devolutiva do CT) primeiro.');
                 requiredFieldsValid = false;
-            } else if (record.contactSucceeded == null) { // Nem preencheu a ação 3
+            } else if (record.contactSucceeded == null) {
                  showToast('Erro: Preencha a Ação 3 (Contato com Família) primeiro.');
                  requiredFieldsValid = false;
             } else {
-                document.getElementById('group-parecer-final').classList.remove('hidden');
-                document.getElementById('follow-up-parecer-final').value = record.parecerFinal || '';
+                currentGroup = document.getElementById('group-parecer-final');
+                if (currentGroup) {
+                    currentGroup.classList.remove('hidden');
+                    const parecerInputFinal = document.getElementById('follow-up-parecer-final');
+                    parecerInputFinal.value = record.parecerFinal || '';
+                    parecerInputFinal.disabled = false; parecerInputFinal.required = true;
+                }
             }
             break;
     }
 
-    // (V3) Abre o modal
+    // Abre o modal somente se a etapa anterior foi validada
     if (requiredFieldsValid) {
-        // Garante que o seletor de aluno (que não existe mais) esteja escondido
-        // E o formulário esteja visível
-        // (V3) O `follow-up-student-select-wrapper` foi removido do HTML,
-        // então não precisamos mais escondê-lo.
         followUpForm.classList.remove('hidden');
         openModal(dom.followUpModal);
     } else {
-        // Não abre o modal se a etapa anterior não foi concluída
         closeModal(dom.followUpModal);
     }
 };
@@ -466,6 +516,14 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
  */
 async function handleOccurrenceSubmit(e) {
     e.preventDefault();
+    const form = e.target;
+     // Adiciona validação do formulário antes de prosseguir
+    if (!form.checkValidity()) {
+        form.reportValidity(); // Mostra os balões de erro do navegador
+        showToast("Por favor, preencha todos os campos obrigatórios (*).");
+        return;
+    }
+
     const groupId = document.getElementById('occurrence-group-id').value;
     if (state.selectedStudents.size === 0) return showToast("Selecione pelo menos um aluno.");
 
@@ -476,7 +534,7 @@ async function handleOccurrenceSubmit(e) {
         providenciasEscola: document.getElementById('providencias-escola').value.trim() // (V3) Novo campo
     };
 
-    // (V3) Validação do novo campo obrigatório
+    // Validação já feita pelo checkValidity, mas mantendo para clareza
     if (!collectiveData.providenciasEscola) {
         showToast("O campo 'Providências da Escola' é obrigatório.");
         document.getElementById('providencias-escola').focus();
@@ -498,7 +556,7 @@ async function handleOccurrenceSubmit(e) {
                 if (studentIdsInvolved.includes(record.studentId)) {
                     const recordRef = doc(getCollectionRef('occurrence'), record.id);
                     // (V3) Atualiza apenas os dados do Fato (Ação 1)
-                    batch.update(recordRef, collectiveData); 
+                    batch.update(recordRef, collectiveData);
                 }
             });
 
@@ -507,13 +565,13 @@ async function handleOccurrenceSubmit(e) {
                 const isNewStudent = !originalIncident.records.some(r => r.studentId === studentId);
                 if (isNewStudent) {
                     const newRecordRef = doc(collection(db, getCollectionRef('occurrence').path));
-                    const newRecordData = { 
+                    const newRecordData = {
                         ...collectiveData, // Contém os dados do FATO
-                        studentId, 
-                        occurrenceGroupId: groupId, 
+                        studentId,
+                        occurrenceGroupId: groupId,
                         statusIndividual: 'Aguardando Convocação',
                         // (V3) Inicializa todos os campos das etapas futuras
-                        meetingDate: null, 
+                        meetingDate: null,
                         meetingTime: null,
                         contactSucceeded: null,
                         contactType: null,
@@ -569,13 +627,13 @@ async function handleOccurrenceSubmit(e) {
 
             // (V3) Salva o fato individualmente para CADA aluno
             for (const studentId of state.selectedStudents.keys()) {
-                const recordData = { 
+                const recordData = {
                     ...collectiveData, // Contém date, occurrenceType, description, providenciasEscola
-                    studentId, 
-                    occurrenceGroupId: newGroupId, 
-                    statusIndividual: 'Aguardando Convocação', 
+                    studentId,
+                    occurrenceGroupId: newGroupId,
+                    statusIndividual: 'Aguardando Convocação',
                     // (V3) Inicializa todos os campos das etapas futuras
-                    meetingDate: null, 
+                    meetingDate: null,
                     meetingTime: null,
                     contactSucceeded: null,
                     contactType: null,
@@ -602,19 +660,21 @@ async function handleOccurrenceSubmit(e) {
 /**
  * (NOVO V3) Lida com a submissão do formulário de ACOMPANHAMENTO (Ações 2-6).
  * Substitui o antigo `handleFollowUpSubmit`.
+ * (CORRIGIDO 25/10 - v2): Usa checkValidity() e reportValidity().
  */
 async function handleOccurrenceStepSubmit(e) {
     e.preventDefault();
     const form = e.target;
+    // (CORREÇÃO v2) Usa a validação nativa do HTML5
     if (!form.checkValidity()) {
-        form.reportValidity();
-        return showToast('Por favor, preencha todos os campos obrigatórios.');
+        form.reportValidity(); // Mostra os balões de erro
+        return showToast('Por favor, preencha todos os campos obrigatórios (*).');
     }
 
     const recordId = form.dataset.recordId;
     const actionType = form.dataset.actionType;
     if (!recordId || !actionType) return showToast("Erro: ID do registro ou tipo de ação não encontrado.");
-    
+
     const record = state.occurrences.find(r => r.id === recordId);
     if (!record) return showToast("Erro: Registro original não encontrado.");
 
@@ -622,100 +682,120 @@ async function handleOccurrenceStepSubmit(e) {
     let historyAction = "";
     let nextStatus = record.statusIndividual; // Começa com o status atual
 
-    switch (actionType) {
-        case 'convocacao': // Ação 2
-            dataToUpdate = {
-                meetingDate: document.getElementById('follow-up-meeting-date').value,
-                meetingTime: document.getElementById('follow-up-meeting-time').value,
-            };
-            historyAction = `Ação 2 (Convocação) agendada para ${formatDate(dataToUpdate.meetingDate)}.`;
-            nextStatus = occurrenceNextStatusMap[record.statusIndividual]; // -> Aguardando Contato
-            break;
-
-        case 'contato_familia': // Ação 3
-            const contactSucceededRadio = document.querySelector('input[name="follow-up-contact-succeeded"]:checked');
-            const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
-            
-            if (contactSucceeded === 'yes') {
-                 dataToUpdate = {
-                    contactSucceeded: 'yes',
-                    contactType: document.getElementById('follow-up-contact-type').value,
-                    contactDate: document.getElementById('follow-up-contact-date').value,
-                    providenciasFamilia: document.getElementById('follow-up-family-actions').value,
-                };
-                historyAction = `Ação 3 (Contato) registrada com sucesso (Família ciente).`;
-                nextStatus = occurrenceNextStatusMap[record.statusIndividual]; // -> Aguardando Desfecho
-            } else {
+    try { // Adiciona try/catch para lidar com erros de coleta de dados
+        switch (actionType) {
+            case 'convocacao': // Ação 2
                 dataToUpdate = {
-                    contactSucceeded: 'no',
-                    // Limpa campos caso tenham sido preenchidos e depois marcados como "Não"
-                    contactType: null,
-                    contactDate: null,
-                    providenciasFamilia: null, 
+                    meetingDate: document.getElementById('follow-up-meeting-date').value,
+                    meetingTime: document.getElementById('follow-up-meeting-time').value,
                 };
-                historyAction = `Ação 3 (Contato) registrada sem sucesso.`;
-                // (V3) O status NÃO avança
-                nextStatus = 'Aguardando Contato'; 
-            }
-            break;
+                historyAction = `Ação 2 (Convocação) agendada para ${formatDate(dataToUpdate.meetingDate)}.`;
+                nextStatus = occurrenceNextStatusMap[record.statusIndividual]; // -> Aguardando Contato
+                break;
 
-        case 'desfecho_ou_ct': // Ação 4 ou 6 (Decisão)
-            const oficioNumber = document.getElementById('follow-up-oficio-number').value.trim();
-            const ctSentDate = document.getElementById('follow-up-ct-sent-date').value;
-            const parecerFinal = document.getElementById('follow-up-parecer-final').value.trim();
+            case 'contato_familia': // Ação 3
+                const contactSucceededRadio = document.querySelector('input[name="follow-up-contact-succeeded"]:checked');
+                const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
 
-            if (oficioNumber && ctSentDate) { // Usuário escolheu Ação 4 (CT)
-                dataToUpdate = {
-                    oficioNumber,
-                    ctSentDate,
-                    oficioYear: new Date(ctSentDate).getFullYear() || new Date().getFullYear(),
-                    parecerFinal: null // Garante que o parecer (Ação 6) seja limpo
-                };
-                historyAction = `Ação 4 (Encaminhamento ao CT) registrada. Ofício: ${oficioNumber}.`;
-                nextStatus = 'Aguardando Devolutiva CT'; // (V3) Mapeamento customizado
-                
-                // (V3) Gerar Ofício automaticamente
-                const studentId = form.dataset.studentId;
-                const student = state.students.find(s => s.matricula === studentId);
-                if (student) {
-                    // Passa o record original + os novos dados
-                    generateAndShowOccurrenceOficio({ ...record, ...dataToUpdate }, student, dataToUpdate.oficioNumber, dataToUpdate.oficioYear);
+                if (contactSucceeded === 'yes') {
+                     dataToUpdate = {
+                        contactSucceeded: 'yes',
+                        contactType: document.getElementById('follow-up-contact-type').value,
+                        contactDate: document.getElementById('follow-up-contact-date').value,
+                        providenciasFamilia: document.getElementById('follow-up-family-actions').value,
+                    };
+                    historyAction = `Ação 3 (Contato) registrada com sucesso (Família ciente).`;
+                    nextStatus = occurrenceNextStatusMap[record.statusIndividual]; // -> Aguardando Desfecho
+                } else {
+                    dataToUpdate = {
+                        contactSucceeded: 'no',
+                        // Limpa campos caso tenham sido preenchidos e depois marcados como "Não"
+                        contactType: null,
+                        contactDate: null,
+                        providenciasFamilia: null,
+                    };
+                    historyAction = `Ação 3 (Contato) registrada sem sucesso.`;
+                    // (V3) O status NÃO avança
+                    nextStatus = 'Aguardando Contato';
+                }
+                break;
+
+            case 'desfecho_ou_ct': // Ação 4 ou 6 (Decisão)
+                const oficioNumber = document.getElementById('follow-up-oficio-number').value.trim();
+                const ctSentDate = document.getElementById('follow-up-ct-sent-date').value;
+                const parecerFinal = document.getElementById('follow-up-parecer-final').value.trim();
+
+                // Validação: OU CT OU Parecer, não ambos. Mas um deles precisa ser preenchido se a ação for esta.
+                if ((oficioNumber || ctSentDate) && parecerFinal) {
+                    showToast("Erro: Escolha apenas UMA opção - Encaminhar ao CT OU dar o Parecer Final.");
+                    return;
+                }
+                 if (!oficioNumber && !ctSentDate && !parecerFinal) {
+                    showToast("Erro: Preencha os dados para Encaminhamento ao CT ou o Parecer Final.");
+                    return;
                 }
 
-            } else if (parecerFinal) { // Usuário escolheu Ação 6 (Parecer Direto)
-                 dataToUpdate = {
-                    parecerFinal,
-                    oficioNumber: null, // Garante que dados do CT sejam limpos
-                    ctSentDate: null,
-                    oficioYear: null
+                if (oficioNumber && ctSentDate) { // Usuário escolheu Ação 4 (CT)
+                    dataToUpdate = {
+                        oficioNumber,
+                        ctSentDate,
+                        oficioYear: new Date(ctSentDate).getFullYear() || new Date().getFullYear(),
+                        parecerFinal: null // Garante que o parecer (Ação 6) seja limpo
+                    };
+                    historyAction = `Ação 4 (Encaminhamento ao CT) registrada. Ofício: ${oficioNumber}.`;
+                    nextStatus = 'Aguardando Devolutiva CT'; // (V3) Mapeamento customizado
+
+                    // (V3) Gerar Ofício automaticamente (mantido, mas não é mais o fluxo principal de envio)
+                    // Considerar remover se o botão "Enviar ao CT" for a única forma
+                    /*
+                    const studentId = form.dataset.studentId;
+                    const student = state.students.find(s => s.matricula === studentId);
+                    if (student) {
+                        generateAndShowOccurrenceOficio({ ...record, ...dataToUpdate }, student, dataToUpdate.oficioNumber, dataToUpdate.oficioYear);
+                    }
+                    */
+
+                } else { // Usuário escolheu Ação 6 (Parecer Direto)
+                     dataToUpdate = {
+                        parecerFinal,
+                        oficioNumber: null, // Garante que dados do CT sejam limpos
+                        ctSentDate: null,
+                        oficioYear: null
+                    };
+                    historyAction = `Ação 6 (Parecer Final) registrada (sem envio ao CT).`;
+                    nextStatus = 'Resolvido'; // (V3) Mapeamento customizado
+                }
+                break;
+
+            case 'devolutiva_ct': // Ação 5
+                dataToUpdate = {
+                    ctFeedback: document.getElementById('follow-up-ct-feedback').value,
                 };
-                historyAction = `Ação 6 (Parecer Final) registrada (sem envio ao CT).`;
-                nextStatus = 'Resolvido'; // (V3) Mapeamento customizado
-            } else {
-                showToast("Preencha os campos de 'Encaminhamento ao CT' ou o 'Parecer Final'.");
-                return; // Não salva
-            }
-            break;
+                historyAction = `Ação 5 (Devolutiva do CT) registrada.`;
+                nextStatus = occurrenceNextStatusMap[record.statusIndividual]; // -> Aguardando Parecer Final
+                break;
 
-        case 'devolutiva_ct': // Ação 5
-            dataToUpdate = {
-                ctFeedback: document.getElementById('follow-up-ct-feedback').value,
-            };
-            historyAction = `Ação 5 (Devolutiva do CT) registrada.`;
-            nextStatus = occurrenceNextStatusMap[record.statusIndividual]; // -> Aguardando Parecer Final
-            break;
+            case 'parecer_final': // Ação 6
+                dataToUpdate = {
+                    parecerFinal: document.getElementById('follow-up-parecer-final').value,
+                };
+                 // Verifica se veio do CT para ajustar a mensagem do histórico
+                if (record.oficioNumber) {
+                     historyAction = `Ação 6 (Parecer Final) registrada após devolutiva do CT.`;
+                } else {
+                     historyAction = `Ação 6 (Parecer Final) registrada diretamente após contato.`;
+                }
+                nextStatus = occurrenceNextStatusMap[record.statusIndividual]; // -> Resolvido
+                break;
 
-        case 'parecer_final': // Ação 6
-            dataToUpdate = {
-                parecerFinal: document.getElementById('follow-up-parecer-final').value,
-            };
-            historyAction = `Ação 6 (Parecer Final) registrada.`;
-            nextStatus = occurrenceNextStatusMap[record.statusIndividual]; // -> Resolvido
-            break;
-
-        default:
-            showToast("Erro: Tipo de ação desconhecido.");
-            return;
+            default:
+                showToast("Erro: Tipo de ação desconhecido.");
+                return;
+        }
+    } catch (collectError) {
+        console.error("Erro ao coletar dados do formulário:", collectError);
+        showToast("Erro ao processar os dados do formulário.");
+        return;
     }
 
     // (V3) Adiciona o novo status aos dados a serem salvos
@@ -730,6 +810,7 @@ async function handleOccurrenceStepSubmit(e) {
         showToast('Erro ao salvar a etapa.');
     }
 }
+
 
 /**
  * Lida com a edição de um fato (helper).
@@ -811,7 +892,7 @@ function openSendOccurrenceCtModal(groupId) {
         const studentId = studentEntry[0];
         const student = studentEntry[1];
         const record = incident.records.find(r => r.studentId === studentId);
-        
+
         studentNameDisplay.textContent = student.name;
         document.getElementById('send-ct-record-id').value = record?.id || '';
         document.getElementById('send-ct-student-id').value = studentId;
@@ -846,11 +927,11 @@ async function handleSendOccurrenceCtSubmit(e) {
     if (!recordId || !studentId) {
         return showToast('Erro: Aluno ou registro inválido. Selecione um aluno.');
     }
-    
+
     // (V3) Pega o registro atual para verificar o status
     const record = state.occurrences.find(r => r.id === recordId);
     if (!record) return showToast("Erro: Registro não encontrado.");
-    
+
     // (V3) Validação de fluxo: Só deve enviar ao CT se estiver em 'Aguardando Desfecho'
     if (record.statusIndividual !== 'Aguardando Desfecho') {
         showToast(`Erro: O aluno deve estar no status 'Aguardando Desfecho'. Status atual: ${record.statusIndividual}`);
@@ -872,7 +953,7 @@ async function handleSendOccurrenceCtSubmit(e) {
     try {
         // 1. Atualiza o registro individual com os dados do ofício
         await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
-        
+
         showToast("Registro atualizado com sucesso!");
         closeModal(document.getElementById('send-occurrence-ct-modal'));
 
@@ -884,7 +965,8 @@ async function handleSendOccurrenceCtSubmit(e) {
             record.oficioNumber = oficioNumber;
             record.oficioYear = oficioYear;
             record.ctSentDate = ctSentDate;
-            
+            record.statusIndividual = 'Aguardando Devolutiva CT'; // Atualiza status localmente também
+
             // 3. Gera e mostra o ofício
             generateAndShowOccurrenceOficio(record, student, oficioNumber, oficioYear);
         } else {
@@ -897,6 +979,7 @@ async function handleSendOccurrenceCtSubmit(e) {
     }
 }
 
+
 /**
  * Lida com o clique no botão "Ver Ofício".
  */
@@ -907,7 +990,7 @@ function handleViewOccurrenceOficio(recordId) {
     let targetRecord = null;
     let targetIncident = null;
     const allIncidents = getFilteredOccurrences(); // Usa a função de filtro
-    
+
     for (const incident of allIncidents.values()) {
         const foundRecord = incident.records.find(r => r.id === recordId);
         if (foundRecord) {
@@ -934,7 +1017,7 @@ function handleViewOccurrenceOficio(recordId) {
 function handleNewOccurrenceAction(studentId, groupId, recordId) {
     const incident = getFilteredOccurrences().get(groupId);
     if (!incident) return showToast('Erro: Incidente não encontrado.');
-    
+
     const student = incident.studentsInvolved.get(studentId);
     if (!student) return showToast('Erro: Aluno não encontrado no incidente.');
 
@@ -971,14 +1054,14 @@ export const initOccurrenceListeners = () => {
     dom.occurrenceEndDate.addEventListener('change', (e) => { state.filtersOccurrences.endDate = e.target.value; renderOccurrences(); });
     document.getElementById('occurrence-filter-type').addEventListener('change', (e) => { state.filtersOccurrences.type = e.target.value; renderOccurrences(); });
     document.getElementById('occurrence-filter-status').addEventListener('change', (e) => { state.filtersOccurrences.status = e.target.value; renderOccurrences(); });
-    
+
     // Relatório Geral
     dom.generalReportBtn.addEventListener('click', generateAndShowGeneralReport);
-    
+
     // Formulários
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     // (V3) Novo handler para o modal de etapas
-    dom.followUpForm.addEventListener('submit', handleOccurrenceStepSubmit); 
+    dom.followUpForm.addEventListener('submit', handleOccurrenceStepSubmit);
     const sendCtForm = document.getElementById('send-occurrence-ct-form');
     if (sendCtForm) sendCtForm.addEventListener('submit', handleSendOccurrenceCtSubmit);
 
@@ -1030,10 +1113,10 @@ export const initOccurrenceListeners = () => {
         } else if (button.classList.contains('kebab-action-btn')) {
             const action = button.dataset.action;
             if (action === 'edit') handleEditOccurrence(groupId);
-            else if (action === 'delete') handleDelete('occurrence', groupId); 
+            else if (action === 'delete') handleDelete('occurrence', groupId);
             else if (action === 'history') openHistoryModal(groupId);
             // (V3) Ação 'follow-up' removida do kebab
-            
+
             const dropdown = button.closest('.kebab-menu-dropdown');
             if(dropdown) dropdown.classList.add('hidden'); // Fecha o menu kebab
         }
