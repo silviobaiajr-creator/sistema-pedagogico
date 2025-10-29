@@ -290,6 +290,7 @@
 
     <!-- Modal para Acompanhamento Individual da Ocorrência (Ações 2-6) -->
     <!-- MODIFICADO V3: Reestruturado para ser dinâmico por etapas -->
+    <!-- MODIFICADO PLANO 3b: Adicionado 'group-desfecho-choice' -->
     <div id="follow-up-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -342,6 +343,16 @@
                             <div><label for="follow-up-contact-type" class="block text-sm font-medium">Tipo de Contato <span class="text-red-500">*</span></label><select id="follow-up-contact-type" class="mt-1 w-full border-gray-300 rounded-md" required disabled><option value="">Selecione...</option><option value="WhatsApp">WhatsApp</option><option value="Ligação">Ligação</option><option value="Pessoalmente">Pessoalmente</option></select></div>
                             <div><label for="follow-up-contact-date" class="block text-sm font-medium">Dia do Contato <span class="text-red-500">*</span></label><input type="date" id="follow-up-contact-date" class="mt-1 w-full border-gray-300 rounded-md" required disabled></div>
                             <div><label for="follow-up-family-actions" class="block text-sm font-medium">Providências da Família <span class="text-red-500">*</span></label><textarea id="follow-up-family-actions" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="O que foi combinado com os pais/responsáveis?" required disabled></textarea></div>
+                        </div>
+                    </fieldset>
+                    
+                    <!-- (NOVO - Plano 3b) Seletor de Desfecho -->
+                    <fieldset id="group-desfecho-choice" class="dynamic-occurrence-step pt-4 border-t hidden">
+                        <legend class="text-md font-semibold text-gray-600">Ação 4/6: Decisão de Desfecho <span class="text-red-500">*</span></legend>
+                        <p class="text-xs text-gray-500 mb-2">Escolha APENAS UMA opção. Ação 4 (CT) ou Ação 6 (Parecer).</p>
+                        <div class="mt-2 space-x-4">
+                            <label><input type="radio" name="follow-up-desfecho-choice" value="ct" required> Encaminhar ao CT</label>
+                            <label><input type="radio" name="follow-up-desfecho-choice" value="parecer" required> Dar Parecer Final (Resolver)</label>
                         </div>
                     </fieldset>
 
@@ -560,4 +571,3 @@
 
 </body>
 </html>
-
