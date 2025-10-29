@@ -3,20 +3,10 @@
 // RESPONSABILIDADE: Gerenciar toda a lógica, UI e eventos da
 // funcionalidade "Ocorrências".
 //
-// ATUALIZAÇÃO (PAPÉIS - 29/10/2025):
-// 1. Modificado `state.selectedStudents` para armazenar { student, role }.
-// 2. `setupStudentTagInput`: Implementado painel inline para seleção de papel
-//    imediata após escolher aluno na sugestão.
-// 3. `renderTags`: Adiciona ícones de papel (Vítima, Agente, Testemunha, Envolvido)
-//    e um botão/ícone para editar o papel.
-// 4. Adicionada lógica para o dropdown de edição de papel (`#role-edit-dropdown`).
-// 5. `handleOccurrenceSubmit`: Modificado para salvar um array `participants`
-//    contendo `{ studentId, role }` no Firestore.
-// 6. `openOccurrenceModal` (Edit): Modificado para carregar e exibir os papéis
-//    salvos.
-// 7. Adicionados listeners para os novos elementos de UI de papéis.
+// CORREÇÃO (LOGIN - 29/10/2025):
+// 1. Adicionado `export` à constante `defaultRole` para corrigir erro de importação.
 //
-// ATUALIZAÇÃO (FLUXO V3 - PLANO ANTERIOR):
+// ATUALIZAÇÃO (PAPÉIS - 29/10/2025):
 // ... (histórico anterior mantido) ...
 // =================================================================================
 
@@ -54,13 +44,15 @@ const occurrenceNextStatusMap = {
 };
 
 // (NOVO - Papéis) Ícones para os papéis
-const roleIcons = {
+// (MODIFICADO - Login) Adicionado export
+export const roleIcons = {
     'Vítima': 'fas fa-user-shield text-blue-600',
     'Agente': 'fas fa-gavel text-red-600', // Martelo conforme escolhido
     'Testemunha': 'fas fa-eye text-green-600',
     'Envolvido': 'fas fa-user text-gray-500' // Ícone genérico conforme escolhido
 };
-const defaultRole = 'Envolvido'; // Papel padrão ao adicionar
+// (MODIFICADO - Login) Adicionado export
+export const defaultRole = 'Envolvido'; // Papel padrão ao adicionar
 
 // Variável temporária para guardar o aluno enquanto o papel é selecionado
 let studentPendingRoleSelection = null;
@@ -614,12 +606,8 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
                     choiceRadios.forEach(r => r.disabled = false); // Habilita os rádios
 
                     // Verifica se já existe uma decisão salva (CT ou Parecer)
-                    let currentChoice = null;
-                    if (record.oficioNumber || record.ctSentDate) {
-                        currentChoice = 'ct';
-                    } else if (record.parecerFinal) {
-                        currentChoice = 'parecer';
-                    }
+                    // Usa o campo 'desfechoChoice' que guardamos ao salvar
+                    const currentChoice = record.desfechoChoice || null;
 
                     // Marca o rádio correspondente, se houver escolha salva
                     if (currentChoice) {
@@ -766,6 +754,7 @@ async function handleOccurrenceSubmit(e) {
                         contactType: null, contactDate: null, providenciasFamilia: null,
                         oficioNumber: null, oficioYear: null, ctSentDate: null,
                         ctFeedback: null, parecerFinal: null,
+                        desfechoChoice: null, // Campo para decisão 4/6
                         createdAt: new Date(), createdBy: state.userEmail,
                         history: [{ action: 'Incidente registrado (aluno adicionado durante edição)', user: state.userEmail, timestamp: new Date() }]
                     };
@@ -825,7 +814,8 @@ async function handleOccurrenceSubmit(e) {
                     meetingDate: null, meetingTime: null, contactSucceeded: null,
                     contactType: null, contactDate: null, providenciasFamilia: null,
                     oficioNumber: null, oficioYear: null, ctSentDate: null,
-                    ctFeedback: null, parecerFinal: null
+                    ctFeedback: null, parecerFinal: null,
+                    desfechoChoice: null // Campo para decisão 4/6
                 };
                 // Adiciona o registro com histórico inicial
                 await addRecordWithHistory('occurrence', recordData, 'Incidente registrado (Ação 1)', state.userEmail);
@@ -1260,7 +1250,7 @@ async function handleNewOccurrenceAction(studentId, groupId, recordId) {
  */
 async function handleGenerateNotification(recordId, studentId, groupId) {
     const incident = await fetchIncidentById(groupId); // Usa a função otimizada
-    if (!incident) return showToast('Erro: Incidente não encontrado.');
+     if (!incident) return showToast('Erro: Incidente não encontrado.');
 
     // (MODIFICADO - Papéis) Pega o aluno da estrutura participantsInvolved
     const participantData = incident.participantsInvolved.get(studentId);
