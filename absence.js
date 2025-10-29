@@ -15,6 +15,12 @@
 // ATUALIZAÇÃO (SOLICITAÇÃO DO USUÁRIO - 24/10/2025):
 // 1. (Sugestão 1) Adicionada lógica de filtragem por data em `renderAbsences`.
 // 2. (Sugestão 1) Adicionados listeners para os novos filtros de data em `initAbsenceListeners`.
+//
+// CORREÇÃO (BUG DE CLIQUE - 29/10/2025):
+// 1. Reordenada a lógica de eventos em `initAbsenceListeners` para que o clique
+//    no nome do aluno (new-action-from-history-btn) seja verificado ANTES
+//    do clique no cabeçalho (process-header), corrigindo o bug que só
+//    expandia o acordeão.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -747,7 +753,21 @@ export const initAbsenceListeners = () => {
             return;
         }
 
-        // Acordeão
+        // --- INÍCIO DA CORREÇÃO (BUG DE CLIQUE - 29/10/2025) ---
+        // A verificação do clique no nome (new-action-from-history-btn)
+        // foi movida para ANTES da verificação do cabeçalho (process-header).
+        // Isso impede que o clique no nome seja "capturado" pela lógica
+        // do acordeão, que vinha primeiro e parava a execução.
+
+        // Nova ação pelo histórico (MAIS ESPECÍFICO, VEM PRIMEIRO)
+        const newActionTrigger = e.target.closest('.new-action-from-history-btn');
+        if (newActionTrigger) {
+            e.stopPropagation(); // Impede que o clique ative o acordeão
+            handleNewAbsenceFromHistory(newActionTrigger.dataset.studentId);
+            return;
+        }
+
+        // Acordeão (MAIS GERAL, VEM DEPOIS)
         const header = e.target.closest('.process-header');
         if (header) {
             const id = header.dataset.processId;
@@ -759,15 +779,9 @@ export const initAbsenceListeners = () => {
                 else { content.style.maxHeight = null; content.style.overflow = 'hidden'; }
                 icon?.classList.toggle('rotate-180', isHidden);
             }
-            return;
+            return; // Este return agora está correto
         }
-
-        // Nova ação pelo histórico
-        const newActionTrigger = e.target.closest('.new-action-from-history-btn');
-        if (newActionTrigger) {
-            e.stopPropagation();
-            handleNewAbsenceFromHistory(newActionTrigger.dataset.studentId);
-            return;
-        }
+        
+        // --- FIM DA CORREÇÃO ---
     });
 };
