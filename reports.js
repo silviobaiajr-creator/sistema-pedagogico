@@ -2,13 +2,12 @@
 // ARQUIVO: reports.js
 // RESPONSABILIDADE: Gerar todos os documentos e relatórios (Atas, Fichas, Ofícios, Relatórios Gerais).
 //
-// CORREÇÃO (ATA/RELATÓRIO - 29/10/2025):
-// 1. Corrigida a sintaxe dos comentários na função `openOccurrenceRecordModal`
-//    para usar `<!-- ... -->`.
-// 2. Adicionada a importação da função `getFilteredOccurrences` de `occurrence.js`
-//    para corrigir o erro ao gerar o Relatório Geral.
+// CORREÇÃO (STATUS ATA - 29/10/2025):
+// 1. Corrigida a lógica de cálculo do `overallStatus` na função
+//    `openOccurrenceRecordModal` para refletir corretamente o status geral
+//    do incidente (Pendente se algum aluno não estiver Resolvido).
 //
-// CORREÇÃO (LOGIN - 29/10/2025):
+// CORREÇÃO (ATA/RELATÓRIO - 29/10/2025):
 // ... (histórico anterior mantido) ...
 // =================================================================================
 
@@ -195,6 +194,7 @@ export const openIndividualNotificationModal = (incident, student) => {
  * Gera a Ata Formal, incluindo papéis e "Providências da Família".
  * (MODIFICADO - Papéis) Usa fetchIncidentById, participantsInvolved e exibe papéis.
  * (CORREÇÃO - ATA) Usa sintaxe de comentário HTML correta.
+ * (CORREÇÃO - STATUS ATA) Calcula `overallStatus` corretamente.
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openOccurrenceRecordModal = async (groupId) => {
@@ -203,9 +203,12 @@ export const openOccurrenceRecordModal = async (groupId) => {
 
     if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
 
-    // Status geral (lógica mantida)
+    // --- CORREÇÃO (STATUS ATA) ---
+    // Recalcula o status geral aqui, garantindo que esteja correto para a ata
     const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
-    incident.overallStatus = allResolved ? 'Finalizada' : 'Resolvido'; // 'Resolvido' para consistência
+    // Define o status que será exibido na ata
+    const displayOverallStatus = allResolved ? 'Finalizada' : 'Pendente'; // Usa 'Finalizada' ou 'Pendente'
+    // --- FIM DA CORREÇÃO ---
 
     const data = incident.records[0]; // Pega o primeiro registro para dados do FATO
     // (MODIFICADO - Papéis) Pega lista de participantes { student, role }
@@ -229,7 +232,8 @@ export const openOccurrenceRecordModal = async (groupId) => {
             <div class="border rounded-lg p-4 bg-gray-50 space-y-3">
                 <div><h4 class="font-semibold">Data da Ocorrência:</h4><p>${formatDate(data.date)}</p></div>
                 <div><h4 class="font-semibold">Tipo:</h4><p>${formatText(data.occurrenceType)}</p></div>
-                <div><h4 class="font-semibold">Status Geral:</h4><p>${formatText(incident.overallStatus)}</p></div>
+                <!-- CORREÇÃO (STATUS ATA): Usa a variável corrigida -->
+                <div><h4 class="font-semibold">Status Geral:</h4><p>${formatText(displayOverallStatus)}</p></div>
                 <!-- (MODIFICADO - Papéis) Exibe detalhes com papéis -->
                 <div><h4 class="font-semibold">Participantes Envolvidos:</h4><p>${participantDetailsHTML}</p></div>
                 <div><h4 class="font-semibold">Responsáveis:</h4><p>${formatText(responsibleNames)}</p></div>
