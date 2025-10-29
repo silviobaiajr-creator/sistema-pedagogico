@@ -25,6 +25,10 @@
 // CORREÇÃO (STATUS VISUAL - 29/10/2025):
 // 1. Corrigida a lógica de exibição do status de contato em `renderAbsences`
 //    para diferenciar "Contato Realizado" (sim) de "Contato Não Realizado" (não).
+//
+// CORREÇÃO (ERRO DE SINTAXE - 29/10/2025 v2):
+// 1. Restaurada a cadeia 'if...else if...else' na lógica de `actionButtonHtml`
+//    dentro de `renderAbsences` para corrigir o 'SyntaxError: Unexpected token 'else''.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -96,7 +100,7 @@ export const renderAbsences = () => {
     });
 
     const groupedByProcess = searchFiltered.reduce((acc, action) => {
-        const key = action.processId || `no-proc-${action.id}`; 
+        const key = action.processId || `no-proc-${action.id}`;
         if (!acc[key]) acc[key] = [];
         acc[key].push(action);
         return acc;
@@ -120,13 +124,13 @@ export const renderAbsences = () => {
         // Compara com a data de início (se existir)
         if (startDate) {
             // Adiciona T00:00:00 para garantir que o dia todo seja coberto
-            const filterStartDate = new Date(startDate + 'T00:00:00'); 
+            const filterStartDate = new Date(startDate + 'T00:00:00');
             if (processDate < filterStartDate) return false; // Se o processo for anterior, exclui
         }
         // Compara com a data de fim (se existir)
         if (endDate) {
             // Adiciona T23:59:59 para garantir que o dia todo seja coberto
-            const filterEndDate = new Date(endDate + 'T23:59:59'); 
+            const filterEndDate = new Date(endDate + 'T23:59:59');
             if (processDate > filterEndDate) return false; // Se o processo for posterior, exclui
         }
         // ==============================================================================
@@ -198,12 +202,45 @@ export const renderAbsences = () => {
             const isConcluded = actions.some(a => a.actionType === 'analise');
             const hasCtAction = actions.some(a => a.actionType === 'encaminhamento_ct');
             
-                else if (abs.actionType === 'encaminhamento_ct' && abs.oficioNumber) actionButtonHtml = `<button class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50" data-id="${abs.id}" title="Visualizar Ofício">Ver Ofício</button>`;
-                else actionButtonHtml = `<span class="inline-block w-24"></span>`;
-                
-                // --- INÍCIO DA CORREÇÃO (LÓGICA DO STATUS DE CONTATO - 29/10/2025) ---
-                // O código anterior agrupava 'sim' e 'não' incorretamente.
-                // A nova lógica exibe o status correto para 'Sim', 'Não' e 'Pendente'.
+            html += `
+                <div class="border rounded-lg mb-4 bg-white shadow">
+                    <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center" data-process-id="${processId}">
+                        <div>
+                            <p class="font-semibold text-gray-800 cursor-pointer hover:underline new-action-from-history-btn" data-student-id="${student.matricula}">${student.name}</p>
+                            <p class="text-sm text-gray-500">ID do Processo: ${processId} - Início: ${formatDate(firstAction.createdAt?.toDate())}</p>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : ''}
+                            <button class="generate-ficha-btn-row bg-purple-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-purple-700 text-xs no-print" data-student-id="${student.matricula}" data-process-id="${processId}">
+                                <i class="fas fa-file-invoice"></i> Ficha
+                            </button>
+                            <i class="fas fa-chevron-down transition-transform duration-300"></i>
+                        </div>
+                    </div>
+                    <div class="process-content" id="content-${processId}" style="overflow: hidden;">
+                        <div class="p-4 border-t border-gray-200"><div class="space-y-4">
+            `;
+            actions.forEach(abs => {
+                const actionDate = abs.contactDate || abs.visitDate || abs.ctSentDate || (abs.createdAt?.toDate() ? abs.createdAt.toDate().toISOString().split('T')[0] : '');
+                const returned = abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes';
+                const notReturned = abs.contactReturned === 'no' || abs.visitReturned === 'no' || abs.ctReturned === 'no';
+
+                // --- INÍCIO DA CORREÇÃO (ERRO DE SINTAXE - 29/10/2025 v2) ---
+                // Restaurada a cadeia if...else if...else if...else
+                let actionButtonHtml = '';
+                if (abs.actionType.startsWith('tentativa')) {
+                    actionButtonHtml = `<button class="notification-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50" data-id="${abs.id}" title="Gerar Notificação">Notificação</button>`;
+                } else if (abs.actionType === 'visita') {
+                    const disabled = isConcluded || hasCtAction;
+                    actionButtonHtml = `<button class="send-ct-btn text-blue-600 hover:text-blue-900 text-xs font-semibold py-1 px-2 rounded-md bg-blue-50 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" title="${disabled ? 'Encaminhamento já realizado' : 'Enviar ao Conselho Tutelar'}" ${disabled ? 'disabled' : ''}>Enviar ao C.T.</button>`;
+                } else if (abs.actionType === 'encaminhamento_ct' && abs.oficioNumber) { // Adicionado o ELSE que faltava
+                    actionButtonHtml = `<button class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50" data-id="${abs.id}" title="Visualizar Ofício">Ver Ofício</button>`;
+                } else {
+                    actionButtonHtml = `<span class="inline-block w-24"></span>`;
+                }
+                // --- FIM DA CORREÇÃO ---
+
+                // --- Lógica do status de contato (corrigida anteriormente) ---
                 let statusHtml = '';
                 if (abs.actionType.startsWith('tentativa')) {
                     if (abs.contactSucceeded === 'yes') {
@@ -224,14 +261,7 @@ export const renderAbsences = () => {
                 } else if (abs.actionType === 'encaminhamento_ct') {
                     statusHtml = abs.ctFeedback ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-inbox"></i> Devolutiva Recebida</p>' : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Devolutiva</p>';
                 }
-                // --- FIM DA CORREÇÃO ---
-
-                /* CÓDIGO ANTIGO (COM BUG):
-                let statusHtml = '';
-                if (abs.actionType.startsWith('tentativa')) statusHtml = (abs.contactSucceeded === 'yes' || abs.contactSucceeded === 'no') ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-check"></i> Contato Realizado</p>' : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Contato</p>';
-                else if (abs.actionType === 'visita') statusHtml = (abs.visitSucceeded === 'yes' || abs.visitSucceeded === 'no') ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-check"></i> Contato Realizado</p>' : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Contato</p>';
-                else if (abs.actionType === 'encaminhamento_ct') statusHtml = abs.ctFeedback ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-inbox"></i> Devolutiva Recebida</p>' : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Devolutiva</p>';
-                */
+                // --- Fim da lógica de status ---
 
                 html += `
                     <div class="flex justify-between items-start border-b last:border-b-0 pb-3">
@@ -282,7 +312,7 @@ export const handleNewAbsenceAction = (student) => {
         if (isPending) {
             showToast(pendingActionMessage);
             openAbsenceModalForStudent(student, lastAction.actionType, lastAction);
-            return; 
+            return;
         }
     }
     openAbsenceModalForStudent(student);
@@ -586,11 +616,11 @@ async function handleSendToCT(id) {
 
             const firstAction = currentCycleActions.find(a => a.periodoFaltasStart);
             const dataForCt = {
-                studentId: student.matricula, 
-                actionType: 'encaminhamento_ct', 
+                studentId: student.matricula,
+                actionType: 'encaminhamento_ct',
                 processId,
                 ctSentDate: new Date().toISOString().split('T')[0],
-                oficioNumber, 
+                oficioNumber,
                 oficioYear: new Date().getFullYear(),
                 periodoFaltasStart: firstAction?.periodoFaltasStart || null,
                 periodoFaltasEnd: firstAction?.periodoFaltasEnd || null,
@@ -608,9 +638,9 @@ async function handleSendToCT(id) {
 
                 // 3. Prepara dados simulados para gerar o ofício imediatamente
                 //    (sem modificar o state global diretamente)
-                const newActionDataForReport = { 
-                    ...dataForCt, 
-                    id: docRef.id, 
+                const newActionDataForReport = {
+                    ...dataForCt,
+                    id: docRef.id,
                     createdAt: new Date(), // Usa Date aqui, generateAndShowOficio não usa toDate()
                     history: [{ action: historyAction, user: state.userEmail, timestamp: new Date() }]
                 };
@@ -697,13 +727,13 @@ export const initAbsenceListeners = () => {
     // ==============================================================================
     // --- NOVO (Sugestão 1): Listeners dos Filtros de Data ---
     // ==============================================================================
-    document.getElementById('absence-start-date-filter').addEventListener('change', (e) => { 
-        state.filtersAbsences.startDate = e.target.value; 
-        renderAbsences(); 
+    document.getElementById('absence-start-date-filter').addEventListener('change', (e) => {
+        state.filtersAbsences.startDate = e.target.value;
+        renderAbsences();
     });
-    document.getElementById('absence-end-date-filter').addEventListener('change', (e) => { 
-        state.filtersAbsences.endDate = e.target.value; 
-        renderAbsences(); 
+    document.getElementById('absence-end-date-filter').addEventListener('change', (e) => {
+        state.filtersAbsences.endDate = e.target.value;
+        renderAbsences();
     });
     // ==============================================================================
     // --- FIM NOVO ---
@@ -757,11 +787,7 @@ export const initAbsenceListeners = () => {
             return;
         }
 
-        // --- INÍCIO DA CORREÇÃO (BUG DE CLIQUE - 29/10/2025) ---
-        // A verificação do clique no nome (new-action-from-history-btn)
-        // foi movida para ANTES da verificação do cabeçalho (process-header).
-        // Isso impede que o clique no nome seja "capturado" pela lógica
-        // do acordeão, que vinha primeiro e parava a execução.
+        // --- Ordem de verificação corrigida (BUG DE CLIQUE - 29/10/2025) ---
 
         // Nova ação pelo histórico (MAIS ESPECÍFICO, VEM PRIMEIRO)
         const newActionTrigger = e.target.closest('.new-action-from-history-btn');
@@ -786,7 +812,7 @@ export const initAbsenceListeners = () => {
             return; // Este return agora está correto
         }
         
-        // --- FIM DA CORREÇÃO ---
+        // --- Fim da correção de ordem ---
     });
 };
 
