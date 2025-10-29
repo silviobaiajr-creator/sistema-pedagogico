@@ -2,15 +2,11 @@
 // ARQUIVO: reports.js
 // RESPONSABILIDADE: Gerar todos os documentos e relatórios (Atas, Fichas, Ofícios, Relatórios Gerais).
 //
-// ATUALIZAÇÃO (PAPÉIS - 29/10/2025):
-// 1. Funções `openOccurrenceRecordModal`, `openIndividualNotificationModal`,
-//    `generateAndShowOccurrenceOficio`, `generateAndShowGeneralReport`
-//    atualizadas para ler a estrutura `participantsInvolved` (com papéis)
-//    em vez de `studentsInvolved`.
-// 2. Exibição do papel do aluno adicionada na Ata e no Relatório Geral.
-// 3. Otimização (Plano 3a anterior) mantida: Usa `fetchIncidentById`.
+// CORREÇÃO (LOGIN - 29/10/2025):
+// 1. Corrigida a importação de `getIncidentByGroupId`. Agora é importado
+//    diretamente de `firestore.js` em vez de `occurrence.js`.
 //
-// ATUALIZAÇÃO (FLUXO V3 - ANTERIOR):
+// ATUALIZAÇÃO (PAPÉIS - 29/10/2025):
 // ... (histórico anterior mantido) ...
 // =================================================================================
 
@@ -20,8 +16,11 @@ import { state, dom } from './state.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
 // Imports de ui.js removidos pois não são necessários aqui
 // import { getFilteredOccurrences, getStatusBadge } from './ui.js';
-// (NOVO - Papéis) Importa ícones de papéis e função de busca otimizada
-import { roleIcons, defaultRole, getIncidentByGroupId as fetchIncidentById } from './occurrence.js';
+
+// (NOVO - Papéis) Importa ícones de papéis
+import { roleIcons, defaultRole } from './occurrence.js';
+// (CORREÇÃO LOGIN) Importa a função de busca de 'firestore.js'
+import { getIncidentByGroupId as fetchIncidentById } from './firestore.js';
 
 
 // NOVO: Constante movida de ui.js
@@ -1152,4 +1151,3 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
 // ==============================================================================
 // --- FIM NOVO ---
 // ==============================================================================
-
