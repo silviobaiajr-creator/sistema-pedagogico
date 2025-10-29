@@ -2,11 +2,13 @@
 // ARQUIVO: reports.js
 // RESPONSABILIDADE: Gerar todos os documentos e relatórios (Atas, Fichas, Ofícios, Relatórios Gerais).
 //
-// CORREÇÃO (LOGIN - 29/10/2025):
-// 1. Corrigida a importação de `getIncidentByGroupId`. Agora é importado
-//    diretamente de `firestore.js` em vez de `occurrence.js`.
+// CORREÇÃO (ATA/RELATÓRIO - 29/10/2025):
+// 1. Corrigida a sintaxe dos comentários na função `openOccurrenceRecordModal`
+//    para usar `<!-- ... -->`.
+// 2. Adicionada a importação da função `getFilteredOccurrences` de `occurrence.js`
+//    para corrigir o erro ao gerar o Relatório Geral.
 //
-// ATUALIZAÇÃO (PAPÉIS - 29/10/2025):
+// CORREÇÃO (LOGIN - 29/10/2025):
 // ... (histórico anterior mantido) ...
 // =================================================================================
 
@@ -18,7 +20,8 @@ import { formatDate, formatTime, formatText, showToast, openModal, closeModal, g
 // import { getFilteredOccurrences, getStatusBadge } from './ui.js';
 
 // (NOVO - Papéis) Importa ícones de papéis
-import { roleIcons, defaultRole } from './occurrence.js';
+// (CORREÇÃO ATA/RELATÓRIO) Importa getFilteredOccurrences daqui
+import { roleIcons, defaultRole, getFilteredOccurrences } from './occurrence.js';
 // (CORREÇÃO LOGIN) Importa a função de busca de 'firestore.js'
 import { getIncidentByGroupId as fetchIncidentById } from './firestore.js';
 
@@ -191,6 +194,7 @@ export const openIndividualNotificationModal = (incident, student) => {
 /**
  * Gera a Ata Formal, incluindo papéis e "Providências da Família".
  * (MODIFICADO - Papéis) Usa fetchIncidentById, participantsInvolved e exibe papéis.
+ * (CORREÇÃO - ATA) Usa sintaxe de comentário HTML correta.
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openOccurrenceRecordModal = async (groupId) => {
@@ -226,21 +230,21 @@ export const openOccurrenceRecordModal = async (groupId) => {
                 <div><h4 class="font-semibold">Data da Ocorrência:</h4><p>${formatDate(data.date)}</p></div>
                 <div><h4 class="font-semibold">Tipo:</h4><p>${formatText(data.occurrenceType)}</p></div>
                 <div><h4 class="font-semibold">Status Geral:</h4><p>${formatText(incident.overallStatus)}</p></div>
-                {/* (MODIFICADO - Papéis) Exibe detalhes com papéis */}
+                <!-- (MODIFICADO - Papéis) Exibe detalhes com papéis -->
                 <div><h4 class="font-semibold">Participantes Envolvidos:</h4><p>${participantDetailsHTML}</p></div>
                 <div><h4 class="font-semibold">Responsáveis:</h4><p>${formatText(responsibleNames)}</p></div>
             </div>
 
             <div class="border-t pt-4 space-y-4">
-                {/* Campos da Ação 1 (inalterados) */}
+                <!-- Campos da Ação 1 (inalterados) -->
                 <div><h4 class="font-semibold mb-1">Ação 1: Descrição Detalhada dos Fatos:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
                 <div><h4 class="font-semibold mb-1">Ação 1: Providências Imediatas da Escola:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.providenciasEscola)}</p></div>
 
                 <div class="border-t pt-4">
                     <h4 class="text-md font-semibold text-gray-700 mb-2">Acompanhamentos Individuais (Ações 2-6)</h4>
 
-                    {/* Loop atualizado para ler os novos campos (lógica mantida) */}
-                    {/* (MODIFICADO - Papéis) Ajusta busca do nome do aluno */}
+                    <!-- Loop atualizado para ler os novos campos (lógica mantida) -->
+                    <!-- (MODIFICADO - Papéis) Ajusta busca do nome do aluno -->
                     ${incident.records.map(rec => {
                         // Busca o participante correspondente para pegar o nome
                         const participant = incident.participantsInvolved.get(rec.studentId);
@@ -254,28 +258,28 @@ export const openOccurrenceRecordModal = async (groupId) => {
                                 ${getStatusBadge(statusIndividual)}
                             </div>
 
-                            {/* Ação 2: Convocação */}
+                            <!-- Ação 2: Convocação -->
                             ${(rec.meetingDate) ? `
                             <div class="mt-2 p-2 bg-indigo-50 rounded-md text-sm">
                                 <p><strong>Ação 2 - Convocação:</strong> Data: ${formatDate(rec.meetingDate)} | Horário: ${formatTime(rec.meetingTime)}</p>
                             </div>
                             ` : ''}
 
-                            {/* Ação 3: Contato com Família */}
+                            <!-- Ação 3: Contato com Família -->
                             <p class="mt-1"><strong>Ação 3 - Providências da Família:</strong> ${formatText(rec.providenciasFamilia)}</p>
-                            ${(rec.contactSucceeded != null) ? ` {/* Verifica se não é nulo */}
+                            ${(rec.contactSucceeded != null) ? ` <!-- Verifica se não é nulo -->
                             <p class="text-xs text-gray-600 ml-2">↳ Contato em ${formatDate(rec.contactDate)} (${rec.contactType || 'N/A'}) foi ${rec.contactSucceeded === 'yes' ? 'realizado.' : 'sem sucesso.'}</p>
                             ` : ''}
 
-                            {/* Ação 4: Encaminhamento CT */}
+                            <!-- Ação 4: Encaminhamento CT -->
                             ${(rec.oficioNumber) ? `
                             <p class="mt-1"><strong>Ação 4 - Encaminhamento ao CT:</strong> Ofício Nº ${formatText(rec.oficioNumber)}/${formatText(rec.oficioYear)} (Enviado em: ${formatDate(rec.ctSentDate)})</p>
                             ` : ''}
 
-                            {/* Ação 5: Devolutiva CT */}
+                            <!-- Ação 5: Devolutiva CT -->
                             <p class="mt-1"><strong>Ação 5 - Devolutiva do CT:</strong> ${formatText(rec.ctFeedback)}</p>
 
-                            {/* Ação 6: Parecer Final */}
+                            <!-- Ação 6: Parecer Final -->
                             <p class="mt-1"><strong>Ação 6 - Parecer/Desfecho:</strong> ${formatText(rec.parecerFinal)}</p>
                         </div>
                         `;
@@ -633,7 +637,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             <div class="text-center">
                 ${getReportHeaderHTML()}
-                {/* <p class="font-bold uppercase mt-4">${schoolName}</p> */}
+                <!-- <p class="font-bold uppercase mt-4">${schoolName}</p> -->
                 <p>${city}, ${currentDate}.</p>
             </div>
 
@@ -705,6 +709,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
 /**
  * Gera o relatório geral de ocorrências com gráficos.
  * (MODIFICADO - Papéis) Usa fetchIncidentById, participantsInvolved e exibe papéis.
+ * (CORREÇÃO - RELATÓRIO) Importa getFilteredOccurrences corretamente.
  */
 export const generateAndShowGeneralReport = async () => { // Adicionado async
      // Usa a função getFilteredOccurrences que já busca e filtra
@@ -724,7 +729,8 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
     const totalStudents = new Set(filteredIncidents.flatMap(i => [...i.participantsInvolved.keys()])).size;
 
     const occurrencesByType = filteredIncidents.reduce((acc, incident) => {
-        const occType = incident.records[0].occurrenceType || 'Não especificado';
+        // Garante que incident.records[0] exista
+        const occType = incident.records?.[0]?.occurrenceType || 'Não especificado';
         acc[occType] = (acc[occType] || 0) + 1;
         return acc;
     }, {});
@@ -775,8 +781,9 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
             <div>
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Incidentes</h4>
                 <div class="space-y-6">
-                ${filteredIncidents.sort((a,b) => new Date(b.records[0].date) - new Date(a.records[0].date)).map(incident => {
-                    const mainRecord = incident.records[0];
+                ${filteredIncidents.sort((a,b) => new Date(b.records?.[0]?.date || 0) - new Date(a.records?.[0]?.date || 0)).map(incident => { // Adiciona ? para segurança
+                    const mainRecord = incident.records?.[0]; // Adiciona ? para segurança
+                    if (!mainRecord) return ''; // Pula se não houver registro principal
                     // (MODIFICADO - Papéis) Monta string de participantes com papéis
                     const participantsDetails = [...incident.participantsInvolved.values()].map(p => {
                          const iconClass = roleIcons[p.role] || roleIcons[defaultRole];
@@ -796,7 +803,7 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
                             <p><strong>Participantes:</strong> ${participantsDetails}</p>
                             <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição do Fato (Ação 1)</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
 
-                            {/* Loop de acompanhamento individual (inalterado na lógica, mas busca nome ajustada) */}
+                            <!-- Loop de acompanhamento individual (inalterado na lógica, mas busca nome ajustada) -->
                             ${incident.records.map(rec => {
                                 const participant = incident.participantsInvolved.get(rec.studentId);
                                 const studentName = participant ? participant.student.name : 'Aluno Removido';
@@ -1110,7 +1117,7 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
                     filho(a) de <strong>${formatText(responsaveis)}</strong>, residente no endereço: ${formatText(student.endereco)}.
                 </p>
                 <p class="mt-4 indent-8">
-                    O(A) referido(a) aluno(a) esteve envolvido(a) ${studentRole !== defaultRole ? `(identificado como <strong>${studentRole}</strong>)` : ''} {/* (NOVO - Papéis) Adiciona papel se não for 'Envolvido' */}
+                    O(A) referido(a) aluno(a) esteve envolvido(a) ${studentRole !== defaultRole ? `(identificado como <strong>${studentRole}</strong>)` : ''} <!-- (NOVO - Papéis) Adiciona papel se não for 'Envolvido' -->
                     em um incidente em <strong>${formatDate(record.date)}</strong>,
                     classificado como <strong>"${formatText(record.occurrenceType)}"</strong>, conforme descrição abaixo:
                 </p>
@@ -1118,7 +1125,7 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
                     ${formatText(record.description)}
                 </p>
                 <p class="mt-4 indent-8">
-                    {/* Leitura de 'providenciasEscola' (Ação 1) mantida */}
+                    <!-- Leitura de 'providenciasEscola' (Ação 1) mantida -->
                     Informamos que a escola já realizou as seguintes providências imediatas (Ação 1):
                     <strong>${formatText(record.providenciasEscola) || 'Nenhuma providência imediata registrada.'}</strong>
                 </p>
@@ -1151,3 +1158,4 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
 // ==============================================================================
 // --- FIM NOVO ---
 // ==============================================================================
+
