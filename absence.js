@@ -21,6 +21,10 @@
 //    no nome do aluno (new-action-from-history-btn) seja verificado ANTES
 //    do clique no cabeçalho (process-header), corrigindo o bug que só
 //    expandia o acordeão.
+//
+// CORREÇÃO (STATUS VISUAL - 29/10/2025):
+// 1. Corrigida a lógica de exibição do status de contato em `renderAbsences`
+//    para diferenciar "Contato Realizado" (sim) de "Contato Não Realizado" (não).
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -194,40 +198,40 @@ export const renderAbsences = () => {
             const isConcluded = actions.some(a => a.actionType === 'analise');
             const hasCtAction = actions.some(a => a.actionType === 'encaminhamento_ct');
             
-            html += `
-                <div class="border rounded-lg mb-4 bg-white shadow">
-                    <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center" data-process-id="${processId}">
-                        <div>
-                            <p class="font-semibold text-gray-800 cursor-pointer hover:underline new-action-from-history-btn" data-student-id="${student.matricula}">${student.name}</p>
-                            <p class="text-sm text-gray-500">ID do Processo: ${processId} - Início: ${formatDate(firstAction.createdAt?.toDate())}</p>
-                        </div>
-                        <div class="flex items-center space-x-4">
-                            ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : ''}
-                            <button class="generate-ficha-btn-row bg-purple-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-purple-700 text-xs no-print" data-student-id="${student.matricula}" data-process-id="${processId}">
-                                <i class="fas fa-file-invoice"></i> Ficha
-                            </button>
-                            <i class="fas fa-chevron-down transition-transform duration-300"></i>
-                        </div>
-                    </div>
-                    <div class="process-content" id="content-${processId}" style="overflow: hidden;">
-                        <div class="p-4 border-t border-gray-200"><div class="space-y-4">
-            `;
-            actions.forEach(abs => {
-                const actionDate = abs.contactDate || abs.visitDate || abs.ctSentDate || (abs.createdAt?.toDate() ? abs.createdAt.toDate().toISOString().split('T')[0] : '');
-                const returned = abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes';
-                const notReturned = abs.contactReturned === 'no' || abs.visitReturned === 'no' || abs.ctReturned === 'no';
-                let actionButtonHtml = '';
-                if (abs.actionType.startsWith('tentativa')) actionButtonHtml = `<button class="notification-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50" data-id="${abs.id}" title="Gerar Notificação">Notificação</button>`;
-                else if (abs.actionType === 'visita') {
-                    const disabled = isConcluded || hasCtAction;
-                    actionButtonHtml = `<button class="send-ct-btn text-blue-600 hover:text-blue-900 text-xs font-semibold py-1 px-2 rounded-md bg-blue-50 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" title="${disabled ? 'Encaminhamento já realizado' : 'Enviar ao Conselho Tutelar'}" ${disabled ? 'disabled' : ''}>Enviar ao C.T.</button>`;
-                } else if (abs.actionType === 'encaminhamento_ct' && abs.oficioNumber) actionButtonHtml = `<button class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50" data-id="${abs.id}" title="Visualizar Ofício">Ver Ofício</button>`;
+                else if (abs.actionType === 'encaminhamento_ct' && abs.oficioNumber) actionButtonHtml = `<button class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50" data-id="${abs.id}" title="Visualizar Ofício">Ver Ofício</button>`;
                 else actionButtonHtml = `<span class="inline-block w-24"></span>`;
                 
+                // --- INÍCIO DA CORREÇÃO (LÓGICA DO STATUS DE CONTATO - 29/10/2025) ---
+                // O código anterior agrupava 'sim' e 'não' incorretamente.
+                // A nova lógica exibe o status correto para 'Sim', 'Não' e 'Pendente'.
+                let statusHtml = '';
+                if (abs.actionType.startsWith('tentativa')) {
+                    if (abs.contactSucceeded === 'yes') {
+                        statusHtml = '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-check"></i> Contato Realizado</p>';
+                    } else if (abs.contactSucceeded === 'no') {
+                        statusHtml = '<p class="text-xs text-red-600 font-semibold mt-1"><i class="fas fa-times"></i> Contato Não Realizado</p>';
+                    } else { // null ou undefined
+                        statusHtml = '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Contato</p>';
+                    }
+                } else if (abs.actionType === 'visita') {
+                     if (abs.visitSucceeded === 'yes') {
+                        statusHtml = '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-check"></i> Contato Realizado</p>';
+                    } else if (abs.visitSucceeded === 'no') {
+                        statusHtml = '<p class="text-xs text-red-600 font-semibold mt-1"><i class="fas fa-times"></i> Contato Não Realizado</p>';
+                    } else { // null ou undefined
+                        statusHtml = '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Contato</p>';
+                    }
+                } else if (abs.actionType === 'encaminhamento_ct') {
+                    statusHtml = abs.ctFeedback ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-inbox"></i> Devolutiva Recebida</p>' : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Devolutiva</p>';
+                }
+                // --- FIM DA CORREÇÃO ---
+
+                /* CÓDIGO ANTIGO (COM BUG):
                 let statusHtml = '';
                 if (abs.actionType.startsWith('tentativa')) statusHtml = (abs.contactSucceeded === 'yes' || abs.contactSucceeded === 'no') ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-check"></i> Contato Realizado</p>' : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Contato</p>';
                 else if (abs.actionType === 'visita') statusHtml = (abs.visitSucceeded === 'yes' || abs.visitSucceeded === 'no') ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-check"></i> Contato Realizado</p>' : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Contato</p>';
                 else if (abs.actionType === 'encaminhamento_ct') statusHtml = abs.ctFeedback ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-inbox"></i> Devolutiva Recebida</p>' : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Devolutiva</p>';
+                */
 
                 html += `
                     <div class="flex justify-between items-start border-b last:border-b-0 pb-3">
@@ -785,3 +789,4 @@ export const initAbsenceListeners = () => {
         // --- FIM DA CORREÇÃO ---
     });
 };
+
