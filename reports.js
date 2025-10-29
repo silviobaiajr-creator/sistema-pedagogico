@@ -2,14 +2,16 @@
 // ARQUIVO: reports.js
 // RESPONSABILIDADE: Gerar todos os documentos e relatórios (Atas, Fichas, Ofícios, Relatórios Gerais).
 //
-// ATUALIZAÇÃO (FLUXO V3):
-// ... (histórico anterior mantido) ...
+// ATUALIZAÇÃO (PAPÉIS - 29/10/2025):
+// 1. Funções `openOccurrenceRecordModal`, `openIndividualNotificationModal`,
+//    `generateAndShowOccurrenceOficio`, `generateAndShowGeneralReport`
+//    atualizadas para ler a estrutura `participantsInvolved` (com papéis)
+//    em vez de `studentsInvolved`.
+// 2. Exibição do papel do aluno adicionada na Ata e no Relatório Geral.
+// 3. Otimização (Plano 3a anterior) mantida: Usa `fetchIncidentById`.
 //
-// ATUALIZAÇÃO (PLANO DE CORREÇÃO - 29/10/2025):
-// 1. (Plano 3a) Importada a função `getIncidentByGroupId` de `occurrence.js`.
-// 2. (Plano 3a) `openOccurrenceRecordModal`, `openHistoryModal`, e
-//    `openStudentSelectionModal` refatoradas para usar `getIncidentByGroupId`,
-//    eliminando a lógica redundante de `reduce`.
+// ATUALIZAÇÃO (FLUXO V3 - ANTERIOR):
+// ... (histórico anterior mantido) ...
 // =================================================================================
 
 
@@ -18,9 +20,8 @@ import { state, dom } from './state.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
 // Imports de ui.js removidos pois não são necessários aqui
 // import { getFilteredOccurrences, getStatusBadge } from './ui.js';
-
-// (NOVO - Plano 3a) Importa a função otimizada
-import { getIncidentByGroupId } from './occurrence.js';
+// (NOVO - Papéis) Importa ícones de papéis e função de busca otimizada
+import { roleIcons, defaultRole, getIncidentByGroupId as fetchIncidentById } from './occurrence.js';
 
 
 // NOVO: Constante movida de ui.js
@@ -35,7 +36,7 @@ export const actionDisplayTitles = {
 
 /**
  * Helper para gerar o cabeçalho com logo.
- * @returns {string} HTML do cabeçalho do relatório.
+ * (Inalterado)
  */
 export const getReportHeaderHTML = () => {
     const logoUrl = state.config?.schoolLogoUrl || null;
@@ -63,18 +64,22 @@ export const getReportHeaderHTML = () => {
 /**
  * Abre um modal de seleção para o usuário escolher para qual aluno
  * de um incidente a notificação deve ser gerada.
- * (MODIFICADO - Plano 3a) Usa getIncidentByGroupId.
+ * (MODIFICADO - Papéis) Usa fetchIncidentById e participantsInvolved.
+ * (OBS: Esta função pode se tornar menos necessária com o botão direto na lista)
  */
-export const openStudentSelectionModal = (groupId) => {
-    // (MODIFICADO - Plano 3a) Usa a função otimizada
-    const incident = getIncidentByGroupId(groupId);
+export const openStudentSelectionModal = async (groupId) => {
+    // (MODIFICADO - Papéis / Otimização) Usa a função otimizada
+    const incident = await fetchIncidentById(groupId);
 
-    if (!incident || incident.studentsInvolved.size === 0) return showToast('Incidente não encontrado ou sem alunos associados.');
+    // (MODIFICADO - Papéis) Verifica participantsInvolved
+    if (!incident || incident.participantsInvolved.size === 0) return showToast('Incidente não encontrado ou sem alunos associados.');
 
-    const students = [...incident.studentsInvolved.values()];
+    // (MODIFICADO - Papéis) Pega a lista de { student, role }
+    const participants = [...incident.participantsInvolved.values()];
 
-    if (students.length === 1) {
-        openIndividualNotificationModal(incident, students[0]);
+    if (participants.length === 1) {
+        // Passa o incident completo e o objeto student do participante
+        openIndividualNotificationModal(incident, participants[0].student);
         return;
     }
 
@@ -87,11 +92,13 @@ export const openStudentSelectionModal = (groupId) => {
 
     modalBody.innerHTML = '';
 
-    students.forEach(student => {
+    participants.forEach(participant => {
+        const student = participant.student; // Pega o objeto student
         const btn = document.createElement('button');
         btn.className = 'w-full text-left bg-gray-50 hover:bg-indigo-100 p-3 rounded-lg transition';
         btn.innerHTML = `<span class="font-semibold text-indigo-800">${student.name}</span><br><span class="text-sm text-gray-600">Turma: ${student.class}</span>`;
         btn.onclick = () => {
+            // Passa o incident completo e o objeto student selecionado
             openIndividualNotificationModal(incident, student);
             closeModal(modal);
         };
@@ -103,12 +110,12 @@ export const openStudentSelectionModal = (groupId) => {
 
 /**
  * Gera e exibe a notificação formal.
- * (MODIFICADO V3: Checagem de `meetingDate` e `meetingTime` (Ação 2) mantida)
- * @param {object} incident - O objeto completo do incidente (com records e studentsInvolved).
+ * (MODIFICADO - Papéis) Recebe 'incident' completo. Pequenos ajustes.
+ * @param {object} incident - O objeto completo do incidente (com records e participantsInvolved).
  * @param {object} student - O objeto do aluno selecionado.
  */
 export const openIndividualNotificationModal = (incident, student) => {
-    // A função `getIncidentByGroupId` já garante que `incident` está preenchido
+    // Encontra o registro específico para este aluno dentro do incidente
     const data = incident.records.find(r => r.studentId === student.matricula);
 
     if (!data) {
@@ -116,10 +123,10 @@ export const openIndividualNotificationModal = (incident, student) => {
         return;
     }
 
-    // (V3) Esta checagem agora valida se a Ação 2 (Convocação) foi concluída.
+    // A checagem de convocação permanece
     if (!data.meetingDate || !data.meetingTime) {
         showToast(`Erro: É necessário agendar a Convocação (Ação 2) para ${student.name}.`);
-        showToast("Clique no nome do aluno na lista para avançar a etapa.");
+        // showToast("Clique no nome do aluno na lista para avançar a etapa."); // Comentado pois o botão agora direciona
         return;
     }
 
@@ -183,25 +190,30 @@ export const openIndividualNotificationModal = (incident, student) => {
 };
 
 /**
- * Gera a Ata Formal, incluindo "Providências da Família".
- * (MODIFICADO V3: Atualizado para ler os campos das novas 6 etapas)
- * (MODIFICADO - Plano 3a) Usa getIncidentByGroupId.
+ * Gera a Ata Formal, incluindo papéis e "Providências da Família".
+ * (MODIFICADO - Papéis) Usa fetchIncidentById, participantsInvolved e exibe papéis.
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
-export const openOccurrenceRecordModal = (groupId) => {
-    // (MODIFICADO - Plano 3a) Usa a função otimizada
-    const incident = getIncidentByGroupId(groupId);
+export const openOccurrenceRecordModal = async (groupId) => {
+     // (MODIFICADO - Otimização) Usa a função otimizada
+     const incident = await fetchIncidentById(groupId);
 
     if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
 
-    // O status geral já é calculado por getIncidentByGroupId
-    // const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
-    // incident.overallStatus = allResolved ? 'Finalizada' : 'Resolvido'; // 'Resolvido' para consistência
+    // Status geral (lógica mantida)
+    const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
+    incident.overallStatus = allResolved ? 'Finalizada' : 'Resolvido'; // 'Resolvido' para consistência
 
     const data = incident.records[0]; // Pega o primeiro registro para dados do FATO
-    const students = [...incident.studentsInvolved.values()];
-    const studentNames = students.map(s => `${s.name} (Turma: ${s.class})`).join('<br>');
-    const responsibleNames = [...new Set(students.flatMap(s => [s.resp1, s.resp2]).filter(Boolean))].join(' e ');
+    // (MODIFICADO - Papéis) Pega lista de participantes { student, role }
+    const participants = [...incident.participantsInvolved.values()];
+    // (MODIFICADO - Papéis) Formata nomes com papéis para exibição
+    const participantDetailsHTML = participants.map(p => {
+        const iconClass = roleIcons[p.role] || roleIcons[defaultRole];
+        return `<span class="inline-flex items-center gap-1.5 mr-2"><i class="${iconClass} fa-fw"></i>${formatText(p.student.name)} (${p.role} - Turma: ${p.student.class})</span>`;
+    }).join('<br>');
+    // Pega nomes dos responsáveis (sem duplicatas)
+    const responsibleNames = [...new Set(participants.map(p => p.student).flatMap(s => [s.resp1, s.resp2]).filter(Boolean))].join(' e ');
 
     document.getElementById('report-view-title').textContent = 'Ata de Registro de Ocorrência';
     document.getElementById('report-view-content').innerHTML = `
@@ -215,53 +227,56 @@ export const openOccurrenceRecordModal = (groupId) => {
                 <div><h4 class="font-semibold">Data da Ocorrência:</h4><p>${formatDate(data.date)}</p></div>
                 <div><h4 class="font-semibold">Tipo:</h4><p>${formatText(data.occurrenceType)}</p></div>
                 <div><h4 class="font-semibold">Status Geral:</h4><p>${formatText(incident.overallStatus)}</p></div>
-                <div><h4 class="font-semibold">Aluno(s) Envolvido(s):</h4><p>${studentNames}</p></div>
+                {/* (MODIFICADO - Papéis) Exibe detalhes com papéis */}
+                <div><h4 class="font-semibold">Participantes Envolvidos:</h4><p>${participantDetailsHTML}</p></div>
                 <div><h4 class="font-semibold">Responsáveis:</h4><p>${formatText(responsibleNames)}</p></div>
             </div>
 
             <div class="border-t pt-4 space-y-4">
-                <!-- (MODIFICADO V3) Adicionados campos da Ação 1 -->
+                {/* Campos da Ação 1 (inalterados) */}
                 <div><h4 class="font-semibold mb-1">Ação 1: Descrição Detalhada dos Fatos:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
                 <div><h4 class="font-semibold mb-1">Ação 1: Providências Imediatas da Escola:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.providenciasEscola)}</p></div>
 
                 <div class="border-t pt-4">
                     <h4 class="text-md font-semibold text-gray-700 mb-2">Acompanhamentos Individuais (Ações 2-6)</h4>
 
-                    <!-- (MODIFICADO V3) Loop atualizado para ler os novos campos -->
+                    {/* Loop atualizado para ler os novos campos (lógica mantida) */}
+                    {/* (MODIFICADO - Papéis) Ajusta busca do nome do aluno */}
                     ${incident.records.map(rec => {
-                        const student = incident.studentsInvolved.get(rec.studentId);
-                        // (V3) Usa o status individual real
+                        // Busca o participante correspondente para pegar o nome
+                        const participant = incident.participantsInvolved.get(rec.studentId);
+                        const studentName = participant ? participant.student.name : 'Aluno desconhecido';
                         const statusIndividual = rec.statusIndividual || 'Aguardando Convocação';
 
                         return `
                         <div class="mt-2 p-3 border rounded-md bg-gray-50 break-inside-avoid">
                             <div class="flex justify-between items-center">
-                                <p class="font-semibold">${student?.name || 'Aluno desconhecido'}</p>
+                                <p class="font-semibold">${formatText(studentName)}</p>
                                 ${getStatusBadge(statusIndividual)}
                             </div>
 
-                            <!-- Ação 2: Convocação -->
+                            {/* Ação 2: Convocação */}
                             ${(rec.meetingDate) ? `
                             <div class="mt-2 p-2 bg-indigo-50 rounded-md text-sm">
                                 <p><strong>Ação 2 - Convocação:</strong> Data: ${formatDate(rec.meetingDate)} | Horário: ${formatTime(rec.meetingTime)}</p>
                             </div>
                             ` : ''}
 
-                            <!-- Ação 3: Contato com Família -->
+                            {/* Ação 3: Contato com Família */}
                             <p class="mt-1"><strong>Ação 3 - Providências da Família:</strong> ${formatText(rec.providenciasFamilia)}</p>
-                            ${(rec.contactSucceeded != null) ? `
+                            ${(rec.contactSucceeded != null) ? ` {/* Verifica se não é nulo */}
                             <p class="text-xs text-gray-600 ml-2">↳ Contato em ${formatDate(rec.contactDate)} (${rec.contactType || 'N/A'}) foi ${rec.contactSucceeded === 'yes' ? 'realizado.' : 'sem sucesso.'}</p>
                             ` : ''}
 
-                            <!-- Ação 4: Encaminhamento CT -->
+                            {/* Ação 4: Encaminhamento CT */}
                             ${(rec.oficioNumber) ? `
                             <p class="mt-1"><strong>Ação 4 - Encaminhamento ao CT:</strong> Ofício Nº ${formatText(rec.oficioNumber)}/${formatText(rec.oficioYear)} (Enviado em: ${formatDate(rec.ctSentDate)})</p>
                             ` : ''}
 
-                            <!-- Ação 5: Devolutiva CT -->
+                            {/* Ação 5: Devolutiva CT */}
                             <p class="mt-1"><strong>Ação 5 - Devolutiva do CT:</strong> ${formatText(rec.ctFeedback)}</p>
 
-                            <!-- Ação 6: Parecer Final -->
+                            {/* Ação 6: Parecer Final */}
                             <p class="mt-1"><strong>Ação 6 - Parecer/Desfecho:</strong> ${formatText(rec.parecerFinal)}</p>
                         </div>
                         `;
@@ -281,15 +296,15 @@ export const openOccurrenceRecordModal = (groupId) => {
 
 /**
  * Abre o modal de histórico de alterações de uma ocorrência.
- * (MODIFICADO - Plano 3a) Usa getIncidentByGroupId.
+ * (MODIFICADO - Papéis) Usa fetchIncidentById.
  */
-export const openHistoryModal = (groupId) => {
-    // (MODIFICADO - Plano 3a) Usa a função otimizada
-    const incident = getIncidentByGroupId(groupId);
+export const openHistoryModal = async (groupId) => {
+     // (MODIFICADO - Otimização) Usa a função otimizada
+     const incident = await fetchIncidentById(groupId);
 
     if (!incident) return showToast('Incidente não encontrado.');
 
-    // A lógica de agregação do histórico permanece a mesma
+    // Agrupa o histórico de todos os registros do incidente (lógica mantida)
     const allHistory = incident.records.flatMap(r => r.history || []);
 
     const history = allHistory.sort((a, b) => (b.timestamp?.seconds || new Date(b.timestamp).getTime()) - (a.timestamp?.seconds || new Date(a.timestamp).getTime()));
@@ -302,31 +317,24 @@ export const openHistoryModal = (groupId) => {
         : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este incidente.</p>';
 
     document.getElementById('history-view-title').textContent = `Histórico do Incidente`;
-    // Usa a data do primeiro registro para exibir
-    const displayDate = incident.records.length > 0 ? incident.records[0].date : null;
-    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${groupId}<br><strong>Data:</strong> ${formatDate(displayDate)}`;
+    // Pega a data do primeiro registro (lógica mantida)
+    const incidentDate = incident.records.length > 0 ? incident.records[0].date : null;
+    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${groupId}<br><strong>Data:</strong> ${formatDate(incidentDate)}`;
     document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
     openModal(document.getElementById('history-view-modal-backdrop'));
 };
 
 /**
  * Abre o modal de histórico de alterações de um processo de Busca Ativa.
+ * (Inalterado - Não afetado pela mudança em Ocorrências)
  */
 export const openAbsenceHistoryModal = (processId) => {
     const processActions = state.absences.filter(a => a.processId === processId);
     if (processActions.length === 0) return showToast('Processo não encontrado.');
 
-    // ==============================================================================
-    // --- (NOVO) Busca o nome do aluno ---
-    // ==============================================================================
-    // 1. Pega o ID do aluno da primeira ação (todas as ações no processo são do mesmo aluno)
     const studentId = processActions[0].studentId;
-    // 2. Encontra o aluno no estado global
     const student = state.students.find(s => s.matricula === studentId);
     const studentName = student ? formatText(student.name) : 'Aluno Desconhecido';
-    // ==============================================================================
-    // --- FIM NOVO ---
-    // ==============================================================================
 
     const allHistory = processActions.flatMap(a => a.history || []);
 
@@ -354,12 +362,10 @@ export const openAbsenceHistoryModal = (processId) => {
         : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este processo.</p>';
 
     document.getElementById('history-view-title').textContent = `Histórico do Processo`;
-    // --- LINHA MODIFICADA ---
     document.getElementById('history-view-subtitle').innerHTML = `
         <strong>Aluno:</strong> ${studentName}<br>
         <strong class="text-xs">ID do Processo:</strong> ${processId}
     `;
-    // --- FIM DA MODIFICAÇÃO ---
     document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
     openModal(document.getElementById('history-view-modal-backdrop'));
 };
@@ -367,6 +373,7 @@ export const openAbsenceHistoryModal = (processId) => {
 
 /**
  * Abre a ficha de notificação de Busca Ativa (usada pelos botões de notificação).
+ * (Inalterado)
  */
 export const openFichaViewModal = (id) => {
     const record = state.absences.find(abs => abs.id === id);
@@ -453,6 +460,7 @@ export const openFichaViewModal = (id) => {
 
 /**
  * Gera a Ficha Consolidada de Busca Ativa.
+ * (Inalterado)
  */
 export const generateAndShowConsolidatedFicha = (studentId, processId = null) => {
     let studentActions = state.absences.filter(action => action.studentId === studentId);
@@ -460,11 +468,6 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
     if (processId) {
         studentActions = studentActions.filter(action => action.processId === processId);
     } else {
-        // Se nenhum processId for fornecido, pega o ciclo atual
-        // Precisamos importar getStudentProcessInfo de logic.js se for usar aqui
-        // OU passar currentCycleActions como parâmetro.
-        // Por ora, vamos assumir que queremos TODAS as ações do aluno se processId for null.
-        // Se precisar *apenas* do ciclo atual sem ID, a lógica precisará ser ajustada.
         console.warn("Gerando ficha consolidada sem processId específico. Incluindo todas as ações do aluno.");
     }
 
@@ -579,6 +582,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
 
 /**
  * Gera o Ofício para o Conselho Tutelar (Busca Ativa).
+ * (Inalterado)
  */
 export const generateAndShowOficio = (action, oficioNumber = null) => {
     if (!action) return showToast('Ação de origem não encontrada.');
@@ -604,11 +608,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
 
-    // =======================================================================
-    // CORREÇÃO (Mantida)
     const schoolName = state.config?.schoolName || "Nome da Escola";
-    // =======================================================================
-
     const city = state.config?.city || "Cidade";
 
     let attemptsSummary = contactAttempts.map((attempt, index) => {
@@ -634,7 +634,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             <div class="text-center">
                 ${getReportHeaderHTML()}
-                <!-- <p class="font-bold uppercase mt-4">${schoolName}</p> -->
+                {/* <p class="font-bold uppercase mt-4">${schoolName}</p> */}
                 <p>${city}, ${currentDate}.</p>
             </div>
 
@@ -705,17 +705,13 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
 // --- GRÁFICOS (dependem de Chart.js) ---
 /**
  * Gera o relatório geral de ocorrências com gráficos.
- * (MODIFICADO V3: Atualizado para ler o status individual V3)
- * (MODIFICADO - Plano 3a) Usa getIncidentByGroupId na lógica de filtro.
+ * (MODIFICADO - Papéis) Usa fetchIncidentById, participantsInvolved e exibe papéis.
  */
-export const generateAndShowGeneralReport = () => {
-     // (MODIFICADO - Plano 3a) A lógica de filtro agora usa a busca otimizada
-     // implicitamente, pois getIncidentByGroupId já faz parte do fluxo
-     // de renderização que `state.occurrences` reflete.
-     // Contudo, para o relatório GERAL, ainda precisamos iterar sobre todos.
-     // Usaremos getFilteredOccurrences() aqui pois ele já tem a lógica de filtro.
-     const filteredIncidentsMap = getFilteredOccurrences(); // Usa a função existente que já filtra
-     const filteredIncidents = [...filteredIncidentsMap.values()];
+export const generateAndShowGeneralReport = async () => { // Adicionado async
+     // Usa a função getFilteredOccurrences que já busca e filtra
+     // OBS: getFilteredOccurrences foi atualizada para usar a nova estrutura de participantes
+     const filteredIncidentsMap = getFilteredOccurrences(); // Retorna um Map
+     const filteredIncidents = [...filteredIncidentsMap.values()]; // Converte para Array
 
     if (filteredIncidents.length === 0) {
         return showToast('Nenhum incidente encontrado para os filtros selecionados.');
@@ -725,7 +721,8 @@ export const generateAndShowGeneralReport = () => {
     const studentFilter = state.filterOccurrences;
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    const totalStudents = new Set(filteredIncidents.flatMap(i => [...i.studentsInvolved.keys()])).size;
+    // (MODIFICADO - Papéis) Calcula total de alunos únicos usando participantsInvolved
+    const totalStudents = new Set(filteredIncidents.flatMap(i => [...i.participantsInvolved.keys()])).size;
 
     const occurrencesByType = filteredIncidents.reduce((acc, incident) => {
         const occType = incident.records[0].occurrenceType || 'Não especificado';
@@ -781,7 +778,12 @@ export const generateAndShowGeneralReport = () => {
                 <div class="space-y-6">
                 ${filteredIncidents.sort((a,b) => new Date(b.records[0].date) - new Date(a.records[0].date)).map(incident => {
                     const mainRecord = incident.records[0];
-                    const studentNames = [...incident.studentsInvolved.values()].map(s => formatText(s.name)).join(', ');
+                    // (MODIFICADO - Papéis) Monta string de participantes com papéis
+                    const participantsDetails = [...incident.participantsInvolved.values()].map(p => {
+                         const iconClass = roleIcons[p.role] || roleIcons[defaultRole];
+                         return `<span class="inline-flex items-center gap-1 mr-2"><i class="${iconClass} fa-fw"></i>${formatText(p.student.name)} (${p.role})</span>`;
+                    }).join(', ');
+
                     return `
                     <div class="border rounded-lg overflow-hidden break-inside-avoid">
                         <div class="bg-gray-100 p-3 flex justify-between items-center">
@@ -792,16 +794,17 @@ export const generateAndShowGeneralReport = () => {
                             ${getStatusBadge(incident.overallStatus)}
                         </div>
                         <div class="p-4 space-y-3">
-                            <p><strong>Alunos Envolvidos:</strong> ${studentNames}</p>
+                            <p><strong>Participantes:</strong> ${participantsDetails}</p>
                             <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição do Fato (Ação 1)</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
 
-                            <!-- (MODIFICADO V3) Loop de acompanhamento individual -->
+                            {/* Loop de acompanhamento individual (inalterado na lógica, mas busca nome ajustada) */}
                             ${incident.records.map(rec => {
-                                const student = incident.studentsInvolved.get(rec.studentId);
+                                const participant = incident.participantsInvolved.get(rec.studentId);
+                                const studentName = participant ? participant.student.name : 'Aluno Removido';
                                 return `<div class="text-xs border-t mt-2 pt-2">
-                                    <p class="font-bold">${formatText(student?.name || '')} (${rec.statusIndividual || 'Pendente'})</p>
+                                    <p class="font-bold">${formatText(studentName)} (${rec.statusIndividual || 'Pendente'})</p>
                                     ${rec.meetingDate ? `<p><strong>Ação 2 - Convocação:</strong> ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}</p>` : ''}
-                                    ${rec.contactSucceeded != null ? `<p><strong>Ação 3 - Contato:</strong> ${rec.contactSucceeded === 'yes' ? `Sim (${formatDate(rec.contactDate)})` : 'Não'}</p>` : ''}
+                                    ${rec.contactSucceeded != null ? `<p><strong>Ação 3 - Contato:</strong> ${rec.contactSucceeded === 'yes' ? 'Sim' : 'Não'} (${formatDate(rec.contactDate)})</p>` : ''}
                                     <p><strong>Ação 3 - Provid. Família:</strong> ${formatText(rec.providenciasFamilia)}</p>
                                     ${rec.oficioNumber ? `<p><strong>Ação 4 - Enc. CT:</strong> Ofício ${rec.oficioNumber}/${rec.oficioYear}</p>` : ''}
                                     <p><strong>Ação 5 - Devolutiva CT:</strong> ${formatText(rec.ctFeedback)}</p>
@@ -822,6 +825,7 @@ export const generateAndShowGeneralReport = () => {
     document.getElementById('report-view-content').innerHTML = reportHTML;
     openModal(dom.reportViewModalBackdrop);
 
+    // Renderiza gráficos (lógica mantida)
     setTimeout(() => {
         try {
             const typeCtx = document.getElementById('report-chart-by-type')?.getContext('2d');
@@ -860,6 +864,7 @@ export const generateAndShowGeneralReport = () => {
 
 /**
  * Gera o relatório geral de Busca Ativa com gráficos.
+ * (Inalterado)
  */
 export const generateAndShowBuscaAtivaReport = () => {
     const groupedByProcess = state.absences.reduce((acc, action) => {
@@ -1000,6 +1005,7 @@ export const generateAndShowBuscaAtivaReport = () => {
     document.getElementById('report-view-content').innerHTML = reportHTML;
     openModal(dom.reportViewModalBackdrop);
 
+     // Renderiza gráficos (lógica mantida)
      setTimeout(() => {
         try {
             const statusCtx = document.getElementById('ba-chart-status')?.getContext('2d');
@@ -1046,12 +1052,12 @@ export const generateAndShowBuscaAtivaReport = () => {
 
 
 // ==============================================================================
-// --- (MODIFICADO V3) Ofício para Ocorrências ---
+// --- (MODIFICADO - Papéis) Ofício para Ocorrências ---
 // ==============================================================================
 
 /**
  * Gera o Ofício para o Conselho Tutelar (baseado em Ocorrência).
- * (MODIFICADO V3: Atualizado para ler `providenciasEscola` (Ação 1))
+ * (MODIFICADO - Papéis) Inclui papel do aluno no texto, se relevante.
  * @param {object} record - O registro individual da ocorrência.
  * @param {object} student - O objeto do aluno.
  * @param {string} oficioNumber - O número do ofício (do formulário).
@@ -1060,6 +1066,15 @@ export const generateAndShowBuscaAtivaReport = () => {
 export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, oficioYear) => {
     if (!record || !student || !oficioNumber || !oficioYear) {
         return showToast('Dados insuficientes para gerar o ofício.');
+    }
+
+    // (NOVO - Papéis) Encontra o papel do aluno neste incidente específico
+    let studentRole = defaultRole; // Papel padrão
+    if (record.participants && Array.isArray(record.participants)) {
+        const participantData = record.participants.find(p => p.studentId === student.matricula);
+        if (participantData) {
+            studentRole = participantData.role;
+        }
     }
 
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -1096,14 +1111,15 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
                     filho(a) de <strong>${formatText(responsaveis)}</strong>, residente no endereço: ${formatText(student.endereco)}.
                 </p>
                 <p class="mt-4 indent-8">
-                    O(A) referido(a) aluno(a) esteve envolvido(a) em um incidente em <strong>${formatDate(record.date)}</strong>,
+                    O(A) referido(a) aluno(a) esteve envolvido(a) ${studentRole !== defaultRole ? `(identificado como <strong>${studentRole}</strong>)` : ''} {/* (NOVO - Papéis) Adiciona papel se não for 'Envolvido' */}
+                    em um incidente em <strong>${formatDate(record.date)}</strong>,
                     classificado como <strong>"${formatText(record.occurrenceType)}"</strong>, conforme descrição abaixo:
                 </p>
                 <p class="mt-2 p-3 bg-gray-100 border rounded" style="font-family: 'Inter', sans-serif;">
                     ${formatText(record.description)}
                 </p>
                 <p class="mt-4 indent-8">
-                    <!-- (MODIFICADO V3) Lendo 'providenciasEscola' (Ação 1) -->
+                    {/* Leitura de 'providenciasEscola' (Ação 1) mantida */}
                     Informamos que a escola já realizou as seguintes providências imediatas (Ação 1):
                     <strong>${formatText(record.providenciasEscola) || 'Nenhuma providência imediata registrada.'}</strong>
                 </p>
@@ -1136,3 +1152,4 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
 // ==============================================================================
 // --- FIM NOVO ---
 // ==============================================================================
+
