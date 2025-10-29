@@ -3,10 +3,11 @@
 // RESPONSABILIDADE: Gerenciar toda a lógica, UI e eventos da
 // funcionalidade "Ocorrências".
 //
-// CORREÇÃO (LOGIN - 29/10/2025):
-// 1. Adicionado `export` à constante `defaultRole` para corrigir erro de importação.
+// CORREÇÃO (VISUAL - 29/10/2025):
+// 1. Corrigida a sintaxe dos comentários dentro do HTML gerado na função
+//    `renderOccurrences` para usar `<!-- ... -->` em vez de `{/* ... */}`.
 //
-// ATUALIZAÇÃO (PAPÉIS - 29/10/2025):
+// CORREÇÃO (LOGIN - 29/10/2025):
 // ... (histórico anterior mantido) ...
 // =================================================================================
 
@@ -307,6 +308,7 @@ export const getFilteredOccurrences = () => {
  * (MODIFICADO - Papéis) Exibe ícones de papel e ajusta botões.
  * (MODIFICADO - Plano 1b) Adiciona disabled em botões de ocorrências finalizadas.
  * (MODIFICADO - Plano 3c) Move botão "Editar Fato" para fora do kebab.
+ * (CORREÇÃO - VISUAL) Usa sintaxe de comentário HTML correta.
  */
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
@@ -368,10 +370,10 @@ export const renderOccurrences = () => {
                     </button>
                 ` : '';
 
-                // --- INÍCIO DA MODIFICAÇÃO (Organização Vertical Conforme Solicitado) ---
+                // --- INÍCIO DA MODIFICAÇÃO (Organização Vertical Conforme Solicitado + CORREÇÃO VISUAL) ---
                 return `
                     <div class="py-2 px-3 rounded-lg border ${borderClass} ${hoverClass} transition-colors">
-                        {/* (MODIFICADO - Plano 1b) Adiciona disabled se resolvido */}
+                        <!-- (MODIFICADO - Plano 1b) Adiciona disabled se resolvido -->
                         <button type="button"
                                 class="student-follow-up-trigger flex items-center gap-1.5 w-full text-left ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
                                 data-group-id="${incident.id}"
@@ -379,7 +381,7 @@ export const renderOccurrences = () => {
                                 data-record-id="${recordId}"
                                 title="${isIndividualResolvido ? 'Processo individual finalizado' : `Abrir acompanhamento de ${student.name}`}"
                                 ${isIndividualResolvido ? 'disabled' : ''}>
-                            {/* (NOVO - Papéis) Adiciona ícone do papel */}
+                            <!-- (NOVO - Papéis) Adiciona ícone do papel -->
                             <i class="${iconClass} fa-fw w-4 text-center" title="${role}"></i>
                             <span class="${nameClass}">${student.name}</span>
                         </button>
@@ -387,10 +389,10 @@ export const renderOccurrences = () => {
                         <div class="flex items-center flex-wrap gap-2 mt-1 pt-1 border-t ${borderClass}">
                             ${getStatusBadge(status)}
                             ${notificationBtn}
-                            {/* (NOVO - Plano 1c) Botão Editar Ação Individual (A ser implementado) */}
-                            {/* <button class="edit-occurrence-action-btn ..."><i class="fas fa-pencil-alt"></i> Editar Ação</button> */}
-                            {/* (NOVO - Plano 1c) Botão Excluir/Reset Ação Individual (A ser implementado) */}
-                            {/* <button class="delete-occurrence-action-btn ..."><i class="fas fa-trash"></i> Resetar Ação</button> */}
+                            <!-- (NOVO - Plano 1c) Botão Editar Ação Individual (A ser implementado) -->
+                            <!-- <button class="edit-occurrence-action-btn ..."><i class="fas fa-pencil-alt"></i> Editar Ação</button> -->
+                            <!-- (NOVO - Plano 1c) Botão Excluir/Reset Ação Individual (A ser implementado) -->
+                            <!-- <button class="delete-occurrence-action-btn ..."><i class="fas fa-trash"></i> Resetar Ação</button> -->
                             ${viewOficioBtn}
                         </div>
                     </div>`;
@@ -412,7 +414,7 @@ export const renderOccurrences = () => {
                         <p class="text-xs text-gray-400 mt-2">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
                     </div>
                     <div class="flex-shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-stretch sm:self-center">
-                        {/* (MODIFICADO - Plano 3c) Botão Editar Fato movido para cá */}
+                        <!-- (MODIFICADO - Plano 3c) Botão Editar Fato movido para cá -->
                         <button class="kebab-action-btn text-gray-600 hover:text-gray-900 text-xs font-semibold py-2 px-3 rounded-md bg-gray-50 hover:bg-gray-100 border border-gray-300 text-center ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}"
                                 data-action="edit" data-group-id="${incident.id}" title="Editar Fato (Ação 1)" ${isFinalizada ? 'disabled' : ''}>
                            <i class="fas fa-pencil-alt mr-1"></i> Editar Fato
@@ -425,9 +427,9 @@ export const renderOccurrences = () => {
                                 <i class="fas fa-ellipsis-v"></i>
                             </button>
                             <div class="kebab-menu-dropdown hidden absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border z-10">
-                                { /* Botão Editar Fato REMOVIDO daqui */ }
+                                <!-- Botão Editar Fato REMOVIDO daqui -->
                                 <button class="kebab-action-btn menu-item w-full text-left" data-action="history" data-group-id="${incident.id}"><i class="fas fa-history mr-2 w-4"></i>Histórico</button>
-                                { /* (MODIFICADO - Plano 1b) Adiciona disabled se finalizada */ }
+                                <!-- (MODIFICADO - Plano 1b) Adiciona disabled se finalizada -->
                                 <button class="kebab-action-btn menu-item menu-item-danger w-full text-left ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}"
                                         data-action="delete" data-group-id="${incident.id}" ${isFinalizada ? 'disabled' : ''}>
                                     <i class="fas fa-trash mr-2 w-4"></i>Excluir
@@ -1390,4 +1392,3 @@ export const initOccurrenceListeners = () => {
         }
     });
 };
-
