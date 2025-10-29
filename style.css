@@ -3,6 +3,8 @@
 /* TODO O SEU CÓDIGO DE DESIGN ESTÁ AQUI                                          */
 /* ATUALIZAÇÃO: Adicionados estilos para o novo menu de ações "kebab" (Item 10)   */
 /* para melhorar a usabilidade e organização dos botões.                          */
+/* ATUALIZAÇÃO (PAPÉIS - 29/10/2025): Adicionados estilos para o painel de seleção */
+/* de papel inline, dropdown de edição de papel e ajustes nas tags.               */
 /* ============================================================================== */
 
 /* --- ESTILOS GERAIS E FONTES --- */
@@ -64,29 +66,64 @@ tbody tr:nth-child(even) {
 /* ============================================================================== */
 
 /* --- TAGS DE SELEÇÃO DE ALUNOS --- */
+/* Estilos principais agora via Tailwind no JS (renderTags), mas ajustes podem ser feitos aqui */
 .student-tag {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.25rem 0.75rem;
-    background-color: #e0e7ff; /* indigo-200 */
-    color: #3730a3; /* indigo-800 */
-    border-radius: 9999px; /* rounded-full */
-    font-size: 0.875rem; /* text-sm */
-    font-weight: 500; /* font-medium */
+    /* display: inline-flex; */ /* Já aplicado via Tailwind */
+    /* align-items: center; */ /* Já aplicado via Tailwind */
+    /* padding: 0.25rem 0.75rem; */ /* Ajustado no Tailwind */
+    /* ... outros estilos base ... */
+    white-space: nowrap; /* Garante que a tag não quebre linha internamente */
 }
 
-.student-tag-remove {
-    margin-left: 0.5rem; /* ml-2 */
+.student-tag i.fa-fw {
+    /* Garante alinhamento e largura fixa para os ícones de papel */
+    text-align: center;
+}
+
+.student-tag .edit-role-btn,
+.student-tag .remove-tag-btn {
     background: none;
     border: none;
     cursor: pointer;
-    color: #4338ca; /* indigo-700 */
-    font-size: 1rem;
     line-height: 1;
+    padding: 0 2px; /* Pequeno espaçamento para clique */
+}
+/* Estilos hover já aplicados via Tailwind */
+
+
+/* (NOVO - Papéis) Painel Inline de Seleção de Papel */
+#role-selection-panel {
+    /* Estilos base já aplicados via Tailwind no HTML */
+    /* Podemos adicionar transições se desejado */
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+#role-selection-panel.hidden {
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+}
+.role-select-btn {
+     /* Estilos base já aplicados via Tailwind no HTML */
+     transition: background-color 0.15s ease-in-out;
 }
 
-.student-tag-remove:hover {
-    color: #312e81; /* indigo-900 */
+/* (NOVO - Papéis) Dropdown de Edição de Papel */
+#role-edit-dropdown {
+     /* Estilos base já aplicados via Tailwind no HTML */
+     /* Posicionamento é feito via JS */
+     transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+#role-edit-dropdown.hidden {
+    opacity: 0;
+    transform: scale(0.95);
+    pointer-events: none;
+}
+/* Reutiliza estilo .menu-item para as opções do dropdown */
+.role-edit-option {
+    /* display: flex; */ /* Vem de .menu-item */
+    /* align-items: center; */ /* Vem de .menu-item */
+    /* padding: 0.5rem 1rem; */ /* Vem de .menu-item */
+    /* ... outros estilos de .menu-item ... */
 }
 
 
@@ -130,6 +167,12 @@ tbody tr:nth-child(even) {
     /* A visibilidade é controlada por JS/Tailwind, mas definimos a base aqui */
     transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 }
+#kebab-menu-dropdown.hidden { /* Adicionado para garantir a transição de fechamento */
+    opacity: 0;
+    transform: scale(0.95);
+    pointer-events: none;
+}
+
 
 .menu-item {
     display: flex;
