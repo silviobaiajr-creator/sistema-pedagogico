@@ -249,11 +249,8 @@
     <!-- MODAIS DA APLICAÇÃO                                                            -->
     <!-- ============================================================================== -->
 
-    <!-- ============================================================================== -->
-    <!-- --- INÍCIO DA MODIFICAÇÃO (Fluxo V3) --- -->
-    <!-- ============================================================================== -->
     <!-- Modal: Registro/Edição de Ocorrência (APENAS AÇÃO 1: Registro do Fato) -->
-    <!-- MODIFICADO V3: Simplificado e com campo "Providências da Escola" -->
+    <!-- MODIFICADO: Adicionados divs para seleção/edição de papel -->
     <div id="occurrence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -266,10 +263,24 @@
                 <!-- Seleção Múltipla de Alunos -->
                 <div>
                     <label for="student-search-input" class="block text-sm font-medium">Aluno(s) Envolvido(s) <span class="text-red-500">*</span></label>
-                    <div id="student-tags-container" class="mt-1 flex flex-wrap gap-2 items-center p-2 border border-gray-300 rounded-md min-h-[42px] bg-gray-50"></div>
+                    <div id="student-tags-container" class="mt-1 flex flex-wrap gap-2 items-center p-2 border border-gray-300 rounded-md min-h-[42px] bg-gray-50">
+                        <!-- As tags dos alunos com ícones de papel serão renderizadas aqui pelo JS -->
+                    </div>
                     <div class="relative">
                         <input type="text" id="student-search-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Pesquisar nome do aluno...">
-                        <div id="student-suggestions" class="autocomplete-suggestions hidden"></div>
+                        <div id="student-suggestions" class="autocomplete-suggestions hidden">
+                            <!-- Sugestões de alunos aparecerão aqui -->
+                        </div>
+                        <!-- (NOVO) Painel Inline para Seleção de Papel -->
+                        <div id="role-selection-panel" class="hidden mt-2 p-2 border rounded-md bg-gray-50 shadow-sm">
+                            <span class="text-sm font-medium text-gray-700">Definir papel para <strong id="role-selection-student-name"></strong>:</span>
+                            <div class="mt-1 space-x-2">
+                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200" data-role="Vítima"><i class="fas fa-user-shield fa-fw"></i> Vítima</button>
+                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200" data-role="Agente"><i class="fas fa-gavel fa-fw"></i> Agente</button>
+                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200" data-role="Testemunha"><i class="fas fa-eye fa-fw"></i> Testemunha</button>
+                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 ring-1 ring-inset ring-indigo-500" data-role="Envolvido"><i class="fas fa-user fa-fw"></i> Envolvido</button> <!-- Padrão -->
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -285,11 +296,17 @@
 
                 <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Fato (Ação 1)</button></div>
             </form>
+            <!-- (NOVO) Dropdown Escondido para Edição de Papel -->
+            <div id="role-edit-dropdown" class="hidden absolute z-20 w-32 bg-white rounded-md shadow-lg border">
+                <button class="role-edit-option menu-item w-full text-left" data-role="Vítima"><i class="fas fa-user-shield text-blue-600 mr-2 fa-fw w-4"></i>Vítima</button>
+                <button class="role-edit-option menu-item w-full text-left" data-role="Agente"><i class="fas fa-gavel text-red-600 mr-2 fa-fw w-4"></i>Agente</button>
+                <button class="role-edit-option menu-item w-full text-left" data-role="Testemunha"><i class="fas fa-eye text-green-600 mr-2 fa-fw w-4"></i>Testemunha</button>
+                <button class="role-edit-option menu-item w-full text-left" data-role="Envolvido"><i class="fas fa-user text-gray-500 mr-2 fa-fw w-4"></i>Envolvido</button>
+            </div>
         </div>
     </div>
 
     <!-- Modal para Acompanhamento Individual da Ocorrência (Ações 2-6) -->
-    <!-- MODIFICADO V3: Reestruturado para ser dinâmico por etapas -->
     <!-- MODIFICADO PLANO 3b: Adicionado 'group-desfecho-choice' -->
     <div id="follow-up-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0">
@@ -359,7 +376,7 @@
                     <!-- Grupo Ação 4: Encaminhamento ao CT (Opcional) -->
                     <fieldset id="group-encaminhamento-ct" class="dynamic-occurrence-step pt-4 border-t hidden">
                         <legend class="text-md font-semibold text-gray-600">Ação 4: Encaminhar ao Conselho Tutelar (Opcional)</legend>
-                        <p class="text-xs text-gray-500 mb-2">Preencha APENAS se o caso precisar ser encaminhado ao CT. Caso contrário, deixe em branco e preencha o Parecer Final abaixo.</p>
+                        {/* <!-- <p class="text-xs text-gray-500 mb-2">Preencha APENAS se o caso precisar ser encaminhado ao CT. Caso contrário, deixe em branco e preencha o Parecer Final abaixo.</p> --> */}
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                            <div>
                                 <label for="follow-up-oficio-number" class="block text-sm font-medium">Nº do Ofício</label>
@@ -370,7 +387,7 @@
                                 <input type="date" id="follow-up-ct-sent-date" class="mt-1 w-full border-gray-300 rounded-md">
                             </div>
                         </div>
-                        <!-- Botão Gerar Ofício removido daqui, pois o envio é pelo botão na lista -->
+                        {/* <!-- Botão Gerar Ofício removido daqui, pois o envio é pelo botão na lista --> */}
                     </fieldset>
 
                      <!-- Grupo Ação 5: Devolutiva do CT -->
@@ -385,7 +402,7 @@
                     <!-- Grupo Ação 6: Parecer Final -->
                     <fieldset id="group-parecer-final" class="dynamic-occurrence-step pt-4 border-t hidden">
                         <legend class="text-md font-semibold text-gray-600">Ação 6: Dar Parecer Final</legend>
-                        <p class="text-xs text-gray-500 mb-2">Descreva a conclusão do caso pela escola. Preencher este campo finalizará o processo individual.</p>
+                        {/* <!-- <p class="text-xs text-gray-500 mb-2">Descreva a conclusão do caso pela escola. Preencher este campo finalizará o processo individual.</p> --> */}
                         <div class="mt-2">
                             <label for="follow-up-parecer-final" class="block text-sm font-medium">Parecer / Desfecho <span class="text-red-500">*</span></label>
                             <textarea id="follow-up-parecer-final" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Conclusão do caso pela escola..." required></textarea>
@@ -402,7 +419,7 @@
         </div>
     </div>
     <!-- ============================================================================== -->
-    <!-- --- FIM DA MODIFICAÇÃO (Fluxo V3) --- -->
+    <!-- --- FIM DA MODIFICAÇÃO (Fluxo V3 / Papéis) --- -->
     <!-- ============================================================================== -->
 
 
@@ -571,3 +588,4 @@
 
 </body>
 </html>
+
