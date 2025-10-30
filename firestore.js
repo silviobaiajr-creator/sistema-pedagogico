@@ -10,7 +10,7 @@
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
     query, where, getDocs // <-- ADICIONADO
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 import { state } from './state.js';
 
