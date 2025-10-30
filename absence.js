@@ -38,11 +38,11 @@
 //    - Verificação final antes de salvar (`handleAbsenceSubmit`).
 //
 // ATUALIZAÇÃO (SOLICITAÇÃO DO USUÁRIO - 29/10/2025):
-// 1. (CORREÇÃO 1) Adicionada a validação `required` para os campos "Aluno retornou?"
-//    em `openAbsenceModalForStudent` para as etapas 'tentativa', 'visita' e 'encaminhamento_ct'.
+// 1. (CORREÇÃO 1) REMOVIDA a validação `required` para os campos "Aluno retornou?".
+//    O bloqueio agora é feito apenas ao tentar avançar de etapa.
 // 2. (CORREÇÃO 2) Atualizada a lógica em `handleNewAbsenceAction` para impedir o
 //    avanço para a próxima etapa se "Aluno retornou?" (`...Returned`) não for preenchido
-//    na etapa anterior.
+//    na etapa anterior (Esta parte foi mantida).
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -626,8 +626,8 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
             // Campos dentro de 'family-contact-fields' tornam-se required via toggleFamilyContactFields
             
             // --- INÍCIO DA CORREÇÃO 1 ---
-            // 'contactReturned' radio é obrigatório
-            document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = true);
+            // 'contactReturned' radio NÃO é mais obrigatório aqui
+            // document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = true);
             // --- FIM DA CORREÇÃO 1 ---
             break;
         case 'visita':
@@ -637,8 +637,8 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
             // Campos dentro de 'visit-contact-fields' tornam-se required via toggleVisitContactFields
             
             // --- INÍCIO DA CORREÇÃO 1 ---
-            // 'visitReturned' radio é obrigatório
-            document.querySelectorAll('input[name="visit-returned"]').forEach(r => r.required = true);
+            // 'visitReturned' radio NÃO é mais obrigatório aqui
+            // document.querySelectorAll('input[name="visit-returned"]').forEach(r => r.required = true);
             // --- FIM DA CORREÇÃO 1 ---
             break;
         case 'encaminhamento_ct':
@@ -1291,3 +1291,4 @@ export const initAbsenceListeners = () => {
 };
 
 // --- Fim do Arquivo ---
+
