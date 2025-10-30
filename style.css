@@ -233,6 +233,8 @@ body.is-printing .printable-area {
         overflow: visible !important;
         padding: 0 !important;
         /* Remove transições e opacidade */
+        transition: none !important; /* <-- CORREÇÃO ADICIONADA */
+        animation: none !important; /* <-- CORREÇÃO ADICIONADA */
         opacity: 1 !important; 
         transform: none !important;
         background: none !important; /* Remove o fundo escuro do backdrop */
@@ -244,6 +246,8 @@ body.is-printing .printable-area {
     .printing-now .modal-content {
         transform: none !important;
         opacity: 1 !important;
+        transition: none !important; /* <-- CORREÇÃO ADICIONADA */
+        animation: none !important; /* <-- CORREÇÃO ADICIONADA */
         box-shadow: none !important;
         border: none !important;
         width: 100% !important;
@@ -315,3 +319,4 @@ body.is-printing .printable-area {
         margin: 1cm;
     }
 }
+
