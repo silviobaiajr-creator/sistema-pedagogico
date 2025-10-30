@@ -11,8 +11,8 @@
 
 // --- MÓDULOS IMPORTADOS ---
 
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebase/auth";
-import { onSnapshot, query, writeBatch, doc, where, getDocs } from "https://www.gstatic.com/firebase/firestore";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { onSnapshot, query, writeBatch, doc, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, shareContent, openModal, loadScript } from './utils.js';
