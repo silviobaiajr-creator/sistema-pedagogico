@@ -5,7 +5,7 @@
 // =================================================================================
 
 import { state, dom } from './state.js';
-import { setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStudentsDocRef } from './firestore.js';
 import { showToast, openModal, loadScript } from './utils.js'; // Importa loadScript
 
