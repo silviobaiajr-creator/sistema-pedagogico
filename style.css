@@ -194,91 +194,99 @@ tbody tr:nth-child(even) {
 }
 
 /* ============================================================================== */
-/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO v4 - Estratégia de Isolamento)      */
-/* Regras que se aplicam apenas quando o utilizador tenta imprimir a página.      */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO v6 - Abordagem Híbrida JS+CSS)       */
 /* ============================================================================== */
+
+/* 1. Estilos aplicados quando o JS adiciona a classe .is-printing */
+/* Esconde tudo, exceto a área de impressão */
+body.is-printing > * {
+    display: none !important;
+}
+body.is-printing .printable-area {
+    display: block !important;
+    position: static !important;
+}
+
+/* 2. Estilos específicos para @media print */
 @media print {
-
-    /* 1. Esconde todos os filhos diretos do body (login, main-content, todos os modais) */
-    body > * {
-        display: none !important;
-        visibility: hidden !important;
-    }
-
-    /* 2. Mostra APENAS o modal que tem a classe .printable-area */
-    .printable-area {
-        display: block !important;
-        visibility: visible !important;
-    }
-
-    /* 3. Reseta o layout do backdrop (.printable-area) e do .modal-content
-       para que não ajam como modais, mas sim como um documento normal. */
-    .printable-area,
-    .printable-area .modal-content {
-        display: block !important;
-        visibility: visible !important;
-        position: static !important;
-        width: 100% !important;
-        height: auto !important;
-        min-height: auto !important;
-        max-height: none !important;
-        overflow: visible !important;
+    /* Garante que o body não tenha margens */
+    body, html {
         margin: 0 !important;
         padding: 0 !important;
-        border: 0 !important;
-        box-shadow: none !important;
-        transform: none !important;
         background: none !important;
     }
 
-    /* 4. Garante que todo o conteúdo DENTRO do modal-content seja visível */
-    /* (Isso pode ser menos específico e mais fácil do que a abordagem anterior) */
-    .printable-area .modal-content * {
+    /* Mesmo com o JS, usamos a lógica de visibilidade como fallback.
+      Esconde tudo no body por padrão.
+    */
+    body * {
+        visibility: hidden !important;
+    }
+    
+    /* Mostra APENAS o conteúdo marcado com .printing-content (que o JS adicionou)
+      e todos os seus filhos.
+    */
+    .printing-content, .printing-content * {
         visibility: visible !important;
-        /* Reseta estilos que podem ter sido herdados ou zerados */
         background: none !important;
     }
 
-    /* 5. Esconde novamente qualquer coisa marcada como .no-print DENTRO do modal */
-    /* (Isso sobrepõe a regra 4 para botões, etc.) */
+    /* "Levanta" o conteúdo de impressão para o topo da página,
+      removendo-o de qualquer fluxo de layout residual.
+    */
+    .printing-content {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 1cm !important; /* Adiciona a margem de impressão aqui */
+        box-sizing: border-box !important;
+    }
+
+    /* Como o PAI (.printing-content) já tem o padding de 1cm,
+       removemos o padding original dos filhos para evitar margem dupla.
+    */
+    #occurrence-record-content,
+    #notification-content,
+    #report-view-content,
+    #ficha-view-content {
+        padding: 0 !important;
+    }
+
+    /* Esconde novamente qualquer coisa marcada como .no-print DENTRO 
+       do conteúdo visível (botões, etc.).
+    */
     .no-print, .no-print * {
         display: none !important;
         visibility: hidden !important;
     }
 
-    /* 6. Define o padding de impressão (margem interna) no conteúdo real */
-    #occurrence-record-content,
-    #notification-content,
-    #report-view-content,
-    #ficha-view-content {
-        padding: 1cm !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
-    }
-
-    /* 7. Estilos de assinatura (garante que sejam visíveis e formatados) */
+    /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO --- */
+    
+    /* Bloco de assinaturas (garante visibilidade e formatação) */
     .signature-block, .signature-block * {
         visibility: visible !important;
         display: block !important;
     }
-
+    
     .signature-block {
         page-break-inside: avoid;
-        margin-top: 4rem !important; /* Adiciona espaço antes das assinaturas */
+        margin-top: 4rem !important;
     }
-
+    
     .signature-line {
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         width: 60% !important;
-        margin: 2rem auto 0 auto !important; /* Adiciona espaço entre assinaturas */
+        margin: 2rem auto 0 auto !important;
     }
 
     .signature-text {
-        border-top: 1px solid #374151 !important; /* Garante a borda */
+        border-top: 1px solid #374151 !important;
         width: 100% !important;
-        padding-top: 0.25rem !important; /* Garante o padding */
+        padding-top: 0.25rem !important;
         text-align: center !important;
         font-weight: 600 !important;
     }
@@ -298,3 +306,4 @@ tbody tr:nth-child(even) {
         margin: 1cm;
     }
 }
+
