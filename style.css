@@ -194,7 +194,7 @@ tbody tr:nth-child(even) {
 }
 
 /* ============================================================================== */
-/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO                                                */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO)                                    */
 /* Regras que se aplicam apenas quando o utilizador tenta imprimir a página.      */
 /* ============================================================================== */
 @media print {
@@ -206,10 +206,10 @@ tbody tr:nth-child(even) {
     /* Garante que a área de impressão ocupe toda a página */
     .printable-area, .printable-area .modal-content {
         display: block !important;
-        position: static !important;
+        position: static !important; /* Remove o posicionamento fixo/absoluto */
         width: 100% !important;
-        height: auto !important;
-        max-height: none !important;
+        height: auto !important; /* Permite que o conteúdo defina a altura */
+        max-height: none !important; /* Remove a altura máxima */
         box-shadow: none !important;
         border: none !important;
         transform: none !important;
@@ -220,8 +220,8 @@ tbody tr:nth-child(even) {
     
     /* Mostra todo o conteúdo que poderia estar com scroll */
     .printable-area .overflow-y-auto {
-        overflow: visible !important;
-        height: auto !important;
+        overflow: visible !important; /* Remove a barra de rolagem */
+        height: auto !important; /* Permite ao conteúdo fluir */
     }
     
     /* Esconde elementos que não devem aparecer na impressão (botões, etc.) */
@@ -230,11 +230,14 @@ tbody tr:nth-child(even) {
     }
 
     /* Garante que o conteúdo impresso não tenha margens desnecessárias */
+    /* Define margens de impressão padrão */
     #occurrence-record-content, 
     #notification-content,
     #report-view-content,
     #ficha-view-content {
         padding: 1cm !important; /* Margem de impressão padrão */
+        width: 100% !important;
+        box-sizing: border-box; /* Garante que o padding não estoure a largura */
     }
 
     /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO --- */
@@ -271,4 +274,16 @@ tbody tr:nth-child(even) {
     .break-inside-avoid {
         page-break-inside: avoid;
     }
+
+    /* (NOVO) Força quebras de página antes/depois de elementos se necessário */
+    /* (Isso ajuda a eliminar páginas em branco no final) */
+    @page {
+        margin: 1cm; /* Define a margem da página de impressão */
+    }
+
+    body {
+        margin: 0;
+        padding: 0;
+    }
 }
+
