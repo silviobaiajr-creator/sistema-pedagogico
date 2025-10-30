@@ -3,12 +3,11 @@
 // RESPONSABILIDADE: Ponto de entrada, autenticação, gerenciamento de estado
 // de alto nível (troca de abas) e inicialização dos módulos de funcionalidade.
 //
-// ATUALIZAÇÃO (IMPRESSÃO - CORREÇÃO DEFINITIVA):
-// 1. Restaurada a função `handlePrintClick` para uma abordagem híbrida.
-// 2. A função agora adiciona uma classe específica ('printing-now')
-//    APENAS ao modal backdrop que deve ser impresso.
-// 3. Restaurado o listener 'afterprint' para remover a classe 'printing-now'
-//    após a impressão, evitando que vários modais apareçam misturados.
+// ATUALIZAÇÃO (IMPRESSÃO - CORREÇÃO MOBILE):
+// 1. A chamada window.print() foi envolvida em um setTimeout(..., 0).
+// 2. Isso corrige um bug em navegadores mobile (race condition) onde a
+//    janela de impressão era chamada ANTES do navegador aplicar a classe
+//    'printing-now', resultando em uma página em branco.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -184,7 +183,7 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- LÓGICA DE IMPRESSÃO CORRIGIDA (Híbrida Definitiva) ---
+// --- LÓGICA DE IMPRESSÃO CORRIGIDA (Híbrida Definitiva + Mobile) ---
 // ==============================================================================
 
 /**
@@ -201,7 +200,7 @@ function handlePrintClick(contentElementId) {
         return;
     }
     
-    // (NOVO) Encontra o backdrop pai, que tem a classe .printable-area
+    // Encontra o backdrop pai, que tem a classe .printable-area
     const printableBackdrop = contentElement.closest('.printable-area');
     if (!printableBackdrop) {
          console.error("Backdrop '.printable-area' pai não encontrado para:", contentElementId);
@@ -209,29 +208,34 @@ function handlePrintClick(contentElementId) {
          return;
     }
 
-    // 1. (RESTAURADO) Adiciona classe específica ('printing-now')
+    // 1. Adiciona classe específica ('printing-now')
     //    APENAS ao backdrop do modal que queremos imprimir.
     printableBackdrop.classList.add('printing-now');
 
-    // 2. (RESTAURADO) Define a função de limpeza
+    // 2. Define a função de limpeza
     const cleanupAfterPrint = () => {
         printableBackdrop.classList.remove('printing-now');
         // Remove o próprio listener para não acumular
         window.removeEventListener('afterprint', cleanupAfterPrint);
     };
 
-    // 3. (RESTAURADO) Adiciona o listener para limpar *depois* da impressão
+    // 3. Adiciona o listener para limpar *depois* da impressão
     window.addEventListener('afterprint', cleanupAfterPrint);
 
     // 4. Chama a impressão
     try {
-        window.print();
-        
-        // Fallback: Se 'afterprint' não disparar (ex: usuário cancela),
-        // um timeout curto pode remover as classes,
-        // embora 'afterprint' seja o ideal.
-        // Vamos confiar no 'afterprint' por enquanto para evitar
-        // remover as classes *antes* da janela de impressão abrir.
+        // ==================================================================
+        // INÍCIO DA CORREÇÃO (MOBILE RACE CONDITION)
+        // ==================================================================
+        // Envolve window.print() em um setTimeout de 0ms.
+        // Isso força o navegador (especialmente mobile) a processar a
+        // adição da classe 'printing-now' ANTES de executar a impressão.
+        setTimeout(() => {
+            window.print();
+        }, 0); // 0ms é suficiente para enviar para a próxima fila de eventos
+        // ==================================================================
+        // FIM DA CORREÇÃO
+        // ==================================================================
         
     } catch (e) {
         console.error("Erro ao chamar window.print():", e);
