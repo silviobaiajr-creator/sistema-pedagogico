@@ -36,6 +36,13 @@
 // 2. Implementada validação de datas:
 //    - Data mínima definida no formulário (`openAbsenceModalForStudent`).
 //    - Verificação final antes de salvar (`handleAbsenceSubmit`).
+//
+// ATUALIZAÇÃO (SOLICITAÇÃO DO USUÁRIO - 29/10/2025):
+// 1. (CORREÇÃO 1) Adicionada a validação `required` para os campos "Aluno retornou?"
+//    em `openAbsenceModalForStudent` para as etapas 'tentativa', 'visita' e 'encaminhamento_ct'.
+// 2. (CORREÇÃO 2) Atualizada a lógica em `handleNewAbsenceAction` para impedir o
+//    avanço para a próxima etapa se "Aluno retornou?" (`...Returned`) não for preenchido
+//    na etapa anterior.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -417,6 +424,7 @@ export const renderAbsences = () => {
 
 /**
  * Lógica para determinar a próxima ação de busca ativa.
+ * (MODIFICADO - CORREÇÃO 2) Adiciona verificação do campo `...Returned`
  */
 export const handleNewAbsenceAction = (student) => {
     const { currentCycleActions } = getStudentProcessInfo(student.matricula);
@@ -439,19 +447,34 @@ export const handleNewAbsenceAction = (student) => {
         let isPending = false;
         let pendingActionMessage = "Complete a etapa anterior para poder prosseguir.";
 
+        // --- INÍCIO DA CORREÇÃO 2 ---
         // Verifica pendências na ÚLTIMA ação registrada
-        if (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) {
-            isPending = true;
-            pendingActionMessage = "Registre se houve sucesso no contato da última tentativa.";
-        } else if (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null) {
-            isPending = true;
-            pendingActionMessage = "Registre se houve sucesso no contato da visita.";
-        } else if (lastAction.actionType === 'encaminhamento_ct' && lastAction.ctFeedback == null) {
-            isPending = true;
-            pendingActionMessage = "Registre a devolutiva recebida do Conselho Tutelar.";
+        if (lastAction.actionType.startsWith('tentativa')) {
+            if (lastAction.contactSucceeded == null) { // Primeiro, verifica se o contato foi registrado
+                isPending = true;
+                pendingActionMessage = "Registre se houve sucesso no contato da última tentativa.";
+            } else if (lastAction.contactReturned == null) { // DEPOIS, verifica se "retornou" foi registrado
+                isPending = true;
+                pendingActionMessage = "Registre se o aluno retornou após o contato.";
+            }
+        } else if (lastAction.actionType === 'visita') {
+            if (lastAction.visitSucceeded == null) { // Primeiro, verifica se a visita foi registrada
+                isPending = true;
+                pendingActionMessage = "Registre se houve sucesso no contato da visita.";
+            } else if (lastAction.visitReturned == null) { // DEPOIS, verifica se "retornou" foi registrado
+                isPending = true;
+                pendingActionMessage = "Registre se o aluno retornou após a visita.";
+            }
+        } else if (lastAction.actionType === 'encaminhamento_ct') {
+            if (lastAction.ctFeedback == null) { // Primeiro, verifica se o feedback foi registrado
+                isPending = true;
+                pendingActionMessage = "Registre a devolutiva recebida do Conselho Tutelar.";
+            } else if (lastAction.ctReturned == null) { // DEPOIS, verifica se "retornou" foi registrado
+                isPending = true;
+                pendingActionMessage = "Registre se o aluno retornou após a ação do CT.";
+            }
         }
-        // Adiciona verificação de retorno pendente (se relevante para bloquear)
-        // Por ora, focamos em completar os dados da ação em si.
+        // --- FIM DA CORREÇÃO 2 ---
 
         // Se a ÚLTIMA ação está pendente, abre para EDITÁ-LA
         if (isPending) {
@@ -513,6 +536,7 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
 /**
  * Abre e popula o modal de registro/edição de uma ação de Busca Ativa.
  * (MODIFICADO - CONSISTÊNCIA 2): Define a data mínima (`min`) para o input de data.
+ * (MODIFICADO - CORREÇÃO 1) Adiciona `required` aos rádios `...Returned`.
  */
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
     dom.absenceForm.reset();
@@ -598,16 +622,24 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
             document.getElementById('meeting-date').required = true;
             document.getElementById('meeting-time').required = true;
-            // 'contactSucceeded' radio é obrigatório
+            // 'contactSucceeded' radio é obrigatório (já validado no submit)
             // Campos dentro de 'family-contact-fields' tornam-se required via toggleFamilyContactFields
+            
+            // --- INÍCIO DA CORREÇÃO 1 ---
             // 'contactReturned' radio é obrigatório
+            document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = true);
+            // --- FIM DA CORREÇÃO 1 ---
             break;
         case 'visita':
             document.getElementById('visit-agent').required = true;
             document.getElementById('visit-date').required = true;
-            // 'visitSucceeded' radio é obrigatório
+            // 'visitSucceeded' radio é obrigatório (já validado no submit)
             // Campos dentro de 'visit-contact-fields' tornam-se required via toggleVisitContactFields
+            
+            // --- INÍCIO DA CORREÇÃO 1 ---
             // 'visitReturned' radio é obrigatório
+            document.querySelectorAll('input[name="visit-returned"]').forEach(r => r.required = true);
+            // --- FIM DA CORREÇÃO 1 ---
             break;
         case 'encaminhamento_ct':
             document.getElementById('ct-sent-date').required = true;
@@ -710,7 +742,11 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 else document.querySelectorAll(`input[name="ct-returned"]`).forEach(r => r.checked = false);
                  // Campos de devolutiva e retorno tornam-se obrigatórios ao editar CT se ainda não preenchidos
                  document.getElementById('ct-feedback').required = true;
+                 
+                 // --- INÍCIO DA CORREÇÃO 1 ---
                  // Radio ctReturned fica obrigatório (força Sim ou Não)
+                 document.querySelectorAll('input[name="ct-returned"]').forEach(r => r.required = true);
+                 // --- FIM DA CORREÇÃO 1 ---
                 break;
             case 'analise':
                 document.getElementById('ct-parecer').value = data.ctParecer || '';
@@ -958,6 +994,13 @@ async function handleSendToCT(id) {
     if (visitAction.visitSucceeded == null) {
         return showToast("Complete os dados da visita (sucesso Sim/Não) antes de enviar ao CT.");
     }
+    // --- CORREÇÃO (SOLICITAÇÃO DO USUÁRIO) ---
+    // Verifica se a visita foi concluída (retorno preenchido)
+    if (visitAction.visitReturned == null) {
+        return showToast("Complete os dados da visita (Aluno retornou? Sim/Não) antes de enviar ao CT.");
+    }
+    // --- FIM DA CORREÇÃO ---
+
 
     const oficioNumber = prompt("Por favor, insira o número do ofício:");
     if (oficioNumber?.trim()) {
@@ -1059,9 +1102,9 @@ function handleEditAbsence(id) {
             const timeA = typeof dateA === 'string' ? new Date(dateA+'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
             const timeB = typeof dateB === 'string' ? new Date(dateB+'T00:00:00Z').getTime() : (dateB instanceof Date ? dateB.getTime() : (dateB || 0) * 1000);
              if (timeA === timeB) {
-                const createA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
-                const createB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
-                return (createA || 0) - (createB || 0);
+                 const createA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
+                 const createB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
+                 return (createA || 0) - (createB || 0);
              }
             return (timeA || 0) - (timeB || 0);
         });
@@ -1248,4 +1291,3 @@ export const initAbsenceListeners = () => {
 };
 
 // --- Fim do Arquivo ---
-
