@@ -194,22 +194,37 @@ tbody tr:nth-child(even) {
 }
 
 /* ============================================================================== */
-/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO)                                    */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO v2)                                 */
 /* Regras que se aplicam apenas quando o utilizador tenta imprimir a página.      */
 /* ============================================================================== */
 @media print {
+    
+    /* (NOVO) Reseta a altura do HTML e BODY para impressão */
+    html, body {
+        height: auto !important;
+        min-height: auto !important;
+        background: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
     /* Esconde tudo que não está na área de impressão designada */
     body > *:not(.printable-area) {
         display: none !important;
     }
     
     /* Garante que a área de impressão ocupe toda a página */
-    .printable-area, .printable-area .modal-content {
+    .printable-area, 
+    .printable-area .modal-content,
+    .printable-area .overflow-y-auto {
         display: block !important;
         position: static !important; /* Remove o posicionamento fixo/absoluto */
-        width: 100% !important;
+        width: auto !important; /* Deixa fluir */
         height: auto !important; /* Permite que o conteúdo defina a altura */
+        min-height: auto !important; /* Garante que não tenha altura mínima */
         max-height: none !important; /* Remove a altura máxima */
+        overflow: visible !important; /* Remove a barra de rolagem */
         box-shadow: none !important;
         border: none !important;
         transform: none !important;
@@ -218,18 +233,12 @@ tbody tr:nth-child(even) {
         margin: 0 !important;
     }
     
-    /* Mostra todo o conteúdo que poderia estar com scroll */
-    .printable-area .overflow-y-auto {
-        overflow: visible !important; /* Remove a barra de rolagem */
-        height: auto !important; /* Permite ao conteúdo fluir */
-    }
-    
     /* Esconde elementos que não devem aparecer na impressão (botões, etc.) */
     .no-print {
         display: none !important;
     }
 
-    /* Garante que o conteúdo impresso não tenha margens desnecessárias */
+    /* Garante que o conteúdo impresso tenha o padding correto */
     /* Define margens de impressão padrão */
     #occurrence-record-content, 
     #notification-content,
@@ -279,11 +288,6 @@ tbody tr:nth-child(even) {
     /* (Isso ajuda a eliminar páginas em branco no final) */
     @page {
         margin: 1cm; /* Define a margem da página de impressão */
-    }
-
-    body {
-        margin: 0;
-        padding: 0;
     }
 }
 
