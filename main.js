@@ -232,7 +232,7 @@ function handlePrintClick(contentElementId) {
         // adição da classe 'printing-now' ANTES de executar a impressão.
         setTimeout(() => {
             window.print();
-        }, 0); // 0ms é suficiente para enviar para a próxima fila de eventos
+        }, 100); // 0ms é suficiente para enviar para a próxima fila de eventos
         // ==================================================================
         // FIM DA CORREÇÃO
         // ==================================================================
