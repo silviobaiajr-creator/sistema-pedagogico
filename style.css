@@ -194,39 +194,31 @@ tbody tr:nth-child(even) {
 }
 
 /* ============================================================================== */
-/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO v3 - Abordagem Agressiva)           */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO v4 - Estratégia de Isolamento)      */
 /* Regras que se aplicam apenas quando o utilizador tenta imprimir a página.      */
 /* ============================================================================== */
 @media print {
-    
-    /* (NOVO v3) Esconde tudo por padrão, com mais agressividade */
-    body, body * {
-        visibility: hidden !important; /* Esconde tudo, filhos incluídos */
-        background: none !important;
+
+    /* 1. Esconde todos os filhos diretos do body (login, main-content, todos os modais) */
+    body > * {
+        display: none !important;
+        visibility: hidden !important;
     }
 
-    /* (NOVO v3) Reseta html, body */
-    html, body {
-        width: auto !important;
-        height: auto !important;
-        min-height: auto !important;
-        border: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: visible !important;
-    }
-
-    /* (NOVO v3) Mostra APENAS a área de impressão e seus filhos */
-    .printable-area, .printable-area * {
+    /* 2. Mostra APENAS o modal que tem a classe .printable-area */
+    .printable-area {
+        display: block !important;
         visibility: visible !important;
     }
 
-    /* (NOVO v3) Reseta o layout do backdrop e do modal-content */
-    .printable-area, 
+    /* 3. Reseta o layout do backdrop (.printable-area) e do .modal-content
+       para que não ajam como modais, mas sim como um documento normal. */
+    .printable-area,
     .printable-area .modal-content {
         display: block !important;
+        visibility: visible !important;
         position: static !important;
-        width: auto !important;
+        width: 100% !important;
         height: auto !important;
         min-height: auto !important;
         max-height: none !important;
@@ -236,54 +228,64 @@ tbody tr:nth-child(even) {
         border: 0 !important;
         box-shadow: none !important;
         transform: none !important;
-    }
-    
-    /* Esconde elementos que não devem aparecer na impressão (botões, etc.) */
-    /* Esta regra é crucial para sobrepor o ".printable-area *" */
-    .no-print {
-        display: none !important;
-        visibility: hidden !important; /* Garante que está escondido */
+        background: none !important;
     }
 
-    /* Garante que o conteúdo impresso tenha o padding correto */
-    /* Define margens de impressão padrão */
-    #occurrence-record-content, 
+    /* 4. Garante que todo o conteúdo DENTRO do modal-content seja visível */
+    /* (Isso pode ser menos específico e mais fácil do que a abordagem anterior) */
+    .printable-area .modal-content * {
+        visibility: visible !important;
+        /* Reseta estilos que podem ter sido herdados ou zerados */
+        background: none !important;
+    }
+
+    /* 5. Esconde novamente qualquer coisa marcada como .no-print DENTRO do modal */
+    /* (Isso sobrepõe a regra 4 para botões, etc.) */
+    .no-print, .no-print * {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    /* 6. Define o padding de impressão (margem interna) no conteúdo real */
+    #occurrence-record-content,
     #notification-content,
     #report-view-content,
     #ficha-view-content {
-        padding: 1cm !important; /* Margem de impressão padrão */
+        padding: 1cm !important;
         width: 100% !important;
-        box-sizing: border-box !important; /* Garante que o padding não estoure a largura */
+        box-sizing: border-box !important;
     }
 
-    /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO --- */
-    
-    /* Bloco de assinaturas, visível apenas na impressão */
-    .signature-block {
+    /* 7. Estilos de assinatura (garante que sejam visíveis e formatados) */
+    .signature-block, .signature-block * {
+        visibility: visible !important;
         display: block !important;
-        page-break-inside: avoid; /* Tenta não quebrar o bloco no meio da página */
     }
-    
+
+    .signature-block {
+        page-break-inside: avoid;
+        margin-top: 4rem !important; /* Adiciona espaço antes das assinaturas */
+    }
+
     .signature-line {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 60%;
-        margin-left: auto;
-        margin-right: auto;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        width: 60% !important;
+        margin: 2rem auto 0 auto !important; /* Adiciona espaço entre assinaturas */
     }
 
     .signature-text {
-        border-top: 1px solid #374151; /* Linha de assinatura */
-        width: 100%;
-        padding-top: 0.25rem;
-        text-align: center;
-        font-weight: 600;
+        border-top: 1px solid #374151 !important; /* Garante a borda */
+        width: 100% !important;
+        padding-top: 0.25rem !important; /* Garante o padding */
+        text-align: center !important;
+        font-weight: 600 !important;
     }
 
     .signature-role {
-        font-size: 0.75rem; /* 12px */
-        color: #4b5563; /* text-gray-600 */
+        font-size: 0.75rem !important;
+        color: #4b5563 !important;
     }
 
     /* Evita quebras de página ruins em elementos comuns */
@@ -291,10 +293,8 @@ tbody tr:nth-child(even) {
         page-break-inside: avoid;
     }
 
-    /* (NOVO) Força quebras de página antes/depois de elementos se necessário */
-    /* (Isso ajuda a eliminar páginas em branco no final) */
+    /* Define as margens da página de impressão */
     @page {
-        margin: 1cm; /* Define a margem da página de impressão */
+        margin: 1cm;
     }
 }
-
