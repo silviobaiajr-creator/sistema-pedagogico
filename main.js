@@ -3,10 +3,12 @@
 // RESPONSABILIDADE: Ponto de entrada, autenticação, gerenciamento de estado
 // de alto nível (troca de abas) e inicialização dos módulos de funcionalidade.
 //
-// ATUALIZAÇÃO (IMPRESSÃO - CORREÇÃO):
-// 1. Simplificada a função `handlePrintClick` para APENAS chamar `window.print()`.
-// 2. Removida a lógica de manipulação de classes ('.is-printing') e o
-//    listener 'afterprint', delegando toda a lógica de impressão para o CSS.
+// ATUALIZAÇÃO (IMPRESSÃO - CORREÇÃO DEFINITIVA):
+// 1. Restaurada a função `handlePrintClick` para uma abordagem híbrida.
+// 2. A função agora adiciona uma classe específica ('printing-now')
+//    APENAS ao modal backdrop que deve ser impresso.
+// 3. Restaurado o listener 'afterprint' para remover a classe 'printing-now'
+//    após a impressão, evitando que vários modais apareçam misturados.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -182,11 +184,12 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- LÓGICA DE IMPRESSÃO CORRIGIDA (JavaScript Simplificado) ---
+// --- LÓGICA DE IMPRESSÃO CORRIGIDA (Híbrida Definitiva) ---
 // ==============================================================================
 
 /**
- * Prepara o DOM para impressão e limpa depois.
+ * Prepara o DOM para impressão adicionando uma classe específica ao modal
+ * e limpa depois.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
  * (ex: 'notification-content', 'report-view-content').
  */
@@ -197,18 +200,30 @@ function handlePrintClick(contentElementId) {
         showToast("Erro ao preparar documento para impressão.");
         return;
     }
+    
+    // (NOVO) Encontra o backdrop pai, que tem a classe .printable-area
+    const printableBackdrop = contentElement.closest('.printable-area');
+    if (!printableBackdrop) {
+         console.error("Backdrop '.printable-area' pai não encontrado para:", contentElementId);
+         showToast("Erro ao preparar a área de impressão.");
+         return;
+    }
 
-    // 1. (REMOVIDO) Não adiciona mais classes ao body ou ao conteúdo.
-    // document.body.classList.add('is-printing');
-    // contentElement.classList.add('printing-content');
+    // 1. (RESTAURADO) Adiciona classe específica ('printing-now')
+    //    APENAS ao backdrop do modal que queremos imprimir.
+    printableBackdrop.classList.add('printing-now');
 
-    // 2. (REMOVIDO) A função de limpeza não é mais necessária para este fluxo.
-    // const cleanupAfterPrint = () => { ... };
+    // 2. (RESTAURADO) Define a função de limpeza
+    const cleanupAfterPrint = () => {
+        printableBackdrop.classList.remove('printing-now');
+        // Remove o próprio listener para não acumular
+        window.removeEventListener('afterprint', cleanupAfterPrint);
+    };
 
-    // 3. (REMOVIDO) O listener 'afterprint' não é mais necessário.
-    // window.addEventListener('afterprint', cleanupAfterPrint);
+    // 3. (RESTAURADO) Adiciona o listener para limpar *depois* da impressão
+    window.addEventListener('afterprint', cleanupAfterPrint);
 
-    // 4. Apenas chama a impressão. O CSS fará o resto.
+    // 4. Chama a impressão
     try {
         window.print();
         
@@ -221,7 +236,8 @@ function handlePrintClick(contentElementId) {
     } catch (e) {
         console.error("Erro ao chamar window.print():", e);
         showToast("Não foi possível abrir a janela de impressão.");
-        // (REMOVIDO) cleanupAfterPrint();
+        // Se falhar, limpa imediatamente
+        cleanupAfterPrint();
     }
 }
 
@@ -273,8 +289,9 @@ function setupModalCloseButtons() {
     document.getElementById('report-share-btn').addEventListener('click', () => shareContent(document.getElementById('report-view-title').textContent, document.getElementById('report-view-content').innerText));
     document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
 
-    // Botões de Impressão (AGORA USAM A NOVA FUNÇÃO SIMPLIFICADA)
+    // Botões de Impressão (AGORA USAM A NOVA FUNÇÃO HÍBRIDA)
     document.getElementById('print-btn').addEventListener('click', () => handlePrintClick('notification-content'));
     document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
+
