@@ -208,21 +208,25 @@ function handlePrintClick(contentElementId) {
          return;
     }
 
-    // 1. Adiciona classe específica ('printing-now')
-    //    APENAS ao backdrop do modal que queremos imprimir.
+    // 1. Adiciona classe específica ('printing-now') AO MODAL
     printableBackdrop.classList.add('printing-now');
 
-    // 2. Define a função de limpeza
+    // 2. (NOVA MUDANÇA) Adiciona a classe de controle AO BODY
+    document.body.classList.add('printing-mode');
+
+
+    // 3. Define a função de limpeza (MODIFICADA)
     const cleanupAfterPrint = () => {
-        printableBackdrop.classList.remove('printing-now');
+        printableBackdrop.classList.remove('printing-now'); // Limpa o modal
+        document.body.classList.remove('printing-mode'); // Limpa o body
         // Remove o próprio listener para não acumular
         window.removeEventListener('afterprint', cleanupAfterPrint);
     };
 
-    // 3. Adiciona o listener para limpar *depois* da impressão
+    // 4. Adiciona o listener para limpar *depois* da impressão
     window.addEventListener('afterprint', cleanupAfterPrint);
 
-    // 4. Chama a impressão
+    // 5. Chama a impressão
     try {
         // ==================================================================
         // INÍCIO DA CORREÇÃO (MOBILE RACE CONDITION)
@@ -299,3 +303,5 @@ function setupModalCloseButtons() {
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
 
+
+}
