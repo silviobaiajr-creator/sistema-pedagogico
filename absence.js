@@ -50,7 +50,7 @@ import { showToast, openModal, closeModal, formatDate } from './utils.js';
 import { getStudentProcessInfo, determineNextActionForStudent } from './logic.js';
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
 import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef } from './firestore.js';
-import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 
 
