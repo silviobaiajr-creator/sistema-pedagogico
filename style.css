@@ -194,21 +194,9 @@ tbody tr:nth-child(even) {
 }
 
 /* ============================================================================== */
-/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO - Abordagem Híbrida Definitiva)    */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO MÓVEL ROBUSTA)                       */
 /* ============================================================================== */
 
-/* 1. (REMOVIDO) Estilos .is-printing (não são mais necessários) */
-/*
-body.is-printing > * {
-    display: none !important;
-}
-body.is-printing .printable-area {
-    display: block !important;
-    position: static !important;
-}
-*/
-
-/* 2. Estilos @media print (Agora usam a classe .printing-now) */
 @media print {
     /* Garante que o body não tenha margens */
     body, html {
@@ -217,15 +205,21 @@ body.is-printing .printable-area {
         background: none !important;
     }
 
-    /* (NOVA REGRA 1) Esconde TUDO no body. */
-    body > * {
+    /* * (REGRA 1 - MODIFICADA)
+     * Quando o body tiver a classe 'printing-mode', esconde
+     * TUDO que for filho direto dele.
+     */
+    body.printing-mode > * {
         display: none !important;
     }
     
-    /* (NOVA REGRA 2) MOSTRA APENAS o backdrop que o JS marcou com .printing-now.
-       Esta regra reseta o backdrop .printable-area que tem a classe .printing-now
-    */
-    body > .printing-now {
+    /* * (REGRA 2 - MODIFICADA)
+     * MOSTRA APENAS o elemento .printable-area que TAMBÉM
+     * tem .printing-now, ONDE QUER QUE ELE ESTEJA (sem o >).
+     * Isso o força a aparecer, mesmo que seu pai (como o #mobile-browser-wrapper)
+     * esteja escondido pela REGRA 1.
+     */
+    body.printing-mode .printable-area.printing-now {
         /* Remove o 'fixed', 'inset-0' e 'z-50' do modal */
         position: static !important;
         width: 100% !important;
@@ -240,7 +234,7 @@ body.is-printing .printable-area {
         display: block !important;
     }
 
-    /* (NOVA REGRA 3) Reseta o .modal-content DENTRO do backdrop visível */
+    /* (REGRA 3 - Inalterada) Reseta o .modal-content DENTRO do backdrop visível */
     .printing-now .modal-content {
         transform: none !important;
         opacity: 1 !important;
@@ -254,16 +248,12 @@ body.is-printing .printable-area {
         display: block !important;
     }
 
-    /* (NOVA REGRA 4) Esconde elementos .no-print DENTRO do backdrop visível */
+    /* (REGRA 4 - Inalterada) Esconde elementos .no-print DENTRO do backdrop visível */
     .printing-now .no-print, .printing-now .no-print * {
         display: none !important;
     }
 
-    /* (REMOVIDA) A regra genérica .printing-content foi removida. */
-    /* (REMOVIDA) A regra 'body * { visibility: hidden }' foi removida. */
-
-
-    /* (NOVA REGRA 5) Remove padding do conteúdo DENTRO do backdrop visível */
+    /* (REGRA 5 - Inalterada) Remove padding do conteúdo DENTRO do backdrop visível */
     .printing-now #occurrence-record-content,
     .printing-now #notification-content,
     .printing-now #report-view-content,
@@ -315,4 +305,3 @@ body.is-printing .printable-area {
         margin: 1cm;
     }
 }
-
