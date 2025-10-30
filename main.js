@@ -2,12 +2,17 @@
 // ARQUIVO: main.js (REFATORADO)
 // RESPONSABILIDADE: Ponto de entrada, autenticação, gerenciamento de estado
 // de alto nível (troca de abas) e inicialização dos módulos de funcionalidade.
+//
+// ATUALIZAÇÃO (IMPRESSÃO):
+// 1. Adicionada a função `handlePrintClick` para preparar o DOM antes de imprimir.
+// 2. Modificada `setupModalCloseButtons` para usar `handlePrintClick` nos
+//    botões de impressão, resolvendo o bug das páginas em branco.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
 
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { onSnapshot, query, writeBatch, doc, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebase/auth";
+import { onSnapshot, query, writeBatch, doc, where, getDocs } from "https://www.gstatic.com/firebase/firestore";
 import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, shareContent, openModal, loadScript } from './utils.js';
@@ -175,6 +180,58 @@ async function handleDeleteConfirmation() {
     } catch (error) { showToast('Erro ao excluir.'); console.error(error); } finally { state.recordToDelete = null; closeModal(dom.deleteConfirmModal); }
 }
 
+
+// ==============================================================================
+// --- NOVA LÓGICA DE IMPRESSÃO (JavaScript Híbrido) ---
+// ==============================================================================
+
+/**
+ * Prepara o DOM para impressão e limpa depois.
+ * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
+ * (ex: 'notification-content', 'report-view-content').
+ */
+function handlePrintClick(contentElementId) {
+    const contentElement = document.getElementById(contentElementId);
+    if (!contentElement) {
+        console.error("Elemento de impressão não encontrado:", contentElementId);
+        showToast("Erro ao preparar documento para impressão.");
+        return;
+    }
+
+    // 1. Adiciona classes de preparação ao body e ao conteúdo
+    document.body.classList.add('is-printing');
+    contentElement.classList.add('printing-content');
+
+    // 2. Define a função de limpeza
+    const cleanupAfterPrint = () => {
+        document.body.classList.remove('is-printing');
+        contentElement.classList.remove('printing-content');
+        // Remove o próprio listener para não acumular
+        window.removeEventListener('afterprint', cleanupAfterPrint);
+    };
+
+    // 3. Adiciona o listener para limpar *depois* da impressão
+    window.addEventListener('afterprint', cleanupAfterPrint);
+
+    // 4. Chama a impressão
+    try {
+        window.print();
+        
+        // Fallback: Se 'afterprint' não disparar (ex: usuário cancela),
+        // um timeout curto pode remover as classes,
+        // embora 'afterprint' seja o ideal.
+        // Vamos confiar no 'afterprint' por enquanto para evitar
+        // remover as classes *antes* da janela de impressão abrir.
+        
+    } catch (e) {
+        console.error("Erro ao chamar window.print():", e);
+        showToast("Não foi possível abrir a janela de impressão.");
+        // Se falhar, limpa imediatamente
+        cleanupAfterPrint();
+    }
+}
+
+
 // --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
 
 function setupModalCloseButtons() {
@@ -193,23 +250,38 @@ function setupModalCloseButtons() {
         'close-settings-modal-btn': dom.settingsModal,
         'cancel-settings-btn': dom.settingsModal,
         'close-follow-up-modal-btn': dom.followUpModal,
-        'cancel-follow-up-btn': dom.followUpModal
+        'cancel-follow-up-btn': dom.followUpModal,
+        // (NOVO) Modais do fluxo Enviar ao CT
+        'close-send-ct-modal-btn': dom.sendOccurrenceCtModal,
+        'cancel-send-ct-modal-btn': dom.sendOccurrenceCtModal,
     };
+    
     for (const [id, modal] of Object.entries(modalMap)) {
         const button = document.getElementById(id);
         if (button && modal) {
+            // Remove listener antigo para evitar duplicatas
             const oldListener = button.__clickListener;
             if (oldListener) button.removeEventListener('click', oldListener);
+            
+            // Adiciona novo listener
             const newListener = () => closeModal(modal);
             button.addEventListener('click', newListener);
-            button.__clickListener = newListener;
+            button.__clickListener = newListener; // Armazena referência para remoção futura
+            
             if (button.hasAttribute('onclick')) button.removeAttribute('onclick');
         }
     }
+    
+    // --- ATUALIZAÇÃO DOS BOTÕES DE SHARE E PRINT ---
+    
+    // Botões de Share (Partilhar)
     document.getElementById('share-btn').addEventListener('click', () => shareContent(document.getElementById('notification-title').textContent, document.getElementById('notification-content').innerText));
     document.getElementById('report-share-btn').addEventListener('click', () => shareContent(document.getElementById('report-view-title').textContent, document.getElementById('report-view-content').innerText));
     document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
-    document.getElementById('print-btn').addEventListener('click', () => window.print());
-    document.getElementById('report-print-btn').addEventListener('click', () => window.print());
-    document.getElementById('ficha-print-btn').addEventListener('click', () => window.print());
+
+    // Botões de Impressão (AGORA USAM A NOVA FUNÇÃO HÍBRIDA)
+    document.getElementById('print-btn').addEventListener('click', () => handlePrintClick('notification-content'));
+    document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
+    document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
+
