@@ -3,10 +3,10 @@
 // RESPONSABILIDADE: Ponto de entrada, autenticação, gerenciamento de estado
 // de alto nível (troca de abas) e inicialização dos módulos de funcionalidade.
 //
-// ATUALIZAÇÃO (IMPRESSÃO):
-// 1. Adicionada a função `handlePrintClick` para preparar o DOM antes de imprimir.
-// 2. Modificada `setupModalCloseButtons` para usar `handlePrintClick` nos
-//    botões de impressão, resolvendo o bug das páginas em branco.
+// ATUALIZAÇÃO (IMPRESSÃO - CORREÇÃO):
+// 1. Simplificada a função `handlePrintClick` para APENAS chamar `window.print()`.
+// 2. Removida a lógica de manipulação de classes ('.is-printing') e o
+//    listener 'afterprint', delegando toda a lógica de impressão para o CSS.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -182,7 +182,7 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- NOVA LÓGICA DE IMPRESSÃO (JavaScript Híbrido) ---
+// --- LÓGICA DE IMPRESSÃO CORRIGIDA (JavaScript Simplificado) ---
 // ==============================================================================
 
 /**
@@ -198,22 +198,17 @@ function handlePrintClick(contentElementId) {
         return;
     }
 
-    // 1. Adiciona classes de preparação ao body e ao conteúdo
-    document.body.classList.add('is-printing');
-    contentElement.classList.add('printing-content');
+    // 1. (REMOVIDO) Não adiciona mais classes ao body ou ao conteúdo.
+    // document.body.classList.add('is-printing');
+    // contentElement.classList.add('printing-content');
 
-    // 2. Define a função de limpeza
-    const cleanupAfterPrint = () => {
-        document.body.classList.remove('is-printing');
-        contentElement.classList.remove('printing-content');
-        // Remove o próprio listener para não acumular
-        window.removeEventListener('afterprint', cleanupAfterPrint);
-    };
+    // 2. (REMOVIDO) A função de limpeza não é mais necessária para este fluxo.
+    // const cleanupAfterPrint = () => { ... };
 
-    // 3. Adiciona o listener para limpar *depois* da impressão
-    window.addEventListener('afterprint', cleanupAfterPrint);
+    // 3. (REMOVIDO) O listener 'afterprint' não é mais necessário.
+    // window.addEventListener('afterprint', cleanupAfterPrint);
 
-    // 4. Chama a impressão
+    // 4. Apenas chama a impressão. O CSS fará o resto.
     try {
         window.print();
         
@@ -226,8 +221,7 @@ function handlePrintClick(contentElementId) {
     } catch (e) {
         console.error("Erro ao chamar window.print():", e);
         showToast("Não foi possível abrir a janela de impressão.");
-        // Se falhar, limpa imediatamente
-        cleanupAfterPrint();
+        // (REMOVIDO) cleanupAfterPrint();
     }
 }
 
@@ -279,9 +273,8 @@ function setupModalCloseButtons() {
     document.getElementById('report-share-btn').addEventListener('click', () => shareContent(document.getElementById('report-view-title').textContent, document.getElementById('report-view-content').innerText));
     document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
 
-    // Botões de Impressão (AGORA USAM A NOVA FUNÇÃO HÍBRIDA)
+    // Botões de Impressão (AGORA USAM A NOVA FUNÇÃO SIMPLIFICADA)
     document.getElementById('print-btn').addEventListener('click', () => handlePrintClick('notification-content'));
     document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
-
