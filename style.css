@@ -194,11 +194,12 @@ tbody tr:nth-child(even) {
 }
 
 /* ============================================================================== */
-/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO v6 - Abordagem Híbrida JS+CSS)       */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO - Abordagem CSS Pura)               */
 /* ============================================================================== */
 
-/* 1. Estilos aplicados quando o JS adiciona a classe .is-printing */
+/* 1. (REMOVIDO) Estilos aplicados quando o JS adiciona a classe .is-printing */
 /* Esconde tudo, exceto a área de impressão */
+/*
 body.is-printing > * {
     display: none !important;
 }
@@ -206,8 +207,9 @@ body.is-printing .printable-area {
     display: block !important;
     position: static !important;
 }
+*/
 
-/* 2. Estilos específicos para @media print */
+/* 2. Estilos específicos para @media print (A ÚNICA FONTE DA VERDADE) */
 @media print {
     /* Garante que o body não tenha margens */
     body, html {
@@ -216,35 +218,53 @@ body.is-printing .printable-area {
         background: none !important;
     }
 
-    /* Mesmo com o JS, usamos a lógica de visibilidade como fallback.
-      Esconde tudo no body por padrão.
+    /* (NOVA REGRA 1) Esconde TUDO que está diretamente no <body>, 
+       EXCETO os backdrops dos modais que marcamos como .printable-area.
     */
-    body * {
-        visibility: hidden !important;
+    body > *:not(.printable-area) {
+        display: none !important;
     }
     
-    /* Mostra APENAS o conteúdo marcado com .printing-content (que o JS adicionou)
-      e todos os seus filhos.
-    */
-    .printing-content, .printing-content * {
-        visibility: visible !important;
-        background: none !important;
+    /* (NOVA REGRA 2) Esconde elementos indesejados DENTRO do modal */
+    .no-print, .no-print * {
+        display: none !important;
     }
 
-    /* "Levanta" o conteúdo de impressão para o topo da página,
-      removendo-o de qualquer fluxo de layout residual.
-    */
-    .printing-content {
-        position: absolute !important;
-        left: 0 !important;
-        top: 0 !important;
+    /* (NOVA REGRA 3) Reseta o modal de impressão (o backdrop .printable-area) */
+    .printable-area {
+        /* Remove o 'fixed', 'inset-0' e 'z-50' do modal */
+        position: static !important;
         width: 100% !important;
-        margin: 0 !important;
-        padding: 1cm !important; /* Adiciona a margem de impressão aqui */
-        box-sizing: border-box !important;
+        height: auto !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        /* Remove transições e opacidade */
+        opacity: 1 !important; 
+        transform: none !important;
+        background: none !important; /* Remove o fundo escuro do backdrop */
+        /* Remove o flex-box de centralização */
+        display: block !important;
     }
 
-    /* Como o PAI (.printing-content) já tem o padding de 1cm,
+    /* (NOVA REGRA 4) Reseta o container do conteúdo do modal (o '.modal-content') */
+    .printable-area .modal-content {
+        transform: none !important;
+        opacity: 1 !important;
+        box-shadow: none !important;
+        border: none !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: none !important; /* Garante que não corte o conteúdo */
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
+    }
+
+    /* (REMOVIDAS) As regras antigas de 'visibility' e 'position: absolute'
+       para .printing-content foram removidas.
+    */
+
+    /* Como o PAI (.printable-area) já está resetado,
        removemos o padding original dos filhos para evitar margem dupla.
     */
     #occurrence-record-content,
@@ -254,19 +274,11 @@ body.is-printing .printable-area {
         padding: 0 !important;
     }
 
-    /* Esconde novamente qualquer coisa marcada como .no-print DENTRO 
-       do conteúdo visível (botões, etc.).
-    */
-    .no-print, .no-print * {
-        display: none !important;
-        visibility: hidden !important;
-    }
-
-    /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO --- */
+    /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO (Mantidos) --- */
     
     /* Bloco de assinaturas (garante visibilidade e formatação) */
     .signature-block, .signature-block * {
-        visibility: visible !important;
+        /* visibility: visible !important; */ /* Não mais necessário */
         display: block !important;
     }
     
@@ -306,4 +318,3 @@ body.is-printing .printable-area {
         margin: 1cm;
     }
 }
-
