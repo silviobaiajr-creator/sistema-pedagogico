@@ -24,7 +24,7 @@ import {
     generateAndShowOccurrenceOficio,
     openIndividualNotificationModal // Importa a função direta
 } from './reports.js';
-import { writeBatch, doc, collection, query, where, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { writeBatch, doc, collection, query, where, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 
 // Mapeia o tipo de ação para o título do modal
