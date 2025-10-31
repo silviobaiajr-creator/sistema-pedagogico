@@ -215,6 +215,11 @@ body.is-printing .printable-area {
         margin: 0 !important;
         padding: 0 !important;
         background: none !important;
+        /* --- NOVA CORREÇÃO (ANTI-ANIMAÇÃO) --- */
+        /* Remove transições que podem atrasar a renderização no mobile */
+        transition: none !important; 
+        animation: none !important;
+        /* --- FIM DA CORREÇÃO --- */
     }
 
     /* (NOVA REGRA 1) Esconde TUDO no body. */
@@ -233,21 +238,21 @@ body.is-printing .printable-area {
         overflow: visible !important;
         padding: 0 !important;
         /* Remove transições e opacidade */
-        transition: none !important; /* <-- CORREÇÃO ADICIONADA */
-        animation: none !important; /* <-- CORREÇÃO ADICIONADA */
         opacity: 1 !important; 
         transform: none !important;
         background: none !important; /* Remove o fundo escuro do backdrop */
         /* Remove o flex-box de centralização */
         display: block !important;
+        /* --- NOVA CORREÇÃO (ANTI-ANIMAÇÃO) --- */
+        transition: none !important;
+        animation: none !important;
+        /* --- FIM DA CORREÇÃO --- */
     }
 
     /* (NOVA REGRA 3) Reseta o .modal-content DENTRO do backdrop visível */
     .printing-now .modal-content {
         transform: none !important;
         opacity: 1 !important;
-        transition: none !important; /* <-- CORREÇÃO ADICIONADA */
-        animation: none !important; /* <-- CORREÇÃO ADICIONADA */
         box-shadow: none !important;
         border: none !important;
         width: 100% !important;
@@ -256,6 +261,10 @@ body.is-printing .printable-area {
         margin: 0 !important;
         padding: 0 !important;
         display: block !important;
+        /* --- NOVA CORREÇÃO (ANTI-ANIMAÇÃO) --- */
+        transition: none !important;
+        animation: none !important;
+        /* --- FIM DA CORREÇÃO --- */
     }
 
     /* (NOVA REGRA 4) Esconde elementos .no-print DENTRO do backdrop visível */
