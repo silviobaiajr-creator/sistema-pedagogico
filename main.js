@@ -215,30 +215,42 @@ function handlePrintClick(contentElementId) {
     // 2. Define a função de limpeza
     const cleanupAfterPrint = () => {
         printableBackdrop.classList.remove('printing-now');
-        // Remove o próprio listener para não acumular
-        window.removeEventListener('afterprint', cleanupAfterPrint);
+        // REMOVIDO: window.removeEventListener('afterprint', cleanupAfterPrint);
     };
 
-    // 3. Adiciona o listener para limpar *depois* da impressão
-    window.addEventListener('afterprint', cleanupAfterPrint);
+    // 3. REMOVIDO: window.addEventListener('afterprint', cleanupAfterPrint);
 
-    // 4. Chama a impressão
+    // 4. Chama a impressão com a nova lógica (sem afterprint)
     try {
         // ==================================================================
-        // INÍCIO DA CORREÇÃO (MOBILE RACE CONDITION)
+        // INÍCIO DA NOVA CORREÇÃO (Sem 'afterprint')
         // ==================================================================
-        // Envolve window.print() em um setTimeout de 0ms.
-        // Isso força o navegador (especialmente mobile) a processar a
-        // adição da classe 'printing-now' ANTES de executar a impressão.
+        
+        // Passo A: Espera 150ms para o navegador aplicar a classe .printing-now
         setTimeout(() => {
-            window.print();
-        }, 100); // 0ms é suficiente para enviar para a próxima fila de eventos
+            try {
+                // Passo B: Chama a impressão. O JS vai "pausar" aqui.
+                window.print();
+            
+                // Passo C: O JS "descongela" aqui (depois de imprimir ou cancelar).
+                // Agenda a limpeza para rodar logo em seguida.
+                // Usamos 500ms como um "cooldown" seguro para o navegador.
+                setTimeout(cleanupAfterPrint, 500); 
+
+            } catch (printError) {
+                // Se o window.print() falhar, limpa imediatamente.
+                console.error("Erro durante a chamada window.print():", printError);
+                showToast("Não foi possível abrir a janela de impressão.");
+                cleanupAfterPrint(); // Limpa se a impressão falhar
+            }
+        }, 150); // 150ms de espera (aumentado de 100)
         // ==================================================================
-        // FIM DA CORREÇÃO
+        // FIM DA NOVA CORREÇÃO
         // ==================================================================
         
     } catch (e) {
-        console.error("Erro ao chamar window.print():", e);
+        // Este catch externo pega erros síncronos (raro)
+        console.error("Erro ao preparar a impressão:", e);
         showToast("Não foi possível abrir a janela de impressão.");
         // Se falhar, limpa imediatamente
         cleanupAfterPrint();
@@ -298,3 +310,4 @@ function setupModalCloseButtons() {
     document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
+
