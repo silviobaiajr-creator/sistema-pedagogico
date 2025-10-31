@@ -8,18 +8,6 @@
 // 2. Isso corrige um bug em navegadores mobile (race condition) onde a
 //    janela de impressão era chamada ANTES do navegador aplicar a classe
 //    'printing-now', resultando em uma página em branco.
-//
-// ATUALIZAÇÃO (IMPRESSÃO - CONTROLES DE LAYOUT):
-// 1. A função handlePrintClick foi atualizada para ler os novos seletores
-//    de Margem e Espaçamento.
-// 2. A função agora injeta uma tag <style> dinâmica no <head> com as
-//    regras @page e line-height antes de imprimir.
-// 3. A função de limpeza (cleanupAfterPrint) remove essas regras.
-//
-// ATUALIZAÇÃO (IMPRESSÃO - CORREÇÃO afterprint):
-// 1. Removida a dependência do evento 'afterprint', que é instável no mobile.
-// 2. A limpeza agora é chamada em um setTimeout *após* a chamada bloqueante
-//    de window.print().
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -160,7 +148,7 @@ function switchTab(tabName) {
     dom.tabOccurrences.classList.toggle('tab-active', isOccurrences);
     dom.tabAbsences.classList.toggle('tab-active', !isOccurrences);
     dom.tabContentOccurrences.classList.toggle('hidden', !isOccurrences);
-    dom.tabContentAbsences.classList.toggle('hidden', !isOccurrences);
+    dom.tabContentAbsences.classList.toggle('hidden', isOccurrences);
     render(); // O render do ui.js vai decidir qual função específica chamar
 }
 
@@ -220,46 +208,6 @@ function handlePrintClick(contentElementId) {
          return;
     }
 
-    // --- INÍCIO DA NOVA LÓGICA: Ler Opções de Layout ---
-    const marginSelect = printableBackdrop.querySelector('.print-options-margin');
-    const spacingSelect = printableBackdrop.querySelector('.print-options-spacing');
-
-    const marginValue = marginSelect ? marginSelect.value : 'narrow';
-    const spacingValue = spacingSelect ? spacingSelect.value : 'compact';
-
-    // Mapeia os valores para CSS
-    let marginCSS = '1.27cm'; // Padrão Estreita
-    if (marginValue === 'normal') marginCSS = '2cm';
-    if (marginValue === 'wide') marginCSS = '2.54cm';
-
-    let spacingCSS = '1.15'; // Padrão Compacto
-    if (spacingValue === 'normal') spacingCSS = '1.5';
-    if (spacingValue === 'single') spacingCSS = '1.0';
-
-    // Injeta a tag de estilo
-    const styleTagId = 'dynamic-print-style';
-    let styleTag = document.getElementById(styleTagId);
-    if (!styleTag) {
-        styleTag = document.createElement('style');
-        styleTag.id = styleTagId;
-        document.head.appendChild(styleTag);
-    }
-    
-    // Aplica as regras de impressão dinâmicas
-    // (O seletor [id$="-content"] aplica-se a 'notification-content', 'report-view-content', etc.)
-    styleTag.innerHTML = `
-        @media print {
-            @page {
-                margin: ${marginCSS} !important;
-            }
-            body > .printing-now .modal-content div[id$="-content"] {
-                line-height: ${spacingCSS} !important;
-            }
-        }
-    `;
-    // --- FIM DA NOVA LÓGICA ---
-
-
     // 1. Adiciona classe específica ('printing-now')
     //    APENAS ao backdrop do modal que queremos imprimir.
     printableBackdrop.classList.add('printing-now');
@@ -267,50 +215,42 @@ function handlePrintClick(contentElementId) {
     // 2. Define a função de limpeza
     const cleanupAfterPrint = () => {
         printableBackdrop.classList.remove('printing-now');
-        
-        // Limpa as regras de estilo injetadas
-        const styleTag = document.getElementById(styleTagId);
-        if (styleTag) {
-            styleTag.innerHTML = '';
-        }
-        console.log("Print cleanup complete.");
+        // REMOVIDO: window.removeEventListener('afterprint', cleanupAfterPrint);
     };
 
-    // 3. Adiciona o listener para limpar *depois* da impressão (REMOVIDO)
-    // window.addEventListener('afterprint', cleanupAfterPrint); // REMOVIDO: Não confiável no mobile
+    // 3. REMOVIDO: window.addEventListener('afterprint', cleanupAfterPrint);
 
-    // 4. Chama a impressão
+    // 4. Chama a impressão com a nova lógica (sem afterprint)
     try {
         // ==================================================================
-        // INÍCIO DA CORREÇÃO (MOBILE RACE CONDITION)
+        // INÍCIO DA NOVA CORREÇÃO (Sem 'afterprint')
         // ==================================================================
-        // Envolve window.print() em um setTimeout de 150ms.
-        // Isso força o navegador (especialmente mobile) a processar a
-        // adição da classe 'printing-now' E a injeção da <style>
-        // ANTES de executar a impressão.
+        
+        // Passo A: Espera 150ms para o navegador aplicar a classe .printing-now
         setTimeout(() => {
+            try {
+                // Passo B: Chama a impressão. O JS vai "pausar" aqui.
+                window.print();
             
-            window.print(); // Esta chamada "congela" o JavaScript aqui
+                // Passo C: O JS "descongela" aqui (depois de imprimir ou cancelar).
+                // Agenda a limpeza para rodar logo em seguida.
+                // Usamos 500ms como um "cooldown" seguro para o navegador.
+                setTimeout(cleanupAfterPrint, 500); 
 
-            // ==================================================================
-            // INÍCIO DA CORREÇÃO (AFTERPRINT)
-            // ==================================================================
-            // Quando o JS "descongela" (após fechar a impressão),
-            // agendamos a limpeza. Não usamos 'afterprint'.
-            // Usamos um cooldown de 500ms para garantir que o navegador
-            // "voltou" ao normal antes de removermos as classes.
-            setTimeout(cleanupAfterPrint, 500);
-            // ==================================================================
-            // FIM DA CORREÇÃO (AFTERPRINT)
-            // ==================================================================
-            
-        }, 150); // 150ms de espera (um pouco mais que 100ms para garantir)
+            } catch (printError) {
+                // Se o window.print() falhar, limpa imediatamente.
+                console.error("Erro durante a chamada window.print():", printError);
+                showToast("Não foi possível abrir a janela de impressão.");
+                cleanupAfterPrint(); // Limpa se a impressão falhar
+            }
+        }, 150); // 150ms de espera (aumentado de 100)
         // ==================================================================
-        // FIM DA CORREÇÃO (MOBILE RACE CONDITION)
+        // FIM DA NOVA CORREÇÃO
         // ==================================================================
         
     } catch (e) {
-        console.error("Erro ao chamar window.print():", e);
+        // Este catch externo pega erros síncronos (raro)
+        console.error("Erro ao preparar a impressão:", e);
         showToast("Não foi possível abrir a janela de impressão.");
         // Se falhar, limpa imediatamente
         cleanupAfterPrint();
@@ -370,4 +310,3 @@ function setupModalCloseButtons() {
     document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
-
