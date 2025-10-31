@@ -174,13 +174,13 @@ export const openIndividualNotificationModal = (incident, student) => {
                 <p><strong>Horário:</strong> ${formatTime(data.meetingTime)}</p>
             </div>
 
-            <div class="border-t pt-16 mt-16">
+            <div class="border-t pt-8 mt-8">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="text-center mt-1">Ciente do Responsável</p>
                 </div>
             </div>
-             <div class="border-t pt-16 mt-16">
+             <div class="border-t pt-8 mt-8">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="text-center mt-1">Assinatura da Gestão Escolar</p>
@@ -291,7 +291,7 @@ export const openOccurrenceRecordModal = async (groupId) => {
                 </div>
             </div>
 
-            <div class="signature-block pt-16 mt-16 space-y-12">
+            <div class="signature-block pt-8 mt-8 space-y-12">
                 <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do(s) Responsável(is)</p></div>
                 <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do(s) Aluno(s)</p></div>
                 <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Assinatura da Gestão Escolar</p></div>
@@ -445,13 +445,13 @@ export const openFichaViewModal = (id) => {
                 <p><strong>Contato:</strong> ${formatText(student.contato)}</p>
             </div>
             <div class="text-justify">${body}</div>
-            <div class="border-t pt-16 mt-16">
+            <div class="border-t pt-8 mt-8">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="text-center mt-1">Ciente do Responsável</p>
                 </div>
             </div>
-             <div class="border-t pt-16 mt-16">
+             <div class="border-t pt-8 mt-8">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="text-center mt-1">Assinatura da Gestão Escolar</p>
