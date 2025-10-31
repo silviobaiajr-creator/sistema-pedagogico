@@ -293,8 +293,8 @@ body.is-printing .printable-area {
     }
     
     .signature-block {
-        page-break-inside: avoid;
-        margin-top: 4rem !important;
+        page-break-inside: avoid !important; /* CORREÇÃO: Adicionado !important */
+        margin-top: 2.5rem !important; /* CORREÇÃO: Reduzido de 4rem (mt-16) para 2.5rem (mt-10) */
     }
     
     .signature-line {
@@ -302,7 +302,8 @@ body.is-printing .printable-area {
         flex-direction: column !important;
         align-items: center !important;
         width: 60% !important;
-        margin: 2rem auto 0 auto !important;
+        margin: 1.5rem auto 0 auto !important; /* CORREÇÃO: Reduzido de 2rem (mt-8) para 1.5rem (mt-6) */
+        page-break-inside: avoid !important; /* CORREÇÃO: Adicionado !important */
     }
 
     .signature-text {
