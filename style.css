@@ -195,7 +195,6 @@ tbody tr:nth-child(even) {
 
 /* ============================================================================== */
 /* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO - Abordagem Híbrida Definitiva)    */
-/* (INÍCIO DA SEÇÃO CORRIGIDA)                                                    */
 /* ============================================================================== */
 
 /* 1. (REMOVIDO) Estilos .is-printing (não são mais necessários) */
@@ -250,31 +249,23 @@ body.is-printing .printable-area {
         /* --- FIM DA CORREÇÃO --- */
     }
 
-    /* ========================================================================== */
-    /* *** INÍCIO DA CORREÇÃO (Layout Comprimido) *** */
-    /* ========================================================================== */
-    /* (REGRA 3 - CORRIGIDA) Reseta o .modal-content com ALTA ESPECIFICIDADE */
-    /* Usamos os IDs dos backdrops para garantir que esta regra vença o max-w-3xl do Tailwind */
-    #notification-modal-backdrop.printing-now .modal-content,
-    #report-view-modal-backdrop.printing-now .modal-content,
-    #ficha-view-modal-backdrop.printing-now .modal-content {
+    /* (NOVA REGRA 3) Reseta o .modal-content DENTRO do backdrop visível */
+    .printing-now .modal-content {
         transform: none !important;
         opacity: 1 !important;
         box-shadow: none !important;
         border: none !important;
         width: 100% !important;
-        max-width: 100% !important; /* Agora deve funcionar */
+        max-width: 100% !important;
         max-height: none !important;
         margin: 0 !important;
         padding: 0 !important;
         display: block !important;
+        /* --- NOVA CORREÇÃO (ANTI-ANIMAÇÃO) --- */
         transition: none !important;
         animation: none !important;
+        /* --- FIM DA CORREÇÃO --- */
     }
-    /* ========================================================================== */
-    /* *** FIM DA CORREÇÃO (Layout Comprimido) *** */
-    /* ========================================================================== */
-
 
     /* (NOVA REGRA 4) Esconde elementos .no-print DENTRO do backdrop visível */
     .printing-now .no-print, .printing-now .no-print * {
@@ -285,22 +276,13 @@ body.is-printing .printable-area {
     /* (REMOVIDA) A regra 'body * { visibility: hidden }' foi removida. */
 
 
-    /* ========================================================================== */
-    /* *** INÍCIO DA CORREÇÃO (Layout 2 Páginas) *** */
-    /* ========================================================================== */
-    /* (REGRA 5 - CORRIGIDA) Remove padding e overflow do conteúdo interno */
-    /* O ID 'occurrence-record-content' não existe, usamos os IDs corretos. */
+    /* (NOVA REGRA 5) Remove padding do conteúdo DENTRO do backdrop visível */
+    .printing-now #occurrence-record-content,
     .printing-now #notification-content,
     .printing-now #report-view-content,
     .printing-now #ficha-view-content {
         padding: 0 !important;
-        overflow: visible !important;  /* <-- ADICIONADO: Corrige quebra de página */
-        max-height: none !important; /* <-- ADICIONADO: Garante que não seja cortado */
     }
-    /* ========================================================================== */
-    /* *** FIM DA CORREÇÃO (Layout 2 Páginas) *** */
-    /* ========================================================================== */
-
 
     /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO (Mantidos do original) --- */
     
