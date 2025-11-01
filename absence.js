@@ -12,6 +12,10 @@
 //    bloco "Ações" (Avançar, Editar, Limpar, etc.).
 // 5. Adicionados botões "Avançar Etapa", "Editar Ação" e "Limpar Ação"
 //    para consistência com o fluxo de Ocorrências.
+//
+// CORREÇÃO (BUG DO BOTÃO - 01/11/2025):
+// 1. (setupAbsenceAutocomplete) Corrigida referência para usar `dom.searchAbsences`.
+// 2. (initAbsenceListeners) Corrigida referência para usar `dom.generalBaReportBtn`.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -74,7 +78,8 @@ const getDateInputForActionType = (actionType) => {
  * Configura o autocomplete para a barra de busca da Busca Ativa.
  */
 const setupAbsenceAutocomplete = () => {
-    const input = document.getElementById('search-absences');
+    // --- CORREÇÃO: Usar dom.searchAbsences em vez de document.getElementById ---
+    const input = dom.searchAbsences; // document.getElementById('search-absences');
     const suggestionsContainer = document.getElementById('absence-student-suggestions');
     
     input.addEventListener('input', () => {
@@ -1213,7 +1218,10 @@ function handleDeleteAbsence(id) {
  */
 export const initAbsenceListeners = () => {
     // Relatório Geral
-    document.getElementById('general-ba-report-btn').addEventListener('click', generateAndShowBuscaAtivaReport);
+    // --- CORREÇÃO: Usar dom.generalBaReportBtn em vez de document.getElementById ---
+    if (dom.generalBaReportBtn) {
+        dom.generalBaReportBtn.addEventListener('click', generateAndShowBuscaAtivaReport);
+    }
 
     // Filtros
     document.getElementById('filter-process-status').addEventListener('change', (e) => { state.filtersAbsences.processStatus = e.target.value; renderAbsences(); });
@@ -1311,3 +1319,4 @@ export const initAbsenceListeners = () => {
 // =================================================================================
 // --- FIM DA REESCRITA (initAbsenceListeners) ---
 // =================================================================================
+
