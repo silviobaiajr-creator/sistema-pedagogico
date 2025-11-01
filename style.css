@@ -5,6 +5,8 @@
 /* para melhorar a usabilidade e organização dos botões.                          */
 /* ATUALIZAÇÃO (PAPÉIS - 29/10/2025): Adicionados estilos para o painel de seleção */
 /* de papel inline, dropdown de edição de papel e ajustes nas tags.               */
+/* ATUALIZAÇÃO (V4 - ACORDEÃO OCORRÊNCIAS - 01/11/2025): Adicionados estilos       */
+/* para o novo layout de acordeão de alunos na aba Ocorrências.                   */
 /* ============================================================================== */
 
 /* --- ESTILOS GERAIS E FONTES --- */
@@ -133,6 +135,34 @@ tbody tr:nth-child(even) {
     overflow: hidden;
     transition: max-height 0.4s ease-in-out;
 }
+
+/* ============================================================================== */
+/* --- (NOVO - V4 Acordeão Ocorrências) --- */
+/* Estilos para o novo layout de acordeão de alunos em Ocorrências. */
+/* A classe .process-content acima já se aplica ao conteúdo. */
+
+.occurrence-summary {
+    list-style: none; /* Remove o marcador padrão do <summary> */
+    /* O cursor-pointer e hover:bg-indigo-50 são aplicados via Tailwind no JS */
+}
+.occurrence-summary::-webkit-details-marker {
+    display: none; /* Remove o marcador padrão (Safari) */
+}
+/* A transição do ícone de seta já é aplicada via Tailwind (transition-transform duration-300) */
+/* .occurrence-summary .fa-chevron-down { */
+    /* transition: transform 0.3s ease-in-out; */
+/* } */
+
+/* Garante que o conteúdo de dropdowns dentro do acordeão (ex: Kebab) não seja cortado */
+/* Esta regra é aplicada via JS (style.overflow = 'visible') quando o acordeão é aberto */
+/*
+details[open] .process-content {
+    overflow: visible;
+}
+*/
+/* --- FIM NOVO (V4) --- */
+/* ============================================================================== */
+
 
 /* --- BOTÕES DE AÇÃO E NOVO MENU KEBAB (Item 10) --- */
 .action-btn-main {
