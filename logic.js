@@ -4,6 +4,10 @@
 // ATUALIZAÇÃO (FLUXO V3):
 // 1. Adicionada a função `determineNextOccurrenceStep` para
 //    suportar o novo fluxo de etapas de ocorrências.
+//
+// ATUALIZAÇÃO (EDIÇÃO DE AÇÃO - 01/11/2025):
+// 1. Adicionadas `occurrencePreviousActionMap` e `determineCurrentActionFromStatus`
+//    para permitir a edição da última ação salva no fluxo de ocorrências.
 // =================================================================================
 
 import { state } from './state.js';
@@ -102,3 +106,43 @@ export const determineNextOccurrenceStep = (currentStatus) => {
     // Retorna a próxima ação com base no mapa, ou null se não houver (ex: 'Resolvido')
     return occurrenceNextActionMap[currentStatus] || null;
 };
+
+// --- (NOVO - Edição de Ação 01/11/2025) ---
+// Esta seção implementa a lógica para PERMITIR A EDIÇÃO
+// da última ação individual que o usuário salvou.
+// ==============================================================================
+
+// Mapeia o STATUS ATUAL para a AÇÃO ANTERIOR (a que acabou de ser salva)
+// Isso permite ao sistema saber qual tela abrir para edição.
+const occurrencePreviousActionMap = {
+    'Aguardando Convocação': null, // Não há ação anterior para editar (use "Editar Fato")
+    'Aguardando Contato': 'convocacao', // Ação 2 (convocacao) foi a última salva
+    'Aguardando Desfecho': 'contato_familia', // Ação 3 (contato_familia) foi a última salva
+    'Aguardando Devolutiva CT': 'desfecho_ou_ct', // Ação 4 (CT) foi a última salva
+    'Aguardando Parecer Final': 'devolutiva_ct', // Ação 5 (devolutiva_ct) foi a última salva
+    'Resolvido': 'parecer_final' // Ação 6 (parecer_final) foi a última salva
+};
+
+/**
+ * (NOVO - Edição) Determina qual ação deve ser aberta para EDIÇÃO
+ * com base no status individual atual.
+ * @param {string} currentStatus - O status atual (ex: 'Aguardando Contato').
+ * @returns {string|null} O tipo da ação para editar (ex: 'convocacao') ou null.
+ */
+export const determineCurrentActionFromStatus = (currentStatus) => {
+    if (!currentStatus) {
+        return null;
+    }
+    // Casos especiais para "Resolvido"
+    if (currentStatus === 'Resolvido') {
+        // Se o status for "Resolvido", a última ação foi o "parecer_final".
+        // O arquivo 'occurrence.js' irá refinar isso para saber se
+        // deve abrir a Ação 6 ou a Ação 4/6 (desfecho_ou_ct).
+        return 'parecer_final';
+    }
+    // Para todos os outros status, consulta o mapa.
+    // Ex: Se o status é 'Aguardando Contato', o mapa retorna 'convocacao',
+    // indicando que a Ação 2 (convocacao) é a que deve ser editada.
+    return occurrencePreviousActionMap[currentStatus] || null;
+};
+
