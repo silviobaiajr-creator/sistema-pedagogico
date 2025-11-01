@@ -8,6 +8,10 @@
 // ATUALIZAÇÃO (EDIÇÃO DE AÇÃO - 01/11/2025):
 // 1. Adicionadas `occurrencePreviousActionMap` e `determineCurrentActionFromStatus`
 //    para permitir a edição da última ação salva no fluxo de ocorrências.
+//
+// ATUALIZAÇÃO (RESET DE AÇÃO - 01/11/2025):
+// 1. Adicionado o mapa `occurrenceStepLogic` para definir as regras
+//    de "Rollback" (resetar uma etapa, limpando dados e revertendo o status).
 // =================================================================================
 
 import { state } from './state.js';
@@ -144,5 +148,48 @@ export const determineCurrentActionFromStatus = (currentStatus) => {
     // Ex: Se o status é 'Aguardando Contato', o mapa retorna 'convocacao',
     // indicando que a Ação 2 (convocacao) é a que deve ser editada.
     return occurrencePreviousActionMap[currentStatus] || null;
+};
+
+
+// --- (NOVO - Reset de Ação 01/11/2025) ---
+// Esta seção implementa a lógica para "Resetar" (Desfazer)
+// uma etapa, limpando os dados e revertendo o status em cascata.
+// ==============================================================================
+
+// Define quais campos do banco de dados devem ser limpos (setados para null)
+// e para qual status o processo deve reverter ao resetar uma etapa.
+// A lógica é CASCATA: resetar a Ação 3 também limpa os campos da 4, 5 e 6.
+const camposAcao6 = ['parecerFinal'];
+const camposAcao5 = ['ctFeedback', ...camposAcao6];
+const camposAcao4_6 = ['oficioNumber', 'oficioYear', 'ctSentDate', 'desfechoChoice', ...camposAcao5]; // 'parecerFinal' já está em camposAcao5
+const camposAcao3 = ['contactSucceeded', 'contactType', 'contactDate', 'providenciasFamilia', ...camposAcao4_6];
+const camposAcao2 = ['meetingDate', 'meetingTime', ...camposAcao3];
+
+export const occurrenceStepLogic = {
+    // Ação 2: Convocação
+    'convocacao': {
+        fieldsToClear: camposAcao2,
+        statusAfterReset: 'Aguardando Convocação' // Reverte para o status inicial
+    },
+    // Ação 3: Contato com Família
+    'contato_familia': {
+        fieldsToClear: camposAcao3,
+        statusAfterReset: 'Aguardando Contato' // Reverte para o status da Ação 2
+    },
+    // Ação 4/6: Desfecho (CT ou Parecer)
+    'desfecho_ou_ct': {
+        fieldsToClear: camposAcao4_6,
+        statusAfterReset: 'Aguardando Desfecho' // Reverte para o status da Ação 3
+    },
+    // Ação 5: Devolutiva do CT
+    'devolutiva_ct': {
+        fieldsToClear: camposAcao5,
+        statusAfterReset: 'Aguardando Devolutiva CT' // Reverte para o status da Ação 4
+    },
+    // Ação 6: Parecer Final (Pós-CT)
+    'parecer_final': {
+        fieldsToClear: camposAcao6,
+        statusAfterReset: 'Aguardando Parecer Final' // Reverte para o status da Ação 5
+    }
 };
 
