@@ -11,8 +11,14 @@
 // 3. O acordeão agora exibe um histórico resumido das etapas concluídas.
 // 4. A função `initOccurrenceListeners` foi atualizada para controlar a
 //    abertura/fechamento dos novos acordeões e os cliques nos botões internos.
-// 5. Todas as funções anteriores (handleEdit, handleReset, etc.) foram
-//    mantidas, apenas os seus "gatilhos" (botões) mudaram de lugar.
+//
+// CORREÇÃO (BUG DO ACORDEÃO - 01/11/2025):
+// 1. (renderOccurrences) Removidas as tags <details> e <summary>. Agora são
+//    usados <div>s, assim como em 'absence.js', para evitar conflitos
+//    de renderização com 'scrollHeight'.
+// 2. (initOccurrenceListeners) A lógica de clique do acordeão foi atualizada
+//    para controlar os <div>s (em vez de <summary>) e usar a lógica
+//    de 'isHidden' e 'maxHeight = null' de 'absence.js'.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -311,6 +317,8 @@ export const getFilteredOccurrences = () => {
 // =================================================================================
 // --- INÍCIO DA REESCRITA (renderOccurrences) ---
 // Função reescrita para usar o layout de acordeão (V4).
+// CORREÇÃO (01/11/2025): Trocado <details>/<summary> por <div>s para
+// corrigir o bug de 'scrollHeight' ser 0.
 // =================================================================================
 
 /**
@@ -387,7 +395,10 @@ export const renderOccurrences = () => {
                     <button type="button"
                             class="avancar-etapa-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100 ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
                             title="${isIndividualResolvido ? 'Processo individual finalizado' : `Avançar acompanhamento de ${student.name}`}"
-                            ${isIndividualResolvido ? 'disabled' : ''}>
+                            ${isIndividualResolvido ? 'disabled' : ''}
+                            data-group-id="${incident.id}"
+                            data-student-id="${student.matricula}"
+                            data-record-id="${recordId}">
                         <i class="fas fa-plus"></i> Avançar Etapa
                     </button>
                 `;
@@ -437,15 +448,18 @@ export const renderOccurrences = () => {
                         <i class="fas fa-undo-alt"></i> Limpar
                     </button>
                 `;
-
-                // 3. Monta o HTML do Acordeão (`<details>`)
+                
+                // --- (CORREÇÃO BUG ACORDEÃO) ---
+                // 3. Monta o HTML com <divs> em vez de <details>
+                // Adiciona um ID único ao conteúdo, baseado no recordId
+                const contentId = `occ-content-${recordId || student.matricula}`; // Usa matricula como fallback
+                
                 return `
-                    <details class="bg-gray-50 rounded-lg border border-gray-200"
-                             data-group-id="${incident.id}"
-                             data-student-id="${student.matricula}"
-                             data-record-id="${recordId}">
-                        <!-- Cabeçalho Visível (Summary) -->
-                        <summary class="occurrence-summary p-3 cursor-pointer hover:bg-indigo-50 flex justify-between items-center list-none">
+                    <div class="bg-gray-50 rounded-lg border border-gray-200">
+                        <!-- Cabeçalho Clicável (DIV, não <summary>) -->
+                        <div class="occurrence-summary p-3 cursor-pointer hover:bg-indigo-50 flex justify-between items-center"
+                             data-content-id="${contentId}">
+                            
                             <div class="flex items-center gap-2">
                                 <i class="${iconClass} fa-fw w-4 text-center" title="${role}"></i>
                                 <span class="${nameClass}">${student.name}</span>
@@ -453,10 +467,10 @@ export const renderOccurrences = () => {
                                 ${getStatusBadge(status)}
                             </div>
                             <i class="fas fa-chevron-down transition-transform duration-300 text-gray-400"></i>
-                        </summary>
+                        </div>
                         
                         <!-- Conteúdo Oculto (process-content) -->
-                        <div class="process-content" style="max-height: 0px; overflow: hidden;">
+                        <div id="${contentId}" class="process-content" style="max-height: 0px; overflow: hidden;">
                             <div class="p-3 border-t border-gray-200">
                                 <h5 class="text-xs font-bold uppercase text-gray-500 mb-2">Histórico Individual</h5>
                                 <div class="space-y-1 mb-3">
@@ -472,8 +486,9 @@ export const renderOccurrences = () => {
                                 </div>
                             </div>
                         </div>
-                    </details>
+                    </div>
                 `;
+                // --- (FIM DA CORREÇÃO) ---
             }).join('');
         // --- (FIM DA LÓGICA V4) ---
 
@@ -1460,6 +1475,8 @@ async function handleGenerateNotification(recordId, studentId, groupId) {
 // =================================================================================
 // --- INÍCIO DA REESCRITA (initOccurrenceListeners) ---
 // Função reescrita para controlar o acordeão e os novos botões (V4).
+// CORREÇÃO (01/11/2025): Lógica de clique atualizada para <div>s,
+// copiando o padrão funcional de 'absence.js'.
 // =================================================================================
 
 /**
@@ -1489,106 +1506,125 @@ export const initOccurrenceListeners = () => {
     // Listener de Clique Delegado para a Lista de Ocorrências
     dom.occurrencesListDiv.addEventListener('click', (e) => {
         
-        // --- (INÍCIO LÓGICA V4) ---
-        // Prioridade 1: Clique no Cabeçalho do Acordeão (Summary)
-        const summary = e.target.closest('summary.occurrence-summary');
+        // --- (INÍCIO LÓGICA V4 CORRIGIDA) ---
+        
+        // Prioridade 1: Clique em um Botão (dentro ou fora do acordeão)
+        const button = e.target.closest('button');
+        if (button) {
+            e.stopPropagation(); // Impede que o clique no botão ative o acordeão
+
+            // Pega IDs do acordeão pai (se o botão estiver dentro de um)
+            const detailsDiv = button.closest('div.bg-gray-50.rounded-lg.border'); // Encontra o container do acordeão
+            const summaryDiv = detailsDiv ? detailsDiv.querySelector('.occurrence-summary') : null; // Encontra o cabeçalho
+            
+            // Tenta pegar dados do acordeão (se clicou dentro)
+            const studentId = summaryDiv?.closest('.occurrence-summary')?.dataset.studentId; // Esta lógica está falha, vamos simplificar
+            const studentIdBtn = button.dataset.studentId;
+            const groupIdBtn = button.dataset.groupId;
+            const recordIdBtn = button.dataset.recordId;
+
+
+            // Ações DENTRO do Acordeão (Botões agora têm os data- attributes)
+            if (button.closest('.process-content')) {
+                // Botão Avançar Etapa
+                if (button.classList.contains('avancar-etapa-btn') && !button.disabled) {
+                    handleNewOccurrenceAction(studentIdBtn, groupIdBtn, recordIdBtn);
+                    return;
+                }
+                // Botão Editar Ação
+                if (button.classList.contains('edit-occurrence-action-btn') && !button.disabled) {
+                    handleEditOccurrenceAction(studentIdBtn, groupIdBtn, recordIdBtn);
+                    return;
+                }
+                // Botão Limpar Ação
+                if (button.classList.contains('reset-occurrence-action-btn') && !button.disabled) {
+                    handleResetActionConfirmation(studentIdBtn, groupIdBtn, recordIdBtn);
+                    return;
+                }
+                // Botão Notificação
+                if (button.classList.contains('notification-student-btn')) {
+                     handleGenerateNotification(recordIdBtn, studentIdBtn, groupIdBtn);
+                     return;
+                }
+                // Botão Ver Ofício
+                if (button.classList.contains('view-occurrence-oficio-btn')) {
+                     handleViewOccurrenceOficio(recordIdBtn);
+                     return;
+                }
+            }
+            
+            // Ações FORA do Acordeão (Botões do Card Principal)
+
+            // Botão Kebab Menu
+            if (button.classList.contains('kebab-menu-btn')) {
+                // e.stopPropagation(); // Já feito acima
+                const dropdown = button.nextElementSibling;
+                if (dropdown) {
+                    // Fecha outros menus abertos
+                    document.querySelectorAll('.kebab-menu-dropdown').forEach(d => { if (d !== dropdown) d.classList.add('hidden'); });
+                    dropdown.classList.toggle('hidden');
+                }
+                return;
+            }
+            
+            // Pega o groupId dos botões do card (Editar Fato, Gerar Ata, Kebab)
+            const groupId = button.dataset.groupId;
+            if (!groupId) return; // Se não tem groupId, não continua
+
+            // e.stopPropagation(); // Já feito acima
+
+            // Botão Gerar Ata
+            if (button.classList.contains('record-btn')) {
+                openOccurrenceRecordModal(groupId);
+                return;
+            // Botões dentro do Kebab ou movidos para fora (Editar Fato)
+            } else if (button.classList.contains('kebab-action-btn')) {
+                const action = button.dataset.action;
+                if (action === 'edit' && !button.disabled) handleEditOccurrence(groupId); // Verifica disabled
+                else if (action === 'delete' && !button.disabled) handleDelete('occurrence', groupId); // Verifica disabled
+                else if (action === 'history') openHistoryModal(groupId);
+
+                // Fecha o dropdown se for uma ação do kebab
+                const dropdown = button.closest('.kebab-menu-dropdown');
+                if(dropdown) dropdown.classList.add('hidden');
+                return;
+            }
+        } // Fim do if(button)
+        
+        // Prioridade 2: Clique no Cabeçalho do Acordeão (DIV, não summary)
+        // Se o clique não foi num botão, verifica se foi no cabeçalho do acordeão
+        const summary = e.target.closest('div.occurrence-summary');
         if (summary) {
-            e.preventDefault(); // Impede a ação nativa <details>
-            const details = summary.closest('details');
-            if (!details) return;
+            // e.preventDefault(); // Não é mais necessário
+            
+            const contentId = summary.dataset.contentId;
+            if (!contentId) return;
 
-            const content = details.querySelector('.process-content');
+            const content = document.getElementById(contentId);
             const icon = summary.querySelector('i.fa-chevron-down');
-
-            // Lógica de toggle do acordeão (baseada no absence.js)
-            if (content.style.maxHeight && content.style.maxHeight !== '0px') {
-                content.style.maxHeight = '0px';
-                content.style.overflow = 'hidden';
-                icon?.classList.remove('rotate-180');
-            } else {
+            if (!content) return;
+            
+            // Lógica de toggle do acordeão (copiada de absence.js)
+            const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px';
+            if (isHidden) {
                 content.style.maxHeight = `${content.scrollHeight}px`;
-                content.style.overflow = 'visible'; // Permite ver dropdowns se houver
+                content.style.overflow = 'visible'; 
                 icon?.classList.add('rotate-180');
+            } else {
+                content.style.maxHeight = null; // Usa null para CSS assumir
+                // Adiciona um pequeno delay para esconder o overflow, permitindo que o Kebab feche primeiro
+                setTimeout(() => {
+                   // Verifica se ainda está fechado (evita race condition se o usuário clicar rápido)
+                   if (!content.style.maxHeight || content.style.maxHeight === '0px') {
+                       content.style.overflow = 'hidden';
+                   }
+                }, 400); // Mesmo tempo da transição do CSS
+                icon?.classList.remove('rotate-180');
             }
             return; // Ação de acordeão tratada
         }
-
-        // Prioridade 2: Clique em um Botão (dentro ou fora do acordeão)
-        const button = e.target.closest('button');
-        if (!button) return; // Se não for botão, ignora
+        // --- (FIM LÓGICA V4 CORRIGIDA) ---
         
-        // Pega IDs do acordeão pai (se o botão estiver dentro de um)
-        const detailsParent = button.closest('details');
-        const studentId = detailsParent?.dataset.studentId;
-        const groupIdFromDetails = detailsParent?.dataset.groupId;
-        const recordId = detailsParent?.dataset.recordId;
-
-        // Ações DENTRO do Acordeão
-        if (detailsParent) {
-            e.stopPropagation(); // Impede que o clique feche o kebab (se houver)
-
-            // Botão Avançar Etapa
-            if (button.classList.contains('avancar-etapa-btn') && !button.disabled) {
-                handleNewOccurrenceAction(studentId, groupIdFromDetails, recordId);
-                return;
-            }
-            // Botão Editar Ação
-            if (button.classList.contains('edit-occurrence-action-btn') && !button.disabled) {
-                handleEditOccurrenceAction(studentId, groupIdFromDetails, recordId);
-                return;
-            }
-            // Botão Limpar Ação
-            if (button.classList.contains('reset-occurrence-action-btn') && !button.disabled) {
-                handleResetActionConfirmation(studentId, groupIdFromDetails, recordId);
-                return;
-            }
-            // Botão Notificação
-            if (button.classList.contains('notification-student-btn')) {
-                 handleGenerateNotification(recordId, studentId, groupIdFromDetails);
-                 return;
-            }
-            // Botão Ver Ofício
-            if (button.classList.contains('view-occurrence-oficio-btn')) {
-                 handleViewOccurrenceOficio(recordId);
-                 return;
-            }
-        }
-        // --- (FIM LÓGICA V4) ---
-
-        // Ações FORA do Acordeão (Botões do Card Principal)
-
-        // Botão Kebab Menu
-        if (button.classList.contains('kebab-menu-btn')) {
-            e.stopPropagation();
-            const dropdown = button.nextElementSibling;
-            if (dropdown) {
-                // Fecha outros menus abertos
-                document.querySelectorAll('.kebab-menu-dropdown').forEach(d => { if (d !== dropdown) d.classList.add('hidden'); });
-                dropdown.classList.toggle('hidden');
-            }
-            return;
-        }
-        
-        // Pega o groupId dos botões do card (Editar Fato, Gerar Ata, Kebab)
-        const groupId = button.dataset.groupId;
-        if (!groupId) return; // Se não tem groupId, não continua
-
-        e.stopPropagation(); // Impede outros cliques
-
-        // Botão Gerar Ata
-        if (button.classList.contains('record-btn')) {
-            openOccurrenceRecordModal(groupId);
-        // Botões dentro do Kebab ou movidos para fora (Editar Fato)
-        } else if (button.classList.contains('kebab-action-btn')) {
-            const action = button.dataset.action;
-            if (action === 'edit' && !button.disabled) handleEditOccurrence(groupId); // Verifica disabled
-            else if (action === 'delete' && !button.disabled) handleDelete('occurrence', groupId); // Verifica disabled
-            else if (action === 'history') openHistoryModal(groupId);
-
-            // Fecha o dropdown se for uma ação do kebab
-            const dropdown = button.closest('.kebab-menu-dropdown');
-            if(dropdown) dropdown.classList.add('hidden');
-        }
     });
     // --- (FIM DA REESCRITA DO LISTENER) ---
 
@@ -1630,3 +1666,4 @@ export const initOccurrenceListeners = () => {
 // =================================================================================
 // --- FIM DA REESCRITA (initOccurrenceListeners) ---
 // =================================================================================
+
