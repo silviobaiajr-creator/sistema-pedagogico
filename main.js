@@ -8,6 +8,12 @@
 // 2. Isso corrige um bug em navegadores mobile (race condition) onde a
 //    janela de impressão era chamada ANTES do navegador aplicar a classe
 //    'printing-now', resultando em uma página em branco.
+//
+// ATUALIZAÇÃO (RESET DE AÇÃO - 01/11/2025):
+// 1. Importada a `occurrenceStepLogic` do logic.js.
+// 2. Importada a `updateRecordWithHistory` do firestore.js.
+// 3. A função `handleDeleteConfirmation` foi atualizada para lidar com
+//    o novo tipo de ação 'occurrence-reset', permitindo o rollback de etapas.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -17,7 +23,8 @@ import { onSnapshot, query, writeBatch, doc, where, getDocs } from "https://www.
 import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, shareContent, openModal, loadScript } from './utils.js';
-import { loadStudents, loadSchoolConfig, getCollectionRef, deleteRecord } from './firestore.js';
+// (NOVO - Reset) Importa updateRecordWithHistory
+import { loadStudents, loadSchoolConfig, getCollectionRef, deleteRecord, updateRecordWithHistory } from './firestore.js';
 
 // Módulos de Funcionalidade
 import { initAuthListeners } from './auth.js';
@@ -28,7 +35,8 @@ import { initAbsenceListeners, renderAbsences } from './absence.js';     // Novo
 
 // Módulos de UI e Lógica (agora menores)
 import { render } from './ui.js';
-// import * as logic from './logic.js'; // logic.js agora é usado por absence.js
+// (NOVO - Reset) Importa a lógica de reset
+import { occurrenceStepLogic } from './logic.js';
 
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
@@ -155,19 +163,48 @@ function switchTab(tabName) {
 /**
  * Lida com a confirmação de exclusão (genérico).
  * Esta função é chamada pelos listeners em occurrence.js e absence.js
+ * --- (NOVO - Reset) Esta função agora também lida com o RESET de etapas. ---
  */
 async function handleDeleteConfirmation() {
     if (!state.recordToDelete) return;
-    const { type, id } = state.recordToDelete;
+    
+    // (NOVO - Reset) Desestruturação expandida para o reset
+    const { type, id, recordId, actionToReset, historyAction } = state.recordToDelete;
+    
     try {
         if (type === 'occurrence') {
+            // Lógica original de exclusão de incidente (inalterada)
             const q = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', id));
             const querySnapshot = await getDocs(q);
             const batch = writeBatch(db);
             querySnapshot.forEach(doc => batch.delete(doc.ref));
             await batch.commit();
             showToast('Incidente e todos os registros associados foram excluídos.');
+
+        // --- (NOVO - Reset) Lógica para resetar uma etapa da ocorrência ---
+        } else if (type === 'occurrence-reset') {
+            const logic = occurrenceStepLogic[actionToReset];
+            if (!logic) {
+                throw new Error(`Lógica de reset não encontrada para a ação: ${actionToReset}`);
+            }
+
+            // 1. Prepara o objeto de atualização (limpa os campos)
+            const dataToUpdate = {};
+            for (const field of logic.fieldsToClear) {
+                dataToUpdate[field] = null; // Seta o campo para null
+            }
+            
+            // 2. Define o status para o qual deve reverter
+            dataToUpdate.statusIndividual = logic.statusAfterReset;
+
+            // 3. Executa a atualização (usando a função importada)
+            // Usa o 'recordId' do state.recordToDelete
+            await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
+            showToast('Etapa resetada com sucesso.');
+        // --- FIM DA NOVIDADE ---
+            
         } else if (type === 'absence-cascade') {
+            // Lógica original de exclusão em cascata (inalterada)
             const { ctId, analiseId } = state.recordToDelete;
             const batch = writeBatch(db);
             batch.delete(doc(getCollectionRef('absence'), ctId));
@@ -175,10 +212,18 @@ async function handleDeleteConfirmation() {
             await batch.commit();
             showToast('Encaminhamento e Análise excluídos.');
         } else {
+            // Lógica original de exclusão simples (inalterada)
             await deleteRecord(type, id);
             showToast('Registro excluído com sucesso.');
         }
-    } catch (error) { showToast('Erro ao excluir.'); console.error(error); } finally { state.recordToDelete = null; closeModal(dom.deleteConfirmModal); }
+    } catch (error) { 
+        // (NOVO - Reset) Mensagem de erro genérica
+        showToast(type === 'occurrence-reset' ? 'Erro ao resetar a etapa.' : 'Erro ao excluir.'); 
+        console.error("Erro na confirmação:", error); 
+    } finally { 
+        state.recordToDelete = null; 
+        closeModal(dom.deleteConfirmModal); 
+    }
 }
 
 
