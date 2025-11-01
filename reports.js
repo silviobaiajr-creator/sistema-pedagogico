@@ -21,6 +21,10 @@
 // 1. A função `openOccurrenceRecordModal` foi reescrita para gerar uma ata
 //    em formato narrativo (texto corrido), seguindo padrões técnicos
 //    para arquivamento em livro físico.
+//
+// CORREÇÃO (ReferenceError - 01/11/2025):
+// 1. (generateAndShowBuscaAtivaReport) Corrigido o `ReferenceError: isConcluded is not defined`
+//    definindo a variável `isConcluded` dentro do escopo do loop `.map()`.
 // =================================================================================
 
 
@@ -1114,8 +1118,15 @@ export const generateAndShowBuscaAtivaReport = () => {
                 <div class="space-y-4">
                 ${filteredProcesses.sort((a,b) => (b.actions[b.actions.length-1].createdAt?.seconds || new Date(b.actions[b.actions.length-1].createdAt).getTime()) - (a.actions[a.actions.length-1].createdAt?.seconds || new Date(a.actions[a.actions.length-1].createdAt).getTime())).map(proc => {
                     const student = state.students.find(s => s.matricula === proc.studentId);
+                    
+                    // --- INÍCIO DA CORREÇÃO (ReferenceError) ---
+                    // Esta variável 'isConcluded' estava em falta.
+                    // Ela precisa ser redefinida aqui, dentro do escopo do .map()
+                    const isConcluded = proc.actions.some(a => a.actionType === 'analise');
+                    // --- FIM DA CORREÇÃO ---
+                    
                     const lastAction = proc.actions[proc.actions.length - 1];
-                    const isConcluded = lastAction.actionType === 'analise';
+                    // const isConcluded = lastAction.actionType === 'analise'; // Linha original (comentada)
                     return `
                     <div class="border rounded-lg overflow-hidden break-inside-avoid">
                         <div class="bg-gray-100 p-3 flex justify-between items-center">
