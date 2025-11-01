@@ -10,19 +10,20 @@
 // CORREÇÃO (LOGIN - 29/10/2025):
 // ... (histórico anterior mantido) ...
 //
-// ATUALIZAÇÃO (EDIÇÃO DE AÇÃO - 01/11/2025):
-// 1. Adicionada a capacidade de editar a última ação individual (Ação 2-6)
-//    através de um novo botão "Editar Ação".
-// 2. Importada a nova lógica de `logic.js` (`determineCurrentActionFromStatus`).
-// 3. Adicionada a função `handleEditOccurrenceAction`.
+// ATUALIZAÇÃO (EDIÇÃO E RESET DE AÇÃO - 01/11/2025):
+// 1. Adicionada a capacidade de editar (Editar Ação) ou desfazer (Resetar Ação)
+//    a última ação individual (Ação 2-6).
+// 2. Importada a nova lógica de `logic.js` (`determineCurrentActionFromStatus`, `occurrenceStepLogic`).
+// 3. Adicionadas as funções `handleEditOccurrenceAction` e `handleResetActionConfirmation`.
+// 4. Adicionados botões "Editar Ação" e "Resetar Ação" na renderização.
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
 import { getCollectionRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord, getIncidentByGroupId as fetchIncidentById } from './firestore.js'; // Renomeado para clareza
 // (V3) Importa a nova lógica de determinação de etapa
-// --- (NOVO - Edição) Importa a nova função de lógica ---
-import { determineNextOccurrenceStep, determineCurrentActionFromStatus } from './logic.js';
+// --- (NOVO - Edição/Reset) Importa as novas funções de lógica ---
+import { determineNextOccurrenceStep, determineCurrentActionFromStatus, occurrenceStepLogic } from './logic.js';
 import {
     // openStudentSelectionModal, // Não é mais necessário aqui
     openOccurrenceRecordModal,
@@ -316,7 +317,7 @@ export const getFilteredOccurrences = () => {
  * (MODIFICADO - Plano 1b) Adiciona disabled em botões de ocorrências finalizadas.
  * (MODIFICADO - Plano 3c) Move botão "Editar Fato" para fora do kebab.
  * (CORREÇÃO - VISUAL) Usa sintaxe de comentário HTML correta.
- * (MODIFICADO - Edição de Ação 01/11/2025) Adiciona "Editar Ação"
+ * (MODIFICADO - Edição/Reset de Ação 01/11/2025) Adiciona "Editar Ação" e "Resetar Ação"
  */
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
@@ -380,15 +381,28 @@ export const renderOccurrences = () => {
                 
                 // --- (NOVO - Edição de Ação 01/11/2025) ---
                 // Botão para Editar a Ação Individual
+                // Removido o 'disabled' para permitir edição/reset mesmo se "Resolvido"
                 const editActionBtn = `
                     <button type="button"
-                            class="edit-occurrence-action-btn text-yellow-600 hover:text-yellow-900 text-xs font-semibold py-1 px-2 rounded-md bg-yellow-50 hover:bg-yellow-100 ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
+                            class="edit-occurrence-action-btn text-yellow-600 hover:text-yellow-900 text-xs font-semibold py-1 px-2 rounded-md bg-yellow-50 hover:bg-yellow-100"
                             data-group-id="${incident.id}"
                             data-student-id="${student.matricula}"
                             data-record-id="${recordId}"
-                            title="${isIndividualResolvido ? 'Processo finalizado' : 'Editar a última ação salva'}"
-                            ${isIndividualResolvido ? 'disabled' : ''}>
+                            title="Editar a última ação salva">
                         <i class="fas fa-pencil-alt"></i> Editar Ação
+                    </button>
+                `;
+                
+                // --- (NOVO - Reset de Ação 01/11/2025) ---
+                // Botão para Resetar a Ação Individual
+                const resetActionBtn = `
+                     <button type="button"
+                            class="reset-occurrence-action-btn text-red-600 hover:text-red-900 text-xs font-semibold py-1 px-2 rounded-md bg-red-50 hover:bg-red-100"
+                            data-group-id="${incident.id}"
+                            data-student-id="${student.matricula}"
+                            data-record-id="${recordId}"
+                            title="Resetar a última ação (desfazer)">
+                        <i class="fas fa-undo-alt"></i> Resetar
                     </button>
                 `;
                 // --- FIM DA NOVIDADE ---
@@ -396,13 +410,13 @@ export const renderOccurrences = () => {
                 // --- INÍCIO DA MODIFICAÇÃO (Organização Vertical Conforme Solicitado + CORREÇÃO VISUAL) ---
                 return `
                     <div class="py-2 px-3 rounded-lg border ${borderClass} ${hoverClass} transition-colors">
-                        <!-- (MODIFICADO - Plano 1b) Adiciona disabled se resolvido -->
+                        <!-- (MODIFICADO - Plano 1b) Adiciona disabled se resolvido (APENAS PARA AVANÇAR) -->
                         <button type="button"
                                 class="student-follow-up-trigger flex items-center gap-1.5 w-full text-left ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
                                 data-group-id="${incident.id}"
                                 data-student-id="${student.matricula}"
                                 data-record-id="${recordId}"
-                                title="${isIndividualResolvido ? 'Processo individual finalizado' : `Abrir acompanhamento de ${student.name}`}"
+                                title="${isIndividualResolvido ? 'Processo individual finalizado' : `Avançar acompanhamento de ${student.name}`}"
                                 ${isIndividualResolvido ? 'disabled' : ''}>
                             <!-- (NOVO - Papéis) Adiciona ícone do papel -->
                             <i class="${iconClass} fa-fw w-4 text-center" title="${role}"></i>
@@ -417,8 +431,9 @@ export const renderOccurrences = () => {
                             <!-- (NOVO - Plano 1c) Botão Excluir/Reset Ação Individual (A ser implementado) -->
                             <!-- <button class="delete-occurrence-action-btn ..."><i class="fas fa-trash"></i> Resetar Ação</button> -->
                             
-                            <!-- --- (NOVO - Edição) Adiciona o botão de editar --- -->
+                            <!-- --- (NOVO - Edição/Reset) Adiciona os botões de editar e resetar --- -->
                             ${editActionBtn}
+                            ${resetActionBtn}
                             
                             ${viewOficioBtn}
                         </div>
@@ -1135,6 +1150,58 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
     openOccurrenceStepModal(student, record, actionToEdit);
 }
 
+// ==============================================================================
+// --- (NOVO - Reset de Ação 01/11/2025) ---
+// Nova função para lidar com o clique no botão "Resetar Ação"
+// ==============================================================================
+/**
+ * Lida com o clique no botão "Resetar Ação".
+ * Prepara o modal de confirmação e define o estado para o 'main.js'
+ */
+async function handleResetActionConfirmation(studentId, groupId, recordId) {
+    const incident = await fetchIncidentById(groupId);
+    if (!incident) return showToast('Erro: Incidente não encontrado.');
+    const record = incident.records.find(r => r.id === recordId);
+    if (!record) return showToast('Erro: Registro individual não encontrado.');
+    
+    // Descobre qual ação o status atual representa (Ex: 'Aguardando Desfecho' -> 'contato_familia')
+    let actionToReset = determineCurrentActionFromStatus(record.statusIndividual);
+
+    // Refina a lógica para o status "Resolvido"
+     if (record.statusIndividual === 'Resolvido') {
+        if (record.desfechoChoice) {
+            actionToReset = 'desfecho_ou_ct';
+        } else if (record.parecerFinal) {
+             actionToReset = record.oficioNumber ? 'parecer_final' : 'desfecho_ou_ct';
+        } else {
+            // Fallback se estiver "Resolvido" sem dados (improvável)
+            actionToReset = 'parecer_final';
+        }
+    }
+
+    if (actionToReset === null) {
+        return showToast('Não é possível resetar a Ação 1 (Fato). Use "Editar Fato".');
+    }
+
+    // Pega o título amigável da ação (Ex: "Ação 3: Registrar Contato...")
+    const actionTitle = occurrenceActionTitles[actionToReset] || `Etapa '${actionToReset}'`;
+    
+    // Prepara o modal de confirmação
+    document.getElementById('delete-confirm-message').textContent = `Tem certeza que deseja resetar a etapa: "${actionTitle}"?
+        Isso limpará permanentemente todos os dados desta etapa e de quaisquer etapas futuras para este aluno.`;
+    
+    // Informa ao 'main.js' o que fazer
+    state.recordToDelete = {
+        type: 'occurrence-reset', // Novo tipo de ação
+        recordId: recordId,
+        actionToReset: actionToReset, // A chave da lógica (ex: 'contato_familia')
+        historyAction: `Etapa "${actionTitle}" resetada pelo utilizador.`
+    };
+    
+    openModal(dom.deleteConfirmModal);
+}
+
+
 
 /**
  * Lida com a confirmação para exclusão de um incidente.
@@ -1321,7 +1388,8 @@ async function handleNewOccurrenceAction(studentId, groupId, recordId) {
     const nextAction = determineNextOccurrenceStep(record.statusIndividual);
 
     if (nextAction === null) {
-        showToast('Este processo individual já foi finalizado.');
+        // (Modificado - Edição) Se está resolvido, não avança, mas informa que pode editar/resetar
+        showToast('Este processo individual já foi finalizado. Use "Editar Ação" ou "Resetar Ação".');
         return;
     }
     // Abre o modal para a PRÓXIMA ação
@@ -1353,7 +1421,7 @@ async function handleGenerateNotification(recordId, studentId, groupId) {
  * Anexa todos os listeners de eventos relacionados a Ocorrências.
  * (MODIFICADO - Papéis) Adiciona listeners para edição de papel.
  * (MODIFICADO - Plano 3b) Adiciona listener para rádios de desfecho.
- * (MODIFICADO - Edição de Ação 01/11/2025) Adiciona listener para "Editar Ação".
+ * (MODIFICADO - Edição/Reset de Ação 01/11/2025) Adiciona listeners para "Editar Ação" e "Resetar Ação".
  */
 export const initOccurrenceListeners = () => {
     // Botão Adicionar Nova Ocorrência
@@ -1428,6 +1496,16 @@ export const initOccurrenceListeners = () => {
              const studentId = button.dataset.studentId;
              const recordId = button.dataset.recordId;
              handleEditOccurrenceAction(studentId, groupId, recordId); // Nova função
+             return;
+        }
+
+        // --- (NOVO - Reset) Listener para o novo botão "Resetar Ação" ---
+        if (button.classList.contains('reset-occurrence-action-btn') && !button.disabled) {
+             e.stopPropagation();
+             const groupId = button.dataset.groupId;
+             const studentId = button.dataset.studentId;
+             const recordId = button.dataset.recordId;
+             handleResetActionConfirmation(studentId, groupId, recordId); // Nova função
              return;
         }
         // --- FIM DA NOVIDADE ---
