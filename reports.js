@@ -22,9 +22,10 @@
 //    em formato narrativo (texto corrido), seguindo padrões técnicos
 //    para arquivamento em livro físico.
 //
-// CORREÇÃO (ReferenceError - 01/11/2025):
+// CORREÇÃO (ReferenceError - 01/11/2025 V2):
 // 1. (generateAndShowBuscaAtivaReport) Corrigido o `ReferenceError: isConcluded is not defined`
-//    definindo a variável `isConcluded` dentro do escopo do loop `.map()`.
+//    definindo a variável `isConcluded` DENTRO do escopo do loop `.filter()`
+//    onde ela também estava em falta.
 // =================================================================================
 
 
@@ -1040,7 +1041,11 @@ export const generateAndShowBuscaAtivaReport = () => {
 
         if (studentFilter && (!student || !student.name.toLowerCase().includes(studentFilter.toLowerCase()))) return false;
 
+        // --- INÍCIO DA CORREÇÃO (V2) ---
+        // A variável 'isConcluded' deve ser definida aqui, no escopo do filter.
         const isConcluded = lastAction.actionType === 'analise';
+        // --- FIM DA CORREÇÃO ---
+
         if (processStatus === 'in_progress' && isConcluded) return false;
         if (processStatus === 'concluded' && !isConcluded) return false;
 
@@ -1054,7 +1059,7 @@ export const generateAndShowBuscaAtivaReport = () => {
 
 
         let isPendingContact = false, isPendingFeedback = false;
-        if (!isConcluded) {
+        if (!isConcluded) { // Esta é a linha (1067 no arquivo antigo) que causava o erro
              isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null);
 
             const ctAction = proc.actions.find(a => a.actionType === 'encaminhamento_ct');
@@ -1120,8 +1125,7 @@ export const generateAndShowBuscaAtivaReport = () => {
                     const student = state.students.find(s => s.matricula === proc.studentId);
                     
                     // --- INÍCIO DA CORREÇÃO (ReferenceError) ---
-                    // Esta variável 'isConcluded' estava em falta.
-                    // Ela precisa ser redefinida aqui, dentro do escopo do .map()
+                    // Esta variável 'isConcluded' estava em falta no .map()
                     const isConcluded = proc.actions.some(a => a.actionType === 'analise');
                     // --- FIM DA CORREÇÃO ---
                     
