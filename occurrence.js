@@ -1,21 +1,18 @@
 // =================================================================================
-// ARQUIVO: occurrence.js (Fluxo V3 - UI Refinada + Papéis)
+// ARQUIVO: occurrence.js (Fluxo V4 - UI de Acordeão)
 // RESPONSABILIDADE: Gerenciar toda a lógica, UI e eventos da
 // funcionalidade "Ocorrências".
 //
-// CORREÇÃO (VISUAL - 29/10/2025):
-// 1. Corrigida a sintaxe dos comentários dentro do HTML gerado na função
-//    `renderOccurrences` para usar `<!-- ... -->` em vez de `{/* ... */}`.
-//
-// CORREÇÃO (LOGIN - 29/10/2025):
-// ... (histórico anterior mantido) ...
-//
-// ATUALIZAÇÃO (EDIÇÃO E RESET DE AÇÃO - 01/11/2025):
-// 1. Adicionada a capacidade de editar (Editar Ação) ou desfazer (Limpar Ação)
-//    a última ação individual (Ação 2-6).
-// 2. Importada a nova lógica de `logic.js` (`determineCurrentActionFromStatus`, `occurrenceStepLogic`).
-// 3. Adicionadas as funções `handleEditOccurrenceAction` e `handleResetActionConfirmation`.
-// 4. Adicionados botões "Editar Ação" e " Ação" na renderização.
+// ATUALIZAÇÃO (SUGESTÃO DO USUÁRIO - 01/11/2025):
+// 1. A função `renderOccurrences` foi reescrita para adotar o layout de
+//    "Acordeão" (semelhante ao 'absence.js') para cada aluno.
+// 2. A lista de botões ("Avançar", "Editar", "Limpar", "Notificação", "Ver Ofício")
+//    foi movida para DENTRO do acordeão, limpando a UI principal.
+// 3. O acordeão agora exibe um histórico resumido das etapas concluídas.
+// 4. A função `initOccurrenceListeners` foi atualizada para controlar a
+//    abertura/fechamento dos novos acordeões e os cliques nos botões internos.
+// 5. Todas as funções anteriores (handleEdit, handleReset, etc.) foram
+//    mantidas, apenas os seus "gatilhos" (botões) mudaram de lugar.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -36,7 +33,7 @@ import { writeBatch, doc, collection, query, where, getDocs, runTransaction } fr
 import { db } from './firebase.js';
 
 // Mapeia o tipo de ação para o título do modal
-const occurrenceActionTitles = {
+export const occurrenceActionTitles = { // Adicionado 'export' para o reports.js
     'convocacao': 'Ação 2: Agendar Convocação',
     'contato_familia': 'Ação 3: Registrar Contato com Família',
     'desfecho_ou_ct': 'Ação 4 ou 6: Encaminhar ao CT ou Dar Parecer', // Modificado nome
@@ -311,13 +308,14 @@ export const getFilteredOccurrences = () => {
 };
 
 
+// =================================================================================
+// --- INÍCIO DA REESCRITA (renderOccurrences) ---
+// Função reescrita para usar o layout de acordeão (V4).
+// =================================================================================
+
 /**
  * Renderiza a lista de ocorrências.
- * (MODIFICADO - Papéis) Exibe ícones de papel e ajusta botões.
- * (MODIFICADO - Plano 1b) Adiciona disabled em botões de ocorrências finalizadas.
- * (MODIFICADO - Plano 3c) Move botão "Editar Fato" para fora do kebab.
- * (CORREÇÃO - VISUAL) Usa sintaxe de comentário HTML correta.
- * (MODIFICADO - Edição/Reset de Ação 01/11/2025) Adiciona "Editar Ação" e " Ação"
+ * (MODIFICADO - V4) Usa layout de acordeão para cada aluno, similar ao 'absence.js'.
  */
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
@@ -341,23 +339,60 @@ export const renderOccurrences = () => {
         if (!mainRecord) return '';
 
         const studentSearch = state.filterOccurrences.toLowerCase();
-        const isFinalizada = incident.overallStatus === 'Finalizada'; // (NOVO - Plano 1b)
+        const isFinalizada = incident.overallStatus === 'Finalizada';
 
-        const studentDetailsHTML = [...incident.participantsInvolved.values()] // (MODIFICADO - Papéis) Itera sobre participantes
+        // --- (INÍCIO DA LÓGICA V4) ---
+        // Gera o HTML do acordeão para cada aluno
+        const studentAccordionsHTML = [...incident.participantsInvolved.values()]
             .map(participant => {
-                const { student, role } = participant; // Pega student e role
+                const { student, role } = participant;
                 if (!student) return '';
                 const record = incident.records.find(r => r && r.studentId === student.matricula);
                 const recordId = record?.id || '';
                 const status = record?.statusIndividual || 'Aguardando Convocação';
                 const isMatch = studentSearch && student.name.toLowerCase().includes(studentSearch);
                 const nameClass = isMatch ? 'font-bold text-yellow-800' : 'font-medium text-gray-700';
-                let borderClass = isMatch ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-gray-50';
-                let hoverClass = isMatch ? 'hover:bg-yellow-100' : 'hover:bg-indigo-50';
-                const iconClass = roleIcons[role] || roleIcons[defaultRole]; // (NOVO - Papéis) Pega ícone do papel
-                const isIndividualResolvido = record?.statusIndividual === 'Resolvido'; // (NOVO - Plano 1b)
+                const iconClass = roleIcons[role] || roleIcons[defaultRole];
+                const isIndividualResolvido = record?.statusIndividual === 'Resolvido';
 
-                // Botão Ver Ofício (mantido)
+                // 1. Gera o Histórico de Ações Concluídas (para dentro do acordeão)
+                let historyHtml = '';
+                if (record?.meetingDate) {
+                    historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 2 (Convocação):</strong> Agendada para ${formatDate(record.meetingDate)} às ${formatTime(record.meetingTime)}.</p>`;
+                }
+                if (record?.contactSucceeded != null) {
+                    if (record.contactSucceeded === 'yes') {
+                        historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 3 (Contato):</strong> Realizado com sucesso (${formatDate(record.contactDate)}).</p>`;
+                    } else {
+                        historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-times text-red-500 fa-fw mr-1"></i> <strong>Ação 3 (Contato):</strong> Tentativa sem sucesso.</p>`;
+                    }
+                }
+                if (record?.oficioNumber) {
+                     historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 4 (Enc. CT):</strong> Enviado Ofício Nº ${record.oficioNumber}/${record.oficioYear}.</p>`;
+                }
+                if (record?.ctFeedback) {
+                     historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 5 (Devolutiva):</strong> Devolutiva recebida.</p>`;
+                }
+                if (record?.parecerFinal) {
+                     historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 6 (Parecer Final):</strong> Processo finalizado.</p>`;
+                }
+                if (historyHtml === '') {
+                     historyHtml = `<p class="text-xs text-gray-400 italic">Nenhuma ação de acompanhamento registrada.</p>`;
+                }
+                
+                // 2. Gera os Botões de Ação (para dentro do acordeão)
+                
+                // Botão Avançar Etapa
+                const avancarBtn = `
+                    <button type="button"
+                            class="avancar-etapa-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100 ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
+                            title="${isIndividualResolvido ? 'Processo individual finalizado' : `Avançar acompanhamento de ${student.name}`}"
+                            ${isIndividualResolvido ? 'disabled' : ''}>
+                        <i class="fas fa-plus"></i> Avançar Etapa
+                    </button>
+                `;
+
+                // Botão Ver Ofício (movido para dentro)
                 const viewOficioBtn = record?.oficioNumber ? `
                     <button type="button"
                             class="view-occurrence-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50 hover:bg-green-100"
@@ -367,7 +402,7 @@ export const renderOccurrences = () => {
                     </button>
                 ` : '';
 
-                // Botão Notificação condicional (mantido)
+                // Botão Notificação (movido para dentro)
                 const notificationBtn = (record && record.meetingDate && record.meetingTime) ? `
                     <button type="button"
                             class="notification-student-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100"
@@ -379,9 +414,7 @@ export const renderOccurrences = () => {
                     </button>
                 ` : '';
                 
-                // --- (NOVO - Edição de Ação 01/11/2025) ---
-                // Botão para Editar a Ação Individual
-                // (MODIFICADO - Reset) Removido 'disabled' e 'opacity' se resolvido, para permitir reset
+                // Botão Editar Ação (movido para dentro)
                 const editActionBtn = `
                     <button type="button"
                             class="edit-occurrence-action-btn text-yellow-600 hover:text-yellow-900 text-xs font-semibold py-1 px-2 rounded-md bg-yellow-50 hover:bg-yellow-100"
@@ -393,8 +426,7 @@ export const renderOccurrences = () => {
                     </button>
                 `;
                 
-                // --- (NOVO - Reset de Ação 01/11/2025) ---
-                // Botão para Limpar a Ação Individual
+                // Botão Limpar Ação (movido para dentro)
                 const resetActionBtn = `
                      <button type="button"
                             class="reset-occurrence-action-btn text-red-600 hover:text-red-900 text-xs font-semibold py-1 px-2 rounded-md bg-red-50 hover:bg-red-100"
@@ -405,42 +437,47 @@ export const renderOccurrences = () => {
                         <i class="fas fa-undo-alt"></i> Limpar
                     </button>
                 `;
-                // --- FIM DA NOVIDADE ---
 
-                // --- INÍCIO DA MODIFICAÇÃO (Organização Vertical Conforme Solicitado + CORREÇÃO VISUAL) ---
+                // 3. Monta o HTML do Acordeão (`<details>`)
                 return `
-                    <div class="py-2 px-3 rounded-lg border ${borderClass} ${hoverClass} transition-colors">
-                        <!-- (MODIFICADO - Plano 1b) Adiciona disabled se resolvido (APENAS PARA AVANÇAR) -->
-                        <button type="button"
-                                class="student-follow-up-trigger flex items-center gap-1.5 w-full text-left ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
-                                data-group-id="${incident.id}"
-                                data-student-id="${student.matricula}"
-                                data-record-id="${recordId}"
-                                title="${isIndividualResolvido ? 'Processo individual finalizado' : `Avançar acompanhamento de ${student.name}`}"
-                                ${isIndividualResolvido ? 'disabled' : ''}>
-                            <!-- (NOVO - Papéis) Adiciona ícone do papel -->
-                            <i class="${iconClass} fa-fw w-4 text-center" title="${role}"></i>
-                            <span class="${nameClass}">${student.name}</span>
-                        </button>
-
-                        <div class="flex items-center flex-wrap gap-2 mt-1 pt-1 border-t ${borderClass}">
-                            ${getStatusBadge(status)}
-                            ${notificationBtn}
-                            <!-- (NOVO - Plano 1c) Botão Editar Ação Individual (A ser implementado) -->
-                            <!-- <button class="edit-occurrence-action-btn ..."><i class="fas fa-pencil-alt"></i> Editar Ação</button> -->
-                            <!-- (NOVO - Plano 1c) Botão Excluir/Reset Ação Individual (A ser implementado) -->
-                            <!-- <button class="delete-occurrence-action-btn ..."><i class="fas fa-trash"></i> Limpar Ação</button> -->
-                            
-                            <!-- --- (NOVO - Edição/Reset) Adiciona os botões de editar e Limpar --- -->
-                            ${editActionBtn}
-                            ${resetActionBtn}
-                            
-                            ${viewOficioBtn}
+                    <details class="bg-gray-50 rounded-lg border border-gray-200"
+                             data-group-id="${incident.id}"
+                             data-student-id="${student.matricula}"
+                             data-record-id="${recordId}">
+                        <!-- Cabeçalho Visível (Summary) -->
+                        <summary class="occurrence-summary p-3 cursor-pointer hover:bg-indigo-50 flex justify-between items-center list-none">
+                            <div class="flex items-center gap-2">
+                                <i class="${iconClass} fa-fw w-4 text-center" title="${role}"></i>
+                                <span class="${nameClass}">${student.name}</span>
+                                <span class="text-xs text-gray-500">(${role})</span>
+                                ${getStatusBadge(status)}
+                            </div>
+                            <i class="fas fa-chevron-down transition-transform duration-300 text-gray-400"></i>
+                        </summary>
+                        
+                        <!-- Conteúdo Oculto (process-content) -->
+                        <div class="process-content" style="max-height: 0px; overflow: hidden;">
+                            <div class="p-3 border-t border-gray-200">
+                                <h5 class="text-xs font-bold uppercase text-gray-500 mb-2">Histórico Individual</h5>
+                                <div class="space-y-1 mb-3">
+                                    ${historyHtml}
+                                </div>
+                                <h5 class="text-xs font-bold uppercase text-gray-500 mb-2">Ações</h5>
+                                <div class="flex items-center flex-wrap gap-2">
+                                    ${avancarBtn}
+                                    ${editActionBtn}
+                                    ${resetActionBtn}
+                                    ${notificationBtn}
+                                    ${viewOficioBtn}
+                                </div>
+                            </div>
                         </div>
-                    </div>`;
-                // --- FIM DA MODIFICAÇÃO ---
+                    </details>
+                `;
             }).join('');
+        // --- (FIM DA LÓGICA V4) ---
 
+        // HTML do Card Principal (Incidente)
         return `
             <div class="border rounded-lg bg-white shadow-sm">
                 <div class="p-4 flex flex-col sm:flex-row justify-between items-start gap-3">
@@ -451,12 +488,13 @@ export const renderOccurrences = () => {
                         </div>
                         <div class="text-sm text-gray-600 mt-2">
                             <strong class="block text-gray-500 text-xs font-bold uppercase mb-1.5">Alunos Envolvidos:</strong>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">${studentDetailsHTML}</div>
+                            <!-- (MODIFICADO V4) Renderiza os acordeões aqui -->
+                            <div class="space-y-2">${studentAccordionsHTML}</div>
                         </div>
                         <p class="text-xs text-gray-400 mt-2">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
                     </div>
                     <div class="flex-shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-stretch sm:self-center">
-                        <!-- (MODIFICADO - Plano 3c) Botão Editar Fato movido para cá -->
+                        <!-- Botões de Ação do Incidente (Inalterados) -->
                         <button class="kebab-action-btn text-gray-600 hover:text-gray-900 text-xs font-semibold py-2 px-3 rounded-md bg-gray-50 hover:bg-gray-100 border border-gray-300 text-center ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}"
                                 data-action="edit" data-group-id="${incident.id}" title="Editar Fato (Ação 1)" ${isFinalizada ? 'disabled' : ''}>
                            <i class="fas fa-pencil-alt mr-1"></i> Editar Fato
@@ -469,9 +507,7 @@ export const renderOccurrences = () => {
                                 <i class="fas fa-ellipsis-v"></i>
                             </button>
                             <div class="kebab-menu-dropdown hidden absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border z-10">
-                                <!-- Botão Editar Fato REMOVIDO daqui -->
                                 <button class="kebab-action-btn menu-item w-full text-left" data-action="history" data-group-id="${incident.id}"><i class="fas fa-history mr-2 w-4"></i>Histórico</button>
-                                <!-- (MODIFICADO - Plano 1b) Adiciona disabled se finalizada -->
                                 <button class="kebab-action-btn menu-item menu-item-danger w-full text-left ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}"
                                         data-action="delete" data-group-id="${incident.id}" ${isFinalizada ? 'disabled' : ''}>
                                     <i class="fas fa-trash mr-2 w-4"></i>Excluir
@@ -484,6 +520,10 @@ export const renderOccurrences = () => {
     }).join('');
     dom.occurrencesListDiv.innerHTML = html;
 };
+// =================================================================================
+// --- FIM DA REESCRITA (renderOccurrences) ---
+// =================================================================================
+
 
 /**
  * Abre o modal para registrar ou editar os dados COLETIVOS (Ação 1).
@@ -1417,11 +1457,14 @@ async function handleGenerateNotification(recordId, studentId, groupId) {
 
 // --- Função Principal de Inicialização ---
 
+// =================================================================================
+// --- INÍCIO DA REESCRITA (initOccurrenceListeners) ---
+// Função reescrita para controlar o acordeão e os novos botões (V4).
+// =================================================================================
+
 /**
  * Anexa todos os listeners de eventos relacionados a Ocorrências.
- * (MODIFICADO - Papéis) Adiciona listeners para edição de papel.
- * (MODIFICADO - Plano 3b) Adiciona listener para rádios de desfecho.
- * (MODIFICADO - Edição/Reset de Ação 01/11/2025) Adiciona listeners para "Editar Ação" e "Limpar Ação".
+ * (MODIFICADO - V4) Controla o acordeão e os botões internos.
  */
 export const initOccurrenceListeners = () => {
     // Botão Adicionar Nova Ocorrência
@@ -1445,19 +1488,74 @@ export const initOccurrenceListeners = () => {
 
     // Listener de Clique Delegado para a Lista de Ocorrências
     dom.occurrencesListDiv.addEventListener('click', (e) => {
-        const button = e.target.closest('button');
-        if (!button) return;
+        
+        // --- (INÍCIO LÓGICA V4) ---
+        // Prioridade 1: Clique no Cabeçalho do Acordeão (Summary)
+        const summary = e.target.closest('summary.occurrence-summary');
+        if (summary) {
+            e.preventDefault(); // Impede a ação nativa <details>
+            const details = summary.closest('details');
+            if (!details) return;
 
-        // Clicar no nome/ícone do aluno para avançar etapa
-        const followUpTrigger = e.target.closest('.student-follow-up-trigger');
-        if (followUpTrigger && !followUpTrigger.disabled) { // Verifica se não está desabilitado
-            e.stopPropagation();
-            const groupId = followUpTrigger.dataset.groupId;
-            const studentId = followUpTrigger.dataset.studentId;
-            const recordId = followUpTrigger.dataset.recordId;
-            handleNewOccurrenceAction(studentId, groupId, recordId);
-            return;
+            const content = details.querySelector('.process-content');
+            const icon = summary.querySelector('i.fa-chevron-down');
+
+            // Lógica de toggle do acordeão (baseada no absence.js)
+            if (content.style.maxHeight && content.style.maxHeight !== '0px') {
+                content.style.maxHeight = '0px';
+                content.style.overflow = 'hidden';
+                icon?.classList.remove('rotate-180');
+            } else {
+                content.style.maxHeight = `${content.scrollHeight}px`;
+                content.style.overflow = 'visible'; // Permite ver dropdowns se houver
+                icon?.classList.add('rotate-180');
+            }
+            return; // Ação de acordeão tratada
         }
+
+        // Prioridade 2: Clique em um Botão (dentro ou fora do acordeão)
+        const button = e.target.closest('button');
+        if (!button) return; // Se não for botão, ignora
+        
+        // Pega IDs do acordeão pai (se o botão estiver dentro de um)
+        const detailsParent = button.closest('details');
+        const studentId = detailsParent?.dataset.studentId;
+        const groupIdFromDetails = detailsParent?.dataset.groupId;
+        const recordId = detailsParent?.dataset.recordId;
+
+        // Ações DENTRO do Acordeão
+        if (detailsParent) {
+            e.stopPropagation(); // Impede que o clique feche o kebab (se houver)
+
+            // Botão Avançar Etapa
+            if (button.classList.contains('avancar-etapa-btn') && !button.disabled) {
+                handleNewOccurrenceAction(studentId, groupIdFromDetails, recordId);
+                return;
+            }
+            // Botão Editar Ação
+            if (button.classList.contains('edit-occurrence-action-btn') && !button.disabled) {
+                handleEditOccurrenceAction(studentId, groupIdFromDetails, recordId);
+                return;
+            }
+            // Botão Limpar Ação
+            if (button.classList.contains('reset-occurrence-action-btn') && !button.disabled) {
+                handleResetActionConfirmation(studentId, groupIdFromDetails, recordId);
+                return;
+            }
+            // Botão Notificação
+            if (button.classList.contains('notification-student-btn')) {
+                 handleGenerateNotification(recordId, studentId, groupIdFromDetails);
+                 return;
+            }
+            // Botão Ver Ofício
+            if (button.classList.contains('view-occurrence-oficio-btn')) {
+                 handleViewOccurrenceOficio(recordId);
+                 return;
+            }
+        }
+        // --- (FIM LÓGICA V4) ---
+
+        // Ações FORA do Acordeão (Botões do Card Principal)
 
         // Botão Kebab Menu
         if (button.classList.contains('kebab-menu-btn')) {
@@ -1470,47 +1568,8 @@ export const initOccurrenceListeners = () => {
             }
             return;
         }
-
-        // Botão Ver Ofício
-        if (button.classList.contains('view-occurrence-oficio-btn')) {
-             e.stopPropagation();
-             const recordId = button.dataset.recordId;
-             handleViewOccurrenceOficio(recordId);
-             return;
-        }
-
-        // Botão Notificação ao lado do nome
-        if (button.classList.contains('notification-student-btn')) {
-             e.stopPropagation();
-             const recordId = button.dataset.recordId;
-             const studentId = button.dataset.studentId;
-             const groupId = button.dataset.groupId;
-             handleGenerateNotification(recordId, studentId, groupId);
-             return;
-        }
-
-        // --- (NOVO - Edição) Listener para o novo botão "Editar Ação" ---
-        if (button.classList.contains('edit-occurrence-action-btn') && !button.disabled) {
-             e.stopPropagation();
-             const groupId = button.dataset.groupId;
-             const studentId = button.dataset.studentId;
-             const recordId = button.dataset.recordId;
-             handleEditOccurrenceAction(studentId, groupId, recordId); // Nova função
-             return;
-        }
-
-        // --- (NOVO - Reset) Listener para o novo botão "Limpar Ação" ---
-        if (button.classList.contains('reset-occurrence-action-btn') && !button.disabled) {
-             e.stopPropagation();
-             const groupId = button.dataset.groupId;
-             const studentId = button.dataset.studentId;
-             const recordId = button.dataset.recordId;
-             handleResetActionConfirmation(studentId, groupId, recordId); // Nova função
-             return;
-        }
-        // --- FIM DA NOVIDADE ---
-
-
+        
+        // Pega o groupId dos botões do card (Editar Fato, Gerar Ata, Kebab)
         const groupId = button.dataset.groupId;
         if (!groupId) return; // Se não tem groupId, não continua
 
@@ -1531,6 +1590,8 @@ export const initOccurrenceListeners = () => {
             if(dropdown) dropdown.classList.add('hidden');
         }
     });
+    // --- (FIM DA REESCRITA DO LISTENER) ---
+
 
     // Listener para Rádios de Contato (Ação 3)
     document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio =>
@@ -1566,3 +1627,6 @@ export const initOccurrenceListeners = () => {
     });
 };
 
+// =================================================================================
+// --- FIM DA REESCRITA (initOccurrenceListeners) ---
+// =================================================================================
