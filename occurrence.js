@@ -381,7 +381,7 @@ export const renderOccurrences = () => {
                 
                 // --- (NOVO - Edição de Ação 01/11/2025) ---
                 // Botão para Editar a Ação Individual
-                // Removido o 'disabled' para permitir edição/reset mesmo se "Resolvido"
+                // (MODIFICADO - Reset) Removido 'disabled' e 'opacity' se resolvido, para permitir reset
                 const editActionBtn = `
                     <button type="button"
                             class="edit-occurrence-action-btn text-yellow-600 hover:text-yellow-900 text-xs font-semibold py-1 px-2 rounded-md bg-yellow-50 hover:bg-yellow-100"
