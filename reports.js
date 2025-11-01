@@ -16,6 +16,11 @@
 // 2. (OFÍCIOS/NOTIFICAÇÕES) Data e Local alinhados à direita.
 // 3. (NOTIFICAÇÕES) Removidas linhas separadoras (`border-t`)
 //    extras acima dos blocos de assinatura.
+//
+// --- ATUALIZAÇÃO (ATA NARRATIVA - 01/11/2025) ---
+// 1. A função `openOccurrenceRecordModal` foi reescrita para gerar uma ata
+//    em formato narrativo (texto corrido), seguindo padrões técnicos
+//    para arquivamento em livro físico.
 // =================================================================================
 
 
@@ -195,116 +200,219 @@ export const openIndividualNotificationModal = (incident, student) => {
     openModal(dom.notificationModalBackdrop);
 };
 
+// ==============================================================================
+// --- INÍCIO DA ATUALIZAÇÃO (ATA NARRATIVA - 01/11/2025) ---
+// A função 'openOccurrenceRecordModal' foi reescrita.
+// ==============================================================================
+
 /**
- * Gera a Ata Formal, incluindo papéis e "Providências da Família".
- * (MODIFICADO - Papéis) Usa fetchIncidentById, participantsInvolved e exibe papéis.
- * (CORREÇÃO - ATA) Usa sintaxe de comentário HTML correta.
- * (CORREÇÃO - STATUS ATA) Calcula `overallStatus` corretamente.
- * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
+ * Gera a Ata Formal em formato NARRATIVO para o livro de ocorrências.
+ * @param {string} groupId - O ID do grupo da ocorrência.
  */
 export const openOccurrenceRecordModal = async (groupId) => {
-     // (MODIFICADO - Otimização) Usa a função otimizada
-     const incident = await fetchIncidentById(groupId);
-
+    const incident = await fetchIncidentById(groupId);
     if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
 
-    // --- CORREÇÃO (STATUS ATA) ---
-    // Recalcula o status geral aqui, garantindo que esteja correto para a ata
-    const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
-    // Define o status que será exibido na ata
-    const displayOverallStatus = allResolved ? 'Finalizada' : 'Pendente'; // Usa 'Finalizada' ou 'Pendente'
-    // --- FIM DA CORREÇÃO ---
+    const mainRecord = incident.records[0]; // Pega o primeiro registro para dados do FATO
+    const city = state.config?.city || "Cidade";
+    
+    // Converte a data do fato para formato extenso (ex: 01 de novembro de 2025)
+    let fullDateText = "Data não registrada";
+    try {
+        const dateObj = new Date(mainRecord.date + 'T12:00:00'); // Adiciona T12 para evitar fuso
+        fullDateText = dateObj.toLocaleDateString('pt-BR', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            timeZone: 'UTC' // Garante consistência
+        });
+    } catch (e) { console.error("Erro ao formatar data da ata:", e); }
 
-    const data = incident.records[0]; // Pega o primeiro registro para dados do FATO
-    // (MODIFICADO - Papéis) Pega lista de participantes { student, role }
-    const participants = [...incident.participantsInvolved.values()];
-    // (MODIFICADO - Papéis) Formata nomes com papéis para exibição
-    const participantDetailsHTML = participants.map(p => {
-        const iconClass = roleIcons[p.role] || roleIcons[defaultRole];
-        return `<span class="inline-flex items-center gap-1.5 mr-2"><i class="${iconClass} fa-fw"></i>${formatText(p.student.name)} (${p.role} - Turma: ${p.student.class})</span>`;
-    }).join('<br>');
-    // Pega nomes dos responsáveis (sem duplicatas)
-    const responsibleNames = [...new Set(participants.map(p => p.student).flatMap(s => [s.resp1, s.resp2]).filter(Boolean))].join(' e ');
+    // --- MONTAGEM DOS PARÁGRAFOS NARRATIVOS ---
 
-    document.getElementById('report-view-title').textContent = 'Ata de Registro de Ocorrência';
+    // 1. Abertura
+    let aberturaHTML = `
+        <p class="indent-8">
+            Aos ${fullDateText}, nas dependências desta unidade de ensino, foi lavrada a presente ata pela Coordenação Pedagógica para registrar os fatos e providências referentes ao incidente <strong>Nº ${incident.id}</strong>, classificado como <strong>"${formatText(mainRecord.occurrenceType)}"</strong>.
+        </p>`;
+
+    // 2. Fatos e Envolvidos
+    // (Pega todos os participantes do Map 'participantsInvolved')
+    const participantsDetails = [...incident.participantsInvolved.values()].map(p => {
+        return `
+            <li>
+                <strong>${formatText(p.student.name)}</strong>
+                (Turma: ${formatText(p.student.class || 'N/A')}),
+                identificado(a) como <strong>[${formatText(p.role)}]</strong>.
+            </li>`;
+    }).join('');
+
+    let fatosHTML = `
+        <h4 class="section-title">DOS FATOS E ENVOLVIDOS</h4>
+        <p class="indent-8">
+            Constatou-se o seguinte fato:
+        </p>
+        <p class="report-block-quote">
+            ${formatText(mainRecord.description)}
+        </p>
+        <p class="mt-2 indent-8">
+            Estiveram envolvidos no incidente os seguintes alunos:
+        </p>
+        <ul class="list-disc list-inside ml-8 my-2">
+            ${participantsDetails}
+        </ul>`;
+
+    // 3. Providências Imediatas (Ação 1)
+    let providenciasHTML = `
+        <h4 class="section-title">DAS PROVIDÊNCIAS IMEDIATAS DA ESCOLA (AÇÃO 1)</h4>
+        <p class="indent-8">
+            Após a constatação do fato, a gestão escolar tomou as seguintes providências imediatas:
+        </p>
+        <p class="report-block-quote">
+            ${formatText(mainRecord.providenciasEscola)}
+        </p>`;
+
+    // 4. Acompanhamentos e Desfecho (Ações 2-6)
+    let acompanhamentosHTML = `
+        <h4 class="section-title">DOS ACOMPANHAMENTOS E DESFECHO (AÇÕES 2-6)</h4>
+        <p class="indent-8">
+            Para o acompanhamento individual dos envolvidos, foram registradas as seguintes etapas:
+        </p>
+        <div class="space-y-3 mt-2">
+            ${incident.records.map(rec => {
+                const participant = incident.participantsInvolved.get(rec.studentId);
+                const studentName = participant ? participant.student.name : 'Aluno desconhecido';
+                
+                // Monta o texto para cada aluno
+                let textoAcoesAluno = "";
+                if (rec.meetingDate) {
+                    textoAcoesAluno += `<li><strong>Ação 2 (Convocação):</strong> Agendada reunião para ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}.</li>`;
+                }
+                if (rec.contactSucceeded != null) {
+                    const diaContato = rec.contactDate ? ` em ${formatDate(rec.contactDate)}` : '';
+                    if (rec.contactSucceeded === 'yes') {
+                        textoAcoesAluno += `<li><strong>Ação 3 (Contato):</strong> Contato realizado${diaContato}. Providências da família: ${formatText(rec.providenciasFamilia)}.</li>`;
+                    } else {
+                        textoAcoesAluno += `<li><strong>Ação 3 (Contato):</strong> Tentativa de contato registrada sem sucesso${diaContato}.</li>`;
+                    }
+                }
+                if (rec.oficioNumber) {
+                    textoAcoesAluno += `<li><strong>Ação 4 (Enc. CT):</strong> Encaminhado ao Conselho Tutelar (Ofício Nº ${formatText(rec.oficioNumber)}/${formatText(rec.oficioYear)}).</li>`;
+                }
+                if (rec.ctFeedback) {
+                    textoAcoesAluno += `<li><strong>Ação 5 (Devolutiva CT):</strong> Devolutiva recebida: ${formatText(rec.ctFeedback)}.</li>`;
+                }
+                if (rec.parecerFinal) {
+                    textoAcoesAluno += `<li><strong>Ação 6 (Parecer Final):</strong> Desfecho registrado: ${formatText(rec.parecerFinal)}.</li>`;
+                }
+                if(textoAcoesAluno === "") {
+                    textoAcoesAluno = `<li>Nenhuma ação de acompanhamento registrada.</li>`;
+                }
+
+                return `
+                    <div class="report-block-quote-inner">
+                        <strong class="font-semibold">${formatText(studentName)}</strong> (Status: ${rec.statusIndividual || 'Pendente'})
+                        <ul class="list-disc list-inside ml-4 text-sm">
+                            ${textoAcoesAluno}
+                        </ul>
+                    </div>`;
+            }).join('')}
+        </div>`;
+
+    // 5. Fechamento
+    const displayOverallStatus = incident.overallStatus === 'Finalizada' ?
+        "O presente incidente é considerado <strong>Finalizado</strong> pela gestão escolar." :
+        "O presente incidente segue <strong>Pendente</strong> de acompanhamento pela gestão escolar.";
+
+    let fechamentoHTML = `
+        <p class="mt-4 indent-8">
+            ${displayOverallStatus}
+        </p>
+        <p class="mt-4 indent-8">
+            Nada mais havendo a tratar, encerra-se a presente ata, que será impressa e assinada pelos presentes para que surta seus devidos efeitos e seja arquivada no livro de registros desta instituição.
+        </p>
+        <p class="mt-4 text-center">
+            ${city}, ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.
+        </p>`;
+
+    // 6. Assinaturas (Mantidas conforme o original, mas sem a linha extra)
+    let assinaturasHTML = `
+        <div class="signature-block mt-12 space-y-12">
+            <div class="text-center w-2/3 mx-auto">
+                <div class="border-t border-gray-400"></div>
+                <p class="text-center mt-1 text-xs">Ciente do(s) Responsável(is)</p>
+            </div>
+            <div class="text-center w-2/3 mx-auto">
+                <div class="border-t border-gray-400"></div>
+                <p class="text-center mt-1 text-xs">Ciente do(s) Aluno(s)</p>
+            </div>
+            <div class="text-center w-2/3 mx-auto">
+                <div class="border-t border-gray-400"></div>
+                <p class="text-center mt-1 text-xs">Assinatura da Gestão Escolar</p>
+            </div>
+        </div>`;
+
+    // --- RENDERIZAÇÃO FINAL ---
+    document.getElementById('report-view-title').textContent = `Ata de Ocorrência Nº ${incident.id}`;
     document.getElementById('report-view-content').innerHTML = `
-        <div class="space-y-6 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+        <!-- Estilos específicos para a Ata Narrativa -->
+        <style>
+            .report-narrative {
+                font-family: 'Times New Roman', serif;
+                font-size: 11pt;
+                line-height: 1.6;
+                text-align: justify;
+            }
+            .report-narrative .indent-8 {
+                text-indent: 2rem;
+            }
+            .report-narrative .section-title {
+                font-weight: bold;
+                text-align: center;
+                margin-top: 1rem;
+                margin-bottom: 0.5rem;
+                font-size: 11pt;
+            }
+            .report-narrative .report-block-quote {
+                margin-left: 2rem;
+                margin-right: 2rem;
+                padding: 0.5rem 1rem;
+                background-color: #f9fafb; /* bg-gray-50 */
+                border-left: 3px solid #e5e7eb; /* border-gray-200 */
+                font-style: italic;
+                font-family: 'Inter', sans-serif;
+                font-size: 10pt;
+            }
+             .report-narrative .report-block-quote-inner {
+                padding: 0.5rem 1rem;
+                background-color: #f9fafb; /* bg-gray-50 */
+                border: 1px solid #e5e7eb; /* border-gray-200 */
+                border-radius: 0.25rem;
+                font-family: 'Inter', sans-serif;
+                font-size: 10pt;
+            }
+            .report-narrative .signature-block p {
+                 font-family: 'Inter', sans-serif;
+            }
+        </style>
+        
+        <div class="report-narrative space-y-2">
             ${getReportHeaderHTML()}
-            <h3 class="text-lg font-semibold mt-4 text-center uppercase">Ata de Registro de Ocorrência</h3>
-
-            <p class="text-sm text-gray-500 text-right">ID do Incidente: ${incident.id}</p>
-
-            <div class="border rounded-lg p-4 bg-gray-50 space-y-3" style="font-family: 'Inter', sans-serif;">
-                <div><h4 class="font-semibold">Data da Ocorrência:</h4><p>${formatDate(data.date)}</p></div>
-                <div><h4 class="font-semibold">Tipo:</h4><p>${formatText(data.occurrenceType)}</p></div>
-                <!-- CORREÇÃO (STATUS ATA): Usa a variável corrigida -->
-                <div><h4 class="font-semibold">Status Geral:</h4><p>${formatText(displayOverallStatus)}</p></div>
-                <!-- (MODIFICADO - Papéis) Exibe detalhes com papéis -->
-                <div><h4 class="font-semibold">Participantes Envolvidos:</h4><p>${participantDetailsHTML}</p></div>
-                <div><h4 class="font-semibold">Responsáveis:</h4><p>${formatText(responsibleNames)}</p></div>
-            </div>
-
-            <div class="border-t pt-4 space-y-4">
-                <!-- Campos da Ação 1 (inalterados) -->
-                <div><h4 class="font-semibold mb-1">Ação 1: Descrição Detalhada dos Fatos:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap" style="font-family: 'Inter', sans-serif;">${formatText(data.description)}</p></div>
-                <div><h4 class="font-semibold mb-1">Ação 1: Providências Imediatas da Escola:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap" style="font-family: 'Inter', sans-serif;">${formatText(data.providenciasEscola)}</p></div>
-
-                <div class="border-t pt-4">
-                    <h4 class="text-md font-semibold text-gray-700 mb-2">Acompanhamentos Individuais (Ações 2-6)</h4>
-
-                    <!-- Loop atualizado para ler os novos campos (lógica mantida) -->
-                    <!-- (MODIFICADO - Papéis) Ajusta busca do nome do aluno -->
-                    ${incident.records.map(rec => {
-                        // Busca o participante correspondente para pegar o nome
-                        const participant = incident.participantsInvolved.get(rec.studentId);
-                        const studentName = participant ? participant.student.name : 'Aluno desconhecido';
-                        const statusIndividual = rec.statusIndividual || 'Aguardando Convocação';
-
-                        return `
-                        <div class="mt-2 p-3 border rounded-md bg-gray-50 break-inside-avoid" style="font-family: 'Inter', sans-serif;">
-                            <div class="flex justify-between items-center">
-                                <p class="font-semibold">${formatText(studentName)}</p>
-                                ${getStatusBadge(statusIndividual)}
-                            </div>
-
-                            <!-- Ação 2: Convocação -->
-                            ${(rec.meetingDate) ? `
-                            <div class="mt-2 p-2 bg-indigo-50 rounded-md text-sm">
-                                <p><strong>Ação 2 - Convocação:</strong> Data: ${formatDate(rec.meetingDate)} | Horário: ${formatTime(rec.meetingTime)}</p>
-                            </div>
-                            ` : ''}
-
-                            <!-- Ação 3: Contato com Família -->
-                            <p class="mt-1"><strong>Ação 3 - Providências da Família:</strong> ${formatText(rec.providenciasFamilia)}</p>
-                            ${(rec.contactSucceeded != null) ? ` <!-- Verifica se não é nulo -->
-                            <p class="text-xs text-gray-600 ml-2">↳ Contato em ${formatDate(rec.contactDate)} (${rec.contactType || 'N/A'}) foi ${rec.contactSucceeded === 'yes' ? 'realizado.' : 'sem sucesso.'}</p>
-                            ` : ''}
-
-                            <!-- Ação 4: Encaminhamento CT -->
-                            ${(rec.oficioNumber) ? `
-                            <p class="mt-1"><strong>Ação 4 - Encaminhamento ao CT:</strong> Ofício Nº ${formatText(rec.oficioNumber)}/${formatText(rec.oficioYear)} (Enviado em: ${formatDate(rec.ctSentDate)})</p>
-                            ` : ''}
-
-                            <!-- Ação 5: Devolutiva CT -->
-                            <p class="mt-1"><strong>Ação 5 - Devolutiva do CT:</strong> ${formatText(rec.ctFeedback)}</p>
-
-                            <!-- Ação 6: Parecer Final -->
-                            <p class="mt-1"><strong>Ação 6 - Parecer/Desfecho:</strong> ${formatText(rec.parecerFinal)}</p>
-                        </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-
-            <!-- --- CORREÇÃO 3: Removido 'pt-8' (CSS cuida da margem) --- -->
-            <div class="signature-block mt-8 space-y-12">
-                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do(s) Responsável(is)</p></div>
-                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do(s) Aluno(s)</p></div>
-                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Assinatura da Gestão Escolar</p></div>
-            </div>
+            <h3 class="text-lg font-semibold mt-4 text-center uppercase">ATA DE REGISTRO DE OCORRÊNCIA Nº ${incident.id}</h3>
+            
+            ${aberturaHTML}
+            ${fatosHTML}
+            ${providenciasHTML}
+            ${acompanhamentosHTML}
+            ${fechamentoHTML}
+            ${assinaturasHTML}
         </div>`;
     openModal(dom.reportViewModalBackdrop);
 };
+
+// ==============================================================================
+// --- FIM DA ATUALIZAÇÃO (ATA NARRATIVA) ---
+// ==============================================================================
 
 
 /**
@@ -952,7 +1060,7 @@ export const generateAndShowBuscaAtivaReport = () => {
         if (pendingAction === 'pending_contact' && !isPendingContact) return false;
         if (pendingAction === 'pending_feedback' && !isPendingFeedback) return false;
 
-        isConcluded ? statusConcluido++ : statusEmAndamento++;
+        isConcluido ? statusConcluido++ : statusEmAndamento++;
 
         if (lastReturnStatusValue === 'yes') retornoSim++;
         else if (lastReturnStatusValue === 'no') retornoNao++;
@@ -1190,3 +1298,4 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
 // ==============================================================================
 // --- FIM NOVO ---
 // ==============================================================================
+
