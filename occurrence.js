@@ -9,13 +9,20 @@
 //
 // CORREÇÃO (LOGIN - 29/10/2025):
 // ... (histórico anterior mantido) ...
+//
+// ATUALIZAÇÃO (EDIÇÃO DE AÇÃO - 01/11/2025):
+// 1. Adicionada a capacidade de editar a última ação individual (Ação 2-6)
+//    através de um novo botão "Editar Ação".
+// 2. Importada a nova lógica de `logic.js` (`determineCurrentActionFromStatus`).
+// 3. Adicionada a função `handleEditOccurrenceAction`.
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
 import { getCollectionRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord, getIncidentByGroupId as fetchIncidentById } from './firestore.js'; // Renomeado para clareza
 // (V3) Importa a nova lógica de determinação de etapa
-import { determineNextOccurrenceStep } from './logic.js';
+// --- (NOVO - Edição) Importa a nova função de lógica ---
+import { determineNextOccurrenceStep, determineCurrentActionFromStatus } from './logic.js';
 import {
     // openStudentSelectionModal, // Não é mais necessário aqui
     openOccurrenceRecordModal,
@@ -309,6 +316,7 @@ export const getFilteredOccurrences = () => {
  * (MODIFICADO - Plano 1b) Adiciona disabled em botões de ocorrências finalizadas.
  * (MODIFICADO - Plano 3c) Move botão "Editar Fato" para fora do kebab.
  * (CORREÇÃO - VISUAL) Usa sintaxe de comentário HTML correta.
+ * (MODIFICADO - Edição de Ação 01/11/2025) Adiciona "Editar Ação"
  */
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
@@ -369,6 +377,21 @@ export const renderOccurrences = () => {
                         <i class="fas fa-paper-plane"></i> Notificação
                     </button>
                 ` : '';
+                
+                // --- (NOVO - Edição de Ação 01/11/2025) ---
+                // Botão para Editar a Ação Individual
+                const editActionBtn = `
+                    <button type="button"
+                            class="edit-occurrence-action-btn text-yellow-600 hover:text-yellow-900 text-xs font-semibold py-1 px-2 rounded-md bg-yellow-50 hover:bg-yellow-100 ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
+                            data-group-id="${incident.id}"
+                            data-student-id="${student.matricula}"
+                            data-record-id="${recordId}"
+                            title="${isIndividualResolvido ? 'Processo finalizado' : 'Editar a última ação salva'}"
+                            ${isIndividualResolvido ? 'disabled' : ''}>
+                        <i class="fas fa-pencil-alt"></i> Editar Ação
+                    </button>
+                `;
+                // --- FIM DA NOVIDADE ---
 
                 // --- INÍCIO DA MODIFICAÇÃO (Organização Vertical Conforme Solicitado + CORREÇÃO VISUAL) ---
                 return `
@@ -393,6 +416,10 @@ export const renderOccurrences = () => {
                             <!-- <button class="edit-occurrence-action-btn ..."><i class="fas fa-pencil-alt"></i> Editar Ação</button> -->
                             <!-- (NOVO - Plano 1c) Botão Excluir/Reset Ação Individual (A ser implementado) -->
                             <!-- <button class="delete-occurrence-action-btn ..."><i class="fas fa-trash"></i> Resetar Ação</button> -->
+                            
+                            <!-- --- (NOVO - Edição) Adiciona o botão de editar --- -->
+                            ${editActionBtn}
+                            
                             ${viewOficioBtn}
                         </div>
                     </div>`;
@@ -1054,6 +1081,61 @@ async function handleEditOccurrence(groupId) {
     }
 }
 
+// ==============================================================================
+// --- (NOVO - Edição de Ação 01/11/2025) ---
+// Nova função para lidar com o clique no botão "Editar Ação"
+// ==============================================================================
+/**
+ * Lida com o clique no botão "Editar Ação"
+ * Abre o modal na etapa que o usuário já preencheu.
+ */
+async function handleEditOccurrenceAction(studentId, groupId, recordId) {
+    const incident = await fetchIncidentById(groupId);
+    if (!incident) return showToast('Erro: Incidente não encontrado.');
+
+    const participantData = incident.participantsInvolved.get(studentId);
+    const student = participantData?.student;
+    if (!student) return showToast('Erro: Aluno não encontrado no incidente.');
+
+    const record = incident.records.find(r => r.id === recordId);
+    if (!record) return showToast('Erro: Registro individual não encontrado.');
+
+    // Determina a AÇÃO ATUAL (anterior) com base no status
+    // Usa a nova função importada de logic.js
+    let actionToEdit = determineCurrentActionFromStatus(record.statusIndividual);
+
+    // Refinamento para o status "Resolvido" (lógica mais complexa)
+    if (record.statusIndividual === 'Resolvido') {
+        // Se foi resolvido E tem um 'desfechoChoice', foi pela Ação 4/6
+        if (record.desfechoChoice) {
+            // Se a escolha foi 'parecer' ou 'ct', a tela de edição
+            // é a 'desfecho_ou_ct', que mostra os rádios.
+            actionToEdit = 'desfecho_ou_ct';
+        }
+        // Se foi resolvido e tem 'parecerFinal' mas *não* tem 'desfechoChoice'
+        // (pode ser um registro antigo ou um fluxo pós-CT)
+        else if (record.parecerFinal) {
+             // Se tem oficio, a última ação foi 'parecer_final' (Ação 6)
+             // Se não tem oficio, a última ação foi 'desfecho_ou_ct' (onde preencheu o parecer)
+             actionToEdit = record.oficioNumber ? 'parecer_final' : 'desfecho_ou_ct';
+        }
+        // Se está Resolvido mas não caiu em nenhum caso (ex: erro de dados),
+        // 'actionToEdit' manterá 'parecer_final' do 'determineCurrentActionFromStatus'
+    }
+
+
+    if (actionToEdit === null) {
+        showToast('Para editar o fato (Ação 1), use o botão "Editar Fato" no menu do incidente.');
+        return;
+    }
+    
+    // Abre o modal para a AÇÃO ATUAL (para edição)
+    // A função openOccurrenceStepModal já sabe como preencher os dados
+    // salvos para a 'actionToEdit' que passarmos.
+    openOccurrenceStepModal(student, record, actionToEdit);
+}
+
+
 /**
  * Lida com a confirmação para exclusão de um incidente.
  * (Inalterado - A lógica de exclusão em si está no main.js)
@@ -1271,6 +1353,7 @@ async function handleGenerateNotification(recordId, studentId, groupId) {
  * Anexa todos os listeners de eventos relacionados a Ocorrências.
  * (MODIFICADO - Papéis) Adiciona listeners para edição de papel.
  * (MODIFICADO - Plano 3b) Adiciona listener para rádios de desfecho.
+ * (MODIFICADO - Edição de Ação 01/11/2025) Adiciona listener para "Editar Ação".
  */
 export const initOccurrenceListeners = () => {
     // Botão Adicionar Nova Ocorrência
@@ -1338,6 +1421,18 @@ export const initOccurrenceListeners = () => {
              return;
         }
 
+        // --- (NOVO - Edição) Listener para o novo botão "Editar Ação" ---
+        if (button.classList.contains('edit-occurrence-action-btn') && !button.disabled) {
+             e.stopPropagation();
+             const groupId = button.dataset.groupId;
+             const studentId = button.dataset.studentId;
+             const recordId = button.dataset.recordId;
+             handleEditOccurrenceAction(studentId, groupId, recordId); // Nova função
+             return;
+        }
+        // --- FIM DA NOVIDADE ---
+
+
         const groupId = button.dataset.groupId;
         if (!groupId) return; // Se não tem groupId, não continua
 
@@ -1392,3 +1487,4 @@ export const initOccurrenceListeners = () => {
         }
     });
 };
+
