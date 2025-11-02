@@ -471,7 +471,7 @@ export const openAbsenceHistoryModal = (processId) => {
 
     const history = allHistory.sort((a, b) => {
         const timeA = a.timestamp?.seconds ? a.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
-        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(b.timestamp).getTime();
+        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
         return timeB - timeA;
     });
 
@@ -1037,7 +1037,7 @@ export const generateAndShowBuscaAtivaReport = () => {
         if (studentFilter && (!student || !student.name.toLowerCase().includes(studentFilter.toLowerCase()))) return false;
 
         const isConcluded = lastAction.actionType === 'analise';
-        if (processStatus === 'in_progress' && isConcluded) return false;
+        if (processStatus === 'in_progress' && isConcluido) return false;
         if (processStatus === 'concluded' && !isConcluded) return false;
 
         const lastReturnAction = [...proc.actions].reverse().find(a => a.contactReturned != null || a.visitReturned != null || a.ctReturned != null);
@@ -1054,13 +1054,17 @@ export const generateAndShowBuscaAtivaReport = () => {
              isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null);
 
             const ctAction = proc.actions.find(a => a.actionType === 'encaminhamento_ct');
+            // **** LINHA DA CORREÇÃO ****
+            // O código antigo (com bug) era: isPendingFeedback = ctAction && !isConcluido;
+            // O código correto é:
             isPendingFeedback = ctAction && !ctAction.ctFeedback;
+            // **** FIM DA CORREÇÃO ****
         }
 
         if (pendingAction === 'pending_contact' && !isPendingContact) return false;
         if (pendingAction === 'pending_feedback' && !isPendingFeedback) return false;
 
-        isConcluido ? statusConcluido++ : statusEmAndamento++;
+        isConcluded ? statusConcluido++ : statusEmAndamento++;
 
         if (lastReturnStatusValue === 'yes') retornoSim++;
         else if (lastReturnStatusValue === 'no') retornoNao++;
