@@ -3,50 +3,23 @@
 // RESPONSABILIDADE: Gerenciar toda a lógica, UI e eventos da
 // funcionalidade "Busca Ativa".
 //
-// CORREÇÃO (24/10/2025): A função handleSendToCT foi ajustada para salvar
-// a ação "Encaminhamento" no Firestore ANTES de tentar gerar o
-// documento do ofício, garantindo que os dados (como o nº do ofício)
-// estejam disponíveis para o relatório.
+// ATUALIZAÇÃO (V4 - LAYOUT UNIFICADO - 01/11/2025):
+// 1. (renderAbsences) Reescrita para espelhar o layout do 'occurrence.js'.
+// 2. O conteúdo do acordeão agora é dividido em "Histórico Individual" (lista)
+//    e "Ações" (bloco de botões).
+// 3. Removidos os menus Kebab de cada linha de histórico.
+// 4. (initAbsenceListeners) Atualizada para lidar com os novos botões no
+//    bloco "Ações" (Avançar, Editar, Limpar, etc.).
+// 5. Adicionados botões "Avançar Etapa", "Editar Ação" e "Limpar Ação"
+//    para consistência com o fluxo de Ocorrências.
 //
-// CORREÇÃO (24/10/2025 - V2): Removida a atualização manual do state.absences
-// e a chamada manual renderAbsences() de handleSendToCT para evitar TypeError
-// com o objeto Date vs Timestamp. O listener onSnapshot cuidará da renderização.
-//
-// ATUALIZAÇÃO (SOLICITAÇÃO DO USUÁRIO - 24/10/2025):
-// 1. (Sugestão 1) Adicionada lógica de filtragem por data em `renderAbsences`.
-// 2. (Sugestão 1) Adicionados listeners para os novos filtros de data em `initAbsenceListeners`.
-//
-// CORREÇÃO (BUG DE CLIQUE - 29/10/2025):
-// 1. Reordenada a lógica de eventos em `initAbsenceListeners` para que o clique
-//    no nome do aluno (new-action-from-history-btn) seja verificado ANTES
-//    do clique no cabeçalho (process-header), corrigindo o bug que só
-//    expandia o acordeão.
-//
-// CORREÇÃO (STATUS VISUAL - 29/10/2025):
-// 1. Corrigida a lógica de exibição do status de contato em `renderAbsences`
-//    para diferenciar "Contato Realizado" (sim) de "Contato Não Realizado" (não).
-//
-// CORREÇÃO (ERRO DE SINTAXE - 29/10/2025 v2):
-// 1. Restaurada a cadeia 'if...else if...else' na lógica de `actionButtonHtml`
-//    dentro de `renderAbsences` para corrigir o 'SyntaxError: Unexpected token 'else''.
-//
-// ATUALIZAÇÃO (CONSISTÊNCIA - 29/10/2025):
-// 1. Implementado bloqueio de edição/exclusão: Apenas a última ação de um
-//    processo em andamento pode ser editada ou excluída (`renderAbsences`).
-// 2. Implementada validação de datas:
-//    - Data mínima definida no formulário (`openAbsenceModalForStudent`).
-//    - Verificação final antes de salvar (`handleAbsenceSubmit`).
-//
-// ATUALIZAÇÃO (SOLICITAÇÃO DO USUÁRIO - 29/10/2025):
-// 1. (CORREÇÃO 1) REMOVIDA a validação `required` para os campos "Aluno retornou?".
-//    O bloqueio agora é feito apenas ao tentar avançar de etapa.
-// 2. (CORREÇÃO 2) Atualizada a lógica em `handleNewAbsenceAction` para impedir o
-//    avanço para a próxima etapa se "Aluno retornou?" (`...Returned`) não for preenchido
-//    na etapa anterior (Esta parte foi mantida).
+// CORREÇÃO (BUG DO BOTÃO - 01/11/2025):
+// 1. (setupAbsenceAutocomplete) Corrigida referência para usar `dom.searchAbsences`.
+// 2. (initAbsenceListeners) Corrigida referência para usar `dom.generalBaReportBtn`.
 // =================================================================================
 
 import { state, dom } from './state.js';
-import { showToast, openModal, closeModal, formatDate } from './utils.js';
+import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js'; // Adicionado formatTime
 import { getStudentProcessInfo, determineNextActionForStudent } from './logic.js';
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
 import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef } from './firestore.js';
@@ -105,7 +78,8 @@ const getDateInputForActionType = (actionType) => {
  * Configura o autocomplete para a barra de busca da Busca Ativa.
  */
 const setupAbsenceAutocomplete = () => {
-    const input = document.getElementById('search-absences');
+    // --- CORREÇÃO: Usar dom.searchAbsences em vez de document.getElementById ---
+    const input = dom.searchAbsences; // document.getElementById('search-absences');
     const suggestionsContainer = document.getElementById('absence-student-suggestions');
     
     input.addEventListener('input', () => {
@@ -148,9 +122,14 @@ const setupAbsenceAutocomplete = () => {
     });
 };
 
+
+// =================================================================================
+// --- INÍCIO DA REESCRITA (renderAbsences) ---
+// Função reescrita para usar o layout de acordeão unificado (V4).
+// =================================================================================
 /**
  * Renderiza a lista de Busca Ativa.
- * (MODIFICADO - CONSISTÊNCIA 1): Desabilita botões de editar/excluir para ações não finais.
+ * (MODIFICADO - V4): Adota o layout de Histórico + Ações do 'occurrence.js'.
  */
 export const renderAbsences = () => {
     dom.loadingAbsences.classList.add('hidden');
@@ -311,115 +290,174 @@ export const renderAbsences = () => {
             if (!student) continue;
 
             const isConcluded = actions.some(a => a.actionType === 'analise');
-            const hasCtAction = actions.some(a => a.actionType === 'encaminhamento_ct');
             
+            // --- (INÍCIO LÓGICA V4) ---
+            
+            // 1. Gera o Histórico de Ações Concluídas (para dentro do acordeão)
+            let historyHtml = '';
+            actions.forEach(abs => {
+                const actionDisplayDate = getActionMainDate(abs) || (abs.createdAt?.toDate() ? abs.createdAt.toDate().toISOString().split('T')[0] : '');
+
+                const returned = abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes';
+                const notReturned = abs.contactReturned === 'no' || abs.visitReturned === 'no' || abs.ctReturned === 'no';
+                
+                let statusHtml = '';
+                if (abs.actionType.startsWith('tentativa')) {
+                    if (abs.contactSucceeded === 'yes') {
+                        statusHtml = `<span class="text-xs text-green-600 font-semibold">(<i class="fas fa-check"></i> Contato Realizado)</span>`;
+                    } else if (abs.contactSucceeded === 'no') {
+                        statusHtml = `<span class="text-xs text-red-600 font-semibold">(<i class="fas fa-times"></i> Contato Não Realizado)</span>`;
+                    } else {
+                        statusHtml = `<span class="text-xs text-yellow-600 font-semibold">(<i class="fas fa-hourglass-half"></i> Aguardando Contato)</span>`;
+                    }
+                } else if (abs.actionType === 'visita') {
+                     if (abs.visitSucceeded === 'yes') {
+                        statusHtml = `<span class="text-xs text-green-600 font-semibold">(<i class="fas fa-check"></i> Contato Realizado)</span>`;
+                    } else if (abs.visitSucceeded === 'no') {
+                        statusHtml = `<span class="text-xs text-red-600 font-semibold">(<i class="fas fa-times"></i> Contato Não Realizado)</span>`;
+                    } else {
+                        statusHtml = `<span class="text-xs text-yellow-600 font-semibold">(<i class="fas fa-hourglass-half"></i> Aguardando Contato)</span>`;
+                    }
+                } else if (abs.actionType === 'encaminhamento_ct') {
+                    statusHtml = abs.ctFeedback ? `<span class="text-xs text-green-600 font-semibold">(<i class="fas fa-inbox"></i> Devolutiva Recebida)</span>` : `<span class="text-xs text-yellow-600 font-semibold">(<i class="fas fa-hourglass-half"></i> Aguardando Devolutiva)</span>`;
+                }
+
+                historyHtml += `
+                    <p class="text-xs text-gray-600">
+                        <i class="fas fa-check text-green-500 fa-fw mr-1"></i>
+                        <strong>${actionDisplayTitles[abs.actionType] || 'N/A'}</strong> (Data: ${formatDate(actionDisplayDate)}) ${statusHtml}
+                        ${returned ? '<span class="text-xs text-green-600 font-semibold ml-1">[<i class="fas fa-check-circle"></i> Retornou]</span>' : ''}
+                        ${notReturned ? '<span class="text-xs text-red-600 font-semibold ml-1">[<i class="fas fa-times-circle"></i> Não Retornou]</span>' : ''}
+                    </p>
+                `;
+            });
+            
+            // 2. Gera os Botões de Ação (para dentro do acordeão)
+            const disableEditDelete = isConcluded || !lastProcessAction;
+            const disableReason = isConcluded ? "Processo concluído" : "Apenas a última ação pode ser alterada";
+
+            // Botão Avançar Etapa
+            const avancarBtn = `
+                <button type="button"
+                        class="avancar-etapa-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}"
+                        title="${isConcluded ? 'Processo concluído' : 'Avançar para a próxima etapa'}"
+                        ${isConcluded ? 'disabled' : ''}
+                        data-student-id="${student.matricula}">
+                    <i class="fas fa-plus"></i> Avançar Etapa
+                </button>
+            `;
+            
+            // Botão Editar Ação
+            const editBtn = `
+                <button type="button"
+                        class="edit-absence-action-btn text-yellow-600 hover:text-yellow-900 text-xs font-semibold py-1 px-2 rounded-md bg-yellow-50 hover:bg-yellow-100 ${disableEditDelete ? 'opacity-50 cursor-not-allowed' : ''}"
+                        title="${disableReason}"
+                        ${disableEditDelete ? 'disabled' : ''}
+                        data-id="${lastProcessAction.id}">
+                    <i class="fas fa-pencil-alt"></i> Editar Ação
+                </button>
+            `;
+
+            // Botão Limpar Ação
+            const limparBtn = `
+                <button type="button"
+                        class="reset-absence-action-btn text-red-600 hover:text-red-900 text-xs font-semibold py-1 px-2 rounded-md bg-red-50 hover:bg-red-100 ${disableEditDelete ? 'opacity-50 cursor-not-allowed' : ''}"
+                        title="${disableReason}"
+                        ${disableEditDelete ? 'disabled' : ''}
+                        data-id="${lastProcessAction.id}">
+                    <i class="fas fa-undo-alt"></i> Limpar Ação
+                </button>
+            `;
+
+            // Botão Notificação
+            const lastNotificationAction = [...actions].reverse().find(a => a.meetingDate && a.meetingTime);
+            const notificationBtn = lastNotificationAction ? `
+                <button type="button"
+                        class="notification-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100"
+                        data-id="${lastNotificationAction.id}"
+                        title="Gerar Notificação (baseada na última convocação)">
+                    <i class="fas fa-paper-plane"></i> Notificação
+                </button>
+            ` : '';
+            
+            // Botão Enviar ao CT
+            const visitAction = actions.find(a => a.actionType === 'visita');
+            const hasCtAction = actions.some(a => a.actionType === 'encaminhamento_ct');
+            const disabledSendCt = isConcluded || hasCtAction || !visitAction;
+            const sendCtTitle = isConcluded ? 'Processo concluído' : (hasCtAction ? 'Encaminhamento já realizado' : (!visitAction ? 'Requer Ação de Visita' : 'Enviar ao Conselho Tutelar'));
+            
+            const sendCtBtn = `
+                <button type="button"
+                        class="send-ct-btn text-blue-600 hover:text-blue-900 text-xs font-semibold py-1 px-2 rounded-md bg-blue-50 hover:bg-blue-100 ${disabledSendCt ? 'opacity-50 cursor-not-allowed' : ''}"
+                        ${disabledSendCt ? 'disabled' : ''}
+                        title="${sendCtTitle}"
+                        data-id="${visitAction?.id || ''}">
+                    <i class="fas fa-gavel"></i> Enviar ao CT
+                </button>
+            `;
+            
+            // Botão Ver Ofício
+            const ctAction = actions.find(a => a.actionType === 'encaminhamento_ct' && a.oficioNumber);
+            const viewOficioBtn = ctAction ? `
+                <button type="button"
+                        class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50 hover:bg-green-100"
+                        data-id="${ctAction.id}"
+                        title="Visualizar Ofício Nº ${ctAction.oficioNumber}">
+                    <i class="fas fa-file-alt"></i> Ver Ofício
+                </button>
+            ` : '';
+
+            // --- FIM LÓGICA V4 ---
+
+
             // --- Renderização do Cabeçalho do Processo (Card) ---
+            const contentId = `ba-content-${processId}`;
             html += `
                 <div class="border rounded-lg mb-4 bg-white shadow">
-                    <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center" data-process-id="${processId}">
+                    <!-- Cabeçalho Clicável (DIV) -->
+                    <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center"
+                         data-content-id="${contentId}">
                         <div>
-                            <p class="font-semibold text-gray-800 cursor-pointer hover:underline new-action-from-history-btn" data-student-id="${student.matricula}">${student.name}</p>
+                            <!-- (Corrigido) Botão "Avançar" removido do nome, agora está dentro do acordeão -->
+                            <p class="font-semibold text-gray-800">${student.name}</p>
                             <p class="text-sm text-gray-500">ID do Processo: ${processId} - Início: ${formatDate(firstAction.createdAt?.toDate())}</p>
                         </div>
                         <div class="flex items-center space-x-4">
-                            ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : ''}
+                            ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : '<span class="text-xs font-bold text-white bg-yellow-600 px-2 py-1 rounded-full">EM ANDAMENTO</span>'}
                             <button class="generate-ficha-btn-row bg-purple-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-purple-700 text-xs no-print" data-student-id="${student.matricula}" data-process-id="${processId}">
                                 <i class="fas fa-file-invoice"></i> Ficha
                             </button>
                             <i class="fas fa-chevron-down transition-transform duration-300"></i>
                         </div>
                     </div>
-                    <div class="process-content" id="content-${processId}" style="overflow: hidden;">
-                        <div class="p-4 border-t border-gray-200"><div class="space-y-4">
+                    
+                    <!-- Conteúdo Oculto (process-content) -->
+                    <div class="process-content" id="${contentId}" style="max-height: 0px; overflow: hidden;">
+                        <div class="p-4 border-t border-gray-200">
+                             <h5 class="text-xs font-bold uppercase text-gray-500 mb-2">Histórico Individual</h5>
+                             <div class="space-y-1 mb-3">
+                                ${historyHtml}
+                             </div>
+                             <h5 class="text-xs font-bold uppercase text-gray-500 mb-2">Ações</h5>
+                             <div class="flex items-center flex-wrap gap-2">
+                                ${avancarBtn}
+                                ${editBtn}
+                                ${limparBtn}
+                                ${notificationBtn}
+                                ${sendCtBtn}
+                                ${viewOficioBtn}
+                             </div>
+                        </div>
+                    </div>
+                </div>
             `;
-            // --- Renderização das Ações dentro do Processo ---
-            actions.forEach((abs, index) => {
-                // A data principal da ação atual (para exibição)
-                const actionDisplayDate = getActionMainDate(abs) || (abs.createdAt?.toDate() ? abs.createdAt.toDate().toISOString().split('T')[0] : '');
-
-                const returned = abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes';
-                const notReturned = abs.contactReturned === 'no' || abs.visitReturned === 'no' || abs.ctReturned === 'no';
-
-                // Lógica dos botões de ação (Notificação, Enviar CT, Ver Ofício)
-                let actionButtonHtml = '';
-                if (abs.actionType.startsWith('tentativa') && abs.meetingDate && abs.meetingTime) {
-                    actionButtonHtml = `<button class="notification-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50" data-id="${abs.id}" title="Gerar Notificação">Notificação</button>`;
-                } else if (abs.actionType === 'visita') {
-                    const disabledSendCt = isConcluded || hasCtAction;
-                    actionButtonHtml = `<button class="send-ct-btn text-blue-600 hover:text-blue-900 text-xs font-semibold py-1 px-2 rounded-md bg-blue-50 ${disabledSendCt ? 'opacity-50 cursor-not-allowed' : ''}" data-id="${abs.id}" title="${disabledSendCt ? 'Encaminhamento já realizado ou Processo concluído' : 'Enviar ao Conselho Tutelar'}" ${disabledSendCt ? 'disabled' : ''}>Enviar ao C.T.</button>`;
-                } else if (abs.actionType === 'encaminhamento_ct' && abs.oficioNumber) {
-                    actionButtonHtml = `<button class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50" data-id="${abs.id}" title="Visualizar Ofício">Ver Ofício</button>`;
-                } else {
-                    actionButtonHtml = `<span class="inline-block w-24"></span>`;
-                }
-                
-                // Lógica de Status (corrigida anteriormente)
-                let statusHtml = '';
-                if (abs.actionType.startsWith('tentativa')) {
-                    if (abs.contactSucceeded === 'yes') {
-                        statusHtml = '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-check"></i> Contato Realizado</p>';
-                    } else if (abs.contactSucceeded === 'no') {
-                        statusHtml = '<p class="text-xs text-red-600 font-semibold mt-1"><i class="fas fa-times"></i> Contato Não Realizado</p>';
-                    } else { // null ou undefined
-                        statusHtml = '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Contato</p>';
-                    }
-                } else if (abs.actionType === 'visita') {
-                     if (abs.visitSucceeded === 'yes') {
-                        statusHtml = '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-check"></i> Contato Realizado</p>';
-                    } else if (abs.visitSucceeded === 'no') {
-                        statusHtml = '<p class="text-xs text-red-600 font-semibold mt-1"><i class="fas fa-times"></i> Contato Não Realizado</p>';
-                    } else { // null ou undefined
-                        statusHtml = '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Contato</p>';
-                    }
-                } else if (abs.actionType === 'encaminhamento_ct') {
-                    statusHtml = abs.ctFeedback ? '<p class="text-xs text-green-600 font-semibold mt-1"><i class="fas fa-inbox"></i> Devolutiva Recebida</p>' : '<p class="text-xs text-yellow-600 font-semibold mt-1"><i class="fas fa-hourglass-half"></i> Aguardando Devolutiva</p>';
-                }
-
-
-                // --- Lógica para desabilitar Editar/Excluir (CONSISTÊNCIA 1) ---
-                const isLastAction = abs.id === lastProcessAction.id;
-                const disableEditDelete = isConcluded || !isLastAction;
-                const disableReason = isConcluded ? "Processo concluído" : (!isLastAction ? "Apenas a última ação pode ser alterada" : "");
-                // --- Fim da lógica ---
-
-                // --- Renderização da linha da Ação ---
-                html += `
-                    <div class="flex justify-between items-start border-b last:border-b-0 pb-3">
-                        <div>
-                            <p class="font-medium text-gray-700">${actionDisplayTitles[abs.actionType] || 'N/A'}</p>
-                            <p class="text-sm text-gray-500">Data: ${formatDate(actionDisplayDate)}</p>
-                            ${returned ? '<p class="text-sm text-green-600 font-semibold mt-1"><i class="fas fa-check-circle"></i> Aluno Retornou</p>' : ''}
-                            ${notReturned ? '<p class="text-sm text-red-600 font-semibold mt-1"><i class="fas fa-times-circle"></i> Aluno Não Retornou</p>' : ''}
-                            ${statusHtml}
-                        </div>
-                        <div class="whitespace-nowrap text-right text-sm font-medium space-x-2 flex items-center">
-                            ${actionButtonHtml}
-                            <div class="relative kebab-menu-container self-center">
-                                <button class="kebab-menu-btn text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100" data-id="${abs.id}" title="Mais Opções"><i class="fas fa-ellipsis-v"></i></button>
-                                <div class="kebab-menu-dropdown hidden absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border z-10">
-                                    <button class="kebab-action-btn menu-item w-full text-left" data-action="history" data-id="${abs.id}" data-process-id="${abs.processId}"><i class="fas fa-history mr-2 w-4"></i>Histórico</button>
-                                    <button class="kebab-action-btn menu-item w-full text-left ${disableEditDelete ? 'opacity-50 cursor-not-allowed' : ''}"
-                                            data-action="edit" data-id="${abs.id}"
-                                            ${disableEditDelete ? 'disabled' : ''}
-                                            title="${disableReason}">
-                                        <i class="fas fa-pencil-alt mr-2 w-4"></i>Editar
-                                    </button>
-                                    <button class="kebab-action-btn menu-item menu-item-danger w-full text-left ${disableEditDelete ? 'opacity-50 cursor-not-allowed' : ''}"
-                                            data-action="delete" data-id="${abs.id}"
-                                            ${disableEditDelete ? 'disabled' : ''}
-                                            title="${disableReason}">
-                                        <i class="fas fa-trash mr-2 w-4"></i>Excluir
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-            }); // Fim do loop actions.forEach
-            html += `</div></div></div></div>`; // Fechamento das divs do processo
         } // Fim do loop for...of sortedGroupKeys
         dom.absencesListDiv.innerHTML = html; // Atualiza o DOM com todo o HTML gerado
     } // Fim do else (se há processos para mostrar)
 };
+// =================================================================================
+// --- FIM DA REESCRITA (renderAbsences) ---
+// =================================================================================
 
 
 /**
@@ -1077,6 +1115,7 @@ function handleViewOficio(id) {
 
 /**
  * Lida com o clique no nome do aluno (iniciar nova ação).
+ * (MODIFICADO V4) - Agora chamado pelo botão "Avançar Etapa".
  */
 function handleNewAbsenceFromHistory(studentId) {
     const student = state.students.find(s => s.matricula === studentId);
@@ -1129,6 +1168,8 @@ function handleEditAbsence(id) {
 
 /**
  * Lida com a exclusão de uma ação (chamado pelo listener).
+ * (MODIFICADO V4) - Agora chamado pelo botão "Limpar Ação".
+ * A lógica de "Limpar" na Busca Ativa é excluir a última ação (documento).
  */
 function handleDeleteAbsence(id) {
     const actionToDelete = state.absences.find(a => a.id === id);
@@ -1160,7 +1201,7 @@ function handleDeleteAbsence(id) {
     // --- Fim da Verificação ---
 
     // Define a mensagem e o registro a ser excluído (lógica simplificada, sem cascata por enquanto)
-    document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.';
+    document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja Limpar esta ação? Esta ação não pode ser desfeita.';
     state.recordToDelete = { type: 'absence', id: id };
     openModal(dom.deleteConfirmModal);
 }
@@ -1168,12 +1209,19 @@ function handleDeleteAbsence(id) {
 
 // --- Função Principal de Inicialização ---
 
+// =================================================================================
+// --- INÍCIO DA REESCRITA (initAbsenceListeners) ---
+// Função reescrita para controlar o acordeão e os novos botões (V4).
+// =================================================================================
 /**
  * Anexa todos os listeners de eventos relacionados a Busca Ativa.
  */
 export const initAbsenceListeners = () => {
     // Relatório Geral
-    document.getElementById('general-ba-report-btn').addEventListener('click', generateAndShowBuscaAtivaReport);
+    // --- CORREÇÃO: Usar dom.generalBaReportBtn em vez de document.getElementById ---
+    if (dom.generalBaReportBtn) {
+        dom.generalBaReportBtn.addEventListener('click', generateAndShowBuscaAtivaReport);
+    }
 
     // Filtros
     document.getElementById('filter-process-status').addEventListener('change', (e) => { state.filtersAbsences.processStatus = e.target.value; renderAbsences(); });
@@ -1195,99 +1243,79 @@ export const initAbsenceListeners = () => {
     // Formulário
     dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
     
-    // Dropdown de tipo de ação (no modal) - REMOVIDO: handleActionTypeChange chamado dentro de openAbsenceModalForStudent
-    // document.getElementById('action-type').addEventListener('change', (e) => handleActionTypeChange(e.target.value));
-
     // Rádios de contato (no modal) - para mostrar/esconder campos
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
 
     // Listener de clique para a lista (delegação de eventos)
     dom.absencesListDiv.addEventListener('click', (e) => {
+        
+        // Prioridade 1: Clique em um Botão (dentro ou fora do acordeão)
         const button = e.target.closest('button');
-        // Prioridade 1: Botões dentro da linha da ação ou Kebab
         if (button) {
-            e.stopPropagation(); // Impede outros listeners (como o do nome ou cabeçalho)
-
-            // Lógica do Kebab Menu
-             if (button.classList.contains('kebab-menu-btn')) {
-                const dropdown = button.nextElementSibling;
-                if (dropdown) {
-                    // Fecha outros menus abertos
-                    document.querySelectorAll('.kebab-menu-dropdown').forEach(d => { if (d !== dropdown) d.classList.add('hidden'); });
-                    // Controla overflow do container para o dropdown não ser cortado
-                    const contentParent = button.closest('.process-content');
-                    if (contentParent && dropdown.classList.contains('hidden')) contentParent.style.overflow = 'visible'; // Mostra overflow ao abrir
-                    else if (contentParent) setTimeout(() => { if (dropdown.classList.contains('hidden')) contentParent.style.overflow = 'hidden'; }, 250); // Esconde ao fechar (com delay)
-                    dropdown.classList.toggle('hidden'); // Abre/fecha o dropdown clicado
+            e.stopPropagation(); // Impede que o clique no botão ative o acordeão
+            
+            // Ações DENTRO do Acordeão
+            if (button.closest('.process-content')) {
+                const id = button.dataset.id; // ID da Ação
+                
+                // Botão Avançar Etapa
+                if (button.classList.contains('avancar-etapa-btn') && !button.disabled) {
+                    handleNewAbsenceFromHistory(button.dataset.studentId);
+                    return;
                 }
-                return; // Kebab tratado
+                // Botão Editar Ação
+                if (button.classList.contains('edit-absence-action-btn') && !button.disabled) {
+                    handleEditAbsence(id);
+                    return;
+                }
+                // Botão Limpar Ação
+                if (button.classList.contains('reset-absence-action-btn') && !button.disabled) {
+                    handleDeleteAbsence(id); // "Limpar" na BA é excluir a última ação
+                    return;
+                }
+                // Botões de Ação Específicos (Notificação, Enviar CT, Ver Ofício)
+                if (button.classList.contains('notification-btn') && id) { openFichaViewModal(id); return; }
+                if (button.classList.contains('send-ct-btn') && id) { handleSendToCT(id); return; }
+                if (button.classList.contains('view-oficio-btn') && id) { handleViewOficio(id); return; }
             }
-
-            const id = button.dataset.id; // ID da AÇÃO (abs.id)
-
-            // Botões de Ação Específicos (Notificação, Enviar CT, Ver Ofício)
-            if (button.classList.contains('notification-btn') && id) { openFichaViewModal(id); return; }
-            if (button.classList.contains('send-ct-btn') && id) { handleSendToCT(id); return; } // Verifica se não está disabled implicitamente
-            if (button.classList.contains('view-oficio-btn') && id) { handleViewOficio(id); return; }
-
-            // Botão Gerar Ficha Consolidada (no cabeçalho do processo)
+            
+            // Ações FORA do Acordeão (Cabeçalho do Processo)
+            
+            // Botão Gerar Ficha Consolidada
             if (button.classList.contains('generate-ficha-btn-row')) {
                  generateAndShowConsolidatedFicha(button.dataset.studentId, button.dataset.processId);
                  return;
             }
 
-            // Ações dentro do Kebab Menu (Histórico, Editar, Excluir)
-            if (button.classList.contains('kebab-action-btn')) {
-                const action = button.dataset.action;
-                if (action === 'edit' && id) { handleEditAbsence(id); } // Chama handler com verificação interna
-                else if (action === 'delete' && id) { handleDeleteAbsence(id); } // Chama handler com verificação interna
-                else if (action === 'history') { openAbsenceHistoryModal(button.dataset.processId); } // Usa processId
-
-                // Fecha o dropdown após clicar numa ação
-                const dropdown = button.closest('.kebab-menu-dropdown');
-                 if(dropdown) dropdown.classList.add('hidden');
-                 const contentParent = button.closest('.process-content');
-                 if(contentParent) contentParent.style.overflow = 'hidden'; // Restaura overflow
-                 return; // Ação do Kebab tratada
-            }
-            // Se chegou aqui, foi um botão não reconhecido ou sem ID esperado
-            return;
+            // (Não há Kebab no cabeçalho da BA, diferente das Ocorrências)
+            
+            return; // Outro botão (talvez Kebab antigo?)
         } // Fim do if(button)
 
-        // Prioridade 2: Clique no nome do aluno para NOVA AÇÃO
-        const newActionTrigger = e.target.closest('.new-action-from-history-btn');
-        if (newActionTrigger) {
-            e.stopPropagation(); // Impede que o clique ative o acordeão
-            handleNewAbsenceFromHistory(newActionTrigger.dataset.studentId);
-            return; // Clique no nome tratado
-        }
-
-        // Prioridade 3: Clique no cabeçalho para ACORDEÃO
+        // Prioridade 2: Clique no cabeçalho para ACORDEÃO
         const header = e.target.closest('.process-header');
         if (header) {
-            // Não precisa de stopPropagation aqui, pois é o último nível
-            const id = header.dataset.processId;
-            const content = document.getElementById(`content-${id}`);
+            // Não precisa de stopPropagation aqui
+            const contentId = header.dataset.contentId;
+            const content = document.getElementById(contentId);
             const icon = header.querySelector('i.fa-chevron-down');
             if (content) {
                 const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px';
-                // Controla altura e overflow para animação
                 if (isHidden) {
                     content.style.maxHeight = `${content.scrollHeight}px`;
-                    content.style.overflow = 'visible'; // Permite ver dropdowns abertos
+                    content.style.overflow = 'visible';
                 } else {
-                    content.style.maxHeight = null; // Recolhe
-                    // Esconde overflow APÓS a animação de recolher (ou imediatamente se preferir)
-                     setTimeout(() => content.style.overflow = 'hidden', 300); // Ajuste o tempo conforme a transição CSS
+                    content.style.maxHeight = null;
+                     setTimeout(() => content.style.overflow = 'hidden', 300);
                 }
-                icon?.classList.toggle('rotate-180', isHidden); // Gira o ícone
+                icon?.classList.toggle('rotate-180', isHidden);
             }
             return; // Clique no cabeçalho tratado
         }
         
-        // Se o clique não foi em nenhum dos elementos acima, não faz nada
     }); // Fim do listener absencesListDiv
 };
-
-// --- Fim do Arquivo ---
+// =================================================================================
+// --- FIM DA REESCRITA (initAbsenceListeners) ---
+// =================================================================================
