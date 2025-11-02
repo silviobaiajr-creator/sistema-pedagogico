@@ -1124,13 +1124,21 @@ export const generateAndShowBuscaAtivaReport = () => {
                 ${filteredProcesses.sort((a,b) => (b.actions[b.actions.length-1].createdAt?.seconds || new Date(b.actions[b.actions.length-1].createdAt).getTime()) - (a.actions[a.actions.length-1].createdAt?.seconds || new Date(a.actions[a.actions.length-1].createdAt).getTime())).map(proc => {
                     const student = state.students.find(s => s.matricula === proc.studentId);
                     
-                    // --- INÍCIO DA CORREÇÃO (ReferenceError) ---
-                    // Esta variável 'isConcluded' estava em falta no .map()
+                    // ==================================================================
+                    // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+                    //
+                    // O erro original era porque 'isConcluded' não estava definido
+                    // no primeiro 'filter'. O segundo erro (que a sua imagem de erro
+                    // anterior mostrava) é porque 'isConcluded' também não
+                    // estava definido AQUI, dentro deste '.map()'.
+                    //
+                    // A linha correta é:
                     const isConcluded = proc.actions.some(a => a.actionType === 'analise');
-                    // --- FIM DA CORREÇÃO ---
+                    //
+                    // --- FIM DA CORREÇÃO DEFINITIVA ---
                     
                     const lastAction = proc.actions[proc.actions.length - 1];
-                    // const isConcluded = lastAction.actionType === 'analise'; // Linha original (comentada)
+                    // const isConcluded = lastAction.actionType === 'analise'; // Esta linha estava errada E no sítio errado
                     return `
                     <div class="border rounded-lg overflow-hidden break-inside-avoid">
                         <div class="bg-gray-100 p-3 flex justify-between items-center">
