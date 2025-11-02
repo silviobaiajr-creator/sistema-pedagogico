@@ -424,7 +424,9 @@
     <!-- ============================================================================== -->
 
 
-    <!-- Modal: Registro/Edição de Ação de Busca Ativa (Inalterado) -->
+    <!-- ============================================================================== -->
+    <!-- Modal: Registro/Edição de Ação de Busca Ativa (MODIFICADO) -->
+    <!-- ============================================================================== -->
     <div id="absence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0 max-h-[95vh] flex flex-col">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="absence-modal-title" class="text-xl font-semibold">Registar Ação</h3><button id="close-absence-modal-btn" class="text-gray-500 text-2xl font-bold">&times;</button></div>
@@ -438,19 +440,96 @@
                 </div>
                 <div class="border rounded-md p-3 space-y-2 bg-gray-50"><h5 class="text-sm font-semibold px-2">Faltas apuradas no período de:</h5><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label class="block text-sm">Início</label><input type="date" id="absence-start-date" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Fim</label><input type="date" id="absence-end-date" class="mt-1 w-full border-gray-300 rounded-md"></div></div><div class="pt-2"><label class="block text-sm">Nº de faltas</label><input type="number" id="absence-count" class="mt-1 w-full border-gray-300 rounded-md"></div></div>
                 <div><label class="block text-sm font-medium">Tipo de Ação</label><input type="text" id="action-type-display" class="mt-1 w-full bg-gray-100 p-2 border rounded" readonly><input type="hidden" id="action-type"></div>
+                
+                <!-- Container de Campos Dinâmicos (MODIFICADO) -->
                 <div id="dynamic-fields-container" class="space-y-4">
-                    <div id="group-tentativas" class="dynamic-field-group hidden space-y-4"><fieldset class="border rounded-md p-3 space-y-2 bg-gray-50"><legend class="text-sm font-semibold px-2">Data para notificação</legend><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label class="block text-sm">Data</label><input type="date" id="meeting-date" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Horário</label><input type="time" id="meeting-time" class="mt-1 w-full border-gray-300 rounded-md"></div></div></fieldset><fieldset id="family-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50"><legend class="text-sm font-semibold px-2">Família na escola</legend><div><span class="block text-sm">Conseguiu contato?</span><div class="mt-2 space-x-4"><label><input type="radio" name="contact-succeeded" value="yes"> Sim</label><label><input type="radio" name="contact-succeeded" value="no"> Não</label></div></div><div id="family-contact-fields" class="space-y-4">
-                        <div><label for="absence-contact-type" class="block text-sm font-medium">Tipo de Contato</label><select id="absence-contact-type" class="mt-1 w-full border-gray-300 rounded-md"><option value="">Selecione...</option><option value="WhatsApp">WhatsApp</option><option value="Ligação">Ligação</option><option value="Pessoalmente">Pessoalmente</option></select></div>
-                        <div><label class="block text-sm">Dia do contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                        <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div></div><div><span class="block text-sm">Aluno retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="contact-returned" value="yes"> Sim</label><label><input type="radio" name="contact-returned" value="no"> Não</label></div></div></fieldset></div>
-                    <div id="group-visita" class="dynamic-field-group hidden space-y-4"><div><label class="block text-sm">Agente da visita:</label><input type="text" id="visit-agent" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Dia da visita:</label><input type="date" id="visit-date" class="mt-1 w-full border-gray-300 rounded-md"></div><fieldset id="visit-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50"><legend class="text-sm font-semibold px-2">Detalhes do Contato</legend><div><span class="block text-sm">Conseguiu contato?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-succeeded" value="yes"> Sim</label><label><input type="radio" name="visit-succeeded" value="no"> Não</label></div></div><div id="visit-contact-fields" class="space-y-4"><div><label class="block text-sm">Com quem falou?</label><input type="text" id="visit-contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Justificativa:</label><textarea id="visit-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div><div><label class="block text-sm">Observações:</label><textarea id="visit-obs" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div></div><div><span class="block text-sm">Retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-returned" value="yes"> Sim</label><label><input type="radio" name="visit-returned" value="no"> Não</label></div></div></fieldset></div>
-                    <div id="group-encaminhamento_ct" class="dynamic-field-group hidden space-y-4"><div><label class="block text-sm">Data do envio:</label><input type="date" id="ct-sent-date" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Devolutiva do CT:</label><textarea id="ct-feedback" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div><div><span class="block text-sm">Retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="ct-returned" value="yes"> Sim</label><label><input type="radio" name="ct-returned" value="no"> Não</label></div></div></div>
-                    <div id="group-analise" class="dynamic-field-group hidden space-y-4"><div><label class="block text-sm">Parecer BAE:</label><textarea id="ct-parecer" rows="3" class="mt-1 w-full border-gray-300 rounded-md" required></textarea></div></div>
-                </div>
+                    
+                    <!-- Etapa: Tentativas (MODIFICADO) -->
+                    <div id="group-tentativas" class="dynamic-field-group hidden space-y-4">
+                        
+                        <!-- (MODIFICADO) Sub-grupo 1: Convocação (terá ID) -->
+                        <fieldset id="convocation-section" class="border rounded-md p-3 space-y-2 bg-gray-50">
+                            <legend class="text-sm font-semibold px-2">Data para notificação</legend>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div><label class="block text-sm">Data</label><input type="date" id="meeting-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Horário</label><input type="time" id="meeting-time" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                            </div>
+                        </fieldset>
+                        
+                        <!-- Sub-grupo 2: Contato (já tinha ID) -->
+                        <fieldset id="family-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
+                            <legend class="text-sm font-semibold px-2">Família na escola</legend>
+                            <div><span class="block text-sm">Conseguiu contato?</span><div class="mt-2 space-x-4"><label><input type="radio" name="contact-succeeded" value="yes"> Sim</label><label><input type="radio" name="contact-succeeded" value="no"> Não</label></div></div>
+                            <div id="family-contact-fields" class="space-y-4">
+                                <div><label for="absence-contact-type" class="block text-sm font-medium">Tipo de Contato</label><select id="absence-contact-type" class="mt-1 w-full border-gray-300 rounded-md"><option value="">Selecione...</option><option value="WhatsApp">WhatsApp</option><option value="Ligação">Ligação</option><option value="Pessoalmente">Pessoalmente</option></select></div>
+                                <div><label class="block text-sm">Dia do contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                            </div>
+                            <div><span class="block text-sm">Aluno retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="contact-returned" value="yes"> Sim</label><label><input type="radio" name="contact-returned" value="no"> Não</label></div></div>
+                        </fieldset>
+                    </div>
+
+                    <!-- Etapa: Visita (Inalterado) -->
+                    <div id="group-visita" class="dynamic-field-group hidden space-y-4">
+                        <div><label class="block text-sm">Agente da visita:</label><input type="text" id="visit-agent" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                        <div><label class="block text-sm">Dia da visita:</label><input type="date" id="visit-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                        <fieldset id="visit-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
+                            <legend class="text-sm font-semibold px-2">Detalhes do Contato</legend>
+                            <div><span class="block text-sm">Conseguiu contato?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-succeeded" value="yes"> Sim</label><label><input type="radio" name="visit-succeeded" value="no"> Não</label></div></div>
+                            <div id="visit-contact-fields" class="space-y-4">
+                                <div><label class="block text-sm">Com quem falou?</label><input type="text" id="visit-contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Justificativa:</label><textarea id="visit-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                                <div><label class="block text-sm">Observações:</label><textarea id="visit-obs" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                            </div>
+                            <div><span class="block text-sm">Retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-returned" value="yes"> Sim</label><label><input type="radio" name="visit-returned" value="no"> Não</label></div></div>
+                        </fieldset>
+                    </div>
+
+                    <!-- Etapa: Encaminhamento CT (MODIFICADO) -->
+                    <div id="group-encaminhamento_ct" class="dynamic-field-group hidden space-y-4">
+                        
+                        <!-- (MODIFICADO) Campos de Envio (Data, Nº, Ano) -->
+                        <fieldset class="border rounded-md p-3 space-y-2 bg-gray-50">
+                            <legend class="text-sm font-semibold px-2">Dados do Encaminhamento</legend>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm">Data do envio:</label>
+                                    <input type="date" id="ct-sent-date" class="mt-1 w-full border-gray-300 rounded-md">
+                                </div>
+                                <div>
+                                    <label class="block text-sm">Nº do Ofício:</label>
+                                    <input type="text" id="oficio-number" class="mt-1 w-full border-gray-300 rounded-md" placeholder="Ex: 123">
+                                </div>
+                                <div>
+                                    <label class="block text-sm">Ano do Ofício:</label>
+                                    <input type="number" id="oficio-year" class="mt-1 w-full border-gray-300 rounded-md" placeholder="Ex: 2025" min="2020" max="2099">
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <!-- Campos de Devolutiva (Inalterados, mas agora são 2ª parte) -->
+                        <fieldset class="border rounded-md p-3 space-y-4 bg-gray-50">
+                             <legend class="text-sm font-semibold px-2">Devolutiva do Conselho Tutelar</legend>
+                            <div><label class="block text-sm">Devolutiva do CT:</label><textarea id="ct-feedback" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                            <div><span class="block text-sm">Retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="ct-returned" value="yes"> Sim</label><label><input type="radio" name="ct-returned" value="no"> Não</label></div></div>
+                        </fieldset>
+                    </div>
+
+                    <!-- Etapa: Análise (Inalterado) -->
+                    <div id="group-analise" class="dynamic-field-group hidden space-y-4">
+                        <div><label class="block text-sm">Parecer BAE:</label><textarea id="ct-parecer" rows="3" class="mt-1 w-full border-gray-300 rounded-md" required></textarea></div>
+                    </div>
+
+                </div> <!-- Fim dynamic-fields-container -->
+
                 <div class="pt-4 flex justify-end space-x-3 bg-white sticky bottom-0 pb-6 -mx-6 px-6 border-t"><button type="button" id="cancel-absence-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Ação</button></div>
             </form>
         </div>
     </div>
+    <!-- ============================================================================== -->
+    <!-- --- FIM DA MODIFICAÇÃO (Modal Busca Ativa) --- -->
+    <!-- ============================================================================== -->
+
 
     <!-- Modal: Gerenciamento de Alunos (Inalterado) -->
     <div id="students-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
