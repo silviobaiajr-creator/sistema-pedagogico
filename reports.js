@@ -21,11 +21,6 @@
 // 1. A função `openOccurrenceRecordModal` foi reescrita para gerar uma ata
 //    em formato narrativo (texto corrido), seguindo padrões técnicos
 //    para arquivamento em livro físico.
-//
-// CORREÇÃO (ReferenceError - 01/11/2025 V2):
-// 1. (generateAndShowBuscaAtivaReport) Corrigido o `ReferenceError: isConcluded is not defined`
-//    definindo a variável `isConcluded` DENTRO do escopo do loop `.filter()`
-//    onde ela também estava em falta.
 // =================================================================================
 
 
@@ -1041,11 +1036,7 @@ export const generateAndShowBuscaAtivaReport = () => {
 
         if (studentFilter && (!student || !student.name.toLowerCase().includes(studentFilter.toLowerCase()))) return false;
 
-        // --- INÍCIO DA CORREÇÃO (V2) ---
-        // A variável 'isConcluded' deve ser definida aqui, no escopo do filter.
         const isConcluded = lastAction.actionType === 'analise';
-        // --- FIM DA CORREÇÃO ---
-
         if (processStatus === 'in_progress' && isConcluded) return false;
         if (processStatus === 'concluded' && !isConcluded) return false;
 
@@ -1059,7 +1050,7 @@ export const generateAndShowBuscaAtivaReport = () => {
 
 
         let isPendingContact = false, isPendingFeedback = false;
-        if (!isConcluded) { // Esta é a linha (1067 no arquivo antigo) que causava o erro
+        if (!isConcluded) {
              isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null);
 
             const ctAction = proc.actions.find(a => a.actionType === 'encaminhamento_ct');
@@ -1123,22 +1114,8 @@ export const generateAndShowBuscaAtivaReport = () => {
                 <div class="space-y-4">
                 ${filteredProcesses.sort((a,b) => (b.actions[b.actions.length-1].createdAt?.seconds || new Date(b.actions[b.actions.length-1].createdAt).getTime()) - (a.actions[a.actions.length-1].createdAt?.seconds || new Date(a.actions[a.actions.length-1].createdAt).getTime())).map(proc => {
                     const student = state.students.find(s => s.matricula === proc.studentId);
-                    
-                    // ==================================================================
-                    // --- INÍCIO DA CORREÇÃO DEFINITIVA (reports.js:1072) ---
-                    //
-                    // O erro original era porque 'isConcluded' não estava definido
-                    // no primeiro 'filter'. O segundo erro (que a sua imagem de erro
-                    // anterior mostrava) é porque 'isConcluded' também não
-                    // estava definido AQUI, dentro deste '.map()'.
-                    //
-                    // A linha correta é:
-                    const isConcluded = proc.actions.some(a => a.actionType === 'analise');
-                    //
-                    // --- FIM DA CORREÇÃO DEFINITIVA ---
-                    
                     const lastAction = proc.actions[proc.actions.length - 1];
-                    // const isConcluded = lastAction.actionType === 'analise'; // Esta linha estava errada E no sítio errado
+                    const isConcluded = lastAction.actionType === 'analise';
                     return `
                     <div class="border rounded-lg overflow-hidden break-inside-avoid">
                         <div class="bg-gray-100 p-3 flex justify-between items-center">
@@ -1321,4 +1298,3 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
 // ==============================================================================
 // --- FIM NOVO ---
 // ==============================================================================
-
