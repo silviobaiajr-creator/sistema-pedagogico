@@ -1125,7 +1125,7 @@ export const generateAndShowBuscaAtivaReport = () => {
                     const student = state.students.find(s => s.matricula === proc.studentId);
                     
                     // ==================================================================
-                    // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+                    // --- INÍCIO DA CORREÇÃO DEFINITIVA (reports.js:1072) ---
                     //
                     // O erro original era porque 'isConcluded' não estava definido
                     // no primeiro 'filter'. O segundo erro (que a sua imagem de erro
