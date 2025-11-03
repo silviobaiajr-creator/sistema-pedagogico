@@ -28,15 +28,12 @@
 // 2. A função de limpeza restaura essas classes.
 // 3. O delay de 500ms é mantido para garantir a aplicação das classes.
 //
-// --- CORREÇÃO (v9 - 03/11/2025 - SOLUÇÃO "NOVA JANELA") ---
-// 1. As tentativas v6, v7 e v8 falharam em alguns browsers móveis.
-// 2. A nova lógica (v9) é a mais robusta:
-//    a) Copia o HTML do relatório.
-//    b) Copia os links CSS da página principal.
-//    c) Abre um NOVO POP-UP (`window.open`).
-//    d) Escreve o HTML e os links CSS nesse pop-up.
-//    e) Chama `print()` a partir do pop-up.
-// 3. Isso isola 100% o conteúdo de impressão de qualquer conflito de CSS da app.
+// --- CORREÇÃO (v10 - 03/11/2025 - SOLUÇÃO "NOVA JANELA" CORRIGIDA) ---
+// 1. A v9 falhou porque não copiava o script do TailwindCSS nem o 'outerHTML'.
+// 2. A v10 corrige isto:
+//    a) Copia o 'outerHTML' do relatório (preservando classes como p-8).
+//    b) Copia os links CSS E o script do Tailwind para o <head> do pop-up.
+//    c) Aumenta o 'setTimeout' para 1500ms para dar tempo ao Tailwind de executar.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -288,13 +285,12 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO v9 (SOLUÇÃO "NOVA JANELA") ---
+// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO v10 (SOLUÇÃO "NOVA JANELA" CORRIGIDA) ---
 // ==============================================================================
 
 /**
  * Prepara o DOM para impressão copiando o conteúdo para uma nova janela (pop-up)
- * e copiando os estilos. Isso evita todos os conflitos de CSS de modal
- * em navegadores móveis.
+ * e copiando os estilos, INCLUINDO o script do TailwindCSS.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
  */
 function handlePrintClick(contentElementId) {
@@ -306,16 +302,21 @@ function handlePrintClick(contentElementId) {
         return;
     }
 
-    // 1. Copia o HTML interno do conteúdo que queremos imprimir
-    const contentToPrint = contentElement.innerHTML;
+    // 1. (CORRIGIDO v10) Copia o HTML *externo* (outerHTML) do conteúdo.
+    // Isto preserva as classes do próprio elemento (ex: 'p-8').
+    const contentToPrint = contentElement.outerHTML;
     
-    // 2. Encontra todos os links de estilo (CSS) da página principal
+    // 2. (CORRIGIDO v10) Encontra todos os links de estilo (CSS)
     const stylesheets = document.querySelectorAll('link[rel="stylesheet"]');
     let cssLinks = '';
     stylesheets.forEach(sheet => {
         // Copia todos os links (style.css, Font Awesome, Google Fonts)
         cssLinks += `<link rel="stylesheet" href="${sheet.href}">\n`;
     });
+    
+    // (CORRIGIDO v10) Adiciona o script do TailwindCSS que estava em falta
+    // Usa '<\/script>' para evitar problemas de parsing de string
+    const tailwindScript = '<script src="https://cdn.tailwindcss.com"><\/script>\n';
 
     // 3. Abre uma nova janela (pop-up)
     const printWindow = window.open('', '_blank', 'height=700,width=900');
@@ -325,12 +326,13 @@ function handlePrintClick(contentElementId) {
         return;
     }
 
-    // 4. Escreve o HTML básico, os links de CSS e o conteúdo do relatório na nova janela
+    // 4. Escreve o HTML básico, os links de CSS e o script do Tailwind na nova janela
     printWindow.document.write(`
         <html>
         <head>
             <title>Imprimir Documento</title>
             ${cssLinks}
+            ${tailwindScript}
             <style>
                 /* Estilos específicos para a janela de impressão */
                 body {
@@ -339,16 +341,16 @@ function handlePrintClick(contentElementId) {
                     font-family: 'Inter', sans-serif; /* Garante a fonte */
                 }
                 
-                /* Adiciona o padding (p-8 = 2rem) que foi perdido ao copiar o innerHTML */
-                div.print-content-wrapper {
-                    padding: 2rem;
-                }
+                /* As regras de padding (ex: p-8) agora vêm do 'outerHTML'.
+                   Não precisamos mais do 'div.print-content-wrapper'.
+                */
                 
                 /* Reaplica as regras de impressão mais importantes do style.css */
                 @media print {
                     body {
                         background: #ffffff !important;
                     }
+                    /* 'no-print' não deve existir aqui, mas é uma boa garantia */
                     .no-print, .no-print * {
                         display: none !important;
                     }
@@ -366,10 +368,8 @@ function handlePrintClick(contentElementId) {
             </style>
         </head>
         <body>
-            <!-- O 'wrapper' (invólucro) aplica o padding perdido -->
-            <div class="print-content-wrapper">
-                ${contentToPrint}
-            </div>
+            <!-- (CORRIGIDO v10) Insere o outerHTML diretamente no body -->
+            ${contentToPrint}
         </body>
         </html>
     `);
@@ -378,7 +378,9 @@ function handlePrintClick(contentElementId) {
     printWindow.document.close();
     printWindow.focus(); // Foca na nova janela (necessário em alguns browsers)
 
-    // 6. Espera 1 segundo para o CSS carregar no pop-up ANTES de imprimir
+    // 6. (CORRIGIDO v10) Espera 1.5 segundos (1500ms).
+    // Este tempo é CRUCIAL para o TailwindCSS carregar, executar
+    // e aplicar todos os estilos no pop-up antes de imprimir.
     setTimeout(() => {
         try {
             printWindow.print();
@@ -388,11 +390,11 @@ function handlePrintClick(contentElementId) {
             showToast("Não foi possível abrir a janela de impressão.");
             printWindow.close();
         }
-    }, 1000); // 1000ms de espera
+    }, 1500); // 1500ms de espera
 }
 
 // ==============================================================================
-// --- (FIM DA SUBSTITUIÇÃO v9) ---
+// --- (FIM DA SUBSTITUIÇÃO v10) ---
 // ==============================================================================
 
 
