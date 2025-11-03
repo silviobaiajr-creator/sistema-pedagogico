@@ -20,6 +20,12 @@
 // 2. Importada a `updateRecordWithHistory` do firestore.js.
 // 3. A função `handleDeleteConfirmation` foi atualizada para lidar com
 //    o novo tipo de ação 'occurrence-reset', permitindo o rollback de etapas.
+//
+// ATUALIZAÇÃO (CORREÇÃO DE IMPRESSÃO MÓVEL DEFINITIVA - 03/11/2025):
+// 1. A função `handlePrintClick` foi totalmente reescrita para usar
+//    `window.matchMedia('print')` em vez de `setTimeout` para a limpeza (cleanup).
+//    Isso resolve a race condition em navegadores móveis onde a limpeza
+//    ocorria antes da impressão ser concluída.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -271,12 +277,14 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- LÓGICA DE IMPRESSÃO CORRIGIDA (Híbrida Definitiva + Mobile) ---
+// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO CORRIGIDA (Mobile) ---
+// A função 'handlePrintClick' abaixo foi substituída pela versão que usa
+// 'window.matchMedia' para garantir a limpeza correta em dispositivos móveis.
 // ==============================================================================
 
 /**
- * Prepara o DOM para impressão adicionando uma classe específica ao modal
- * e limpa depois.
+ * Prepara o DOM para impressão usando window.matchMedia para
+ * garantir a limpeza correta em dispositivos móveis.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
  * (ex: 'notification-content', 'report-view-content').
  */
@@ -299,51 +307,58 @@ function handlePrintClick(contentElementId) {
     // 1. Adiciona classe específica ('printing-now')
     //    APENAS ao backdrop do modal que queremos imprimir.
     printableBackdrop.classList.add('printing-now');
+    
+    // 2. A CORREÇÃO: Usar window.matchMedia para "ouvir" o fechamento da janela
+    const printMediaMatcher = window.matchMedia('print');
 
-    // 2. Define a função de limpeza
+    // 3. Define a função de limpeza
     const cleanupAfterPrint = () => {
+        // Remove a classe que força a impressão
         printableBackdrop.classList.remove('printing-now');
-        // REMOVIDO: window.removeEventListener('afterprint', cleanupAfterPrint);
+        
+        // IMPORTANTE: Remove o "ouvinte" para evitar vazamento de memória
+        if (printMediaMatcher.removeEventListener) {
+            printMediaMatcher.removeEventListener('change', cleanupAfterPrint);
+        } else {
+            // Suporte legado (ex: Safari antigo)
+            printMediaMatcher.removeListener(cleanupAfterPrint);
+        }
     };
-
-    // 3. REMOVIDO: window.addEventListener('afterprint', cleanupAfterPrint);
-
-    // 4. Chama a impressão com a nova lógica (sem afterprint)
-    try {
-        // ==================================================================
-        // INÍCIO DA NOVA CORREÇÃO (Sem 'afterprint')
-        // ==================================================================
-        
-        // Passo A: Espera 150ms para o navegador aplicar a classe .printing-now
-        setTimeout(() => {
-            try {
-                // Passo B: Chama a impressão. O JS vai "pausar" aqui.
-                window.print();
-            
-                // Passo C: O JS "descongela" aqui (depois de imprimir ou cancelar).
-                // Agenda a limpeza para rodar logo em seguida.
-                // Usamos 500ms como um "cooldown" seguro para o navegador.
-                setTimeout(cleanupAfterPrint, 500); 
-
-            } catch (printError) {
-                // Se o window.print() falhar, limpa imediatamente.
-                console.error("Erro durante a chamada window.print():", printError);
-                showToast("Não foi possível abrir a janela de impressão.");
-                cleanupAfterPrint(); // Limpa se a impressão falhar
-            }
-        }, 150); // 150ms de espera (aumentado de 100)
-        // ==================================================================
-        // FIM DA NOVA CORREÇÃO
-        // ==================================================================
-        
-    } catch (e) {
-        // Este catch externo pega erros síncronos (raro)
-        console.error("Erro ao preparar a impressão:", e);
-        showToast("Não foi possível abrir a janela de impressão.");
-        // Se falhar, limpa imediatamente
-        cleanupAfterPrint();
+    
+    // 4. Adiciona o "ouvinte" (listener)
+    // "Quando o modo de impressão mudar (ou seja, fechar), execute a limpeza."
+    if (printMediaMatcher.addEventListener) {
+        printMediaMatcher.addEventListener('change', cleanupAfterPrint);
+    } else {
+        printMediaMatcher.addListener(cleanupAfterPrint);
     }
+    
+    // 5. Mantém o 'setTimeout' de 150ms (delay de *abertura*)
+    // Isso ainda é necessário para dar tempo ao navegador mobile de aplicar
+    // a classe .printing-now ANTES de chamarmos window.print().
+    setTimeout(() => {
+        try {
+            // 6. Chama a impressão.
+            // O código continua, mas o listener (printMediaMatcher)
+            // agora está ATIVO, esperando a janela de impressão fechar.
+            window.print();
+            
+            // 7. [REMOVIDO] O 'setTimeout(cleanupAfterPrint, 500)' foi removido
+            // pois agora confiamos 100% no listener do matchMedia.
+
+        } catch (e) {
+            // Este catch externo pega erros síncronos (raro)
+            console.error("Erro ao chamar window.print():", e);
+            showToast("Não foi possível abrir a janela de impressão.");
+            // Se falhar, limpa imediatamente
+            cleanupAfterPrint();
+        }
+    }, 150); // 150ms de espera (aumentado de 100)
 }
+
+// ==============================================================================
+// --- (FIM DA SUBSTITUIÇÃO) ---
+// ==============================================================================
 
 
 // --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
@@ -398,4 +413,3 @@ function setupModalCloseButtons() {
     document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
-
