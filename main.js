@@ -28,12 +28,9 @@
 // 2. A função de limpeza restaura essas classes.
 // 3. O delay de 500ms é mantido para garantir a aplicação das classes.
 //
-// --- CORREÇÃO (v10 - 03/11/2025 - SOLUÇÃO "NOVA JANELA" CORRIGIDA) ---
-// 1. A v9 falhou porque não copiava o script do TailwindCSS nem o 'outerHTML'.
-// 2. A v10 corrige isto:
-//    a) Copia o 'outerHTML' do relatório (preservando classes como p-8).
-//    b) Copia os links CSS E o script do Tailwind para o <head> do pop-up.
-//    c) Aumenta o 'setTimeout' para 1500ms para dar tempo ao Tailwind de executar.
+// --- ATUALIZAÇÃO (CORREÇÃO CRASH IMPRESSÃO MÓVEL - 03/11/2025) ---
+// 1. O timeout em `handlePrintClick` foi aumentado de 500ms para 1200ms
+//    para evitar o crash do motor de impressão em dispositivos móveis.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -285,116 +282,105 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO v10 (SOLUÇÃO "NOVA JANELA" CORRIGIDA) ---
+// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO v6 (JS FORÇA LAYOUT) ---
 // ==============================================================================
 
 /**
- * Prepara o DOM para impressão copiando o conteúdo para uma nova janela (pop-up)
- * e copiando os estilos, INCLUINDO o script do TailwindCSS.
+ * Prepara o DOM para impressão removendo classes de layout (ex: max-h, overflow)
+ * via JS, forçando a expansão do conteúdo em todos os dispositivos.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
  */
 function handlePrintClick(contentElementId) {
     const contentElement = document.getElementById(contentElementId);
+    // Encontra os elementos do modal que restringem o layout
+    const printableBackdrop = contentElement ? contentElement.closest('.printable-area') : null;
+    const modalContent = contentElement ? contentElement.closest('.modal-content') : null;
 
-    if (!contentElement) {
-        console.error("Elemento de conteúdo de impressão não encontrado:", contentElementId);
+    if (!contentElement || !printableBackdrop || !modalContent) {
+        console.error("Elementos de impressão (backdrop, modalContent ou contentElement) não encontrados.");
         showToast("Erro ao preparar a área de impressão.");
         return;
     }
 
-    // 1. (CORRIGIDO v10) Copia o HTML *externo* (outerHTML) do conteúdo.
-    // Isto preserva as classes do próprio elemento (ex: 'p-8').
-    const contentToPrint = contentElement.outerHTML;
-    
-    // 2. (CORRIGIDO v10) Encontra todos os links de estilo (CSS)
-    const stylesheets = document.querySelectorAll('link[rel="stylesheet"]');
-    let cssLinks = '';
-    stylesheets.forEach(sheet => {
-        // Copia todos os links (style.css, Font Awesome, Google Fonts)
-        cssLinks += `<link rel="stylesheet" href="${sheet.href}">\n`;
-    });
-    
-    // (CORRIGIDO v10) Adiciona o script do TailwindCSS que estava em falta
-    // Usa '<\/script>' para evitar problemas de parsing de string
-    const tailwindScript = '<script src="https://cdn.tailwindcss.com"><\/script>\n';
+    // 1. Armazena as classes originais para restaurar depois
+    const originalModalClasses = modalContent.className;
+    const originalContentClasses = contentElement.className;
 
-    // 3. Abre uma nova janela (pop-up)
-    const printWindow = window.open('', '_blank', 'height=700,width=900');
+    // Armazena no dataset para a função de limpeza poder ler
+    modalContent.dataset.originalClasses = originalModalClasses;
+    contentElement.dataset.originalClasses = originalContentClasses;
+
+    // 2. --- A CORREÇÃO PRINCIPAL ---
+    // Remove as classes de layout do Tailwind que causam o corte no celular.
+    // 'modal-content' mantém o nome da classe para o CSS @media print ainda funcionar.
+    modalContent.className = 'modal-content'; // Remove 'max-h-[90vh]', 'flex', 'flex-col' etc.
+    // 'overflow-y-auto' estava no contentElement (ex: #report-view-content)
+    contentElement.className = ''; // Remove 'overflow-y-auto', 'p-8', etc.
     
-    if (!printWindow) {
-        showToast("Não foi possível abrir a janela de impressão. Por favor, desative o bloqueador de pop-ups.");
-        return;
+    // 3. Adiciona a classe de impressão ao backdrop
+    printableBackdrop.classList.add('printing-now');
+    
+    // 4. Cria o "ouvinte" de mídia de impressão
+    const printMediaMatcher = window.matchMedia('print');
+
+    // 5. Define a função de limpeza (agora passa os elementos)
+    const cleanupAfterPrint = (evt) => {
+        if (!evt.matches) { // Só limpa quando sai do modo de impressão
+            
+            // Restaura as classes originais
+            if (modalContent.dataset.originalClasses) {
+                modalContent.className = modalContent.dataset.originalClasses;
+                modalContent.removeAttribute('data-original-classes');
+            }
+            if (contentElement.dataset.originalClasses) {
+                contentElement.className = contentElement.dataset.originalClasses;
+                contentElement.removeAttribute('data-original-classes');
+            }
+
+            // Remove a classe de impressão
+            printableBackdrop.classList.remove('printing-now');
+            
+            // Remove o "ouvinte"
+            if (printMediaMatcher.removeEventListener) {
+                printMediaMatcher.removeEventListener('change', cleanupAfterPrint);
+            } else {
+                printMediaMatcher.removeListener(cleanupAfterPrint);
+            }
+        }
+    };
+    
+    // 6. Adiciona o "ouvinte" (listener)
+    if (printMediaMatcher.addEventListener) {
+        printMediaMatcher.addEventListener('change', cleanupAfterPrint);
+    } else {
+        printMediaMatcher.addListener(cleanupAfterPrint);
     }
-
-    // 4. Escreve o HTML básico, os links de CSS e o script do Tailwind na nova janela
-    printWindow.document.write(`
-        <html>
-        <head>
-            <title>Imprimir Documento</title>
-            ${cssLinks}
-            ${tailwindScript}
-            <style>
-                /* Estilos específicos para a janela de impressão */
-                body {
-                    margin: 0;
-                    padding: 0;
-                    font-family: 'Inter', sans-serif; /* Garante a fonte */
-                }
-                
-                /* As regras de padding (ex: p-8) agora vêm do 'outerHTML'.
-                   Não precisamos mais do 'div.print-content-wrapper'.
-                */
-                
-                /* Reaplica as regras de impressão mais importantes do style.css */
-                @media print {
-                    body {
-                        background: #ffffff !important;
-                    }
-                    /* 'no-print' não deve existir aqui, mas é uma boa garantia */
-                    .no-print, .no-print * {
-                        display: none !important;
-                    }
-                    .signature-block, .signature-block * {
-                        display: block !important;
-                        page-break-inside: avoid !important;
-                    }
-                    .break-inside-avoid {
-                        page-break-inside: avoid;
-                    }
-                    @page {
-                        margin: 1.5cm; /* Margem de impressão padrão */
-                    }
-                }
-            </style>
-        </head>
-        <body>
-            <!-- (CORRIGIDO v10) Insere o outerHTML diretamente no body -->
-            ${contentToPrint}
-        </body>
-        </html>
-    `);
-
-    // 5. Finaliza a escrita na nova janela
-    printWindow.document.close();
-    printWindow.focus(); // Foca na nova janela (necessário em alguns browsers)
-
-    // 6. (CORRIGIDO v10) Espera 1.5 segundos (1500ms).
-    // Este tempo é CRUCIAL para o TailwindCSS carregar, executar
-    // e aplicar todos os estilos no pop-up antes de imprimir.
+    
+    // 7. Mantém o delay (AGORA AUMENTADO)
     setTimeout(() => {
         try {
-            printWindow.print();
-            printWindow.close(); // Fecha o pop-up após a impressão
+            window.print();
         } catch (e) {
-            console.error("Erro ao chamar window.print() no pop-up:", e);
+            console.error("Erro ao chamar window.print():", e);
             showToast("Não foi possível abrir a janela de impressão.");
-            printWindow.close();
+            // Se falhar, força a limpeza
+            cleanupAfterPrint({ matches: false });
         }
-    }, 1500); // 1500ms de espera
+    // ==============================================================================
+    // --- INÍCIO DA CORREÇÃO (Crash Impressão Móvel) ---
+    // O valor de 500ms é muito baixo para o telemóvel renderizar o layout
+    // expandido (3+ páginas) e os gráficos (Chart.js), causando um crash.
+    // Aumentamos para 1200ms (1.2 segundos) para garantir que a renderização
+    // termine antes de o motor de impressão ser chamado.
+    // ==============================================================================
+    }, 1200); // 1.2s de espera (valor original era 500)
+    // ==============================================================================
+    // --- FIM DA CORREÇÃO ---
+    // ==============================================================================
 }
 
 // ==============================================================================
-// --- (FIM DA SUBSTITUIÇÃO v10) ---
+// --- (FIM DA SUBSTITUIÇÃO) ---
 // ==============================================================================
 
 
@@ -450,4 +436,3 @@ function setupModalCloseButtons() {
     document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
-
