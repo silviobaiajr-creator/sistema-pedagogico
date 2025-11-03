@@ -26,7 +26,7 @@
 //    (como 'max-h-[90vh]', 'overflow-y-auto') antes de imprimir,
 //    forçando a expansão do conteúdo em dispositivos móveis.
 // 2. A função de limpeza restaura essas classes.
-// 3. O delay de 500ms é mantido para garantir a aplicação das classes.
+// 3. O delay de 1000ms é mantido para garantir a aplicação das classes.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -352,7 +352,7 @@ function handlePrintClick(contentElementId) {
         printMediaMatcher.addListener(cleanupAfterPrint);
     }
     
-    // 7. Mantém o delay de 500ms
+    // 7. Mantém o delay de 1000ms
     setTimeout(() => {
         try {
             window.print();
@@ -362,7 +362,7 @@ function handlePrintClick(contentElementId) {
             // Se falhar, força a limpeza
             cleanupAfterPrint({ matches: false });
         }
-    }, 500); // 500ms de espera
+    }, 1000); // 1000ms de espera
 }
 
 // ==============================================================================
