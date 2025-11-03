@@ -21,10 +21,12 @@
 // 3. A função `handleDeleteConfirmation` foi atualizada para lidar com
 //    o novo tipo de ação 'occurrence-reset', permitindo o rollback de etapas.
 //
-// ATUALIZAÇÃO (CORREÇÃO DE IMPRESSÃO MÓVEL E DESKTOP - 03/11/2025 v3):
-// 1. A função `handlePrintClick` usa `window.matchMedia` para limpeza.
-// 2. O delay inicial foi AUMENTADO de 150ms para 300ms para dar mais tempo
-//    de renderização aos navegadores móveis.
+// ATUALIZAÇÃO (CORREÇÃO DE IMPRESSÃO v6 - 03/11/2025):
+// 1. `handlePrintClick` agora usa JS para remover classes de layout
+//    (como 'max-h-[90vh]', 'overflow-y-auto') antes de imprimir,
+//    forçando a expansão do conteúdo em dispositivos móveis.
+// 2. A função de limpeza restaura essas classes.
+// 3. O delay de 500ms é mantido para garantir a aplicação das classes.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -276,83 +278,91 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO CORRIGIDA (Mobile e Desktop v3) ---
+// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO v6 (JS FORÇA LAYOUT) ---
 // ==============================================================================
 
 /**
- * Prepara o DOM para impressão usando window.matchMedia (com verificação de evento)
- * para garantir a limpeza correta em dispositivos móveis E desktops.
+ * Prepara o DOM para impressão removendo classes de layout (ex: max-h, overflow)
+ * via JS, forçando a expansão do conteúdo em todos os dispositivos.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
  */
 function handlePrintClick(contentElementId) {
     const contentElement = document.getElementById(contentElementId);
-    if (!contentElement) {
-        console.error("Elemento de impressão não encontrado:", contentElementId);
-        showToast("Erro ao preparar documento para impressão.");
+    // Encontra os elementos do modal que restringem o layout
+    const printableBackdrop = contentElement ? contentElement.closest('.printable-area') : null;
+    const modalContent = contentElement ? contentElement.closest('.modal-content') : null;
+
+    if (!contentElement || !printableBackdrop || !modalContent) {
+        console.error("Elementos de impressão (backdrop, modalContent ou contentElement) não encontrados.");
+        showToast("Erro ao preparar a área de impressão.");
         return;
     }
-    
-    // Encontra o backdrop pai, que tem a classe .printable-area
-    const printableBackdrop = contentElement.closest('.printable-area');
-    if (!printableBackdrop) {
-         console.error("Backdrop '.printable-area' pai não encontrado para:", contentElementId);
-         showToast("Erro ao preparar a área de impressão.");
-         return;
-    }
 
-    // 1. Adiciona classe específica ('printing-now')
+    // 1. Armazena as classes originais para restaurar depois
+    const originalModalClasses = modalContent.className;
+    const originalContentClasses = contentElement.className;
+
+    // Armazena no dataset para a função de limpeza poder ler
+    modalContent.dataset.originalClasses = originalModalClasses;
+    contentElement.dataset.originalClasses = originalContentClasses;
+
+    // 2. --- A CORREÇÃO PRINCIPAL ---
+    // Remove as classes de layout do Tailwind que causam o corte no celular.
+    // 'modal-content' mantém o nome da classe para o CSS @media print ainda funcionar.
+    modalContent.className = 'modal-content'; // Remove 'max-h-[90vh]', 'flex', 'flex-col' etc.
+    // 'overflow-y-auto' estava no contentElement (ex: #report-view-content)
+    contentElement.className = ''; // Remove 'overflow-y-auto', 'p-8', etc.
+    
+    // 3. Adiciona a classe de impressão ao backdrop
     printableBackdrop.classList.add('printing-now');
     
-    // 2. Cria o "ouvinte" de mídia de impressão
+    // 4. Cria o "ouvinte" de mídia de impressão
     const printMediaMatcher = window.matchMedia('print');
 
-    // 3. Define a função de limpeza
+    // 5. Define a função de limpeza (agora passa os elementos)
     const cleanupAfterPrint = (evt) => {
-        // ==================================================================
-        // --- A VERIFICAÇÃO CRUCIAL ---
-        // Só executa a limpeza se o evento indicar que saímos
-        // do modo de impressão (evt.matches === false).
-        // Isso impede a limpeza prematura em alguns navegadores.
-        // ==================================================================
-        if (!evt.matches) {
-            // Remove a classe que força a impressão
+        if (!evt.matches) { // Só limpa quando sai do modo de impressão
+            
+            // Restaura as classes originais
+            if (modalContent.dataset.originalClasses) {
+                modalContent.className = modalContent.dataset.originalClasses;
+                modalContent.removeAttribute('data-original-classes');
+            }
+            if (contentElement.dataset.originalClasses) {
+                contentElement.className = contentElement.dataset.originalClasses;
+                contentElement.removeAttribute('data-original-classes');
+            }
+
+            // Remove a classe de impressão
             printableBackdrop.classList.remove('printing-now');
             
-            // IMPORTANTE: Remove o "ouvinte" para evitar vazamento de memória
+            // Remove o "ouvinte"
             if (printMediaMatcher.removeEventListener) {
                 printMediaMatcher.removeEventListener('change', cleanupAfterPrint);
             } else {
-                // Suporte legado (ex: Safari antigo)
                 printMediaMatcher.removeListener(cleanupAfterPrint);
             }
         }
     };
     
-    // 4. Adiciona o "ouvinte" (listener)
+    // 6. Adiciona o "ouvinte" (listener)
     if (printMediaMatcher.addEventListener) {
         printMediaMatcher.addEventListener('change', cleanupAfterPrint);
     } else {
         printMediaMatcher.addListener(cleanupAfterPrint);
     }
     
-    // 5. Aumenta o 'setTimeout' (delay de *abertura*)
-    // Aumentado de 150ms para 300ms para dar mais tempo aos navegadores móveis.
+    // 7. Mantém o delay de 500ms
     setTimeout(() => {
         try {
-            // 6. Chama a impressão.
             window.print();
-            
-            // 7. [REMOVIDO] O 'setTimeout' de limpeza foi removido
-            // pois agora confiamos 100% no listener do matchMedia.
-
         } catch (e) {
-            // Este catch externo pega erros síncronos (raro)
             console.error("Erro ao chamar window.print():", e);
             showToast("Não foi possível abrir a janela de impressão.");
-            // Se falhar, força a limpeza (passando um evento falso)
+            // Se falhar, força a limpeza
             cleanupAfterPrint({ matches: false });
         }
-    }, 300); // 150ms -> 300ms de espera para a classe ser aplicada.
+    }, 500); // 500ms de espera
 }
 
 // ==============================================================================
