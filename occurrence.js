@@ -19,6 +19,10 @@
 // 2. (initOccurrenceListeners) A lógica de clique do acordeão foi atualizada
 //    para controlar os <div>s (em vez de <summary>) e usar a lógica
 //    de 'isHidden' e 'maxHeight = null' de 'absence.js'.
+//
+// ATUALIZAÇÃO (Sugestões 4 e 5):
+// 1. (Sug. 4) Adicionado filtro de privacidade em `renderOccurrences`.
+// 2. (Sug. 5) Cores do tema atualizadas de `indigo` para `sky`.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -74,7 +78,7 @@ let editingRoleId = null; // Guarda o ID do aluno cujo papel está sendo editado
 
 /**
  * (MODIFICADO - Papéis) Renderiza as tags dos alunos selecionados com ícones de papel e botão de edição.
- * (MODIFICADO - SUGESTÃO 5) Cores alteradas
+ * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
  */
 const renderTags = () => {
     const tagsContainerElement = document.getElementById('student-tags-container');
@@ -88,19 +92,16 @@ const renderTags = () => {
     state.selectedStudents.forEach((data, studentId) => {
         const { student, role } = data;
         const tag = document.createElement('span');
-        // (ALTERADO - SUGESTÃO 5) Cores
         tag.className = 'bg-sky-100 text-sky-800 text-sm font-medium me-2 px-2.5 py-1 rounded-full flex items-center gap-1.5';
         const iconClass = roleIcons[role] || roleIcons[defaultRole];
 
         tag.innerHTML = `
             <i class="${iconClass} fa-fw" title="${role}"></i>
             <span>${student.name}</span>
-            <!-- (ALTERADO - SUGESTÃO 5) Cores -->
             <span class="text-xs text-sky-500 font-normal">(${student.class || 'S/ Turma'})</span>
             <button type="button" class="edit-role-btn ml-1 text-gray-400 hover:text-sky-600" data-id="${studentId}" title="Editar Papel">
                 <i class="fas fa-pencil-alt fa-xs"></i>
             </button>
-            <!-- (ALTERADO - SUGESTÃO 5) Cores -->
             <button type="button" class="remove-tag-btn ms-1 text-sky-600 hover:text-sky-800">&times;</button>
         `;
 
@@ -147,7 +148,7 @@ const openRoleEditDropdown = (buttonElement, studentId) => {
 
 /**
  * (MODIFICADO - Papéis) Gerencia a UI de seleção de múltiplos alunos e a seleção/edição de papéis.
- * (MODIFICADO - SUGESTÃO 5) Cores alteradas
+ * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
  */
 export const setupStudentTagInput = (inputElement, suggestionsElement, tagsContainerElement) => {
     const roleSelectionPanel = document.getElementById('role-selection-panel');
@@ -180,7 +181,6 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             suggestionsElement.classList.remove('hidden');
             filteredStudents.forEach(student => {
                 const item = document.createElement('div');
-                // (ALTERADO - SUGESTÃO 5) Cores
                 item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50'; // Tailwind
                 item.textContent = student.name;
                 item.addEventListener('click', () => {
@@ -325,8 +325,7 @@ export const getFilteredOccurrences = () => {
 // Função reescrita para usar o layout de acordeão (V4).
 // CORREÇÃO (01/11/2025): Trocado <details>/<summary> por <div>s para
 // corrigir o bug de 'scrollHeight' ser 0.
-// (MODIFICADO - SUGESTÃO 4) Filtro de privacidade adicionado.
-// (MODIFICADO - SUGESTÃO 5) Cores alteradas.
+// ATUALIZAÇÃO (Sug. 4 e 5): Adicionado filtro de privacidade e cores atualizadas.
 // =================================================================================
 
 /**
@@ -360,15 +359,15 @@ export const renderOccurrences = () => {
         // --- (INÍCIO DA LÓGICA V4) ---
         // Gera o HTML do acordeão para cada aluno
         const studentAccordionsHTML = [...incident.participantsInvolved.values()]
-            // (ADICIONADO - SUGESTÃO 4) Filtra para mostrar apenas o aluno procurado
+            // (ADICIONADO - Sug. 4: Filtro de Privacidade)
             .filter(participant => {
                 // Se a busca NÃO está vazia E o nome deste participante NÃO corresponde, esconda-o
-                if (studentSearch && !participant.student.name.toLowerCase().includes(studentSearch)) {
+                if (studentSearch && participant.student && !participant.student.name.toLowerCase().includes(studentSearch)) {
                     return false;
                 }
                 return true; // Caso contrário, mostre
             })
-            // FIM DO FILTRO
+            // (FIM DO FILTRO)
             .map(participant => {
                 const { student, role } = participant;
                 if (!student) return '';
@@ -407,8 +406,7 @@ export const renderOccurrences = () => {
                 
                 // 2. Gera os Botões de Ação (para dentro do acordeão)
                 
-                // Botão Avançar Etapa
-                // (ALTERADO - SUGESTÃO 5) Cores
+                // Botão Avançar Etapa (Cores atualizadas)
                 const avancarBtn = `
                     <button type="button"
                             class="avancar-etapa-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100 ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
@@ -431,8 +429,7 @@ export const renderOccurrences = () => {
                     </button>
                 ` : '';
 
-                // Botão Notificação (movido para dentro)
-                // (ALTERADO - SUGESTÃO 5) Cores
+                // Botão Notificação (movido para dentro, cores atualizadas)
                 const notificationBtn = (record && record.meetingDate && record.meetingTime) ? `
                     <button type="button"
                             class="notification-student-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100"
@@ -476,7 +473,6 @@ export const renderOccurrences = () => {
                 return `
                     <div class="bg-gray-50 rounded-lg border border-gray-200">
                         <!-- Cabeçalho Clicável (DIV, não <summary>) -->
-                        <!-- (ALTERADO - SUGESTÃO 5) Cores -->
                         <div class="occurrence-summary p-3 cursor-pointer hover:bg-sky-50 flex justify-between items-center"
                              data-content-id="${contentId}">
                             
@@ -563,6 +559,7 @@ export const renderOccurrences = () => {
 /**
  * Abre o modal para registrar ou editar os dados COLETIVOS (Ação 1).
  * (MODIFICADO - Papéis) Carrega participantes com papéis ao editar.
+ * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
  */
 export const openOccurrenceModal = (incidentToEdit = null) => {
     dom.occurrenceForm.reset();
@@ -1497,6 +1494,7 @@ async function handleGenerateNotification(recordId, studentId, groupId) {
 // Função reescrita para controlar o acordeão e os novos botões (V4).
 // CORREÇÃO (01/11/2025): Lógica de clique atualizada para <div>s,
 // copiando o padrão funcional de 'absence.js'.
+// ATUALIZAÇÃO (Sug. 5): Cores atualizadas de 'indigo' para 'sky'.
 // =================================================================================
 
 /**
@@ -1686,3 +1684,4 @@ export const initOccurrenceListeners = () => {
 // =================================================================================
 // --- FIM DA REESCRITA (initOccurrenceListeners) ---
 // =================================================================================
+
