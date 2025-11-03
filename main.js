@@ -26,7 +26,13 @@
 //    (como 'max-h-[90vh]', 'overflow-y-auto') antes de imprimir,
 //    forçando a expansão do conteúdo em dispositivos móveis.
 // 2. A função de limpeza restaura essas classes.
-// 3. O delay de 1000ms é mantido para garantir a aplicação das classes.
+// 3. O delay de 500ms é mantido para garantir a aplicação das classes.
+//
+// --- CORREÇÃO (03/11/2025 - PROBLEMA DO PISCAR NO MÓVEL) ---
+// 1. As linhas que manipulam classes JS (v6) foram comentadas.
+//    O "piscar" indica uma race condition. Vamos confiar 100% no CSS
+//    do 'style.css' (@media print) que é mais estável.
+// 2. O timeout foi aumentado para 1000ms para dar tempo ao CSS de ser aplicado.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -279,6 +285,7 @@ async function handleDeleteConfirmation() {
 
 // ==============================================================================
 // --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO v6 (JS FORÇA LAYOUT) ---
+// --- CORREÇÃO (v7 - MÓVEL): Linhas de manipulação de classe COMENTADAS ---
 // ==============================================================================
 
 /**
@@ -298,20 +305,22 @@ function handlePrintClick(contentElementId) {
         return;
     }
 
+    // --- CORREÇÃO (v7): Comentado para evitar race condition (piscar) no móvel ---
     // 1. Armazena as classes originais para restaurar depois
-    const originalModalClasses = modalContent.className;
-    const originalContentClasses = contentElement.className;
+    // const originalModalClasses = modalContent.className;
+    // const originalContentClasses = contentElement.className;
 
     // Armazena no dataset para a função de limpeza poder ler
-    modalContent.dataset.originalClasses = originalModalClasses;
-    contentElement.dataset.originalClasses = originalContentClasses;
+    // modalContent.dataset.originalClasses = originalModalClasses;
+    // contentElement.dataset.originalClasses = originalContentClasses;
 
-    // 2. --- A CORREÇÃO PRINCIPAL ---
+    // 2. --- A CORREÇÃO PRINCIPAL (v6) ---
     // Remove as classes de layout do Tailwind que causam o corte no celular.
     // 'modal-content' mantém o nome da classe para o CSS @media print ainda funcionar.
-    modalContent.className = 'modal-content'; // Remove 'max-h-[90vh]', 'flex', 'flex-col' etc.
+    // --- CORREÇÃO (v7): Comentado para evitar race condition (piscar) no móvel ---
+    // modalContent.className = 'modal-content'; // Remove 'max-h-[90vh]', 'flex', 'flex-col' etc.
     // 'overflow-y-auto' estava no contentElement (ex: #report-view-content)
-    contentElement.className = ''; // Remove 'overflow-y-auto', 'p-8', etc.
+    // contentElement.className = ''; // Remove 'overflow-y-auto', 'p-8', etc.
     
     // 3. Adiciona a classe de impressão ao backdrop
     printableBackdrop.classList.add('printing-now');
@@ -323,15 +332,16 @@ function handlePrintClick(contentElementId) {
     const cleanupAfterPrint = (evt) => {
         if (!evt.matches) { // Só limpa quando sai do modo de impressão
             
+            // --- CORREÇÃO (v7): Comentado para evitar race condition (piscar) no móvel ---
             // Restaura as classes originais
-            if (modalContent.dataset.originalClasses) {
-                modalContent.className = modalContent.dataset.originalClasses;
-                modalContent.removeAttribute('data-original-classes');
-            }
-            if (contentElement.dataset.originalClasses) {
-                contentElement.className = contentElement.dataset.originalClasses;
-                contentElement.removeAttribute('data-original-classes');
-            }
+            // if (modalContent.dataset.originalClasses) {
+            //     modalContent.className = modalContent.dataset.originalClasses;
+            //     modalContent.removeAttribute('data-original-classes');
+            // }
+            // if (contentElement.dataset.originalClasses) {
+            //     contentElement.className = contentElement.dataset.originalClasses;
+            //     contentElement.removeAttribute('data-original-classes');
+            // }
 
             // Remove a classe de impressão
             printableBackdrop.classList.remove('printing-now');
@@ -352,7 +362,8 @@ function handlePrintClick(contentElementId) {
         printMediaMatcher.addListener(cleanupAfterPrint);
     }
     
-    // 7. Mantém o delay de 1000ms
+    // 7. Mantém o delay de 500ms
+    // --- CORREÇÃO (v7): Aumentado o delay para 1000ms (1 segundo) ---
     setTimeout(() => {
         try {
             window.print();
@@ -362,7 +373,7 @@ function handlePrintClick(contentElementId) {
             // Se falhar, força a limpeza
             cleanupAfterPrint({ matches: false });
         }
-    }, 1000); // 1000ms de espera
+    }, 1000); // 1000ms de espera (AUMENTADO DE 500)
 }
 
 // ==============================================================================
@@ -422,4 +433,3 @@ function setupModalCloseButtons() {
     document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
-
