@@ -28,12 +28,15 @@
 // 2. A função de limpeza restaura essas classes.
 // 3. O delay de 500ms é mantido para garantir a aplicação das classes.
 //
-// --- CORREÇÃO (v8 - 03/11/2025 - SOLUÇÃO CONCRETA MÓVEL) ---
-// 1. As tentativas v6 e v7 (manipular classes/CSS do modal) falharam no móvel.
-// 2. A nova lógica (v8) é "nuclear": copia o HTML do relatório para um
-//    'div' temporário, esconde a aplicação principal, imprime o 'div'
-//    e depois restaura a aplicação. Isso evita TODOS os conflitos de CSS
-//    de modal, 'overflow' e 'max-height'.
+// --- CORREÇÃO (v9 - 03/11/2025 - SOLUÇÃO "NOVA JANELA") ---
+// 1. As tentativas v6, v7 e v8 falharam em alguns browsers móveis.
+// 2. A nova lógica (v9) é a mais robusta:
+//    a) Copia o HTML do relatório.
+//    b) Copia os links CSS da página principal.
+//    c) Abre um NOVO POP-UP (`window.open`).
+//    d) Escreve o HTML e os links CSS nesse pop-up.
+//    e) Chama `print()` a partir do pop-up.
+// 3. Isso isola 100% o conteúdo de impressão de qualquer conflito de CSS da app.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -285,13 +288,13 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO v8 (SOLUÇÃO CONCRETA) ---
+// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO v9 (SOLUÇÃO "NOVA JANELA") ---
 // ==============================================================================
 
 /**
- * Prepara o DOM para impressão copiando o conteúdo para um 'div' temporário
- * e escondendo o resto da aplicação. Isso evita todos os conflitos de CSS
- * de modal em navegadores móveis.
+ * Prepara o DOM para impressão copiando o conteúdo para uma nova janela (pop-up)
+ * e copiando os estilos. Isso evita todos os conflitos de CSS de modal
+ * em navegadores móveis.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
  */
 function handlePrintClick(contentElementId) {
@@ -306,76 +309,90 @@ function handlePrintClick(contentElementId) {
     // 1. Copia o HTML interno do conteúdo que queremos imprimir
     const contentToPrint = contentElement.innerHTML;
     
-    // 2. Esconde a aplicação principal
-    // (Usa referências do 'dom' se disponível, senão busca)
-    const mainApp = dom.mainContent || document.getElementById('main-content');
-    const loginScreen = dom.loginScreen || document.getElementById('login-screen');
+    // 2. Encontra todos os links de estilo (CSS) da página principal
+    const stylesheets = document.querySelectorAll('link[rel="stylesheet"]');
+    let cssLinks = '';
+    stylesheets.forEach(sheet => {
+        // Copia todos os links (style.css, Font Awesome, Google Fonts)
+        cssLinks += `<link rel="stylesheet" href="${sheet.href}">\n`;
+    });
+
+    // 3. Abre uma nova janela (pop-up)
+    const printWindow = window.open('', '_blank', 'height=700,width=900');
     
-    if (mainApp) mainApp.style.display = 'none';
-    if (loginScreen) loginScreen.style.display = 'none';
-
-    // 3. Cria o contentor temporário
-    const tempPrintContainer = document.createElement('div');
-    tempPrintContainer.id = 'print-temp-container';
-    tempPrintContainer.innerHTML = contentToPrint;
-    
-    // Adiciona o contentor temporário diretamente ao body
-    document.body.appendChild(tempPrintContainer);
-
-    // 4. Cria o "ouvinte" de mídia de impressão
-    const printMediaMatcher = window.matchMedia('print');
-
-    // 5. Define a função de limpeza
-    const cleanupAfterPrint = (evt) => {
-        // O 'if' foi removido para garantir a limpeza mesmo se 'evt.matches'
-        // se comportar de forma estranha. A limpeza deve ocorrer
-        // assim que o evento 'change' disparar.
-
-        // Restaura a aplicação
-        if (mainApp) mainApp.style.display = ''; // Reverte para o CSS padrão
-        if (loginScreen) loginScreen.style.display = '';
-
-        // Remove o contentor temporário
-        const tempContainer = document.getElementById('print-temp-container');
-        if (tempContainer) {
-            tempContainer.remove();
-        }
-        
-        // Remove o "ouvinte"
-        if (printMediaMatcher.removeEventListener) {
-            printMediaMatcher.removeEventListener('change', cleanupAfterPrint);
-        } else {
-            printMediaMatcher.removeListener(cleanupAfterPrint);
-        }
-    };
-    
-    // 6. Adiciona o "ouvinte" (listener)
-    if (printMediaMatcher.addEventListener) {
-        printMediaMatcher.addEventListener('change', cleanupAfterPrint);
-    } else {
-        printMediaMatcher.addListener(cleanupAfterPrint);
+    if (!printWindow) {
+        showToast("Não foi possível abrir a janela de impressão. Por favor, desative o bloqueador de pop-ups.");
+        return;
     }
-    
-    // 7. Espera 1 segundo (1000ms)
-    // O 'setTimeout' dá tempo ao navegador móvel para renderizar
-    // o novo 'div' temporário antes de chamar a impressão.
+
+    // 4. Escreve o HTML básico, os links de CSS e o conteúdo do relatório na nova janela
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Imprimir Documento</title>
+            ${cssLinks}
+            <style>
+                /* Estilos específicos para a janela de impressão */
+                body {
+                    margin: 0;
+                    padding: 0;
+                    font-family: 'Inter', sans-serif; /* Garante a fonte */
+                }
+                
+                /* Adiciona o padding (p-8 = 2rem) que foi perdido ao copiar o innerHTML */
+                div.print-content-wrapper {
+                    padding: 2rem;
+                }
+                
+                /* Reaplica as regras de impressão mais importantes do style.css */
+                @media print {
+                    body {
+                        background: #ffffff !important;
+                    }
+                    .no-print, .no-print * {
+                        display: none !important;
+                    }
+                    .signature-block, .signature-block * {
+                        display: block !important;
+                        page-break-inside: avoid !important;
+                    }
+                    .break-inside-avoid {
+                        page-break-inside: avoid;
+                    }
+                    @page {
+                        margin: 1.5cm; /* Margem de impressão padrão */
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <!-- O 'wrapper' (invólucro) aplica o padding perdido -->
+            <div class="print-content-wrapper">
+                ${contentToPrint}
+            </div>
+        </body>
+        </html>
+    `);
+
+    // 5. Finaliza a escrita na nova janela
+    printWindow.document.close();
+    printWindow.focus(); // Foca na nova janela (necessário em alguns browsers)
+
+    // 6. Espera 1 segundo para o CSS carregar no pop-up ANTES de imprimir
     setTimeout(() => {
         try {
-            window.print();
+            printWindow.print();
+            printWindow.close(); // Fecha o pop-up após a impressão
         } catch (e) {
-            console.error("Erro ao chamar window.print():", e);
+            console.error("Erro ao chamar window.print() no pop-up:", e);
             showToast("Não foi possível abrir a janela de impressão.");
-            // Se falhar, força a limpeza
-            cleanupAfterPrint({ matches: false });
+            printWindow.close();
         }
-        // NOTA: A limpeza (cleanupAfterPrint) agora só é chamada
-        // pelo 'listener' do 'matchMedia', não aqui dentro do timeout,
-        // para evitar a "race condition".
     }, 1000); // 1000ms de espera
 }
 
 // ==============================================================================
-// --- (FIM DA SUBSTITUIÇÃO v8) ---
+// --- (FIM DA SUBSTITUIÇÃO v9) ---
 // ==============================================================================
 
 
