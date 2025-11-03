@@ -8,6 +8,8 @@
 /* ATUALIZAÇÃO (V4 - ACORDEÃO OCORRÊNCIAS - 01/11/2025): Adicionados estilos       */
 /* para o novo layout de acordeão de alunos na aba Ocorrências.                   */
 /* ATUALIZAÇÃO (TEMA Cores): Classe .tab-active atualizada para novo tema.         */
+/* ATUALIZAÇÃO (IMPRESSÃO v4 - 03/11/2025): Regras @media print simplificadas      */
+/* para melhorar o desempenho de renderização em dispositivos móveis.             */
 /* ============================================================================== */
 
 /* --- ESTILOS GERAIS E FONTES --- */
@@ -226,19 +228,10 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO - Abordagem Híbrida Definitiva)    */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO - v4)                               */
 /* ============================================================================== */
 
 /* 1. (REMOVIDO) Estilos .is-printing (não são mais necessários) */
-/*
-body.is-printing > * {
-    display: none !important;
-}
-body.is-printing .printable-area {
-    display: block !important;
-    position: static !important;
-}
-*/
 
 /* 2. Estilos @media print (Agora usam a classe .printing-now) */
 @media print {
@@ -254,10 +247,16 @@ body.is-printing .printable-area {
         /* --- FIM DA CORREÇÃO --- */
     }
 
-    /* (NOVA REGRA 1) Esconde TUDO no body. */
-    body > * {
+    /* ================================================================== */
+    /* --- (INÍCIO DA SUBSTITUIÇÃO) --- */
+    /* (NOVA REGRA 1) Esconde TUDO o que NÃO deve ser impresso de forma explícita */
+    body > #main-content,
+    body > #login-screen,
+    body > #toast-notification {
         display: none !important;
     }
+    /* --- (FIM DA SUBSTITUIÇÃO) --- */
+    /* ================================================================== */
     
     /* (NOVA REGRA 2) MOSTRA APENAS o backdrop que o JS marcou com .printing-now.
        Esta regra reseta o backdrop .printable-area que tem a classe .printing-now
@@ -361,4 +360,3 @@ body.is-printing .printable-area {
         margin: 1cm;
     }
 }
-
