@@ -28,11 +28,12 @@
 // 2. A função de limpeza restaura essas classes.
 // 3. O delay de 500ms é mantido para garantir a aplicação das classes.
 //
-// --- CORREÇÃO (03/11/2025 - PROBLEMA DO PISCAR NO MÓVEL) ---
-// 1. As linhas que manipulam classes JS (v6) foram comentadas.
-//    O "piscar" indica uma race condition. Vamos confiar 100% no CSS
-//    do 'style.css' (@media print) que é mais estável.
-// 2. O timeout foi aumentado para 1000ms para dar tempo ao CSS de ser aplicado.
+// --- CORREÇÃO (v8 - 03/11/2025 - SOLUÇÃO CONCRETA MÓVEL) ---
+// 1. As tentativas v6 e v7 (manipular classes/CSS do modal) falharam no móvel.
+// 2. A nova lógica (v8) é "nuclear": copia o HTML do relatório para um
+//    'div' temporário, esconde a aplicação principal, imprime o 'div'
+//    e depois restaura a aplicação. Isso evita TODOS os conflitos de CSS
+//    de modal, 'overflow' e 'max-height'.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -284,74 +285,67 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO v6 (JS FORÇA LAYOUT) ---
-// --- CORREÇÃO (v7 - MÓVEL): Linhas de manipulação de classe COMENTADAS ---
+// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO v8 (SOLUÇÃO CONCRETA) ---
 // ==============================================================================
 
 /**
- * Prepara o DOM para impressão removendo classes de layout (ex: max-h, overflow)
- * via JS, forçando a expansão do conteúdo em todos os dispositivos.
+ * Prepara o DOM para impressão copiando o conteúdo para um 'div' temporário
+ * e escondendo o resto da aplicação. Isso evita todos os conflitos de CSS
+ * de modal em navegadores móveis.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
  */
 function handlePrintClick(contentElementId) {
     const contentElement = document.getElementById(contentElementId);
-    // Encontra os elementos do modal que restringem o layout
-    const printableBackdrop = contentElement ? contentElement.closest('.printable-area') : null;
-    const modalContent = contentElement ? contentElement.closest('.modal-content') : null;
 
-    if (!contentElement || !printableBackdrop || !modalContent) {
-        console.error("Elementos de impressão (backdrop, modalContent ou contentElement) não encontrados.");
+    if (!contentElement) {
+        console.error("Elemento de conteúdo de impressão não encontrado:", contentElementId);
         showToast("Erro ao preparar a área de impressão.");
         return;
     }
 
-    // --- CORREÇÃO (v7): Comentado para evitar race condition (piscar) no móvel ---
-    // 1. Armazena as classes originais para restaurar depois
-    // const originalModalClasses = modalContent.className;
-    // const originalContentClasses = contentElement.className;
-
-    // Armazena no dataset para a função de limpeza poder ler
-    // modalContent.dataset.originalClasses = originalModalClasses;
-    // contentElement.dataset.originalClasses = originalContentClasses;
-
-    // 2. --- A CORREÇÃO PRINCIPAL (v6) ---
-    // Remove as classes de layout do Tailwind que causam o corte no celular.
-    // 'modal-content' mantém o nome da classe para o CSS @media print ainda funcionar.
-    // --- CORREÇÃO (v7): Comentado para evitar race condition (piscar) no móvel ---
-    // modalContent.className = 'modal-content'; // Remove 'max-h-[90vh]', 'flex', 'flex-col' etc.
-    // 'overflow-y-auto' estava no contentElement (ex: #report-view-content)
-    // contentElement.className = ''; // Remove 'overflow-y-auto', 'p-8', etc.
+    // 1. Copia o HTML interno do conteúdo que queremos imprimir
+    const contentToPrint = contentElement.innerHTML;
     
-    // 3. Adiciona a classe de impressão ao backdrop
-    printableBackdrop.classList.add('printing-now');
+    // 2. Esconde a aplicação principal
+    // (Usa referências do 'dom' se disponível, senão busca)
+    const mainApp = dom.mainContent || document.getElementById('main-content');
+    const loginScreen = dom.loginScreen || document.getElementById('login-screen');
     
+    if (mainApp) mainApp.style.display = 'none';
+    if (loginScreen) loginScreen.style.display = 'none';
+
+    // 3. Cria o contentor temporário
+    const tempPrintContainer = document.createElement('div');
+    tempPrintContainer.id = 'print-temp-container';
+    tempPrintContainer.innerHTML = contentToPrint;
+    
+    // Adiciona o contentor temporário diretamente ao body
+    document.body.appendChild(tempPrintContainer);
+
     // 4. Cria o "ouvinte" de mídia de impressão
     const printMediaMatcher = window.matchMedia('print');
 
-    // 5. Define a função de limpeza (agora passa os elementos)
+    // 5. Define a função de limpeza
     const cleanupAfterPrint = (evt) => {
-        if (!evt.matches) { // Só limpa quando sai do modo de impressão
-            
-            // --- CORREÇÃO (v7): Comentado para evitar race condition (piscar) no móvel ---
-            // Restaura as classes originais
-            // if (modalContent.dataset.originalClasses) {
-            //     modalContent.className = modalContent.dataset.originalClasses;
-            //     modalContent.removeAttribute('data-original-classes');
-            // }
-            // if (contentElement.dataset.originalClasses) {
-            //     contentElement.className = contentElement.dataset.originalClasses;
-            //     contentElement.removeAttribute('data-original-classes');
-            // }
+        // O 'if' foi removido para garantir a limpeza mesmo se 'evt.matches'
+        // se comportar de forma estranha. A limpeza deve ocorrer
+        // assim que o evento 'change' disparar.
 
-            // Remove a classe de impressão
-            printableBackdrop.classList.remove('printing-now');
-            
-            // Remove o "ouvinte"
-            if (printMediaMatcher.removeEventListener) {
-                printMediaMatcher.removeEventListener('change', cleanupAfterPrint);
-            } else {
-                printMediaMatcher.removeListener(cleanupAfterPrint);
-            }
+        // Restaura a aplicação
+        if (mainApp) mainApp.style.display = ''; // Reverte para o CSS padrão
+        if (loginScreen) loginScreen.style.display = '';
+
+        // Remove o contentor temporário
+        const tempContainer = document.getElementById('print-temp-container');
+        if (tempContainer) {
+            tempContainer.remove();
+        }
+        
+        // Remove o "ouvinte"
+        if (printMediaMatcher.removeEventListener) {
+            printMediaMatcher.removeEventListener('change', cleanupAfterPrint);
+        } else {
+            printMediaMatcher.removeListener(cleanupAfterPrint);
         }
     };
     
@@ -362,8 +356,9 @@ function handlePrintClick(contentElementId) {
         printMediaMatcher.addListener(cleanupAfterPrint);
     }
     
-    // 7. Mantém o delay de 500ms
-    // --- CORREÇÃO (v7): Aumentado o delay para 1000ms (1 segundo) ---
+    // 7. Espera 1 segundo (1000ms)
+    // O 'setTimeout' dá tempo ao navegador móvel para renderizar
+    // o novo 'div' temporário antes de chamar a impressão.
     setTimeout(() => {
         try {
             window.print();
@@ -373,11 +368,14 @@ function handlePrintClick(contentElementId) {
             // Se falhar, força a limpeza
             cleanupAfterPrint({ matches: false });
         }
-    }, 1000); // 1000ms de espera (AUMENTADO DE 500)
+        // NOTA: A limpeza (cleanupAfterPrint) agora só é chamada
+        // pelo 'listener' do 'matchMedia', não aqui dentro do timeout,
+        // para evitar a "race condition".
+    }, 1000); // 1000ms de espera
 }
 
 // ==============================================================================
-// --- (FIM DA SUBSTITUIÇÃO) ---
+// --- (FIM DA SUBSTITUIÇÃO v8) ---
 // ==============================================================================
 
 
@@ -433,3 +431,4 @@ function setupModalCloseButtons() {
     document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
+
