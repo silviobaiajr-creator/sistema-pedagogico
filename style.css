@@ -10,6 +10,11 @@
 /* ATUALIZAÇÃO (TEMA Cores): Classe .tab-active atualizada para novo tema.         */
 /* ATUALIZAÇÃO (IMPRESSÃO v5 - 03/11/2025): Regras @media print reescritas        */
 /* com !important para forçar a renderização correta em navegadores móveis.       */
+/* */
+/* --- ATUALIZAÇÃO (CORREÇÃO CRASH IMPRESSÃO MÓVEL - 03/11/2025) ---            */
+/* 1. Removidas regras redundantes 'max-height' e 'overflow' do @media print.   */
+/* Estas regras entravam em conflito com a correção "v6" do main.js,         */
+/* causando o crash do motor de impressão em dispositivos móveis.            */
 /* ============================================================================== */
 
 /* --- ESTILOS GERAIS E FONTES --- */
@@ -278,8 +283,8 @@ details[open] .process-content {
         display: block !important;
         /* FORÇA A EXPANSÃO VERTICAL (Chave para o celular) */
         height: auto !important;
-        max-height: none !important; 
-        overflow: visible !important; 
+        /* max-height: none !important; */ /* <-- REMOVIDO: Conflitava com a correção v6 do main.js */
+        /* overflow: visible !important; */ /* <-- REMOVIDO: Conflitava com a correção v6 do main.js */
         transition: none !important;
         animation: none !important;
     }
@@ -297,9 +302,9 @@ details[open] .process-content {
     .printing-now #ficha-view-content {
         padding: 0 !important;
         /* FORÇA a expansão e remove scrollbars */
-        overflow: visible !important;
+        /* overflow: visible !important; */ /* <-- REMOVIDO: Conflitava com a correção v6 do main.js */
         height: auto !important;
-        max-height: none !important; 
+        /* max-height: none !important; */ /* <-- REMOVIDO: Conflitava com a correção v6 do main.js */
     }
 
     /* 7. Estilos de Assinatura e Quebra de Página (Inalterados) */
@@ -343,4 +348,3 @@ details[open] .process-content {
         margin: 1cm;
     }
 }
-
