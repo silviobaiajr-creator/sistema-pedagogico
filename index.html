@@ -80,18 +80,20 @@
     <!-- ============================================================================== -->
     <div id="main-content" class="hidden">
         <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
-            <!-- Cabeçalho (CORRIGIDO - Sug. 2) -->
+            <!-- Cabeçalho -->
+            <!-- CORREÇÃO DE LAYOUT MÓVEL (Sug. 2 e 5): classes 'flex-wrap' e 'sm:flex-nowrap' aplicadas -->
             <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-sky-500 to-teal-600 text-white shadow-lg flex flex-wrap sm:flex-nowrap justify-between items-center gap-4 text-center sm:text-left">
                 <div>
                     <h1 id="header-school-name" class="text-2xl sm:text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
                     <p class="opacity-90 mt-1 text-sm sm:text-base">Base de dados partilhada entre todos os utilizadores.</p>
                 </div>
-                <div class="flex items-center gap-2 sm:gap-4">
-                     <!-- (CORRIGIDO - Sug. 1) Adicionado 'hidden' -->
+                <!-- CORREÇÃO DE LAYOUT MÓVEL: Adicionado 'flex-wrap justify-center sm:justify-end' para o grupo de botões/perfil quebrar a linha no móvel -->
+                <div class="flex items-center flex-wrap justify-center sm:justify-end gap-2 sm:gap-4">
+                     <!-- (Sug. 1) Adicionado 'hidden' -->
                      <button id="settings-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
                         <i class="fas fa-cog mr-2"></i>Configurações
                     </button>
-                    <!-- (CORRIGIDO - Sug. 1) Adicionado 'hidden' -->
+                     <!-- (Sug. 1) Adicionado 'hidden' -->
                     <button id="manage-students-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
                         <i class="fas fa-users-cog mr-2"></i>Gerir Alunos
                     </button>
@@ -118,13 +120,15 @@
 
             <!-- Conteúdo da Aba de Ocorrências -->
             <div id="tab-content-occurrences">
+                <!-- CORREÇÃO DE LAYOUT MÓVEL: Botões agora empilham (flex-col) em telas pequenas -->
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <h2 id="occurrences-title" class="text-xl sm:text-2xl font-semibold text-gray-700">Registos de Ocorrências</h2>
-                    <div class="flex gap-4">
-                        <button id="general-report-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
+                    <!-- ADICIONADO: flex-col sm:flex-row w-full sm:w-auto -->
+                    <div class="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
+                        <button id="general-report-btn" class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral
                         </button>
-                        <button id="add-occurrence-btn" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">
+                        <button id="add-occurrence-btn" class="w-full sm:w-auto bg-sky-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">
                             <i class="fas fa-plus mr-2"></i>Nova Ocorrência
                         </button>
                     </div>
@@ -180,14 +184,16 @@
 
             <!-- Conteúdo da Aba de Busca Ativa -->
             <div id="tab-content-absences" class="hidden">
+                <!-- CORREÇÃO DE LAYOUT MÓVEL: Botões agora empilham (flex-col) em telas pequenas -->
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
-                    <div class="flex gap-4">
-                        <button id="general-ba-report-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
+                    <!-- ADICIONADO: flex-col sm:flex-row w-full sm:w-auto -->
+                    <div class="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
+                        <button id="general-ba-report-btn" class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral
                         </button>
-                        <!-- (ADICIONADO - Sug. 3) -->
-                        <button id="add-absence-btn" class="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-emerald-700 transition duration-300">
+                        <!-- (Sug. 3) Botão "Nova Ação" Adicionado -->
+                        <button id="add-absence-btn" class="w-full sm:w-auto bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-emerald-700 transition duration-300">
                             <i class="fas fa-plus mr-2"></i>Nova Ação
                         </button>
                     </div>
@@ -528,7 +534,7 @@
 
                 </div> <!-- Fim dynamic-fields-container -->
 
-                <div class="pt-4 flex justify-end space-x-3 bg-white sticky bottom-0 pb-6 -mx-6 px-6 border-t"><button type="button" id="cancel-absence-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Ação</button></div>
+                <div class="pt-4 flex justify-end space-x-3 bg-white sticky bottom-0 pb-6 -mx-6 px-6 border-t"><button type="button" id="cancel-absence-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Ação</button></div>
             </form>
         </div>
     </div>
@@ -544,12 +550,12 @@
             <div class="p-6 flex-grow overflow-y-auto space-y-6">
                 <div class="bg-gray-50 p-4 rounded-lg border"><h4 id="student-form-title" class="text-lg font-semibold mb-2">Adicionar Novo Aluno</h4><form id="student-form" class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start"><input type="hidden" id="student-id-input"><div><label class="block text-sm font-medium">Matrícula</label><input type="text" id="student-matricula-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Nome Completo</label><input type="text" id="student-name-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Turma</label><input type="text" id="student-class-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Contato</label><input type="text" id="student-contato-input" class="mt-1 w-full p-2 border"></div><div class="sm:col-span-2"><label class="block text-sm font-medium">Endereço</label><input type="text" id="student-endereco-input" class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 1</label><input type="text" id="student-resp1-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 2</label><input type="text" id="student-resp2-input" class="mt-1 w-full p-2 border"></div><div class="flex space-x-2 sm:col-span-2 self-end"><button type="submit" id="save-student-btn" class="w-full bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar</button><button type="button" id="cancel-edit-student-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hidden">Cancelar</button></div></form></div>
                 <div><h4 class="text-lg font-semibold mb-2">Alunos Registados</h4><div class="border rounded-lg overflow-hidden"><div class="overflow-y-auto max-h-64"><table class="min-w-full divide-y"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-4 py-2 text-left text-xs font-medium uppercase">Nome</th><th class="px-4 py-2 text-left text-xs font-medium uppercase">Turma</th><th class="px-4 py-2 text-right text-xs font-medium uppercase">Ações</th></tr></thead><tbody id="students-list-table" class="bg-white divide-y"></tbody></table></div></div></div>
-                <div class="border-t pt-6"><h4 class="text-lg font-semibold mb-2">Importar em Massa (CSV)</h4><p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`, `turma`, `endereco`, `contato`, `resp1`, `resp2`. Isto <strong>substituirá</strong> a lista atual.</p><div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4"><input type="file" id="csv-file" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"><button type="button" id="upload-csv-btn" class="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg whitespace-nowrap">Carregar CSV</button></div><div id="csv-feedback" class="text-sm mt-2"></div></div>
+                <div class="border-t pt-6"><h4 class="text-lg font-semibold mb-2">Importar em Massa (CSV)</h4><p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`, `turma`, `endereco`, `contato`, `resp1`, `resp2`. Isto <strong>substituirá</strong> a lista atual.</p><div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4"><input type="file" id="csv-file" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"><button type="button" id="upload-csv-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg whitespace-nowrap">Carregar CSV</button></div><div id="csv-feedback" class="text-sm mt-2"></div></div>
             </div>
         </div>
     </div>
 
-    <!-- Modal: Configurações (MODIFICADO - Gestão de Admin) -->
+    <!-- Modal: Configurações (Inalterado) -->
     <div id="settings-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -571,14 +577,14 @@
                     <p class="text-xs text-gray-500 mt-1">Insira o link completo da imagem. Deixe em branco para usar apenas o nome.</p>
                 </div>
                 
-                <!-- (ADICIONADO - Gestão de Admin) -->
+                <!-- (Sugestão Híbrida) Campo de Gestão de Admin -->
                 <div>
                     <label for="admin-emails-input" class="block text-sm font-medium text-gray-700">
                         Emails dos Administradores (separados por vírgula)
                     </label>
-                    <textarea id="admin-emails-input" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" placeholder="gestor@escola.com, coordenador@escola.com"></textarea>
+                    <textarea id="admin-emails-input" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" placeholder="admin@escola.com, gestor@escola.com"></textarea>
                     <p class="text-xs text-gray-500 mt-1">
-                        Apenas os emails nesta lista (além do Super Admin) terão acesso a 'Configurações' e 'Gerir Alunos'.
+                        Apenas os emails nesta lista (e o Super Admin) terão acesso a 'Configurações' e 'Gerir Alunos'.
                     </p>
                 </div>
                 
@@ -646,7 +652,7 @@
                 </div>
                 <div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg">
                     <button type="button" id="cancel-send-ct-modal-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button>
-                    <button type="submit" id="confirm-send-ct-btn" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Confirmar Envio e Gerar Ofício</button>
+                    <button type="submit" id="confirm-send-ct-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Confirmar Envio e Gerar Ofício</button>
                 </div>
             </form>
         </div>
@@ -677,8 +683,8 @@
                 </div>
             </div>
             <!-- Botões existentes -->
-            <button id="share-btn" class="bg-sky-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
-            <button id="print-btn" class="bg-emerald-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
+            <button id="share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
+            <button id="print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
         </div>
         <!-- **** FIM DA CORREÇÃO **** -->
     </div></div>
@@ -705,8 +711,8 @@
                 </div>
             </div>
             <!-- Botões existentes -->
-            <button id="report-share-btn" class="bg-sky-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
-            <button id="report-print-btn" class="bg-emerald-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
+            <button id="report-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
+            <button id="report-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
         </div>
         <!-- **** FIM DA CORREÇÃO **** -->
     </div></div>
@@ -733,8 +739,8 @@
                 </div>
             </div>
             <!-- Botões existentes -->
-            <button id="ficha-share-btn" class="bg-sky-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
-            <button id="ficha-print-btn" class="bg-emerald-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
+            <button id="ficha-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
+            <button id="ficha-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
         </div>
         <!-- **** FIM DA CORREÇÃO **** -->
     </div></div>
