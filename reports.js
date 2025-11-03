@@ -108,8 +108,9 @@ export const openStudentSelectionModal = async (groupId) => {
     participants.forEach(participant => {
         const student = participant.student; // Pega o objeto student
         const btn = document.createElement('button');
-        btn.className = 'w-full text-left bg-gray-50 hover:bg-indigo-100 p-3 rounded-lg transition';
-        btn.innerHTML = `<span class="font-semibold text-indigo-800">${student.name}</span><br><span class="text-sm text-gray-600">Turma: ${student.class}</span>`;
+        // (ALTERADO - SUGESTÃO 5) Cores
+        btn.className = 'w-full text-left bg-gray-50 hover:bg-sky-100 p-3 rounded-lg transition';
+        btn.innerHTML = `<span class="font-semibold text-sky-800">${student.name}</span><br><span class="text-sm text-gray-600">Turma: ${student.class}</span>`;
         btn.onclick = () => {
             // Passa o incident completo e o objeto student selecionado
             openIndividualNotificationModal(incident, student);
@@ -178,7 +179,8 @@ export const openIndividualNotificationModal = (incident, student) => {
                 Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica para uma reunião
                 na seguinte data e horário:
             </p>
-            <div class="mt-4 p-3 bg-indigo-100 text-indigo-800 rounded-md text-center font-semibold" style="font-family: 'Inter', sans-serif;">
+            <!-- (ALTERADO - SUGESTÃO 5) Cores -->
+            <div class="mt-4 p-3 bg-sky-100 text-sky-800 rounded-md text-center font-semibold" style="font-family: 'Inter', sans-serif;">
                 <p><strong>Data:</strong> ${formatDate(data.meetingDate)}</p>
                 <p><strong>Horário:</strong> ${formatTime(data.meetingTime)}</p>
             </div>
@@ -471,7 +473,7 @@ export const openAbsenceHistoryModal = (processId) => {
 
     const history = allHistory.sort((a, b) => {
         const timeA = a.timestamp?.seconds ? a.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
-        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
+        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(b.timestamp).getTime();
         return timeB - timeA;
     });
 
@@ -843,6 +845,8 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
  * (MODIFICADO - Papéis) Usa fetchIncidentById, participantsInvolved e exibe papéis.
  * (CORREÇÃO - RELATÓRIO) Importa getFilteredOccurrences corretamente.
  * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
+ * (MODIFICADO - SUGESTÃO 4) Filtro de privacidade adicionado.
+ * (MODIFICADO - SUGESTÃO 5) Cores alteradas.
  */
 export const generateAndShowGeneralReport = async () => { // Adicionado async
      // Usa a função getFilteredOccurrences que já busca e filtra
@@ -855,7 +859,7 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
     }
 
     const { startDate, endDate, status, type } = state.filtersOccurrences;
-    const studentFilter = state.filterOccurrences;
+    const studentFilter = state.filterOccurrences.toLowerCase(); // (ALTERADO - SUGESTÃO 4) .toLowerCase()
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
     // (MODIFICADO - Papéis) Calcula total de alunos únicos usando participantsInvolved
@@ -893,9 +897,10 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
             <div class="border rounded-lg p-4 bg-gray-50">
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <div><p class="text-2xl font-bold text-indigo-600">${filteredIncidents.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Total de Incidentes</p></div>
-                    <div><p class="text-2xl font-bold text-indigo-600">${totalStudents}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos</p></div>
-                    <div><p class="text-lg font-bold text-indigo-600">${sortedTypes.length > 0 ? formatText(sortedTypes[0][0]) : 'N/A'}</p><p class="text-xs font-medium text-gray-500 uppercase">Principal Tipo</p></div>
+                    <!-- (ALTERADO - SUGESTÃO 5) Cores -->
+                    <div><p class="text-2xl font-bold text-sky-600">${filteredIncidents.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Total de Incidentes</p></div>
+                    <div><p class="text-2xl font-bold text-sky-600">${totalStudents}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos</p></div>
+                    <div><p class="text-lg font-bold text-sky-600">${sortedTypes.length > 0 ? formatText(sortedTypes[0][0]) : 'N/A'}</p><p class="text-xs font-medium text-gray-500 uppercase">Principal Tipo</p></div>
                 </div>
                 ${(startDate || endDate || status !== 'all' || type !== 'all' || studentFilter) ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong></p><ul class="list-disc list-inside ml-2">${startDate ? `<li>De: <strong>${formatDate(startDate)}</strong></li>` : ''}${endDate ? `<li>Até: <strong>${formatDate(endDate)}</strong></li>` : ''}${status !== 'all' ? `<li>Status: <strong>${status}</strong></li>` : ''}${type !== 'all' ? `<li>Tipo: <strong>${formatText(type)}</strong></li>` : ''}${studentFilter ? `<li>Aluno: <strong>"${formatText(studentFilter)}"</strong></li>` : ''}</ul></div>` : ''}
             </div>
@@ -917,11 +922,19 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
                 ${filteredIncidents.sort((a,b) => new Date(b.records?.[0]?.date || 0) - new Date(a.records?.[0]?.date || 0)).map(incident => { // Adiciona ? para segurança
                     const mainRecord = incident.records?.[0]; // Adiciona ? para segurança
                     if (!mainRecord) return ''; // Pula se não houver registro principal
-                    // (MODIFICADO - Papéis) Monta string de participantes com papéis
-                    const participantsDetails = [...incident.participantsInvolved.values()].map(p => {
-                         const iconClass = roleIcons[p.role] || roleIcons[defaultRole];
-                         return `<span class="inline-flex items-center gap-1 mr-2"><i class="${iconClass} fa-fw"></i>${formatText(p.student.name)} (${p.role})</span>`;
-                    }).join(', ');
+                    
+                    // (MODIFICADO - SUGESTÃO 4) Filtro de privacidade
+                    const participantsDetails = [...incident.participantsInvolved.values()]
+                        .filter(p => {
+                            if (studentFilter && !p.student.name.toLowerCase().includes(studentFilter)) {
+                                return false;
+                            }
+                            return true;
+                        })
+                        .map(p => {
+                            const iconClass = roleIcons[p.role] || roleIcons[defaultRole];
+                            return `<span class="inline-flex items-center gap-1 mr-2"><i class="${iconClass} fa-fw"></i>${formatText(p.student.name)} (${p.role})</span>`;
+                        }).join(', ');
 
                     return `
                     <div class="border rounded-lg overflow-hidden break-inside-avoid">
@@ -936,8 +949,16 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
                             <p><strong>Participantes:</strong> ${participantsDetails}</p>
                             <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição do Fato (Ação 1)</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
 
-                            <!-- Loop de acompanhamento individual (inalterado na lógica, mas busca nome ajustada) -->
-                            ${incident.records.map(rec => {
+                            <!-- (MODIFICADO - SUGESTÃO 4) Filtro de privacidade -->
+                            ${incident.records
+                                .filter(rec => {
+                                    const participant = incident.participantsInvolved.get(rec.studentId);
+                                    if (studentFilter && participant && !participant.student.name.toLowerCase().includes(studentFilter)) {
+                                        return false;
+                                    }
+                                    return true;
+                                })
+                                .map(rec => {
                                 const participant = incident.participantsInvolved.get(rec.studentId);
                                 const studentName = participant ? participant.student.name : 'Aluno Removido';
                                 return `<div class="text-xs border-t mt-2 pt-2">
@@ -972,7 +993,8 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
             if (typeCtx && typeof Chart !== 'undefined') {
                 new Chart(typeCtx, {
                     type: 'bar',
-                    data: { labels: chartDataByType.labels, datasets: [{ label: 'Total', data: chartDataByType.data, backgroundColor: '#4f46e5' }] },
+                    // (ALTERADO - SUGESTÃO 5) Cor
+                    data: { labels: chartDataByType.labels, datasets: [{ label: 'Total', data: chartDataByType.data, backgroundColor: '#0284c7' }] },
                     options: { responsive: true, plugins: { legend: { display: false } }, indexAxis: 'y' }
                 });
             } else if (!typeCtx) { console.warn("Canvas 'report-chart-by-type' não encontrado.");}
@@ -1005,6 +1027,7 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
 /**
  * Gera o relatório geral de Busca Ativa com gráficos.
  * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
+ * (MODIFICADO - SUGESTÃO 5) Cores alteradas.
  */
 export const generateAndShowBuscaAtivaReport = () => {
     const groupedByProcess = state.absences.reduce((acc, action) => {
@@ -1037,7 +1060,7 @@ export const generateAndShowBuscaAtivaReport = () => {
         if (studentFilter && (!student || !student.name.toLowerCase().includes(studentFilter.toLowerCase()))) return false;
 
         const isConcluded = lastAction.actionType === 'analise';
-        if (processStatus === 'in_progress' && isConcluido) return false;
+        if (processStatus === 'in_progress' && isConcluded) return false;
         if (processStatus === 'concluded' && !isConcluded) return false;
 
         const lastReturnAction = [...proc.actions].reverse().find(a => a.contactReturned != null || a.visitReturned != null || a.ctReturned != null);
@@ -1100,9 +1123,10 @@ export const generateAndShowBuscaAtivaReport = () => {
             <div class="border rounded-lg p-4 bg-gray-50">
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <div><p class="text-2xl font-bold text-indigo-600">${filteredProcesses.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Processos Filtrados</p></div>
-                    <div><p class="text-2xl font-bold text-indigo-600">${statusEmAndamento}</p><p class="text-xs font-medium text-gray-500 uppercase">Em Andamento</p></div>
-                    <div><p class="text-2xl font-bold text-indigo-600">${retornoSim}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Retornaram</p></div>
+                    <!-- (ALTERADO - SUGESTÃO 5) Cores -->
+                    <div><p class="text-2xl font-bold text-sky-600">${filteredProcesses.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Processos Filtrados</p></div>
+                    <div><p class="text-2xl font-bold text-sky-600">${statusEmAndamento}</p><p class="text-xs font-medium text-gray-500 uppercase">Em Andamento</p></div>
+                    <div><p class="text-2xl font-bold text-sky-600">${retornoSim}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Retornaram</p></div>
                 </div>
                  ${filterDescriptions.length > 0 ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong> ${filterDescriptions.join('; ')}</p></div>` : ''}
             </div>
@@ -1157,7 +1181,7 @@ export const generateAndShowBuscaAtivaReport = () => {
             if (statusCtx && typeof Chart !== 'undefined') {
                 new Chart(statusCtx, {
                     type: 'doughnut',
-                    data: { labels: chartDataStatus.labels, datasets: [{ data: chartDataStatus.data, backgroundColor: ['#f59e0b', '#10b981'] }] },
+                    data: { labels: chartDataStatus.labels, datasets: [{ data: chartDataStatus.data, backgroundColor: ['#f59e0b', '#10b981'] }] }, // Cores semânticas mantidas
                     options: { responsive: true }
                 });
             } else if (!statusCtx) { console.warn("Canvas 'ba-chart-status' não encontrado."); }
@@ -1166,7 +1190,7 @@ export const generateAndShowBuscaAtivaReport = () => {
              if (retornoCtx && typeof Chart !== 'undefined') {
                 new Chart(retornoCtx, {
                     type: 'pie',
-                    data: { labels: chartDataRetorno.labels, datasets: [{ data: chartDataRetorno.data, backgroundColor: ['#10b981', '#ef4444', '#6b7280'] }] },
+                    data: { labels: chartDataRetorno.labels, datasets: [{ data: chartDataRetorno.data, backgroundColor: ['#10b981', '#ef4444', '#6b7280'] }] }, // Cores semânticas mantidas
                     options: { responsive: true }
                 });
              } else if (!retornoCtx) { console.warn("Canvas 'ba-chart-retorno' não encontrado."); }
@@ -1175,7 +1199,8 @@ export const generateAndShowBuscaAtivaReport = () => {
              if (pendenteCtx && typeof Chart !== 'undefined') {
                  new Chart(pendenteCtx, {
                     type: 'bar',
-                    data: { labels: chartDataPendente.labels, datasets: [{ label: 'Total', data: chartDataPendente.data, backgroundColor: ['#3b82f6', '#f97316'] }] },
+                    // (ALTERADO - SUGESTÃO 5) Cores
+                    data: { labels: chartDataPendente.labels, datasets: [{ label: 'Total', data: chartDataPendente.data, backgroundColor: ['#0ea5e9', '#0d9488'] }] },
                     options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
                 });
              } else if (!pendenteCtx) { console.warn("Canvas 'ba-chart-pendente' não encontrado."); }
