@@ -1,7 +1,7 @@
 // =================================================================================
 // ARQUIVO: main.js (REFATORADO)
 // RESPONSABILIDADE: Ponto de entrada, autenticação, gerenciamento de estado
-// de alto nível (troca de abas) e inicialização dos módulos de funcionalidade.
+// de altoível (troca de abas) e inicialização dos módulos de funcionalidade.
 //
 // ATUALIZAÇÃO (Híbrida Admin):
 // 1. Adicionada constante 'SUPER_ADMIN_EMAILS' para o(s) dono(s) da aplicação.
@@ -21,11 +21,11 @@
 // 3. A função `handleDeleteConfirmation` foi atualizada para lidar com
 //    o novo tipo de ação 'occurrence-reset', permitindo o rollback de etapas.
 //
-// ATUALIZAÇÃO (CORREÇÃO DE IMPRESSÃO MÓVEL DEFINITIVA - 03/11/2025):
-// 1. A função `handlePrintClick` foi totalmente reescrita para usar
-//    `window.matchMedia('print')` em vez de `setTimeout` para a limpeza (cleanup).
-//    Isso resolve a race condition em navegadores móveis onde a limpeza
-//    ocorria antes da impressão ser concluída.
+// ATUALIZAÇÃO (CORREÇÃO DE IMPRESSÃO MÓVEL E DESKTOP - 03/11/2025 v2):
+// 1. A função `handlePrintClick` foi refinada. Ela agora usa `window.matchMedia`
+//    e verifica explicitamente `!evt.matches` no listener. Isso impede a
+//    limpeza prematura em navegadores desktop, ao mesmo tempo que funciona
+//    corretamente em dispositivos móveis.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -277,16 +277,13 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO CORRIGIDA (Mobile) ---
-// A função 'handlePrintClick' abaixo foi substituída pela versão que usa
-// 'window.matchMedia' para garantir a limpeza correta em dispositivos móveis.
+// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO CORRIGIDA (Mobile e Desktop v2) ---
 // ==============================================================================
 
 /**
- * Prepara o DOM para impressão usando window.matchMedia para
- * garantir a limpeza correta em dispositivos móveis.
+ * Prepara o DOM para impressão usando window.matchMedia (com verificação de evento)
+ * para garantir a limpeza correta em dispositivos móveis E desktops.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
- * (ex: 'notification-content', 'report-view-content').
  */
 function handlePrintClick(contentElementId) {
     const contentElement = document.getElementById(contentElementId);
@@ -305,28 +302,34 @@ function handlePrintClick(contentElementId) {
     }
 
     // 1. Adiciona classe específica ('printing-now')
-    //    APENAS ao backdrop do modal que queremos imprimir.
     printableBackdrop.classList.add('printing-now');
     
-    // 2. A CORREÇÃO: Usar window.matchMedia para "ouvir" o fechamento da janela
+    // 2. Cria o "ouvinte" de mídia de impressão
     const printMediaMatcher = window.matchMedia('print');
 
     // 3. Define a função de limpeza
-    const cleanupAfterPrint = () => {
-        // Remove a classe que força a impressão
-        printableBackdrop.classList.remove('printing-now');
-        
-        // IMPORTANTE: Remove o "ouvinte" para evitar vazamento de memória
-        if (printMediaMatcher.removeEventListener) {
-            printMediaMatcher.removeEventListener('change', cleanupAfterPrint);
-        } else {
-            // Suporte legado (ex: Safari antigo)
-            printMediaMatcher.removeListener(cleanupAfterPrint);
+    const cleanupAfterPrint = (evt) => {
+        // ==================================================================
+        // --- A VERIFICAÇÃO CRUCIAL ---
+        // Só executa a limpeza se o evento indicar que saímos
+        // do modo de impressão (evt.matches === false).
+        // Isso impede a limpeza prematura em alguns navegadores.
+        // ==================================================================
+        if (!evt.matches) {
+            // Remove a classe que força a impressão
+            printableBackdrop.classList.remove('printing-now');
+            
+            // IMPORTANTE: Remove o "ouvinte" para evitar vazamento de memória
+            if (printMediaMatcher.removeEventListener) {
+                printMediaMatcher.removeEventListener('change', cleanupAfterPrint);
+            } else {
+                // Suporte legado (ex: Safari antigo)
+                printMediaMatcher.removeListener(cleanupAfterPrint);
+            }
         }
     };
     
     // 4. Adiciona o "ouvinte" (listener)
-    // "Quando o modo de impressão mudar (ou seja, fechar), execute a limpeza."
     if (printMediaMatcher.addEventListener) {
         printMediaMatcher.addEventListener('change', cleanupAfterPrint);
     } else {
@@ -339,21 +342,19 @@ function handlePrintClick(contentElementId) {
     setTimeout(() => {
         try {
             // 6. Chama a impressão.
-            // O código continua, mas o listener (printMediaMatcher)
-            // agora está ATIVO, esperando a janela de impressão fechar.
             window.print();
             
-            // 7. [REMOVIDO] O 'setTimeout(cleanupAfterPrint, 500)' foi removido
+            // 7. [REMOVIDO] O 'setTimeout' de limpeza foi removido
             // pois agora confiamos 100% no listener do matchMedia.
 
         } catch (e) {
             // Este catch externo pega erros síncronos (raro)
             console.error("Erro ao chamar window.print():", e);
             showToast("Não foi possível abrir a janela de impressão.");
-            // Se falhar, limpa imediatamente
-            cleanupAfterPrint();
+            // Se falhar, força a limpeza (passando um evento falso)
+            cleanupAfterPrint({ matches: false });
         }
-    }, 150); // 150ms de espera (aumentado de 100)
+    }, 150); // 150ms de espera para a classe ser aplicada.
 }
 
 // ==============================================================================
@@ -413,3 +414,4 @@ function setupModalCloseButtons() {
     document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
+
