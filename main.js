@@ -21,11 +21,10 @@
 // 3. A função `handleDeleteConfirmation` foi atualizada para lidar com
 //    o novo tipo de ação 'occurrence-reset', permitindo o rollback de etapas.
 //
-// ATUALIZAÇÃO (CORREÇÃO DE IMPRESSÃO MÓVEL E DESKTOP - 03/11/2025 v2):
-// 1. A função `handlePrintClick` foi refinada. Ela agora usa `window.matchMedia`
-//    e verifica explicitamente `!evt.matches` no listener. Isso impede a
-//    limpeza prematura em navegadores desktop, ao mesmo tempo que funciona
-//    corretamente em dispositivos móveis.
+// ATUALIZAÇÃO (CORREÇÃO DE IMPRESSÃO MÓVEL E DESKTOP - 03/11/2025 v3):
+// 1. A função `handlePrintClick` usa `window.matchMedia` para limpeza.
+// 2. O delay inicial foi AUMENTADO de 150ms para 300ms para dar mais tempo
+//    de renderização aos navegadores móveis.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -277,7 +276,7 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO CORRIGIDA (Mobile e Desktop v2) ---
+// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO CORRIGIDA (Mobile e Desktop v3) ---
 // ==============================================================================
 
 /**
@@ -336,9 +335,8 @@ function handlePrintClick(contentElementId) {
         printMediaMatcher.addListener(cleanupAfterPrint);
     }
     
-    // 5. Mantém o 'setTimeout' de 150ms (delay de *abertura*)
-    // Isso ainda é necessário para dar tempo ao navegador mobile de aplicar
-    // a classe .printing-now ANTES de chamarmos window.print().
+    // 5. Aumenta o 'setTimeout' (delay de *abertura*)
+    // Aumentado de 150ms para 300ms para dar mais tempo aos navegadores móveis.
     setTimeout(() => {
         try {
             // 6. Chama a impressão.
@@ -354,7 +352,7 @@ function handlePrintClick(contentElementId) {
             // Se falhar, força a limpeza (passando um evento falso)
             cleanupAfterPrint({ matches: false });
         }
-    }, 150); // 150ms de espera para a classe ser aplicada.
+    }, 300); // 150ms -> 300ms de espera para a classe ser aplicada.
 }
 
 // ==============================================================================
