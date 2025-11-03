@@ -38,6 +38,17 @@ import { render } from './ui.js';
 // (NOVO - Reset) Importa a lógica de reset
 import { occurrenceStepLogic } from './logic.js';
 
+// --- (ADICIONADO - SUGESTÃO 1) LISTA DE ADMINISTRAÇÃO ---
+// Defina aqui os emails dos utilizadores que terão acesso
+// aos botões de Configuração e Gestão de Alunos.
+const ADMIN_EMAILS = [
+    'admin@suaescola.com',
+    'gestor@suaescola.com',
+    'silvio.baia.jr@gmail.com' // Exemplo
+];
+// --- FIM DA ADIÇÃO ---
+
+
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -49,6 +60,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user) {
             state.userId = user.uid;
             state.userEmail = user.email;
+
+            // --- (ADICIONADO - SUGESTÃO 1) VERIFICAÇÃO DE ADMIN ---
+            state.isAdmin = ADMIN_EMAILS.includes(user.email);
+            // --- FIM DA ADIÇÃO ---
+
             dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
             dom.loginScreen.classList.add('hidden');
             dom.mainContent.classList.remove('hidden');
@@ -59,11 +75,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
                 setupFirestoreListeners();
                 render(); // Chama o render principal
+
+                // --- (ADICIONADO - SUGESTÃO 1) LÓGICA DE VISIBILIDADE DOS BOTÕES ---
+                if (state.isAdmin) {
+                    dom.settingsBtn.classList.remove('hidden');
+                    dom.manageStudentsBtn.classList.remove('hidden');
+                } else {
+                    dom.settingsBtn.classList.add('hidden');
+                    dom.manageStudentsBtn.classList.add('hidden');
+                }
+                // --- FIM DA ADIÇÃO ---
+
             } catch (error) {
                 showToast(error.message);
             }
         } else {
             state.userId = null; state.userEmail = null; state.students = []; state.occurrences = []; state.absences = [];
+            
+            // --- (ADICIONADO - SUGESTÃO 1) Garante que isAdmin seja falso no logout ---
+            state.isAdmin = false;
+            // --- FIM DA ADIÇÃO ---
+            
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
@@ -156,7 +188,7 @@ function switchTab(tabName) {
     dom.tabOccurrences.classList.toggle('tab-active', isOccurrences);
     dom.tabAbsences.classList.toggle('tab-active', !isOccurrences);
     dom.tabContentOccurrences.classList.toggle('hidden', !isOccurrences);
-    dom.tabContentAbsences.classList.toggle('hidden', isOccurrences);
+    dom.tabContentAbsences.classList.toggle('hidden', !isOccurrences);
     render(); // O render do ui.js vai decidir qual função específica chamar
 }
 
