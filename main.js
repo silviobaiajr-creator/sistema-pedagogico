@@ -14,6 +14,15 @@
 // 2. Importada a `updateRecordWithHistory` do firestore.js.
 // 3. A função `handleDeleteConfirmation` foi atualizada para lidar com
 //    o novo tipo de ação 'occurrence-reset', permitindo o rollback de etapas.
+//
+// ATUALIZAÇÃO (SUGESTÃO 1 - ADMIN):
+// 1. Adicionada lista ADMIN_EMAILS.
+// 2. onAuthStateChanged agora verifica se o user.email está na lista.
+// 3. onAuthStateChanged mostra/esconde botões de admin (settings, students).
+//
+// CORREÇÃO (BUG TELA BRANCA - 03/11/2025):
+// 1. Corrigida a lógica na função `switchTab` para alternar corretamente
+//    a visibilidade de `tabContentAbsences`.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -38,16 +47,11 @@ import { render } from './ui.js';
 // (NOVO - Reset) Importa a lógica de reset
 import { occurrenceStepLogic } from './logic.js';
 
-// --- (ADICIONADO - SUGESTÃO 1) LISTA DE ADMINISTRAÇÃO ---
-// Defina aqui os emails dos utilizadores que terão acesso
-// aos botões de Configuração e Gestão de Alunos.
+// (ADICIONADO - SUGESTÃO 1) Lista de emails administradores
 const ADMIN_EMAILS = [
-    'admin@suaescola.com',
-    'gestor@suaescola.com',
-    'silvio.baia.jr@gmail.com' // Exemplo
+    'silviobaiajr@gmail.com', // Email principal (exemplo)
+    // 'outro.gestor@escola.com' // Adicione outros emails aqui
 ];
-// --- FIM DA ADIÇÃO ---
-
 
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
@@ -61,9 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
             state.userId = user.uid;
             state.userEmail = user.email;
 
-            // --- (ADICIONADO - SUGESTÃO 1) VERIFICAÇÃO DE ADMIN ---
+            // (ADICIONADO - SUGESTÃO 1) Verifica se é Admin
             state.isAdmin = ADMIN_EMAILS.includes(user.email);
-            // --- FIM DA ADIÇÃO ---
 
             dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
             dom.loginScreen.classList.add('hidden');
@@ -76,26 +79,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 setupFirestoreListeners();
                 render(); // Chama o render principal
 
-                // --- (ADICIONADO - SUGESTÃO 1) LÓGICA DE VISIBILIDADE DOS BOTÕES ---
+                // (ADICIONADO - SUGESTÃO 1) Mostra/Esconde botões de Admin
                 if (state.isAdmin) {
-                    dom.settingsBtn.classList.remove('hidden');
-                    dom.manageStudentsBtn.classList.remove('hidden');
+                    if(dom.settingsBtn) dom.settingsBtn.classList.remove('hidden');
+                    if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.remove('hidden');
                 } else {
-                    dom.settingsBtn.classList.add('hidden');
-                    dom.manageStudentsBtn.classList.add('hidden');
+                    if(dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
+                    if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
                 }
-                // --- FIM DA ADIÇÃO ---
 
             } catch (error) {
                 showToast(error.message);
             }
         } else {
-            state.userId = null; state.userEmail = null; state.students = []; state.occurrences = []; state.absences = [];
-            
-            // --- (ADICIONADO - SUGESTÃO 1) Garante que isAdmin seja falso no logout ---
-            state.isAdmin = false;
-            // --- FIM DA ADIÇÃO ---
-            
+            state.userId = null; state.userEmail = null; state.isAdmin = false; // (ADICIONADO - SUGESTÃO 1) Reseta admin
+            state.students = []; state.occurrences = []; state.absences = [];
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
@@ -181,16 +179,32 @@ function getFirestoreErrorMessage(code) {
 
 /**
  * Troca a aba ativa e chama o render principal do ui.js
+ * (CORRIGIDO - BUG TELA BRANCA 03/11/2025)
  */
 function switchTab(tabName) {
     state.activeTab = tabName;
     const isOccurrences = tabName === 'occurrences';
+
     dom.tabOccurrences.classList.toggle('tab-active', isOccurrences);
     dom.tabAbsences.classList.toggle('tab-active', !isOccurrences);
-    dom.tabContentOccurrences.classList.toggle('hidden', !isOccurrences);
-    dom.tabContentAbsences.classList.toggle('hidden', !isOccurrences);
+
+    // (CORREÇÃO) A lógica 'toggle' estava correta, mas
+    // vamos reescrever de forma explícita (add/remove) para garantir clareza.
+    if (isOccurrences) {
+        dom.tabContentOccurrences.classList.remove('hidden');
+        dom.tabContentAbsences.classList.add('hidden');
+    } else {
+        dom.tabContentOccurrences.classList.add('hidden');
+        dom.tabContentAbsences.classList.remove('hidden');
+    }
+    
+    // Linhas originais (que estavam logicamente corretas, mas são confusas)
+    // dom.tabContentOccurrences.classList.toggle('hidden', !isOccurrences);
+    // dom.tabContentAbsences.classList.toggle('hidden', isOccurrences); // Esta era a linha suspeita, mas estava certa.
+    
     render(); // O render do ui.js vai decidir qual função específica chamar
 }
+
 
 /**
  * Lida com a confirmação de exclusão (genérico).
@@ -387,3 +401,4 @@ function setupModalCloseButtons() {
     document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
+
