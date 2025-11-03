@@ -139,6 +139,7 @@ const setupAbsenceAutocomplete = () => {
 // --- INÍCIO DA REESCRITA (renderAbsences) ---
 // Função reescrita para usar o layout de acordeão unificado (V4).
 // (MODIFICADO - Melhoria 3): Botões "Ver" movidos para o historyHtml.
+// (MODIFICADO - SUGESTÃO 5) Cores alteradas
 // =================================================================================
 /**
  * Renderiza a lista de Busca Ativa.
@@ -344,10 +345,11 @@ export const renderAbsences = () => {
                 }
 
                 // --- (Melhoria 3) Adiciona botões "Ver" ---
+                // --- (ALTERADO - SUGESTÃO 5) Cores alteradas ---
                 let viewButtonHtml = '';
                 if (abs.actionType.startsWith('tentativa') && abs.meetingDate && abs.meetingTime) {
                     viewButtonHtml = `
-                        <button type"button" class="view-notification-btn-hist text-indigo-600 hover:text-indigo-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Notificação">
+                        <button type"button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Notificação">
                             [<i class="fas fa-eye fa-fw"></i> Ver Notificação]
                         </button>`;
                 }
@@ -377,9 +379,10 @@ export const renderAbsences = () => {
             const disableReason = isConcluded ? "Processo concluído" : "Apenas a última ação pode ser alterada";
 
             // Botão Avançar Etapa
+            // --- (ALTERADO - SUGESTÃO 5) Cores alteradas ---
             const avancarBtn = `
                 <button type="button"
-                        class="avancar-etapa-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}"
+                        class="avancar-etapa-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}"
                         title="${isConcluded ? 'Processo concluído' : 'Avançar para a próxima etapa'}"
                         ${isConcluded ? 'disabled' : ''}
                         data-student-id="${student.matricula}">
@@ -418,6 +421,7 @@ export const renderAbsences = () => {
 
 
             // --- Renderização do Cabeçalho do Processo (Card) ---
+            // --- (ALTERADO - SUGESTÃO 5) Cores alteradas ---
             const contentId = `ba-content-${processId}`;
             html += `
                 <div class="border rounded-lg mb-4 bg-white shadow">
@@ -431,7 +435,7 @@ export const renderAbsences = () => {
                         </div>
                         <div class="flex items-center space-x-4">
                             ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : '<span class="text-xs font-bold text-white bg-yellow-600 px-2 py-1 rounded-full">EM ANDAMENTO</span>'}
-                            <button class="generate-ficha-btn-row bg-purple-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-purple-700 text-xs no-print" data-student-id="${student.matricula}" data-process-id="${processId}">
+                            <button class="generate-ficha-btn-row bg-teal-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-teal-700 text-xs no-print" data-student-id="${student.matricula}" data-process-id="${processId}">
                                 <i class="fas fa-file-invoice"></i> Ficha
                             </button>
                             <i class="fas fa-chevron-down transition-transform duration-300"></i>
@@ -1219,6 +1223,7 @@ function handleDeleteAbsence(id) {
 // Função reescrita para controlar o acordeão e os novos botões (V4).
 // (MODIFICADO - Melhoria 1 & 3): Remove listener 'send-ct-btn' e atualiza
 // 'notification-btn' e 'view-oficio-btn' para as novas classes '...-hist'.
+// (MODIFICADO - SUGESTÃO 3) Adicionado listener para 'add-absence-btn'
 // =================================================================================
 /**
  * Anexa todos os listeners de eventos relacionados a Busca Ativa.
@@ -1228,6 +1233,14 @@ export const initAbsenceListeners = () => {
     // --- CORREÇÃO: Usar dom.generalBaReportBtn em vez de document.getElementById ---
     if (dom.generalBaReportBtn) {
         dom.generalBaReportBtn.addEventListener('click', generateAndShowBuscaAtivaReport);
+    }
+
+    // (ADICIONADO - SUGESTÃO 3) Botão Nova Ação
+    if (dom.addAbsenceBtn) {
+        dom.addAbsenceBtn.addEventListener('click', () => {
+            dom.searchAbsences.focus(); // Foca na barra de busca
+            showToast("Digite o nome do aluno na busca para iniciar ou continuar uma ação.");
+        });
     }
 
     // Filtros
