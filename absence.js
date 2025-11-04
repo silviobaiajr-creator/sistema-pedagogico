@@ -10,6 +10,8 @@
 // 3. Removidos os menus Kebab de cada linha de histórico.
 // 4. (initAbsenceListeners) Atualizada para lidar com os novos botões no
 //    bloco "Ações" (Avançar, Editar, Limpar, etc.).
+// 5. Adicionados botões "Avançar Etapa", "Editar Ação" e "Limpar Ação"
+//    para consistência com o fluxo de Ocorrências.
 //
 // CORREÇÃO (BUG DO BOTÃO - 01/11/2025):
 // 1. (setupAbsenceAutocomplete) Corrigida referência para usar `dom.searchAbsences`.
@@ -26,12 +28,6 @@
 //    para dentro do `historyHtml`, ao lado da etapa correspondente.
 // 5. (Melhoria 3) `initAbsenceListeners` atualizada para detetar os novos botões
 //    no histórico (ex: `.view-notification-btn-hist`).
-//
-// ATUALIZAÇÃO (TEMA Cores + Correção Bug + Sug. 3):
-// 1. (renderAbsences) Cores 'purple' e 'indigo' trocadas por 'teal' e 'sky'.
-// 2. (renderAbsences) Corrigido bug que mostrava tela em branco se filtros
-//    não encontrassem resultados.
-// 3. (initAbsenceListeners) Adicionada lógica para o novo botão 'add-absence-btn'.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -143,8 +139,7 @@ const setupAbsenceAutocomplete = () => {
 // --- INÍCIO DA REESCRITA (renderAbsences) ---
 // Função reescrita para usar o layout de acordeão unificado (V4).
 // (MODIFICADO - Melhoria 3): Botões "Ver" movidos para o historyHtml.
-// (MODIFICADO - TEMA Cores): Cores atualizadas.
-// (MODIFICADO - Bug Fix): Lógica de estado vazio corrigida.
+// (MODIFICADO - SUGESTÃO 5) Cores alteradas
 // =================================================================================
 /**
  * Renderiza a lista de Busca Ativa.
@@ -271,37 +266,13 @@ export const renderAbsences = () => {
     });
 
 
-    // ==============================================================================
-    // --- (INÍCIO - CORREÇÃO DE BUG: Lógica de Estado Vazio) ---
-    // ==============================================================================
-    if (filteredGroupKeys.length === 0) {
-        // Verifica se algum filtro está ativo
-        const hasActiveFilters = state.filterAbsences !== '' ||
-                                 state.filtersAbsences.processStatus !== 'all' ||
-                                 state.filtersAbsences.pendingAction !== 'all' ||
-                                 state.filtersAbsences.returnStatus !== 'all' ||
-                                 state.filtersAbsences.startDate ||
-                                 state.filtersAbsences.endDate;
-        
-        if (hasActiveFilters) {
-            // Filtros estão ativos, mas nada foi encontrado
-            dom.emptyStateAbsences.classList.remove('hidden');
-            dom.emptyStateAbsences.querySelector('h3').textContent = 'Nenhum processo encontrado';
-            dom.emptyStateAbsences.querySelector('p').textContent = 'Tente ajustar os seus filtros de busca.';
-        } else {
-            // Não há filtros ativos E não há dados (lista original está vazia)
-            dom.emptyStateAbsences.classList.remove('hidden');
-            dom.emptyStateAbsences.querySelector('h3').textContent = 'Nenhuma ação registada';
-            dom.emptyStateAbsences.querySelector('p').textContent = 'Use a busca acima para registar uma nova ação.';
-        }
-        dom.absencesListDiv.innerHTML = ''; // Limpa a lista
+    // --- Lógica para exibir estado vazio ou a lista ---
+    // (Verifica todos os filtros, incluindo datas)
+    if (filteredGroupKeys.length === 0 && state.filterAbsences === '' && state.filtersAbsences.processStatus === 'all' && state.filtersAbsences.pendingAction === 'all' && state.filtersAbsences.returnStatus === 'all' && !state.filtersAbsences.startDate && !state.filtersAbsences.endDate) {
+        dom.emptyStateAbsences.classList.remove('hidden');
+        dom.absencesListDiv.innerHTML = '';
     } else {
-        // Se há resultados, esconde o estado vazio e renderiza a lista
         dom.emptyStateAbsences.classList.add('hidden');
-        // ==============================================================================
-        // --- (FIM - CORREÇÃO DE BUG) ---
-        // ==============================================================================
-
         // Ordena os PROCESSOS pela data da ÚLTIMA ação (mais recente primeiro)
         const sortedGroupKeys = filteredGroupKeys.sort((a, b) => {
             const actionsA = groupedByProcess[a];
@@ -374,12 +345,13 @@ export const renderAbsences = () => {
                 }
 
                 // --- (Melhoria 3) Adiciona botões "Ver" ---
+                // --- (ALTERADO - SUGESTÃO 5) Cores alteradas ---
                 let viewButtonHtml = '';
                 if (abs.actionType.startsWith('tentativa') && abs.meetingDate && abs.meetingTime) {
                     viewButtonHtml = `
                         <button type"button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Notificação">
                             [<i class="fas fa-eye fa-fw"></i> Ver Notificação]
-                        </button>`; // (MODIFICADO - TEMA Cores)
+                        </button>`;
                 }
                 if (abs.actionType === 'encaminhamento_ct' && abs.oficioNumber) {
                      viewButtonHtml = `
@@ -407,6 +379,7 @@ export const renderAbsences = () => {
             const disableReason = isConcluded ? "Processo concluído" : "Apenas a última ação pode ser alterada";
 
             // Botão Avançar Etapa
+            // --- (ALTERADO - SUGESTÃO 5) Cores alteradas ---
             const avancarBtn = `
                 <button type="button"
                         class="avancar-etapa-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}"
@@ -415,7 +388,7 @@ export const renderAbsences = () => {
                         data-student-id="${student.matricula}">
                     <i class="fas fa-plus"></i> Avançar Etapa
                 </button>
-            `; // (MODIFICADO - TEMA Cores)
+            `;
             
             // Botão Editar Ação
             const editBtn = `
@@ -448,6 +421,7 @@ export const renderAbsences = () => {
 
 
             // --- Renderização do Cabeçalho do Processo (Card) ---
+            // --- (ALTERADO - SUGESTÃO 5) Cores alteradas ---
             const contentId = `ba-content-${processId}`;
             html += `
                 <div class="border rounded-lg mb-4 bg-white shadow">
@@ -1249,7 +1223,7 @@ function handleDeleteAbsence(id) {
 // Função reescrita para controlar o acordeão e os novos botões (V4).
 // (MODIFICADO - Melhoria 1 & 3): Remove listener 'send-ct-btn' e atualiza
 // 'notification-btn' e 'view-oficio-btn' para as novas classes '...-hist'.
-// (MODIFICADO - Sug. 3): Adicionado listener para 'add-absence-btn'.
+// (MODIFICADO - SUGESTÃO 3) Adicionado listener para 'add-absence-btn'
 // =================================================================================
 /**
  * Anexa todos os listeners de eventos relacionados a Busca Ativa.
@@ -1260,11 +1234,11 @@ export const initAbsenceListeners = () => {
     if (dom.generalBaReportBtn) {
         dom.generalBaReportBtn.addEventListener('click', generateAndShowBuscaAtivaReport);
     }
-    
-    // (ADICIONADO - Sug. 3) Botão Nova Ação
+
+    // (ADICIONADO - SUGESTÃO 3) Botão Nova Ação
     if (dom.addAbsenceBtn) {
         dom.addAbsenceBtn.addEventListener('click', () => {
-            if(dom.searchAbsences) dom.searchAbsences.focus(); // Foca na barra de busca
+            dom.searchAbsences.focus(); // Foca na barra de busca
             showToast("Digite o nome do aluno na busca para iniciar ou continuar uma ação.");
         });
     }
@@ -1367,4 +1341,3 @@ export const initAbsenceListeners = () => {
 // =================================================================================
 // --- FIM DA REESCRITA (initAbsenceListeners) ---
 // =================================================================================
-
