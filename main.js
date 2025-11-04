@@ -249,12 +249,13 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO ROBUSTA (Impressão Direta) ---
+// --- (INÍCIO DA SUBSTITUIÇÃO) ---
+// --- LÓGICA DE IMPRESSÃO ROBUSTA (CORREÇÃO 4 - requestAnimationFrame) ---
 // ==============================================================================
-
 /**
- * Prepara o DOM para impressão direta, aplica classes e chama window.print().
- * Usa 'afterprint' e 'matchMedia' para uma limpeza robusta.
+ * Prepara o DOM para impressão e chama window.print() de forma robusta.
+ * Usa requestAnimationFrame para garantir que o CSS seja aplicado ANTES da impressão,
+ * corrigindo o bug da "página em branco" em dispositivos móveis (race condition).
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
  * (ex: 'notification-content', 'report-view-content').
  */
@@ -273,61 +274,41 @@ function handlePrintClick(contentElementId) {
          return;
     }
 
-    // 1. (NOVO) Define a função de limpeza.
-    // Ela será chamada QUANDO a impressão terminar ou for cancelada.
+    // 1. Define a função de limpeza (será chamada após a impressão)
+    // Usamos 'once: true' para garantir que execute apenas uma vez.
     const cleanupAfterPrint = () => {
         printableBackdrop.classList.remove('printing-now');
-        
-        // Remove os 'escutadores' para evitar leaks de memória
-        window.removeEventListener('afterprint', handleAfterPrint);
-        mediaQueryList.removeEventListener('change', handleMediaChange);
+        // console.log("Impressão finalizada, limpeza concluída."); // Log de depuração
     };
 
-    // 2. (NOVO) Define os handlers dos eventos
-    // 'once: true' garante que o listener 'afterprint' seja removido após ser usado.
-    const handleAfterPrint = () => {
-        cleanupAfterPrint();
-    };
-    
-    const handleMediaChange = (mql) => {
-        if (!mql.matches) { // Se não está mais em modo 'print' (ou seja, voltou para 'screen')
+    // 2. Adiciona o listener para limpar DEPOIS que a impressão for fechada
+    // 'once: true' remove o listener automaticamente após ser disparado.
+    window.addEventListener('afterprint', cleanupAfterPrint, { once: true });
+
+    // 3. Adiciona a classe para ativar o CSS de impressão
+    printableBackdrop.classList.add('printing-now');
+    // console.log("Classe '.printing-now' adicionada. Preparando para imprimir..."); // Log de depuração
+
+    // 4. (A CORREÇÃO DEFINITIVA)
+    // Em vez de usar setTimeout (uma aposta), usamos requestAnimationFrame.
+    // Isso diz ao navegador: "Execute o seguinte código *exatamente*
+    // antes do próximo redesenho da tela."
+    requestAnimationFrame(() => {
+        // Neste ponto, o navegador JÁ processou a adição da classe '.printing-now'
+        // e o CSS de impressão (do style.css) está ativo.
+        // Agora é 100% seguro chamar window.print().
+        // console.log("requestAnimationFrame executado. Chamando window.print()."); // Log de depuração
+        
+        try {
+            window.print();
+        } catch (printError) {
+            console.error("Erro durante a chamada window.print():", printError);
+            showToast("Não foi possível abrir a janela de impressão.");
+            // Se a impressão falhar (ex: bloqueada), limpa imediatamente
+            window.removeEventListener('afterprint', cleanupAfterPrint); // Remove o listener que não vai disparar
             cleanupAfterPrint();
         }
-    };
-
-    // 3. (NOVO) Adiciona os 'escutadores' de pós-impressão.
-    // 'afterprint' é para a maioria dos navegadores.
-    window.addEventListener('afterprint', handleAfterPrint, { once: true });
-    
-    // 'matchMedia' é o fallback para navegadores (especialmente Safari/iOS)
-    // que não suportam 'afterprint' de forma confiável.
-    const mediaQueryList = window.matchMedia('print');
-    mediaQueryList.addEventListener('change', handleMediaChange, { once: true });
-
-
-    // 4. Adiciona a classe. Isto ATIVA as regras em style.css
-    // que preparam o modal para impressão.
-    printableBackdrop.classList.add('printing-now');
-
-    // 5. Chama a impressão
-    try {
-        // Pausa momentânea para garantir que o DOM atualize com a classe
-        // antes que o navegador "tire a foto" para impressão.
-        setTimeout(() => {
-            window.print();
-        }, 50); // 50ms é geralmente suficiente
-        
-        // NOTA: Em alguns navegadores (como Firefox), window.print() retorna
-        // imediatamente. Em outros (Chrome), ele bloqueia até o diálogo fechar.
-        // Os 'escutadores' (afterprint/matchMedia) lidam com ambos os casos.
-        
-    } catch (e) {
-        // Se a chamada window.print() falhar (ex: bloqueada),
-        // limpamos imediatamente.
-        console.error("Erro ao chamar window.print():", e);
-        showToast("Não foi possível abrir a janela de impressão.");
-        cleanupAfterPrint();
-    }
+    });
 }
 // ==============================================================================
 // --- (FIM DA SUBSTITUIÇÃO) ---
@@ -379,12 +360,13 @@ function setupModalCloseButtons() {
     // Botões de Share (Partilhar)
     document.getElementById('share-btn').addEventListener('click', () => shareContent(document.getElementById('notification-title').textContent, document.getElementById('notification-content').innerText));
     document.getElementById('report-share-btn').addEventListener('click', () => shareContent(document.getElementById('report-view-title').textContent, document.getElementById('report-view-content').innerText));
+    // (CORRIGIDO O ID QUE CAUSAVA O ERRO DA IMAGEM)
     document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
 
     // Botões de Impressão (AGORA USAM A NOVA FUNÇÃO ROBUSTA)
     document.getElementById('print-btn').addEventListener('click', () => handlePrintClick('notification-content'));
     document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
-    // (CORREÇÃO DE ID) Corrigindo o ID que causou o erro da sua imagem
+    // (CORRIGIDO O ID QUE CAUSAVA O ERRO DA IMAGEM)
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
 
