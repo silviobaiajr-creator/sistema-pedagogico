@@ -263,6 +263,16 @@ details[open] .process-content {
         display: none !important;
     }
 
+    /* --- (INÍCIO DA SOLUÇÃO) --- */
+    /* Zera o padding interno dos containers de conteúdo para evitar margens duplas */
+    /* que causam a página em branco extra. */
+    #notification-content,
+    #report-view-content,
+    #ficha-view-content {
+        padding: 0 !important;
+    }
+    /* --- (FIM DA SOLUÇÃO) --- */
+
     /* --- (INÍCIO DA CORREÇÃO) --- */
     /* O bloco que definia 'padding: 1cm !important;' foi REMOVIDO daqui. */
     /* A regra @page abaixo (linha 332) é a única que deve */
@@ -312,4 +322,3 @@ details[open] .process-content {
 /* ============================================================================== */
 /* (FIM DA CORREÇÃO)                                                              */
 /* ============================================================================== */
-
