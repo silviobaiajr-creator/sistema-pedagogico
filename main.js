@@ -271,12 +271,12 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- LÓGICA DE IMPRESSÃO CORRIGIDA (Abordagem Cirúrgica) ---
+// --- LÓGICA DE IMPRESSÃO CORRIGIDA (V5 - Abordagem "Teletransporte") ---
 // ==============================================================================
 
 /**
- * Prepara o DOM para impressão adicionando uma classe específica ao modal
- * e limpa depois.
+ * Prepara o DOM para impressão movendo o conteúdo para o body
+ * e limpando depois.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
  * (ex: 'notification-content', 'report-view-content').
  */
@@ -288,45 +288,44 @@ function handlePrintClick(contentElementId) {
         return;
     }
     
-    const printableBackdrop = contentElement.closest('.printable-area');
-    if (!printableBackdrop) {
-         console.error("Backdrop '.printable-area' pai não encontrado para:", contentElementId);
-         showToast("Erro ao preparar a área de impressão.");
+    // 1. (NOVO V5) Salva o "local original" do conteúdo
+    const originalParent = contentElement.parentElement;
+    if (!originalParent) {
+         console.error("Erro de impressão: O elemento de conteúdo não tem um pai.");
          return;
     }
 
-    // --- CORREÇÃO ---
-    // Removemos a manipulação manual da 'transition' do JavaScript.
-    // O novo CSS em @media print (style.css) agora cuida disso
-    // de forma mais confiável com 'transition: none !important;'.
-    // --- FIM DA CORREÇÃO ---
+    // 2. (NOVO V5) Move o conteúdo para fora do modal, diretamente para o <body>
+    document.body.appendChild(contentElement);
 
+    // 3. (NOVO V5) Adiciona a classe de impressão AO CONTEÚDO (não ao backdrop)
+    contentElement.classList.add('printing-now');
 
-    // 1. Adiciona classe específica ('printing-now')
-    printableBackdrop.classList.add('printing-now');
-
-    // 2. Define a função de limpeza
+    // 4. (NOVO V5) Define a função de limpeza
     const cleanupAfterPrint = () => {
-        printableBackdrop.classList.remove('printing-now');
-        // Não precisamos mais restaurar a transição aqui
+        // Remove a classe de impressão do conteúdo
+        contentElement.classList.remove('printing-now');
+        // Move o conteúdo de volta para seu local original dentro do modal
+        originalParent.appendChild(contentElement);
     };
 
-    // 3. Chama a impressão
+    // 5. Chama a impressão
     try {
         // ==================================================================
         // INÍCIO DA NOVA CORREÇÃO (Delay Simples)
         // ==================================================================
         
         // Passo A: Espera 100ms.
-        // Um pequeno delay ainda é útil para garantir que a classe .printing-now
-        // seja aplicada antes do navegador "bater a foto" da página.
-        // Não precisamos mais do delay longo de 300ms.
+        // Necessário para o navegador registrar a movimentação do DOM
+        // e a adição da classe .printing-now.
         setTimeout(() => { 
             try {
                 // Passo B: Chama a impressão.
                 window.print();
             
                 // Passo C: Limpeza agendada
+                // Damos um tempo para o navegador se recuperar antes de mover
+                // o conteúdo de volta para o modal.
                 setTimeout(cleanupAfterPrint, 500); 
 
             } catch (printError) {
