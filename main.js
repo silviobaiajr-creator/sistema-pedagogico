@@ -1,27 +1,5 @@
 // =================================================================================
-// ARQUIVO: main.js (REFATORADO)
-// RESPONSABILIDADE: Ponto de entrada, autenticação, gerenciamento de estado
-// de alto nível (troca de abas) e inicialização dos módulos de funcionalidade.
-//
-// ATUALIZAÇÃO (Híbrida Admin):
-// 1. Adicionada constante 'SUPER_ADMIN_EMAILS' para o(s) dono(s) da aplicação.
-// 2. Lógica de 'onAuthStateChanged' modificada para verificar SUPER_ADMIN_EMAILS
-//    OU a lista de emails admin vinda da base de dados (state.config.adminEmails).
-// 3. Lógica de 'switchTab' corrigida para garantir a exibição correta das abas.
-//
-// ATUALIZAÇÃO (IMPRESSÃO - CORREÇÃO MOBILE):
-// 1. A chamada window.print() foi envolvida em um setTimeout(..., 0).
-// 2. Isso corrige um bug em navegadores mobile (race condition) onde a
-//    janela de impressão era chamada ANTES do navegador aplicar a classe
-//    'printing-now', resultando em uma página em branco.
-//
-// ATUALIZAÇÃO (RESET DE AÇÃO - 01/11/2025):
-// 1. Importada a `occurrenceStepLogic` do logic.js.
-// 2. Importada a `updateRecordWithHistory` do firestore.js.
-// 3. A função `handleDeleteConfirmation` foi atualizada para lidar com
-//    o novo tipo de ação 'occurrence-reset', permitindo o rollback de etapas.
-// =================================================================================
-
+// ARQUIVO: main.js
 // --- MÓDULOS IMPORTADOS ---
 
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
