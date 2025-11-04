@@ -250,16 +250,16 @@ async function handleDeleteConfirmation() {
 
 // ==============================================================================
 // --- (INÍCIO DA SUBSTITUIÇÃO) ---
-// --- LÓGICA DE IMPRESSÃO DEFINITIVA (CORREÇÃO 8 - TÉCNICA DOS ESTILOS CLONADOS) ---
+// --- LÓGICA DE IMPRESSÃO (CORREÇÃO 10 - TÉCNICA DA NOVA JANELA) ---
 // ==============================================================================
 /**
- * Cria um iframe invisível, clona o HTML do relatório E os estilos
- * CSS já compilados (pelo Tailwind) da página principal, e chama a impressão.
+ * Abre uma nova janela, copia o HTML do relatório e os estilos
+ * compilados do Tailwind, e chama a impressão.
  *
- * Esta é a solução definitiva que resolve:
- * 1. O bloqueador de pop-up do celular (não usa window.open).
- * 2. A "página em branco" (não usa CSS de impressão que conflita com overflow).
- * 3. A "formatação ruim" (não usa o script JIT do Tailwind, copia os estilos prontos).
+ * Esta solução resolve:
+ * 1. O bloqueador de pop-ups (chamando window.open imediatamente).
+ * 2. A "má formatação" (clonando estilos compilados, não o script JIT).
+ * 3. A "página em branco" (imprimindo um documento limpo, não um modal).
  *
  * @param {string} contentElementId - O ID do elemento de conteúdo (ex: 'notification-content')
  */
@@ -271,17 +271,22 @@ function handlePrintClick(contentElementId) {
         return;
     }
 
-    // 1. Copia o HTML exato do relatório
-    const printHTML = contentElement.innerHTML;
+    // 1. Abrir a nova janela IMEDIATAMENTE.
+    // Isso é crucial para evitar o bloqueador de pop-ups.
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        showToast("Erro ao abrir a janela de impressão. Verifique o bloqueador de pop-ups.");
+        return;
+    }
 
-    // 2. Coleta os links CSS (FontAwesome, Google Fonts, style.css)
+    // 2. Coletar os links CSS (FontAwesome, Google Fonts, style.css)
     const headLinks = document.querySelectorAll('head > link[rel="stylesheet"]');
     let headLinksHTML = '';
     headLinks.forEach(link => {
         headLinksHTML += link.outerHTML;
     });
 
-    // 3. (A CHAVE DA SOLUÇÃO) Coleta OS ESTILOS JÁ COMPILADOS PELO TAILWIND
+    // 3. Coletar os ESTILOS COMPILADOS (Tailwind)
     // O script JIT do Tailwind cria tags <style> no <head>. Vamos copiá-las.
     const headStyles = document.querySelectorAll('head > style');
     let headStylesHTML = '';
@@ -289,83 +294,89 @@ function handlePrintClick(contentElementId) {
         headStylesHTML += style.outerHTML;
     });
 
-    // 4. Cria o iframe invisível
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.visibility = 'hidden';
-    iframe.setAttribute('aria-hidden', 'true');
+    // 4. Coletar o HTML do *interior* do relatório (sem o modal container)
+    // Isso corrige o problema da "má formatação" e das "4 páginas"
+    const printHTML = contentElement.innerHTML;
+    
+    // 5. Coletar o Título
+    const modalContent = contentElement.closest('.modal-content');
+    const titleElement = modalContent ? modalContent.querySelector('h3[id$="-title"]') : null;
+    const title = titleElement ? titleElement.textContent : 'Imprimir Documento';
 
-    // 5. Adiciona o iframe ao corpo
-    document.body.appendChild(iframe);
+    // 6. Escrever o documento na nova janela
+    try {
+        printWindow.document.open();
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html lang="pt-BR">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>${title}</title>
+                
+                <!-- 7. Inserir os LINKS (style.css, FontAwesome, etc) -->
+                ${headLinksHTML}
+                
+                <!-- 8. Inserir os ESTILOS COMPILADOS (Tailwind) -->
+                ${headStylesHTML}
 
-    // 6. Escreve o novo documento HTML dentro do iframe
-    const iframeDoc = iframe.contentWindow.document;
-    iframeDoc.open();
-    iframeDoc.write(`
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Imprimindo...</title>
-            
-            <!-- 7. Insere os LINKS (style.css, FontAwesome, etc) -->
-            ${headLinksHTML}
-            
-            <!-- 8. Insere os ESTILOS COMPILADOS (Tailwind) -->
-            ${headStylesHTML}
-            
-            <!-- 9. Insere nosso CSS de impressão (do style.css) -->
-            <!-- Esta regra garante que o corpo do *iframe* esteja pronto -->
-            <style>
-                @media print {
-                    /* Regras robustas copiadas do style.css */
-                    body, html {
-                        margin: 0 !important; padding: 0 !important;
-                        overflow: visible !important; background: #fff !important;
-                        font-size: 11pt;
+                <!-- 9. Inserir CSS de impressão (do style.css) -->
+                <style>
+                    /* Regra de impressão robusta do style.css */
+                    @media print {
+                        body, html {
+                            margin: 0 !important; padding: 0 !important;
+                            overflow: visible !important; background: #fff !important;
+                            font-size: 11pt;
+                        }
+                        /* Esconde botões que possam ter sido copiados acidentalmente */
+                        .no-print { display: none !important; }
+                        
+                        /* Regras de formatação do documento */
+                        .signature-block { page-break-inside: avoid !important; margin-top: 2.5rem !important; }
+                        .signature-line { display: flex !important; flex-direction: column !important; align-items: center !important; width: 60% !important; margin: 1.5rem auto 0 auto !important; }
+                        .signature-text { border-top: 1px solid #374151 !important; width: 100% !important; padding-top: 0.25rem !important; text-align: center !important; font-weight: 600 !important; }
+                        .signature-role { font-size: 0.75rem !important; color: #4b5563 !important; }
+                        .break-inside-avoid { page-break-inside: avoid; }
+                        @page { margin: 1cm; }
                     }
-                    .no-print { display: none !important; }
-                    .signature-block { page-break-inside: avoid !important; margin-top: 2.5rem !important; }
-                    .signature-line { display: flex !important; flex-direction: column !important; align-items: center !important; width: 60% !important; margin: 1.5rem auto 0 auto !important; }
-                    .signature-text { border-top: 1px solid #374151 !important; width: 100% !important; padding-top: 0.25rem !important; text-align: center !important; font-weight: 600 !important; }
-                    .signature-role { font-size: 0.75rem !important; color: #4b5563 !important; }
-                    .break-inside-avoid { page-break-inside: avoid; }
-                    @page { margin: 1cm; }
-                }
-            </style>
-        </head>
-        <body>
-            <!-- 10. Insere o HTML do relatório -->
-            ${printHTML}
-        </body>
-        </html>
-    `);
-    iframeDoc.close();
+                </style>
+            </head>
+            <body>
+                <!-- 10. Insere o HTML do relatório (sem o modal) -->
+                <!-- Adicionamos uma margem de "folha" para o corpo -->
+                <div class="p-8">
+                    ${printHTML}
+                </div>
 
-    // 11. Espera o iframe CARREGAR os estilos (style.css, FontAwesome)
-    // Não há "race condition" de compilação, apenas de download
-    iframe.onload = () => {
-        try {
-            // Adiciona um delay muito curto (50ms) apenas para garantir
-            // que o navegador renderize os estilos que acabou de baixar.
-            setTimeout(() => {
-                iframe.contentWindow.focus(); // Foco é necessário em alguns navegadores
-                iframe.contentWindow.print(); // Chama a impressão no iframe
-
-                // Limpa o iframe após a impressão
-                setTimeout(() => document.body.removeChild(iframe), 200);
-            }, 50); // 50ms é suficiente pois não há compilação de JS
-
-        } catch (e) {
-            console.error("Erro ao imprimir o iframe:", e);
-            showToast("Erro ao iniciar a impressão.");
-            document.body.removeChild(iframe); // Limpa em caso de erro
-        }
-    };
+                <!-- 11. O Script de Impressão -->
+                <script>
+                    // Espera a página (e todos os estilos) carregar
+                    window.onload = function() {
+                        // Um pequeno delay extra (100ms) por segurança
+                        // para garantir a renderização completa no celular.
+                        setTimeout(function() {
+                            window.print(); // Chama a impressão
+                            
+                            // Em alguns navegadores (Chrome), window.close() só funciona
+                            // se a janela foi aberta pelo próprio script.
+                            // Em outros (Safari), ela pode permanecer aberta.
+                            // Isso é um comportamento esperado.
+                            setTimeout(function() {
+                                window.close();
+                            }, 100);
+                        }, 100); 
+                    }
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    } catch (e) {
+        console.error("Erro ao escrever na nova janela:", e);
+        showToast("Erro ao preparar a página de impressão.");
+        printWindow.close(); // Fecha a janela se falhar
+    }
 }
 // ==============================================================================
 // --- (FIM DA SUBSTITUIÇÃO) ---
