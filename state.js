@@ -2,7 +2,6 @@
 // ARQUIVO: state.js
 // RESPONSABILIDADE: Guardar o estado global da aplicação e as referências
 // aos elementos do DOM para acesso rápido.
-//
 // ATUALIZAÇÃO GERAL (Conforme Análise):
 // 1. (Item 5) Adicionado o objeto `config` ao estado para armazenar as
 //    configurações da escola (nome, logo) carregadas do Firestore.
@@ -24,11 +23,6 @@
 //
 // ATUALIZAÇÃO (NOVO FLUXO CT OCORRÊNCIA - 24/10/2025):
 // 1. Adicionadas referências DOM para o novo modal `send-occurrence-ct-modal`.
-//
-// ATUALIZAÇÃO (Híbrida Admin + Sugestões):
-// 1. Adicionado `isAdmin` ao objeto `state`.
-// 2. Adicionado `adminEmails: []` ao `state.config`.
-// 3. Adicionada referência `dom.addAbsenceBtn` em `initializeDOMReferences`.
 // =================================================================================
 
 export const state = {
@@ -41,8 +35,7 @@ export const state = {
     config: {
         schoolName: "Carregando...",
         city: "",
-        schoolLogoUrl: null,
-        adminEmails: [] // (ADICIONADO - Híbrida Admin)
+        schoolLogoUrl: null
     },
 
     // Filtros para a aba de Ocorrências
@@ -75,7 +68,7 @@ export const state = {
     db: null,
     userId: null,
     userEmail: null,
-    isAdmin: false, // (ADICIONADO - Híbrida Admin)
+    isAdmin: false, // <-- ADICIONADO (Sugestão 1)
     unsubscribeOccurrences: null,
     unsubscribeAbsences: null,
 };
@@ -151,10 +144,10 @@ export const initializeDOMReferences = () => {
 
     // Botões de Ação Principais
     dom.settingsBtn = document.getElementById('settings-btn');
-    dom.manageStudentsBtn = document.getElementById('manage-students-btn'); // (ADICIONADO)
+    dom.manageStudentsBtn = document.getElementById('manage-students-btn'); // (Garantindo que esta referência exista)
     dom.generalReportBtn = document.getElementById('general-report-btn');
     dom.generalBaReportBtn = document.getElementById('general-ba-report-btn');
-    dom.addAbsenceBtn = document.getElementById('add-absence-btn'); // (ADICIONADO - Sug. 3)
+    dom.addAbsenceBtn = document.getElementById('add-absence-btn'); // <-- ADICIONADO (Sugestão 3)
 
     // --- CORREÇÃO CSV: Adicionando referências do modal de alunos ---
     dom.studentForm = document.getElementById('student-form');
@@ -164,4 +157,3 @@ export const initializeDOMReferences = () => {
     dom.csvFeedback = document.getElementById('csv-feedback');
     // --- Fim da Correção ---
 };
-
