@@ -410,5 +410,3 @@ function setupModalCloseButtons() {
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
 
-
-}
