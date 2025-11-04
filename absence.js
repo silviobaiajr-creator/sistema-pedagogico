@@ -1,22 +1,5 @@
 // =================================================================================
-// ARQUIVO: absence.js (NOVO E CORRIGIDO)
-// RESPONSABILIDADE: Gerenciar toda a lógica, UI e eventos da
-// funcionalidade "Busca Ativa".
-//
-// ATUALIZAÇÃO (V4 - LAYOUT UNIFICADO - 01/11/2025):
-// 1. (renderAbsences) Reescrita para espelhar o layout do 'occurrence.js'.
-// 2. O conteúdo do acordeão agora é dividido em "Histórico Individual" (lista)
-//    e "Ações" (bloco de botões).
-// 3. Removidos os menus Kebab de cada linha de histórico.
-// 4. (initAbsenceListeners) Atualizada para lidar com os novos botões no
-//    bloco "Ações" (Avançar, Editar, Limpar, etc.).
-// 5. Adicionados botões "Avançar Etapa", "Editar Ação" e "Limpar Ação"
-//    para consistência com o fluxo de Ocorrências.
-//
-// CORREÇÃO (BUG DO BOTÃO - 01/11/2025):
-// 1. (setupAbsenceAutocomplete) Corrigida referência para usar `dom.searchAbsences`.
-// 2. (initAbsenceListeners) Corrigida referência para usar `dom.generalBaReportBtn`.
-// =================================================================================
+// ARQUIVO: absence.js 
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js'; // Adicionado formatTime
@@ -126,6 +109,9 @@ const setupAbsenceAutocomplete = () => {
 // =================================================================================
 // --- INÍCIO DA REESCRITA (renderAbsences) ---
 // Função reescrita para usar o layout de acordeão unificado (V4).
+// (MODIFICADO - Melhoria 3): Botões "Ver" movidos para o historyHtml.
+// (MODIFICADO - TEMA Cores): Cores atualizadas.
+// (MODIFICADO - Bug Fix): Lógica de estado vazio corrigida.
 // =================================================================================
 /**
  * Renderiza a lista de Busca Ativa.
@@ -252,13 +238,37 @@ export const renderAbsences = () => {
     });
 
 
-    // --- Lógica para exibir estado vazio ou a lista ---
-    // (Verifica todos os filtros, incluindo datas)
-    if (filteredGroupKeys.length === 0 && state.filterAbsences === '' && state.filtersAbsences.processStatus === 'all' && state.filtersAbsences.pendingAction === 'all' && state.filtersAbsences.returnStatus === 'all' && !state.filtersAbsences.startDate && !state.filtersAbsences.endDate) {
-        dom.emptyStateAbsences.classList.remove('hidden');
-        dom.absencesListDiv.innerHTML = '';
+    // ==============================================================================
+    // --- (INÍCIO - CORREÇÃO DE BUG: Lógica de Estado Vazio) ---
+    // ==============================================================================
+    if (filteredGroupKeys.length === 0) {
+        // Verifica se algum filtro está ativo
+        const hasActiveFilters = state.filterAbsences !== '' ||
+                                 state.filtersAbsences.processStatus !== 'all' ||
+                                 state.filtersAbsences.pendingAction !== 'all' ||
+                                 state.filtersAbsences.returnStatus !== 'all' ||
+                                 state.filtersAbsences.startDate ||
+                                 state.filtersAbsences.endDate;
+        
+        if (hasActiveFilters) {
+            // Filtros estão ativos, mas nada foi encontrado
+            dom.emptyStateAbsences.classList.remove('hidden');
+            dom.emptyStateAbsences.querySelector('h3').textContent = 'Nenhum processo encontrado';
+            dom.emptyStateAbsences.querySelector('p').textContent = 'Tente ajustar os seus filtros de busca.';
+        } else {
+            // Não há filtros ativos E não há dados (lista original está vazia)
+            dom.emptyStateAbsences.classList.remove('hidden');
+            dom.emptyStateAbsences.querySelector('h3').textContent = 'Nenhuma ação registada';
+            dom.emptyStateAbsences.querySelector('p').textContent = 'Use a busca acima para registar uma nova ação.';
+        }
+        dom.absencesListDiv.innerHTML = ''; // Limpa a lista
     } else {
+        // Se há resultados, esconde o estado vazio e renderiza a lista
         dom.emptyStateAbsences.classList.add('hidden');
+        // ==============================================================================
+        // --- (FIM - CORREÇÃO DE BUG) ---
+        // ==============================================================================
+
         // Ordena os PROCESSOS pela data da ÚLTIMA ação (mais recente primeiro)
         const sortedGroupKeys = filteredGroupKeys.sort((a, b) => {
             const actionsA = groupedByProcess[a];
@@ -307,8 +317,10 @@ export const renderAbsences = () => {
                         statusHtml = `<span class="text-xs text-green-600 font-semibold">(<i class="fas fa-check"></i> Contato Realizado)</span>`;
                     } else if (abs.contactSucceeded === 'no') {
                         statusHtml = `<span class="text-xs text-red-600 font-semibold">(<i class="fas fa-times"></i> Contato Não Realizado)</span>`;
-                    } else {
+                    } else if (abs.meetingDate) { // Se tem convocação, mas não tem contato
                         statusHtml = `<span class="text-xs text-yellow-600 font-semibold">(<i class="fas fa-hourglass-half"></i> Aguardando Contato)</span>`;
+                    } else { // Se não tem nem convocação (etapa inicial)
+                        statusHtml = `<span class="text-xs text-blue-600 font-semibold">(<i class="fas fa-hourglass-start"></i> Aguardando Convocação)</span>`;
                     }
                 } else if (abs.actionType === 'visita') {
                      if (abs.visitSucceeded === 'yes') {
@@ -319,15 +331,40 @@ export const renderAbsences = () => {
                         statusHtml = `<span class="text-xs text-yellow-600 font-semibold">(<i class="fas fa-hourglass-half"></i> Aguardando Contato)</span>`;
                     }
                 } else if (abs.actionType === 'encaminhamento_ct') {
-                    statusHtml = abs.ctFeedback ? `<span class="text-xs text-green-600 font-semibold">(<i class="fas fa-inbox"></i> Devolutiva Recebida)</span>` : `<span class="text-xs text-yellow-600 font-semibold">(<i class="fas fa-hourglass-half"></i> Aguardando Devolutiva)</span>`;
+                    if (abs.ctFeedback) {
+                        statusHtml = `<span class="text-xs text-green-600 font-semibold">(<i class="fas fa-inbox"></i> Devolutiva Recebida)</span>`;
+                    } else if (abs.ctSentDate) {
+                        statusHtml = `<span class="text-xs text-yellow-600 font-semibold">(<i class="fas fa-hourglass-half"></i> Aguardando Devolutiva)</span>`;
+                    } else {
+                         statusHtml = `<span class="text-xs text-blue-600 font-semibold">(<i class="fas fa-hourglass-start"></i> Aguardando Envio)</span>`;
+                    }
                 }
 
+                // --- (Melhoria 3) Adiciona botões "Ver" ---
+                let viewButtonHtml = '';
+                if (abs.actionType.startsWith('tentativa') && abs.meetingDate && abs.meetingTime) {
+                    viewButtonHtml = `
+                        <button type"button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Notificação">
+                            [<i class="fas fa-eye fa-fw"></i> Ver Notificação]
+                        </button>`; // (MODIFICADO - TEMA Cores)
+                }
+                if (abs.actionType === 'encaminhamento_ct' && abs.oficioNumber) {
+                     viewButtonHtml = `
+                        <button type"button" class="view-oficio-btn-hist text-green-600 hover:text-green-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Ofício ${abs.oficioNumber}/${abs.oficioYear || ''}">
+                            [<i class="fas fa-eye fa-fw"></i> Ver Ofício]
+                        </button>`;
+                }
+                // --- Fim Melhoria 3 ---
+
                 historyHtml += `
-                    <p class="text-xs text-gray-600">
-                        <i class="fas fa-check text-green-500 fa-fw mr-1"></i>
-                        <strong>${actionDisplayTitles[abs.actionType] || 'N/A'}</strong> (Data: ${formatDate(actionDisplayDate)}) ${statusHtml}
-                        ${returned ? '<span class="text-xs text-green-600 font-semibold ml-1">[<i class="fas fa-check-circle"></i> Retornou]</span>' : ''}
-                        ${notReturned ? '<span class="text-xs text-red-600 font-semibold ml-1">[<i class="fas fa-times-circle"></i> Não Retornou]</span>' : ''}
+                    <p class="text-xs text-gray-600 flex items-center flex-wrap">
+                        <span>
+                            <i class="fas fa-check text-green-500 fa-fw mr-1"></i>
+                            <strong>${actionDisplayTitles[abs.actionType] || 'N/A'}</strong> (Data: ${formatDate(actionDisplayDate)}) ${statusHtml}
+                            ${returned ? '<span class="text-xs text-green-600 font-semibold ml-1">[<i class="fas fa-check-circle"></i> Retornou]</span>' : ''}
+                            ${notReturned ? '<span class="text-xs text-red-600 font-semibold ml-1">[<i class="fas fa-times-circle"></i> Não Retornou]</span>' : ''}
+                        </span>
+                        ${viewButtonHtml}
                     </p>
                 `;
             });
@@ -339,13 +376,13 @@ export const renderAbsences = () => {
             // Botão Avançar Etapa
             const avancarBtn = `
                 <button type="button"
-                        class="avancar-etapa-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}"
+                        class="avancar-etapa-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}"
                         title="${isConcluded ? 'Processo concluído' : 'Avançar para a próxima etapa'}"
                         ${isConcluded ? 'disabled' : ''}
                         data-student-id="${student.matricula}">
                     <i class="fas fa-plus"></i> Avançar Etapa
                 </button>
-            `;
+            `; // (MODIFICADO - TEMA Cores)
             
             // Botão Editar Ação
             const editBtn = `
@@ -369,44 +406,11 @@ export const renderAbsences = () => {
                 </button>
             `;
 
-            // Botão Notificação
-            const lastNotificationAction = [...actions].reverse().find(a => a.meetingDate && a.meetingTime);
-            const notificationBtn = lastNotificationAction ? `
-                <button type="button"
-                        class="notification-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100"
-                        data-id="${lastNotificationAction.id}"
-                        title="Gerar Notificação (baseada na última convocação)">
-                    <i class="fas fa-paper-plane"></i> Notificação
-                </button>
-            ` : '';
+            // --- (Melhoria 1 & 3) Botões de Notificação, Envio e Ver Ofício REMOVIDOS daqui ---
+            // const notificationBtn = ... (REMOVIDO)
+            // const sendCtBtn = ... (REMOVIDO)
+            // const viewOficioBtn = ... (REMOVIDO)
             
-            // Botão Enviar ao CT
-            const visitAction = actions.find(a => a.actionType === 'visita');
-            const hasCtAction = actions.some(a => a.actionType === 'encaminhamento_ct');
-            const disabledSendCt = isConcluded || hasCtAction || !visitAction;
-            const sendCtTitle = isConcluded ? 'Processo concluído' : (hasCtAction ? 'Encaminhamento já realizado' : (!visitAction ? 'Requer Ação de Visita' : 'Enviar ao Conselho Tutelar'));
-            
-            const sendCtBtn = `
-                <button type="button"
-                        class="send-ct-btn text-blue-600 hover:text-blue-900 text-xs font-semibold py-1 px-2 rounded-md bg-blue-50 hover:bg-blue-100 ${disabledSendCt ? 'opacity-50 cursor-not-allowed' : ''}"
-                        ${disabledSendCt ? 'disabled' : ''}
-                        title="${sendCtTitle}"
-                        data-id="${visitAction?.id || ''}">
-                    <i class="fas fa-gavel"></i> Enviar ao CT
-                </button>
-            `;
-            
-            // Botão Ver Ofício
-            const ctAction = actions.find(a => a.actionType === 'encaminhamento_ct' && a.oficioNumber);
-            const viewOficioBtn = ctAction ? `
-                <button type="button"
-                        class="view-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50 hover:bg-green-100"
-                        data-id="${ctAction.id}"
-                        title="Visualizar Ofício Nº ${ctAction.oficioNumber}">
-                    <i class="fas fa-file-alt"></i> Ver Ofício
-                </button>
-            ` : '';
-
             // --- FIM LÓGICA V4 ---
 
 
@@ -424,7 +428,7 @@ export const renderAbsences = () => {
                         </div>
                         <div class="flex items-center space-x-4">
                             ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : '<span class="text-xs font-bold text-white bg-yellow-600 px-2 py-1 rounded-full">EM ANDAMENTO</span>'}
-                            <button class="generate-ficha-btn-row bg-purple-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-purple-700 text-xs no-print" data-student-id="${student.matricula}" data-process-id="${processId}">
+                            <button class="generate-ficha-btn-row bg-teal-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-teal-700 text-xs no-print" data-student-id="${student.matricula}" data-process-id="${processId}">
                                 <i class="fas fa-file-invoice"></i> Ficha
                             </button>
                             <i class="fas fa-chevron-down transition-transform duration-300"></i>
@@ -443,9 +447,7 @@ export const renderAbsences = () => {
                                 ${avancarBtn}
                                 ${editBtn}
                                 ${limparBtn}
-                                ${notificationBtn}
-                                ${sendCtBtn}
-                                ${viewOficioBtn}
+                                <!-- Botões de documento removidos daqui -->
                              </div>
                         </div>
                     </div>
@@ -488,7 +490,13 @@ export const handleNewAbsenceAction = (student) => {
         // --- INÍCIO DA CORREÇÃO 2 ---
         // Verifica pendências na ÚLTIMA ação registrada
         if (lastAction.actionType.startsWith('tentativa')) {
-            if (lastAction.contactSucceeded == null) { // Primeiro, verifica se o contato foi registrado
+            // (Melhoria 2) Se a convocação (meetingDate) não foi preenchida, está pendente.
+            if (lastAction.meetingDate == null) {
+                isPending = true;
+                pendingActionMessage = "Registre a Data/Hora da Convocação para esta tentativa.";
+            }
+            // (Melhoria 2) Se a convocação FOI preenchida, mas o contato NÃO
+            else if (lastAction.contactSucceeded == null) { 
                 isPending = true;
                 pendingActionMessage = "Registre se houve sucesso no contato da última tentativa.";
             } else if (lastAction.contactReturned == null) { // DEPOIS, verifica se "retornou" foi registrado
@@ -504,7 +512,13 @@ export const handleNewAbsenceAction = (student) => {
                 pendingActionMessage = "Registre se o aluno retornou após a visita.";
             }
         } else if (lastAction.actionType === 'encaminhamento_ct') {
-            if (lastAction.ctFeedback == null) { // Primeiro, verifica se o feedback foi registrado
+             // (Melhoria 1 e 2) Se o envio (ctSentDate) não foi preenchido, está pendente.
+             if (lastAction.ctSentDate == null) {
+                 isPending = true;
+                 pendingActionMessage = "Registre a Data, Nº e Ano do Ofício de envio ao CT.";
+             }
+            // (Melhoria 1 e 2) Se o envio FOI preenchido, mas o feedback NÃO
+            else if (lastAction.ctFeedback == null) { 
                 isPending = true;
                 pendingActionMessage = "Registre a devolutiva recebida do Conselho Tutelar.";
             } else if (lastAction.ctReturned == null) { // DEPOIS, verifica se "retornou" foi registrado
@@ -573,8 +587,7 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
 
 /**
  * Abre e popula o modal de registro/edição de uma ação de Busca Ativa.
- * (MODIFICADO - CONSISTÊNCIA 2): Define a data mínima (`min`) para o input de data.
- * (MODIFICADO - CORREÇÃO 1) Adiciona `required` aos rádios `...Returned`.
+ * (MODIFICADO - Melhoria 1 e 2): Lógica de visibilidade de sub-etapas.
  */
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
     dom.absenceForm.reset();
@@ -585,6 +598,8 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     });
     // Garante que todos os campos comecem sem 'required'
     dom.absenceForm.querySelectorAll('[required]').forEach(el => el.required = false);
+    // Garante que todos os fieldsets dinâmicos estejam visíveis (para serem escondidos pela lógica)
+    dom.absenceForm.querySelectorAll('fieldset').forEach(fs => fs.classList.remove('hidden'));
 
 
     const isEditing = !!data;
@@ -655,33 +670,61 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     }
 
 
-    // --- Define campos obrigatórios específicos da AÇÃO ATUAL ---
+    // --- (Melhoria 2) Define campos obrigatórios e visibilidade das SUB-ETAPAS ---
     switch (finalActionType) {
         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
-            document.getElementById('meeting-date').required = true;
-            document.getElementById('meeting-time').required = true;
-            // 'contactSucceeded' radio é obrigatório (já validado no submit)
-            // Campos dentro de 'family-contact-fields' tornam-se required via toggleFamilyContactFields
+            const convocationSection = document.getElementById('convocation-section');
+            const familyContactSection = document.getElementById('family-contact-section');
             
-            // --- INÍCIO DA CORREÇÃO 1 ---
-            // 'contactReturned' radio NÃO é mais obrigatório aqui
-            // document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = true);
-            // --- FIM DA CORREÇÃO 1 ---
+            // Verifica se a convocação (etapa 1.1) já foi salva
+            const hasConvocation = !!(data?.meetingDate);
+
+            if (!isEditing || !hasConvocation) {
+                // Se está CRIANDO, ou EDITANDO a convocação
+                convocationSection.classList.remove('hidden');
+                familyContactSection.classList.add('hidden');
+                document.getElementById('meeting-date').required = true;
+                document.getElementById('meeting-time').required = true;
+            } else {
+                // Se está EDITANDO e a convocação JÁ EXISTE, mostra a etapa 1.2 (contato)
+                convocationSection.classList.add('hidden');
+                familyContactSection.classList.remove('hidden');
+                document.querySelectorAll('input[name="contact-succeeded"]').forEach(r => r.required = true);
+                document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = true);
+            }
             break;
         case 'visita':
+            // Visita não foi dividida, lógica antiga permanece
             document.getElementById('visit-agent').required = true;
             document.getElementById('visit-date').required = true;
-            // 'visitSucceeded' radio é obrigatório (já validado no submit)
-            // Campos dentro de 'visit-contact-fields' tornam-se required via toggleVisitContactFields
-            
-            // --- INÍCIO DA CORREÇÃO 1 ---
-            // 'visitReturned' radio NÃO é mais obrigatório aqui
-            // document.querySelectorAll('input[name="visit-returned"]').forEach(r => r.required = true);
-            // --- FIM DA CORREÇÃO 1 ---
+            document.querySelectorAll('input[name="visit-succeeded"]').forEach(r => r.required = true);
+            document.querySelectorAll('input[name="visit-returned"]').forEach(r => r.required = true);
             break;
         case 'encaminhamento_ct':
-            document.getElementById('ct-sent-date').required = true;
-            // 'ctFeedback' e 'ctReturned' são preenchidos DEPOIS, ao editar esta mesma ação
+            // (Melhoria 1 e 2) Divide a etapa CT em Envio vs Devolutiva
+            const ctSendSection = document.querySelector('#group-encaminhamento_ct fieldset:first-child');
+            const ctFeedbackSection = document.querySelector('#group-encaminhamento_ct fieldset:last-child');
+            
+            // Verifica se o envio (etapa 2.1) já foi salvo
+            const hasSentCT = !!(data?.ctSentDate);
+
+            if (!isEditing || !hasSentCT) {
+                // Se está CRIANDO, ou EDITANDO o envio
+                ctSendSection.classList.remove('hidden');
+                ctFeedbackSection.classList.add('hidden');
+                document.getElementById('ct-sent-date').required = true;
+                document.getElementById('oficio-number').required = true;
+                document.getElementById('oficio-year').required = true;
+                if(!isEditing) { // Define o ano atual ao criar
+                    document.getElementById('oficio-year').value = new Date().getFullYear();
+                }
+            } else {
+                // Se está EDITANDO e o envio JÁ EXISTE, mostra a etapa 2.2 (devolutiva)
+                ctSendSection.classList.add('hidden');
+                ctFeedbackSection.classList.remove('hidden');
+                document.getElementById('ct-feedback').required = true;
+                document.querySelectorAll('input[name="ct-returned"]').forEach(r => r.required = true);
+            }
             break;
         case 'analise':
             document.getElementById('ct-parecer').required = true;
@@ -772,19 +815,21 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 else document.querySelectorAll(`input[name="visit-returned"]`).forEach(r => r.checked = false);
                 break;
             case 'encaminhamento_ct':
+                // (Melhoria 1) Preenche os novos campos
                 document.getElementById('ct-sent-date').value = data.ctSentDate || '';
+                document.getElementById('oficio-number').value = data.oficioNumber || '';
+                document.getElementById('oficio-year').value = data.oficioYear || '';
+                
                 document.getElementById('ct-feedback').value = data.ctFeedback || ''; // Permite editar feedback
                 // Lida com radio 'ctReturned' (permite editar)
                 const ctReturnedRadio = document.querySelector(`input[name="ct-returned"][value="${data.ctReturned}"]`);
                 if (ctReturnedRadio) ctReturnedRadio.checked = true;
                 else document.querySelectorAll(`input[name="ct-returned"]`).forEach(r => r.checked = false);
-                 // Campos de devolutiva e retorno tornam-se obrigatórios ao editar CT se ainda não preenchidos
-                 document.getElementById('ct-feedback').required = true;
-                 
-                 // --- INÍCIO DA CORREÇÃO 1 ---
-                 // Radio ctReturned fica obrigatório (força Sim ou Não)
-                 document.querySelectorAll('input[name="ct-returned"]').forEach(r => r.required = true);
-                 // --- FIM DA CORREÇÃO 1 ---
+                 // Campos de devolutiva e retorno tornam-se obrigatórios ao editar CT se já preenchidos
+                 if(data.ctSentDate) { // Só exige feedback se o envio já foi feito
+                    document.getElementById('ct-feedback').required = true;
+                    document.querySelectorAll('input[name="ct-returned"]').forEach(r => r.required = true);
+                 }
                 break;
             case 'analise':
                 document.getElementById('ct-parecer').value = data.ctParecer || '';
@@ -806,7 +851,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 
 /**
  * Lida com a submissão do formulário de Busca Ativa.
- * (MODIFICADO - CONSISTÊNCIA 2): Adiciona verificação final da data antes de salvar.
+ * (MODIFICADO - Melhoria 2): Adiciona merge de dados para edições de sub-etapas.
  */
 async function handleAbsenceSubmit(e) {
     e.preventDefault();
@@ -842,6 +887,27 @@ async function handleAbsenceSubmit(e) {
 
     const data = getAbsenceFormData();
     if (!data) return; // getAbsenceFormData já pode mostrar toast se aluno for inválido
+
+    const id = data.id; // Guarda o ID original (se existir)
+    
+    // --- (Melhoria 2) Merge de dados em Edição ---
+    if (id) {
+        // Se estamos editando, devemos mesclar dados antigos de campos
+        // que estavam escondidos (ex: salvar "Contato" não pode apagar "Convocação")
+        const existingAction = state.absences.find(a => a.id === id);
+        if (existingAction) {
+            // Itera sobre os dados lidos do form (data)
+            // Se um campo lido for 'null' (porque estava escondido),
+            // mas existia um valor antigo, preserva o valor antigo.
+            for (const key in data) {
+                if (data[key] === null && existingAction[key] != null) {
+                    data[key] = existingAction[key];
+                }
+            }
+        }
+    }
+    // --- Fim da Melhoria 2 ---
+
 
     // --- Validação Final da Data (CONSISTÊNCIA 2) ---
     const currentDateString = getActionMainDate(data);
@@ -898,7 +964,6 @@ async function handleAbsenceSubmit(e) {
 
     // --- Lógica de salvar ---
     try {
-        const id = data.id; // Guarda o ID original (se existir)
         const historyAction = id ? "Dados da ação atualizados." : `Ação de Busca Ativa registada (${actionDisplayTitles[data.actionType]}).`;
 
         if (id) {
@@ -917,6 +982,15 @@ async function handleAbsenceSubmit(e) {
 
         showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
         closeModal(dom.absenceModal);
+
+        // --- (Melhoria 1) Gerar Ofício ao salvar etapa CT ---
+        if (data.actionType === 'encaminhamento_ct' && data.oficioNumber && !id) { // Só gera ao *criar*
+             const student = state.students.find(s => s.matricula === data.studentId);
+             if (student) {
+                // A 'data' já contém tudo o que precisamos (oficioNumber, oficioYear, etc)
+                generateAndShowOficio(data, data.oficioNumber);
+             }
+        }
 
         // --- Lógica pós-salvamento (sugerir 'analise') ---
         const studentReturned = (data.contactReturned === 'yes' || data.visitReturned === 'yes' || data.ctReturned === 'yes');
@@ -942,7 +1016,7 @@ async function handleAbsenceSubmit(e) {
 
 /**
  * Coleta os dados do formulário de Busca Ativa.
- * (Garante que ID está presente)
+ * (MODIFICADO - Melhoria 1): Lê os campos de ofício.
  */
 function getAbsenceFormData() {
     const studentName = document.getElementById('absence-student-name').value.trim();
@@ -999,12 +1073,11 @@ function getAbsenceFormData() {
         data.ctFeedback = document.getElementById('ct-feedback').value.trim() || null; // Coleta feedback aqui
         const ctReturnedRadio = document.querySelector('input[name="ct-returned"]:checked');
         data.ctReturned = ctReturnedRadio ? ctReturnedRadio.value : null; // Coleta retorno aqui
-         // Coleta dados do ofício se já existirem (ao editar)
-         const existingAction = state.absences.find(a => a.id === data.id);
-         if (existingAction) {
-             data.oficioNumber = existingAction.oficioNumber; // Mantém número original
-             data.oficioYear = existingAction.oficioYear; // Mantém ano original
-         }
+         
+         // (Melhoria 1) Coleta dados do ofício
+         data.oficioNumber = document.getElementById('oficio-number').value.trim() || null;
+         data.oficioYear = document.getElementById('oficio-year').value.trim() || null;
+
     } else if (data.actionType === 'analise') {
         data.ctParecer = document.getElementById('ct-parecer').value.trim() || null;
     }
@@ -1024,80 +1097,9 @@ function handleActionTypeChange(action) {
 
 /**
  * Lida com o clique de "Enviar ao CT".
+ * (MODIFICADO - Melhoria 1): Esta função foi removida pois o fluxo agora é automático.
  */
-async function handleSendToCT(id) {
-    const visitAction = state.absences.find(a => a.id === id); // Pega a ação de Visita (origem)
-    if (!visitAction) return showToast("Ação de visita não encontrada.");
-    // Verifica se a visita foi concluída (sucesso preenchido)
-    if (visitAction.visitSucceeded == null) {
-        return showToast("Complete os dados da visita (sucesso Sim/Não) antes de enviar ao CT.");
-    }
-    // --- CORREÇÃO (SOLICITAÇÃO DO USUÁRIO) ---
-    // Verifica se a visita foi concluída (retorno preenchido)
-    if (visitAction.visitReturned == null) {
-        return showToast("Complete os dados da visita (Aluno retornou? Sim/Não) antes de enviar ao CT.");
-    }
-    // --- FIM DA CORREÇÃO ---
-
-
-    const oficioNumber = prompt("Por favor, insira o número do ofício:");
-    if (oficioNumber?.trim()) {
-        const student = state.students.find(s => s.matricula === visitAction.studentId);
-        if (!student) return showToast("Aluno não encontrado.");
-
-        const { processId, currentCycleActions } = getStudentProcessInfo(student.matricula);
-        
-        // Verifica se já existe uma ação de encaminhamento NESTE CICLO
-        if (currentCycleActions.some(a => a.actionType === 'encaminhamento_ct')) {
-            showToast("Encaminhamento já realizado neste ciclo.");
-            return;
-        }
-
-        // Pega os dados de falta da primeira ação do ciclo
-        const firstAction = currentCycleActions.find(a => a.periodoFaltasStart);
-        const dataForCt = {
-            studentId: student.matricula,
-            actionType: 'encaminhamento_ct',
-            processId,
-            ctSentDate: new Date().toISOString().split('T')[0], // Data atual
-            oficioNumber: oficioNumber.trim(), // Garante que não tem espaços extras
-            oficioYear: new Date().getFullYear(),
-            // Copia dados de falta da primeira ação, se existirem
-            periodoFaltasStart: firstAction?.periodoFaltasStart || visitAction.periodoFaltasStart || null, // Fallback para dados da visita
-            periodoFaltasEnd: firstAction?.periodoFaltasEnd || visitAction.periodoFaltasEnd || null,
-            absenceCount: firstAction?.absenceCount || visitAction.absenceCount || null,
-            // Inicializa campos de feedback e retorno
-            ctFeedback: null,
-            ctReturned: null
-        };
-        
-        // Validação final de data: ctSentDate deve ser >= visitDate
-        if (dataForCt.ctSentDate < visitAction.visitDate) {
-             return showToast(`Erro: A data de envio ao CT (${formatDate(dataForCt.ctSentDate)}) não pode ser anterior à data da visita (${formatDate(visitAction.visitDate)}).`);
-        }
-
-        try {
-            const historyAction = `Ação 'Encaminhamento ao CT' registada (Ofício Nº ${dataForCt.oficioNumber}/${dataForCt.oficioYear}).`;
-            const docRef = await addRecordWithHistory('absence', dataForCt, historyAction, state.userEmail);
-            showToast("Registro de 'Encaminhamento ao CT' salvo automaticamente.");
-
-            // Prepara dados para gerar o ofício imediatamente
-            const newActionDataForReport = {
-                ...dataForCt,
-                id: docRef.id, // ID do novo documento criado
-                createdAt: new Date(), // Simula timestamp para o relatório
-                history: [{ action: historyAction, user: state.userEmail, timestamp: new Date() }]
-            };
-            generateAndShowOficio(newActionDataForReport, dataForCt.oficioNumber); // Passa o número explicitamente
-
-        } catch(err) {
-            console.error("Erro ao salvar ou gerar ofício:", err);
-            showToast("Erro ao salvar o encaminhamento automático.");
-        }
-    } else if (oficioNumber !== null) { // Só mostra erro se não cancelou o prompt
-        showToast("Número do ofício inválido.");
-    }
-}
+// async function handleSendToCT(id) { ... } // FUNÇÃO REMOVIDA
 
 
 /**
@@ -1212,6 +1214,9 @@ function handleDeleteAbsence(id) {
 // =================================================================================
 // --- INÍCIO DA REESCRITA (initAbsenceListeners) ---
 // Função reescrita para controlar o acordeão e os novos botões (V4).
+// (MODIFICADO - Melhoria 1 & 3): Remove listener 'send-ct-btn' e atualiza
+// 'notification-btn' e 'view-oficio-btn' para as novas classes '...-hist'.
+// (MODIFICADO - Sug. 3): Adicionado listener para 'add-absence-btn'.
 // =================================================================================
 /**
  * Anexa todos os listeners de eventos relacionados a Busca Ativa.
@@ -1221,6 +1226,14 @@ export const initAbsenceListeners = () => {
     // --- CORREÇÃO: Usar dom.generalBaReportBtn em vez de document.getElementById ---
     if (dom.generalBaReportBtn) {
         dom.generalBaReportBtn.addEventListener('click', generateAndShowBuscaAtivaReport);
+    }
+    
+    // (ADICIONADO - Sug. 3) Botão Nova Ação
+    if (dom.addAbsenceBtn) {
+        dom.addAbsenceBtn.addEventListener('click', () => {
+            if(dom.searchAbsences) dom.searchAbsences.focus(); // Foca na barra de busca
+            showToast("Digite o nome do aluno na busca para iniciar ou continuar uma ação.");
+        });
     }
 
     // Filtros
@@ -1274,10 +1287,12 @@ export const initAbsenceListeners = () => {
                     handleDeleteAbsence(id); // "Limpar" na BA é excluir a última ação
                     return;
                 }
-                // Botões de Ação Específicos (Notificação, Enviar CT, Ver Ofício)
-                if (button.classList.contains('notification-btn') && id) { openFichaViewModal(id); return; }
-                if (button.classList.contains('send-ct-btn') && id) { handleSendToCT(id); return; }
-                if (button.classList.contains('view-oficio-btn') && id) { handleViewOficio(id); return; }
+                
+                // --- (Melhoria 3) Botões "Ver" movidos para o histórico ---
+                if (button.classList.contains('view-notification-btn-hist') && id) { openFichaViewModal(id); return; }
+                if (button.classList.contains('view-oficio-btn-hist') && id) { handleViewOficio(id); return; }
+                // --- Fim Melhoria 3 ---
+
             }
             
             // Ações FORA do Acordeão (Cabeçalho do Processo)
@@ -1319,3 +1334,4 @@ export const initAbsenceListeners = () => {
 // =================================================================================
 // --- FIM DA REESCRITA (initAbsenceListeners) ---
 // =================================================================================
+

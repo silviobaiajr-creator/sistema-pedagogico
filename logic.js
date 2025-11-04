@@ -1,18 +1,4 @@
 // ARQUIVO: logic.js
-// Responsabilidade: Lógica de negócio pura (sem DOM, sem UI).
-//
-// ATUALIZAÇÃO (FLUXO V3):
-// 1. Adicionada a função `determineNextOccurrenceStep` para
-//    suportar o novo fluxo de etapas de ocorrências.
-//
-// ATUALIZAÇÃO (EDIÇÃO DE AÇÃO - 01/11/2025):
-// 1. Adicionadas `occurrencePreviousActionMap` e `determineCurrentActionFromStatus`
-//    para permitir a edição da última ação salva no fluxo de ocorrências.
-//
-// ATUALIZAÇÃO (RESET DE AÇÃO - 01/11/2025):
-// 1. Adicionado o mapa `occurrenceStepLogic` para definir as regras
-//    de "Rollback" (resetar uma etapa, limpando dados e revertendo o status).
-// =================================================================================
 
 import { state } from './state.js';
 
