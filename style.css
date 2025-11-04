@@ -255,6 +255,9 @@ details[open] .process-content {
         background-color: white !important;
         padding: 0 !important;
         margin: 0 !important;
+        /* (NOVA CORREÇÃO) Evita que o próprio container do modal quebre a página */
+        page-break-before: avoid !important;
+        break-before: avoid-page !important;
     }
     
     /* Mostra todo o conteúdo que poderia estar com scroll */
@@ -275,16 +278,21 @@ details[open] .process-content {
     #ficha-view-content {
         padding: 0 !important;
         margin: 0 !important; /* Adicionado por segurança */
+        /* (NOVA CORREÇÃO) Evita que o container de conteúdo quebre a página */
+        page-break-before: avoid !important;
+        break-before: avoid-page !important;
     }
 
     /* (NOVA CORREÇÃO) */
-    /* Zera a margem superior E o padding superior do PRIMEIRO elemento */
-    /* DENTRO do container (ex: o div principal) para remover a página em branco ACIMA. */
+    /* Zera a margem/padding superior do PRIMEIRO elemento */
+    /* DENTRO do container e impede que *ele* cause a quebra. */
     #notification-content > *:first-child,
     #report-view-content > *:first-child,
     #ficha-view-content > *:first-child {
-        margin-top: 0 !important;
-        padding-top: 0 !important; /* <-- ADICIONADO ESTA LINHA */
+        margin: 0 !important; /* Reseta TODAS as margens */
+        padding: 0 !important; /* Reseta TODOS os paddings */
+        page-break-before: avoid !important; /* Evita quebra antes */
+        break-before: avoid-page !important; /* Evita quebra antes (moderno) */
     }
     /* --- (FIM DA SOLUÇÃO) --- */
 
@@ -337,5 +345,6 @@ details[open] .process-content {
 /* ============================================================================== */
 /* (FIM DA CORREÇÃO)                                                              */
 /* ============================================================================== */
+
 
 
