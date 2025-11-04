@@ -217,124 +217,111 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO V4 - Inversão de Lógica)             */
+/* (INÍCIO DA SUBSTITUIÇÃO) SEÇÃO 2: NOVOS ESTILOS ROBUSTOS PARA IMPRESSÃO DIRETA  */
 /* ============================================================================== */
 
 @media print {
-    /* Garante que o body não tenha margens */
+    /* --- 1. Regra Global --- */
+    /* Esconde tudo por padrão, exceto o modal marcado para impressão */
+    body > *:not(.printing-now) {
+        display: none !important;
+    }
+
+    /* --- 2. Preparação do Corpo --- */
+    /* Remove fundos, transições e garante que o layout ocupe a página */
     body, html {
         margin: 0 !important;
         padding: 0 !important;
-        background: none !important;
-        transition: none !important; 
-        animation: none !important;
-    }
-
-    /* --- INÍCIO DA CORREÇÃO V4 --- */
-    
-    /* 1. Esconde os containers principais da tela */
-    #main-content, #login-screen, #toast-notification {
-        display: none !important;
-    }
-    
-    /* 2. Reseta o .printable-area (o backdrop) */
-    .printable-area.printing-now {
-        position: static !important;
-        width: 100% !important;
-        height: auto !important;
-        overflow: visible !important;
-        padding: 0 !important;
-        background: none !important; 
-        display: block !important;
+        background: #fff !important; /* Fundo branco para impressão */
+        color: #000 !important;
+        font-size: 11pt; /* Tamanho de fonte consistente para impressão */
         transition: none !important;
         animation: none !important;
     }
 
-    /* 3. (NOVA LÓGICA V4) Reseta o .modal-content SEM escondê-lo */
+    /* --- 3. O Modal 'printable-area' --- */
+    /* O '.printable-area' (que é o backdrop) é o container que queremos mostrar */
+    .printable-area.printing-now {
+        display: block !important;
+        position: static !important; /* Remove 'fixed' */
+        width: 100% !important;
+        height: auto !important;
+        overflow: visible !important; /* Mostra todo o conteúdo */
+        padding: 0 !important;
+        margin: 0 !important;
+        background: none !important;
+        border: none !important;
+        box-shadow: none !important;
+        transition: none !important;
+        animation: none !important;
+    }
+
+    /* --- 4. O '.modal-content' (Filho do backdrop) --- */
+    /* Reseta o container do modal para ser um documento simples */
     .printing-now .modal-content {
-        display: block !important; /* Garante que está visível */
+        display: block !important;
+        position: static !important;
         width: 100% !important;
         max-width: 100% !important;
         height: auto !important;
-        overflow: visible !important; /* Crucial */
+        overflow: visible !important;
         padding: 0 !important;
         margin: 0 !important;
-        background: none !important; /* Remove o fundo branco */
+        background: none !important;
         border: none !important;
-        box-shadow: none !important; /* Remove a sombra */
-        transform: none !important;
+        box-shadow: none !important;
+        transform: none !important; /* Remove 'scale' */
         opacity: 1 !important;
         transition: none !important;
         animation: none !important;
     }
 
-    /* 4. (NOVA LÓGICA V4) Esconde os filhos indesejados (header/footer) do modal */
-    /* Usamos > * para pegar todos os filhos diretos... */
-    .printing-now .modal-content > * {
-        display: none !important;
-    }
-    /* ...e então re-mostramos APENAS o conteúdo que queremos. */
+    /* --- 5. O Conteúdo (O que REALMENTE queremos imprimir) --- */
+    /* Garante que o conteúdo de dentro (ata, notificação) esteja visível */
+    /* O padding original 'p-8' dos elementos é mantido */
     .printing-now #notification-content,
     .printing-now #report-view-content,
     .printing-now #ficha-view-content {
         display: block !important;
         width: 100% !important;
         max-width: 100% !important;
-        padding: 0 !important; /* Remove o padding da tela */
+        /* padding: 0 !important; (Removido para usar o padding original 'p-8') */
         overflow: visible !important;
         height: auto !important;
+        background: none !important;
     }
 
-    /* 5. Regra .no-print (Mantida por segurança) */
-    .printing-now .no-print, .printing-now .no-print * {
+    /* --- 6. Esconder o 'Chrome' do Modal --- */
+    /* Esconde cabeçalho, rodapé e botões (que têm a classe .no-print) */
+    .printing-now .no-print,
+    .printing-now .no-print * {
         display: none !important;
     }
-    
-    /* --- FIM DA CORREÇÃO V4 --- */
 
-
-    /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO (Mantidos) --- */
-    
-    /* Bloco de assinaturas (garante visibilidade e formatação) */
-    .signature-block, .signature-block * {
-        display: block !important;
+    /* --- 7. Estilos de Documento (de reports.js) --- */
+    /* Trazemos estilos de 'reports.js' para cá para garantir consistência */
+    .report-narrative, .signature-block {
+        font-family: 'Times New Roman', Times, serif !important;
     }
-    
     .signature-block {
-        page-break-inside: avoid !important; 
-        margin-top: 2.5rem !important; 
+        page-break-inside: avoid !important;
+        margin-top: 2rem !important;
     }
-    
-    .signature-line {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        width: 60% !important;
-        margin: 1.5rem auto 0 auto !important; 
-        page-break-inside: avoid !important; 
+    .signature-block > div {
+         page-break-inside: avoid !important;
+         margin-top: 3rem !important;
     }
-
-    .signature-text {
-        border-top: 1px solid #374151 !important;
-        width: 100% !important;
-        padding-top: 0.25rem !important;
-        text-align: center !important;
-        font-weight: 600 !important;
-    }
-
-    .signature-role {
-        font-size: 0.75rem !important;
-        color: #4b5563 !important;
-    }
-
-    /* Evita quebras de página ruins em elementos comuns */
     .break-inside-avoid {
-        page-break-inside: avoid;
+        page-break-inside: avoid !important;
     }
 
-    /* Define as margens da página de impressão */
+    /* --- 8. Configuração da Página --- */
     @page {
-        margin: 1cm;
+        /* Define margens de impressão consistentes (ex: 2cm) */
+        /* O usuário ainda pode alterar isso no diálogo de impressão */
+        margin: 2cm;
     }
 }
-
+/* ============================================================================== */
+/* (FIM DA SUBSTITUIÇÃO)                                                          */
+/* ============================================================================== */
