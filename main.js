@@ -1,13 +1,7 @@
 // =================================================================================
 // ARQUIVO: main.js (REFATORADO)
 // RESPONSABILIDADE: Ponto de entrada, autenticação, gerenciamento de estado
-// de altoível (troca de abas) e inicialização dos módulos de funcionalidade.
-//
-// ATUALIZAÇÃO (Híbrida Admin):
-// 1. Adicionada constante 'SUPER_ADMIN_EMAILS' para o(s) dono(s) da aplicação.
-// 2. Lógica de 'onAuthStateChanged' modificada para verificar SUPER_ADMIN_EMAILS
-//    OU a lista de emails admin vinda da base de dados (state.config.adminEmails).
-// 3. Lógica de 'switchTab' corrigida para garantir a exibição correta das abas.
+// de alto nível (troca de abas) e inicialização dos módulos de funcionalidade.
 //
 // ATUALIZAÇÃO (IMPRESSÃO - CORREÇÃO MOBILE):
 // 1. A chamada window.print() foi envolvida em um setTimeout(..., 0).
@@ -20,17 +14,6 @@
 // 2. Importada a `updateRecordWithHistory` do firestore.js.
 // 3. A função `handleDeleteConfirmation` foi atualizada para lidar com
 //    o novo tipo de ação 'occurrence-reset', permitindo o rollback de etapas.
-//
-// ATUALIZAÇÃO (CORREÇÃO DE IMPRESSÃO v6 - 03/11/2025):
-// 1. `handlePrintClick` agora usa JS para remover classes de layout
-//    (como 'max-h-[90vh]', 'overflow-y-auto') antes de imprimir,
-//    forçando a expansão do conteúdo em dispositivos móveis.
-// 2. A função de limpeza restaura essas classes.
-// 3. O delay de 500ms é mantido para garantir a aplicação das classes.
-//
-// --- ATUALIZAÇÃO (CORREÇÃO CRASH IMPRESSÃO MÓVEL - 03/11/2025) ---
-// 1. O timeout em `handlePrintClick` foi aumentado de 500ms para 1200ms
-//    para evitar o crash do motor de impressão em dispositivos móveis.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -55,11 +38,16 @@ import { render } from './ui.js';
 // (NOVO - Reset) Importa a lógica de reset
 import { occurrenceStepLogic } from './logic.js';
 
-// (ADICIONADO - Híbrida Admin) Lista de Super Administradores (Chave-Mestra)
-// Estes emails TÊM SEMPRE acesso de admin, independentemente do que está na base de dados.
-const SUPER_ADMIN_EMAILS = [
-    'silviobaiajr@gmail.com' // Email do dono da aplicação
+// --- (ADICIONADO - SUGESTÃO 1) LISTA DE ADMINISTRAÇÃO ---
+// Defina aqui os emails dos utilizadores que terão acesso
+// aos botões de Configuração e Gestão de Alunos.
+const ADMIN_EMAILS = [
+    'admin@suaescola.com',
+    'gestor@suaescola.com',
+    'silvio.baia.jr@gmail.com' // Exemplo
 ];
+// --- FIM DA ADIÇÃO ---
+
 
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
@@ -72,44 +60,45 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user) {
             state.userId = user.uid;
             state.userEmail = user.email;
+
+            // --- (ADICIONADO - SUGESTÃO 1) VERIFICAÇÃO DE ADMIN ---
+            state.isAdmin = ADMIN_EMAILS.includes(user.email);
+            // --- FIM DA ADIÇÃO ---
+
             dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
             dom.loginScreen.classList.add('hidden');
             dom.mainContent.classList.remove('hidden');
             dom.userProfile.classList.remove('hidden');
             try {
-                await loadSchoolConfig(); // Carrega state.config (incluindo state.config.adminEmails)
+                await loadSchoolConfig();
                 await loadStudents();
                 dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
-                
-                // (MODIFICADO - Híbrida Admin) Lógica de verificação de Admin
-                const dbAdminList = state.config.adminEmails || []; // Lista de admins da base de dados
-                state.isAdmin = SUPER_ADMIN_EMAILS.includes(user.email) || dbAdminList.includes(user.email);
-                
                 setupFirestoreListeners();
                 render(); // Chama o render principal
-                
-                // (ADICIONADO - Lógica de visibilidade dos botões de Admin)
+
+                // --- (ADICIONADO - SUGESTÃO 1) LÓGICA DE VISIBILIDADE DOS BOTÕES ---
                 if (state.isAdmin) {
-                    if(dom.settingsBtn) dom.settingsBtn.classList.remove('hidden');
-                    if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.remove('hidden');
+                    dom.settingsBtn.classList.remove('hidden');
+                    dom.manageStudentsBtn.classList.remove('hidden');
                 } else {
-                    if(dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
-                    if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
+                    dom.settingsBtn.classList.add('hidden');
+                    dom.manageStudentsBtn.classList.add('hidden');
                 }
-                
+                // --- FIM DA ADIÇÃO ---
+
             } catch (error) {
                 showToast(error.message);
             }
         } else {
             state.userId = null; state.userEmail = null; state.students = []; state.occurrences = []; state.absences = [];
+            
+            // --- (ADICIONADO - SUGESTÃO 1) Garante que isAdmin seja falso no logout ---
+            state.isAdmin = false;
+            // --- FIM DA ADIÇÃO ---
+            
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
-            
-            // (ADICIONADO - Híbrida Admin) Garante que os botões de admin fiquem escondidos
-            if(dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
-            if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
-            
             render();
         }
     });
@@ -192,25 +181,14 @@ function getFirestoreErrorMessage(code) {
 
 /**
  * Troca a aba ativa e chama o render principal do ui.js
- * (MODIFICADO - Correção Bug)
  */
 function switchTab(tabName) {
     state.activeTab = tabName;
     const isOccurrences = tabName === 'occurrences';
-    
-    // (MODIFICADO - Lógica explícita para evitar bugs de 'toggle')
-    if (isOccurrences) {
-        dom.tabOccurrences.classList.add('tab-active');
-        dom.tabAbsences.classList.remove('tab-active');
-        dom.tabContentOccurrences.classList.remove('hidden');
-        dom.tabContentAbsences.classList.add('hidden');
-    } else {
-        dom.tabOccurrences.classList.remove('tab-active');
-        dom.tabAbsences.classList.add('tab-active');
-        dom.tabContentOccurrences.classList.add('hidden');
-        dom.tabContentAbsences.classList.remove('hidden');
-    }
-    
+    dom.tabOccurrences.classList.toggle('tab-active', isOccurrences);
+    dom.tabAbsences.classList.toggle('tab-active', !isOccurrences);
+    dom.tabContentOccurrences.classList.toggle('hidden', !isOccurrences);
+    dom.tabContentAbsences.classList.toggle('hidden', !isOccurrences);
     render(); // O render do ui.js vai decidir qual função específica chamar
 }
 
@@ -282,106 +260,79 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (INÍCIO DA SUBSTITUIÇÃO) LÓGICA DE IMPRESSÃO v6 (JS FORÇA LAYOUT) ---
+// --- LÓGICA DE IMPRESSÃO CORRIGIDA (Híbrida Definitiva + Mobile) ---
 // ==============================================================================
 
 /**
- * Prepara o DOM para impressão removendo classes de layout (ex: max-h, overflow)
- * via JS, forçando a expansão do conteúdo em todos os dispositivos.
+ * Prepara o DOM para impressão adicionando uma classe específica ao modal
+ * e limpa depois.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
+ * (ex: 'notification-content', 'report-view-content').
  */
 function handlePrintClick(contentElementId) {
     const contentElement = document.getElementById(contentElementId);
-    // Encontra os elementos do modal que restringem o layout
-    const printableBackdrop = contentElement ? contentElement.closest('.printable-area') : null;
-    const modalContent = contentElement ? contentElement.closest('.modal-content') : null;
-
-    if (!contentElement || !printableBackdrop || !modalContent) {
-        console.error("Elementos de impressão (backdrop, modalContent ou contentElement) não encontrados.");
-        showToast("Erro ao preparar a área de impressão.");
+    if (!contentElement) {
+        console.error("Elemento de impressão não encontrado:", contentElementId);
+        showToast("Erro ao preparar documento para impressão.");
         return;
     }
-
-    // 1. Armazena as classes originais para restaurar depois
-    const originalModalClasses = modalContent.className;
-    const originalContentClasses = contentElement.className;
-
-    // Armazena no dataset para a função de limpeza poder ler
-    modalContent.dataset.originalClasses = originalModalClasses;
-    contentElement.dataset.originalClasses = originalContentClasses;
-
-    // 2. --- A CORREÇÃO PRINCIPAL ---
-    // Remove as classes de layout do Tailwind que causam o corte no celular.
-    // 'modal-content' mantém o nome da classe para o CSS @media print ainda funcionar.
-    modalContent.className = 'modal-content'; // Remove 'max-h-[90vh]', 'flex', 'flex-col' etc.
-    // 'overflow-y-auto' estava no contentElement (ex: #report-view-content)
-    contentElement.className = ''; // Remove 'overflow-y-auto', 'p-8', etc.
     
-    // 3. Adiciona a classe de impressão ao backdrop
-    printableBackdrop.classList.add('printing-now');
-    
-    // 4. Cria o "ouvinte" de mídia de impressão
-    const printMediaMatcher = window.matchMedia('print');
-
-    // 5. Define a função de limpeza (agora passa os elementos)
-    const cleanupAfterPrint = (evt) => {
-        if (!evt.matches) { // Só limpa quando sai do modo de impressão
-            
-            // Restaura as classes originais
-            if (modalContent.dataset.originalClasses) {
-                modalContent.className = modalContent.dataset.originalClasses;
-                modalContent.removeAttribute('data-original-classes');
-            }
-            if (contentElement.dataset.originalClasses) {
-                contentElement.className = contentElement.dataset.originalClasses;
-                contentElement.removeAttribute('data-original-classes');
-            }
-
-            // Remove a classe de impressão
-            printableBackdrop.classList.remove('printing-now');
-            
-            // Remove o "ouvinte"
-            if (printMediaMatcher.removeEventListener) {
-                printMediaMatcher.removeEventListener('change', cleanupAfterPrint);
-            } else {
-                printMediaMatcher.removeListener(cleanupAfterPrint);
-            }
-        }
-    };
-    
-    // 6. Adiciona o "ouvinte" (listener)
-    if (printMediaMatcher.addEventListener) {
-        printMediaMatcher.addEventListener('change', cleanupAfterPrint);
-    } else {
-        printMediaMatcher.addListener(cleanupAfterPrint);
+    // Encontra o backdrop pai, que tem a classe .printable-area
+    const printableBackdrop = contentElement.closest('.printable-area');
+    if (!printableBackdrop) {
+         console.error("Backdrop '.printable-area' pai não encontrado para:", contentElementId);
+         showToast("Erro ao preparar a área de impressão.");
+         return;
     }
-    
-    // 7. Mantém o delay (AGORA AUMENTADO)
-    setTimeout(() => {
-        try {
-            window.print();
-        } catch (e) {
-            console.error("Erro ao chamar window.print():", e);
-            showToast("Não foi possível abrir a janela de impressão.");
-            // Se falhar, força a limpeza
-            cleanupAfterPrint({ matches: false });
-        }
-    // ==============================================================================
-    // --- INÍCIO DA CORREÇÃO (Crash Impressão Móvel) ---
-    // O valor de 500ms é muito baixo para o telemóvel renderizar o layout
-    // expandido (3+ páginas) e os gráficos (Chart.js), causando um crash.
-    // Aumentamos para 1200ms (1.2 segundos) para garantir que a renderização
-    // termine antes de o motor de impressão ser chamado.
-    // ==============================================================================
-    }, 1200); // 1.2s de espera (valor original era 500)
-    // ==============================================================================
-    // --- FIM DA CORREÇÃO ---
-    // ==============================================================================
-}
 
-// ==============================================================================
-// --- (FIM DA SUBSTITUIÇÃO) ---
-// ==============================================================================
+    // 1. Adiciona classe específica ('printing-now')
+    //    APENAS ao backdrop do modal que queremos imprimir.
+    printableBackdrop.classList.add('printing-now');
+
+    // 2. Define a função de limpeza
+    const cleanupAfterPrint = () => {
+        printableBackdrop.classList.remove('printing-now');
+        // REMOVIDO: window.removeEventListener('afterprint', cleanupAfterPrint);
+    };
+
+    // 3. REMOVIDO: window.addEventListener('afterprint', cleanupAfterPrint);
+
+    // 4. Chama a impressão com a nova lógica (sem afterprint)
+    try {
+        // ==================================================================
+        // INÍCIO DA NOVA CORREÇÃO (Sem 'afterprint')
+        // ==================================================================
+        
+        // Passo A: Espera 150ms para o navegador aplicar a classe .printing-now
+        setTimeout(() => {
+            try {
+                // Passo B: Chama a impressão. O JS vai "pausar" aqui.
+                window.print();
+            
+                // Passo C: O JS "descongela" aqui (depois de imprimir ou cancelar).
+                // Agenda a limpeza para rodar logo em seguida.
+                // Usamos 500ms como um "cooldown" seguro para o navegador.
+                setTimeout(cleanupAfterPrint, 500); 
+
+            } catch (printError) {
+                // Se o window.print() falhar, limpa imediatamente.
+                console.error("Erro durante a chamada window.print():", printError);
+                showToast("Não foi possível abrir a janela de impressão.");
+                cleanupAfterPrint(); // Limpa se a impressão falhar
+            }
+        }, 150); // 150ms de espera (aumentado de 100)
+        // ==================================================================
+        // FIM DA NOVA CORREÇÃO
+        // ==================================================================
+        
+    } catch (e) {
+        // Este catch externo pega erros síncronos (raro)
+        console.error("Erro ao preparar a impressão:", e);
+        showToast("Não foi possível abrir a janela de impressão.");
+        // Se falhar, limpa imediatamente
+        cleanupAfterPrint();
+    }
+}
 
 
 // --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
