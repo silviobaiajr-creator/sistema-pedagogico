@@ -1,10 +1,7 @@
 // =================================================================================
 // ARQUIVO: auth.js
-// RESPONSABILIDADE: Gerenciar a lógica de autenticação (Login, Registro)
-// e a UI da tela de login.
-// =================================================================================
 
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { showToast } from './utils.js';
 import { auth } from './firebase.js';
 import { dom } from './state.js';

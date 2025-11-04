@@ -1,17 +1,14 @@
 // =================================================================================
-// ARQUIVO: main.js (REFATORADO)
-// RESPONSABILIDADE: Ponto de entrada, autenticação, gerenciamento de estado
-// de alto nível (troca de abas) e inicialização dos módulos de funcionalidade.
-// =================================================================================
-
+// ARQUIVO: main.js
 // --- MÓDULOS IMPORTADOS ---
 
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { onSnapshot, query, writeBatch, doc, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { onSnapshot, query, writeBatch, doc, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, shareContent, openModal, loadScript } from './utils.js';
-import { loadStudents, loadSchoolConfig, getCollectionRef, deleteRecord } from './firestore.js';
+// (NOVO - Reset) Importa updateRecordWithHistory
+import { loadStudents, loadSchoolConfig, getCollectionRef, deleteRecord, updateRecordWithHistory } from './firestore.js';
 
 // Módulos de Funcionalidade
 import { initAuthListeners } from './auth.js';
@@ -22,7 +19,14 @@ import { initAbsenceListeners, renderAbsences } from './absence.js';     // Novo
 
 // Módulos de UI e Lógica (agora menores)
 import { render } from './ui.js';
-// import * as logic from './logic.js'; // logic.js agora é usado por absence.js
+// (NOVO - Reset) Importa a lógica de reset
+import { occurrenceStepLogic } from './logic.js';
+
+// (ADICIONADO - Híbrida Admin) Lista de Super Administradores (Chave-Mestra)
+// Estes emails TÊM SEMPRE acesso de admin, independentemente do que está na base de dados.
+const SUPER_ADMIN_EMAILS = [
+    'silviobaiajr@gmail.com' // Email do dono da aplicação
+];
 
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
@@ -40,11 +44,26 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.mainContent.classList.remove('hidden');
             dom.userProfile.classList.remove('hidden');
             try {
-                await loadSchoolConfig();
+                await loadSchoolConfig(); // Carrega state.config (incluindo state.config.adminEmails)
                 await loadStudents();
                 dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
+                
+                // (MODIFICADO - Híbrida Admin) Lógica de verificação de Admin
+                const dbAdminList = state.config.adminEmails || []; // Lista de admins da base de dados
+                state.isAdmin = SUPER_ADMIN_EMAILS.includes(user.email) || dbAdminList.includes(user.email);
+                
                 setupFirestoreListeners();
                 render(); // Chama o render principal
+                
+                // (ADICIONADO - Lógica de visibilidade dos botões de Admin)
+                if (state.isAdmin) {
+                    if(dom.settingsBtn) dom.settingsBtn.classList.remove('hidden');
+                    if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.remove('hidden');
+                } else {
+                    if(dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
+                    if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
+                }
+                
             } catch (error) {
                 showToast(error.message);
             }
@@ -53,6 +72,11 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
+            
+            // (ADICIONADO - Híbrida Admin) Garante que os botões de admin fiquem escondidos
+            if(dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
+            if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
+            
             render();
         }
     });
@@ -135,33 +159,73 @@ function getFirestoreErrorMessage(code) {
 
 /**
  * Troca a aba ativa e chama o render principal do ui.js
+ * (MODIFICADO - Correção Bug)
  */
 function switchTab(tabName) {
     state.activeTab = tabName;
     const isOccurrences = tabName === 'occurrences';
-    dom.tabOccurrences.classList.toggle('tab-active', isOccurrences);
-    dom.tabAbsences.classList.toggle('tab-active', !isOccurrences);
-    dom.tabContentOccurrences.classList.toggle('hidden', !isOccurrences);
-    dom.tabContentAbsences.classList.toggle('hidden', isOccurrences);
+    
+    // (MODIFICADO - Lógica explícita para evitar bugs de 'toggle')
+    if (isOccurrences) {
+        dom.tabOccurrences.classList.add('tab-active');
+        dom.tabAbsences.classList.remove('tab-active');
+        dom.tabContentOccurrences.classList.remove('hidden');
+        dom.tabContentAbsences.classList.add('hidden');
+    } else {
+        dom.tabOccurrences.classList.remove('tab-active');
+        dom.tabAbsences.classList.add('tab-active');
+        dom.tabContentOccurrences.classList.add('hidden');
+        dom.tabContentAbsences.classList.remove('hidden');
+    }
+    
     render(); // O render do ui.js vai decidir qual função específica chamar
 }
 
 /**
  * Lida com a confirmação de exclusão (genérico).
  * Esta função é chamada pelos listeners em occurrence.js e absence.js
+ * --- (NOVO - Reset) Esta função agora também lida com o RESET de etapas. ---
  */
 async function handleDeleteConfirmation() {
     if (!state.recordToDelete) return;
-    const { type, id } = state.recordToDelete;
+    
+    // (NOVO - Reset) Desestruturação expandida para o reset
+    const { type, id, recordId, actionToReset, historyAction } = state.recordToDelete;
+    
     try {
         if (type === 'occurrence') {
+            // Lógica original de exclusão de incidente (inalterada)
             const q = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', id));
             const querySnapshot = await getDocs(q);
             const batch = writeBatch(db);
             querySnapshot.forEach(doc => batch.delete(doc.ref));
             await batch.commit();
             showToast('Incidente e todos os registros associados foram excluídos.');
+
+        // --- (NOVO - Reset) Lógica para resetar uma etapa da ocorrência ---
+        } else if (type === 'occurrence-reset') {
+            const logic = occurrenceStepLogic[actionToReset];
+            if (!logic) {
+                throw new Error(`Lógica de reset não encontrada para a ação: ${actionToReset}`);
+            }
+
+            // 1. Prepara o objeto de atualização (limpa os campos)
+            const dataToUpdate = {};
+            for (const field of logic.fieldsToClear) {
+                dataToUpdate[field] = null; // Seta o campo para null
+            }
+            
+            // 2. Define o status para o qual deve reverter
+            dataToUpdate.statusIndividual = logic.statusAfterReset;
+
+            // 3. Executa a atualização (usando a função importada)
+            // Usa o 'recordId' do state.recordToDelete
+            await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
+            showToast('Etapa resetada com sucesso.');
+        // --- FIM DA NOVIDADE ---
+            
         } else if (type === 'absence-cascade') {
+            // Lógica original de exclusão em cascata (inalterada)
             const { ctId, analiseId } = state.recordToDelete;
             const batch = writeBatch(db);
             batch.delete(doc(getCollectionRef('absence'), ctId));
@@ -169,11 +233,87 @@ async function handleDeleteConfirmation() {
             await batch.commit();
             showToast('Encaminhamento e Análise excluídos.');
         } else {
+            // Lógica original de exclusão simples (inalterada)
             await deleteRecord(type, id);
             showToast('Registro excluído com sucesso.');
         }
-    } catch (error) { showToast('Erro ao excluir.'); console.error(error); } finally { state.recordToDelete = null; closeModal(dom.deleteConfirmModal); }
+    } catch (error) { 
+        // (NOVO - Reset) Mensagem de erro genérica
+        showToast(type === 'occurrence-reset' ? 'Erro ao resetar a etapa.' : 'Erro ao excluir.'); 
+        console.error("Erro na confirmação:", error); 
+    } finally { 
+        state.recordToDelete = null; 
+        closeModal(dom.deleteConfirmModal); 
+    }
 }
+
+
+// ==============================================================================
+// --- (INÍCIO DA SUBSTITUIÇÃO) ---
+// --- LÓGICA DE IMPRESSÃO ROBUSTA (CORREÇÃO 4 - requestAnimationFrame) ---
+// ==============================================================================
+/**
+ * Prepara o DOM para impressão e chama window.print() de forma robusta.
+ * Usa requestAnimationFrame para garantir que o CSS seja aplicado ANTES da impressão,
+ * corrigindo o bug da "página em branco" em dispositivos móveis (race condition).
+ * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
+ * (ex: 'notification-content', 'report-view-content').
+ */
+function handlePrintClick(contentElementId) {
+    const contentElement = document.getElementById(contentElementId);
+    if (!contentElement) {
+        console.error("Elemento de impressão não encontrado:", contentElementId);
+        showToast("Erro ao preparar documento para impressão.");
+        return;
+    }
+    
+    const printableBackdrop = contentElement.closest('.printable-area');
+    if (!printableBackdrop) {
+         console.error("Backdrop '.printable-area' pai não encontrado para:", contentElementId);
+         showToast("Erro ao preparar a área de impressão.");
+         return;
+    }
+
+    // 1. Define a função de limpeza (será chamada após a impressão)
+    // Usamos 'once: true' para garantir que execute apenas uma vez.
+    const cleanupAfterPrint = () => {
+        printableBackdrop.classList.remove('printing-now');
+        // console.log("Impressão finalizada, limpeza concluída."); // Log de depuração
+    };
+
+    // 2. Adiciona o listener para limpar DEPOIS que a impressão for fechada
+    // 'once: true' remove o listener automaticamente após ser disparado.
+    window.addEventListener('afterprint', cleanupAfterPrint, { once: true });
+
+    // 3. Adiciona a classe para ativar o CSS de impressão
+    printableBackdrop.classList.add('printing-now');
+    // console.log("Classe '.printing-now' adicionada. Preparando para imprimir..."); // Log de depuração
+
+    // 4. (A CORREÇÃO DEFINITIVA)
+    // Em vez de usar setTimeout (uma aposta), usamos requestAnimationFrame.
+    // Isso diz ao navegador: "Execute o seguinte código *exatamente*
+    // antes do próximo redesenho da tela."
+    requestAnimationFrame(() => {
+        // Neste ponto, o navegador JÁ processou a adição da classe '.printing-now'
+        // e o CSS de impressão (do style.css) está ativo.
+        // Agora é 100% seguro chamar window.print().
+        // console.log("requestAnimationFrame executado. Chamando window.print()."); // Log de depuração
+        
+        try {
+            window.print();
+        } catch (printError) {
+            console.error("Erro durante a chamada window.print():", printError);
+            showToast("Não foi possível abrir a janela de impressão.");
+            // Se a impressão falhar (ex: bloqueada), limpa imediatamente
+            window.removeEventListener('afterprint', cleanupAfterPrint); // Remove o listener que não vai disparar
+            cleanupAfterPrint();
+        }
+    });
+}
+// ==============================================================================
+// --- (FIM DA SUBSTITUIÇÃO) ---
+// ==============================================================================
+
 
 // --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
 
@@ -193,23 +333,40 @@ function setupModalCloseButtons() {
         'close-settings-modal-btn': dom.settingsModal,
         'cancel-settings-btn': dom.settingsModal,
         'close-follow-up-modal-btn': dom.followUpModal,
-        'cancel-follow-up-btn': dom.followUpModal
+        'cancel-follow-up-btn': dom.followUpModal,
+        // (NOVO) Modais do fluxo Enviar ao CT
+        'close-send-ct-modal-btn': dom.sendOccurrenceCtModal,
+        'cancel-send-ct-modal-btn': dom.sendOccurrenceCtModal,
     };
+    
     for (const [id, modal] of Object.entries(modalMap)) {
         const button = document.getElementById(id);
         if (button && modal) {
+            // Remove listener antigo para evitar duplicatas
             const oldListener = button.__clickListener;
             if (oldListener) button.removeEventListener('click', oldListener);
+            
+            // Adiciona novo listener
             const newListener = () => closeModal(modal);
             button.addEventListener('click', newListener);
-            button.__clickListener = newListener;
+            button.__clickListener = newListener; // Armazena referência para remoção futura
+            
             if (button.hasAttribute('onclick')) button.removeAttribute('onclick');
         }
     }
+    
+    // --- ATUALIZAÇÃO DOS BOTÕES DE SHARE E PRINT ---
+    
+    // Botões de Share (Partilhar)
     document.getElementById('share-btn').addEventListener('click', () => shareContent(document.getElementById('notification-title').textContent, document.getElementById('notification-content').innerText));
     document.getElementById('report-share-btn').addEventListener('click', () => shareContent(document.getElementById('report-view-title').textContent, document.getElementById('report-view-content').innerText));
+    // (CORRIGIDO O ID QUE CAUSAVA O ERRO DA IMAGEM)
     document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
-    document.getElementById('print-btn').addEventListener('click', () => window.print());
-    document.getElementById('report-print-btn').addEventListener('click', () => window.print());
-    document.getElementById('ficha-print-btn').addEventListener('click', () => window.print());
+
+    // Botões de Impressão (AGORA USAM A NOVA FUNÇÃO ROBUSTA)
+    document.getElementById('print-btn').addEventListener('click', () => handlePrintClick('notification-content'));
+    document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
+    // (CORRIGIDO O ID QUE CAUSAVA O ERRO DA IMAGEM)
+    document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
+

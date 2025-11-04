@@ -7,10 +7,10 @@
 
     <!-- Tailwind CSS para estilização rápida e responsiva -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <!-- Font Awesome para ícones -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    
+
     <!-- Fonte 'Inter' do Google Fonts para uma tipografia limpa -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
@@ -19,6 +19,10 @@
 
     <!-- Chart.js para gráficos nos relatórios -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- (NOVA LINHA ADICIONADA) Biblioteca html2pdf.js para geração de PDF -->
+    <!-- (REMOVIDO) A linha do html2pdf.js foi removida conforme sua solicitação -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" xintegrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script> -->
 
     <!-- Folha de estilos personalizada -->
     <link rel="stylesheet" href="style.css">
@@ -39,16 +43,16 @@
                     <form id="login-form" class="space-y-4">
                         <div>
                             <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
-                            <input type="email" id="login-email" name="email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
+                            <input type="email" id="login-email" name="email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
                         </div>
                         <div>
                             <label for="login-password" class="block text-sm font-medium text-gray-700">Senha</label>
-                            <input type="password" id="login-password" name="password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
+                            <input type="password" id="login-password" name="password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
                         </div>
-                        <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Entrar</button>
+                        <button type="submit" class="w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">Entrar</button>
                     </form>
                     <p class="text-center text-sm text-gray-500 mt-6">
-                        Não tem uma conta? <button id="show-register-view" class="font-semibold text-indigo-600 hover:underline">Registe-se</button>
+                        Não tem uma conta? <button id="show-register-view" class="font-semibold text-sky-600 hover:underline">Registe-se</button>
                     </p>
                 </div>
 
@@ -59,16 +63,16 @@
                     <form id="register-form" class="space-y-4">
                         <div>
                             <label for="register-email" class="block text-sm font-medium text-gray-700">Email</label>
-                            <input type="email" id="register-email" name="email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
+                            <input type="email" id="register-email" name="email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
                         </div>
                         <div>
                             <label for="register-password" class="block text-sm font-medium text-gray-700">Senha (mínimo 6 caracteres)</label>
-                            <input type="password" id="register-password" name="password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
+                            <input type="password" id="register-password" name="password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
                         </div>
-                        <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Criar Conta</button>
+                        <button type="submit" class="w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">Criar Conta</button>
                     </form>
                     <p class="text-center text-sm text-gray-500 mt-6">
-                        Já tem uma conta? <button id="show-login-view" class="font-semibold text-indigo-600 hover:underline">Entrar</button>
+                        Já tem uma conta? <button id="show-login-view" class="font-semibold text-sky-600 hover:underline">Entrar</button>
                     </p>
                 </div>
             </div>
@@ -81,22 +85,26 @@
     <div id="main-content" class="hidden">
         <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
             <!-- Cabeçalho -->
-            <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg flex flex-col sm:flex-row justify-between sm:items-center gap-4 text-center sm:text-left">
+            <!-- CORREÇÃO DE LAYOUT MÓVEL (Sug. 2 e 5): classes 'flex-wrap' e 'sm:flex-nowrap' aplicadas -->
+            <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-sky-500 to-teal-600 text-white shadow-lg flex flex-wrap sm:flex-nowrap justify-between items-center gap-4 text-center sm:text-left">
                 <div>
                     <h1 id="header-school-name" class="text-2xl sm:text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
                     <p class="opacity-90 mt-1 text-sm sm:text-base">Base de dados partilhada entre todos os utilizadores.</p>
                 </div>
-                <div class="flex items-center gap-2 sm:gap-4">
-                     <button id="settings-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm">
+                <!-- CORREÇÃO DE LAYOUT MÓVEL: Adicionado 'flex-wrap justify-center sm:justify-end' para o grupo de botões/perfil quebrar a linha no móvel -->
+                <div class="flex items-center flex-wrap justify-center sm:justify-end gap-2 sm:gap-4">
+                     <!-- (Sug. 1) Adicionado 'hidden' -->
+                     <button id="settings-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
                         <i class="fas fa-cog mr-2"></i>Configurações
                     </button>
-                    <button id="manage-students-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm">
+                     <!-- (Sug. 1) Adicionado 'hidden' -->
+                    <button id="manage-students-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
                         <i class="fas fa-users-cog mr-2"></i>Gerir Alunos
                     </button>
                     <div id="user-profile" class="flex items-center space-x-4 hidden self-center sm:self-auto">
                         <div class="text-right">
                             <p id="user-email" class="font-semibold text-sm"></p>
-                            <button id="logout-btn" class="text-xs sm:text-sm text-indigo-200 hover:text-white transition">Sair</button>
+                            <button id="logout-btn" class="text-xs sm:text-sm text-sky-200 hover:text-white transition">Sair</button>
                         </div>
                     </div>
                 </div>
@@ -116,13 +124,15 @@
 
             <!-- Conteúdo da Aba de Ocorrências -->
             <div id="tab-content-occurrences">
+                <!-- CORREÇÃO DE LAYOUT MÓVEL: Botões agora empilham (flex-col) em telas pequenas -->
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <h2 id="occurrences-title" class="text-xl sm:text-2xl font-semibold text-gray-700">Registos de Ocorrências</h2>
-                    <div class="flex gap-4">
-                        <button id="general-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 transition duration-300">
+                    <!-- ADICIONADO: flex-col sm:flex-row w-full sm:w-auto -->
+                    <div class="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
+                        <button id="general-report-btn" class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral
                         </button>
-                        <button id="add-occurrence-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">
+                        <button id="add-occurrence-btn" class="w-full sm:w-auto bg-sky-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">
                             <i class="fas fa-plus mr-2"></i>Nova Ocorrência
                         </button>
                     </div>
@@ -164,7 +174,7 @@
                     <div class="mb-4">
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
-                            <input type="text" id="search-occurrences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Filtrar por nome do aluno...">
+                            <input type="text" id="search-occurrences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 sm:text-sm" placeholder="Filtrar por nome do aluno...">
                         </div>
                     </div>
                     <div id="loading-occurrences" class="text-center p-8"><i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i><p class="mt-2 text-gray-500">A carregar registos...</p></div>
@@ -172,17 +182,23 @@
                     <!-- A estrutura interna aqui será gerada por occurrence.js -->
                     <!-- Incluirá os botões: Notificação, Gerar Ata, Enviar ao CT, Kebab -->
                     <!-- Incluirá espaço para botão Ver Ofício -->
-                    <div id="occurrences-list" class="space-y-3"></div> 
+                    <div id="occurrences-list" class="space-y-3"></div>
                 </main>
             </div>
 
             <!-- Conteúdo da Aba de Busca Ativa -->
             <div id="tab-content-absences" class="hidden">
+                <!-- CORREÇÃO DE LAYOUT MÓVEL: Botões agora empilham (flex-col) em telas pequenas -->
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
-                    <div class="flex gap-4">
-                        <button id="general-ba-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 transition duration-300">
+                    <!-- ADICIONADO: flex-col sm:flex-row w-full sm:w-auto -->
+                    <div class="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
+                        <button id="general-ba-report-btn" class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral
+                        </button>
+                        <!-- (Sug. 3) Botão "Nova Ação" Adicionado -->
+                        <button id="add-absence-btn" class="w-full sm:w-auto bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-emerald-700 transition duration-300">
+                            <i class="fas fa-plus mr-2"></i>Nova Ação
                         </button>
                     </div>
                 </div>
@@ -190,7 +206,7 @@
                 <div id="absence-filters" class="mb-6 bg-gray-50 p-4 rounded-lg border grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                      <!-- Título dos Filtros -->
                     <div class="md:col-span-5"><h3 class="text-md font-semibold text-gray-700">Filtros</h3></div>
-                    
+
                     <!-- Filtros Existentes -->
                     <div class="flex-1 min-w-[150px]">
                         <label for="filter-process-status" class="text-sm font-medium text-gray-600">Estado</label>
@@ -240,7 +256,7 @@
                     <div id="absences-list" class="space-y-4"></div>
                 </main>
             </div>
-            
+
             <footer class="text-center text-sm text-gray-400 mt-8"><p>Desenvolvido para Gestão Pedagógica</p></footer>
         </div>
     </div>
@@ -249,11 +265,8 @@
     <!-- MODAIS DA APLICAÇÃO                                                            -->
     <!-- ============================================================================== -->
 
-    <!-- ============================================================================== -->
-    <!-- --- INÍCIO DA MODIFICAÇÃO (Fluxo V3) --- -->
-    <!-- ============================================================================== -->
     <!-- Modal: Registro/Edição de Ocorrência (APENAS AÇÃO 1: Registro do Fato) -->
-    <!-- MODIFICADO V3: Simplificado e com campo "Providências da Escola" -->
+    <!-- MODIFICADO: Adicionados divs para seleção/edição de papel -->
     <div id="occurrence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -262,20 +275,34 @@
             </div>
             <form id="occurrence-form" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                 <input type="hidden" id="occurrence-group-id">
-                
+
                 <!-- Seleção Múltipla de Alunos -->
                 <div>
                     <label for="student-search-input" class="block text-sm font-medium">Aluno(s) Envolvido(s) <span class="text-red-500">*</span></label>
-                    <div id="student-tags-container" class="mt-1 flex flex-wrap gap-2 items-center p-2 border border-gray-300 rounded-md min-h-[42px] bg-gray-50"></div>
+                    <div id="student-tags-container" class="mt-1 flex flex-wrap gap-2 items-center p-2 border border-gray-300 rounded-md min-h-[42px] bg-gray-50">
+                        <!-- As tags dos alunos com ícones de papel serão renderizadas aqui pelo JS -->
+                    </div>
                     <div class="relative">
                         <input type="text" id="student-search-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Pesquisar nome do aluno...">
-                        <div id="student-suggestions" class="autocomplete-suggestions hidden"></div>
+                        <div id="student-suggestions" class="autocomplete-suggestions hidden">
+                            <!-- Sugestões de alunos aparecerão aqui -->
+                        </div>
+                        <!-- (NOVO) Painel Inline para Seleção de Papel -->
+                        <div id="role-selection-panel" class="hidden mt-2 p-2 border rounded-md bg-gray-50 shadow-sm">
+                            <span class="text-sm font-medium text-gray-700">Definir papel para <strong id="role-selection-student-name"></strong>:</span>
+                            <div class="mt-1 space-x-2">
+                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200" data-role="Vítima"><i class="fas fa-user-shield fa-fw"></i> Vítima</button>
+                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200" data-role="Agente"><i class="fas fa-gavel fa-fw"></i> Agente</button>
+                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200" data-role="Testemunha"><i class="fas fa-eye fa-fw"></i> Testemunha</button>
+                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 ring-1 ring-inset ring-sky-500" data-role="Envolvido"><i class="fas fa-user fa-fw"></i> Envolvido</button> <!-- Padrão -->
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div><label for="occurrence-type" class="block text-sm font-medium">Tipo de Ocorrência <span class="text-red-500">*</span></label><select id="occurrence-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required><option value="">Selecione um tipo...</option><option value="Agressão (Física)">Agressão (Física)</option><option value="Agressão (Verbal)">Agressão (Verbal)</option><option value="Indisciplina / Comportamento Inadequado">Indisciplina / Comportamento Inadequado</option><option value="Bullying">Bullying</option><option value="Dano ao Patrimônio">Dano ao Patrimônio</option><option value="Uso inadequado de telemóvel/eletrónicos">Uso inadequado de telemóvel/eletrónicos</option><option value="Outros">Outros</option></select></div>
                 <div><label for="occurrence-date" class="block text-sm font-medium">Data da Ocorrência <span class="text-red-500">*</span></label><input type="date" id="occurrence-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div>
-                
+
                 <!-- Seção de Detalhes (Ação 1) -->
                 <div class="pt-4 border-t space-y-4">
                     <div><label for="description" class="block text-sm font-medium">Descrição da Ocorrência <span class="text-red-500">*</span></label><textarea id="description" rows="4" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></textarea></div>
@@ -283,14 +310,21 @@
                     <div><label for="providencias-escola" class="block text-sm font-medium">Providências Imediatas da Escola <span class="text-red-500">*</span></label><textarea id="providencias-escola" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="O que a escola fez imediatamente após o fato?" required></textarea></div>
                 </div>
 
-                <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Fato (Ação 1)</button></div>
+                <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Fato (Ação 1)</button></div>
             </form>
+            <!-- (NOVO) Dropdown Escondido para Edição de Papel -->
+            <div id="role-edit-dropdown" class="hidden absolute z-20 w-32 bg-white rounded-md shadow-lg border">
+                <button class="role-edit-option menu-item w-full text-left" data-role="Vítima"><i class="fas fa-user-shield text-blue-600 mr-2 fa-fw w-4"></i>Vítima</button>
+                <button class="role-edit-option menu-item w-full text-left" data-role="Agente"><i class="fas fa-gavel text-red-600 mr-2 fa-fw w-4"></i>Agente</button>
+                <button class="role-edit-option menu-item w-full text-left" data-role="Testemunha"><i class="fas fa-eye text-green-600 mr-2 fa-fw w-4"></i>Testemunha</button>
+                <button class="role-edit-option menu-item w-full text-left" data-role="Envolvido"><i class="fas fa-user text-gray-500 mr-2 fa-fw w-4"></i>Envolvido</button>
+            </div>
         </div>
     </div>
 
     <!-- Modal para Acompanhamento Individual da Ocorrência (Ações 2-6) -->
-    <!-- MODIFICADO V3: Reestruturado para ser dinâmico por etapas -->
     <!-- MODIFICADO PLANO 3b: Adicionado 'group-desfecho-choice' -->
+    <!-- CORREÇÃO CARACTERES ESPECIAIS: Comentários ajustados -->
     <div id="follow-up-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -339,13 +373,13 @@
                             </div>
                         </div>
                         <!-- Campos que aparecem se "Sim" -->
-                        <div id="group-contato-fields" class="space-y-4 mt-4 hidden"> 
+                        <div id="group-contato-fields" class="space-y-4 mt-4 hidden">
                             <div><label for="follow-up-contact-type" class="block text-sm font-medium">Tipo de Contato <span class="text-red-500">*</span></label><select id="follow-up-contact-type" class="mt-1 w-full border-gray-300 rounded-md" required disabled><option value="">Selecione...</option><option value="WhatsApp">WhatsApp</option><option value="Ligação">Ligação</option><option value="Pessoalmente">Pessoalmente</option></select></div>
                             <div><label for="follow-up-contact-date" class="block text-sm font-medium">Dia do Contato <span class="text-red-500">*</span></label><input type="date" id="follow-up-contact-date" class="mt-1 w-full border-gray-300 rounded-md" required disabled></div>
                             <div><label for="follow-up-family-actions" class="block text-sm font-medium">Providências da Família <span class="text-red-500">*</span></label><textarea id="follow-up-family-actions" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="O que foi combinado com os pais/responsáveis?" required disabled></textarea></div>
                         </div>
                     </fieldset>
-                    
+
                     <!-- (NOVO - Plano 3b) Seletor de Desfecho -->
                     <fieldset id="group-desfecho-choice" class="dynamic-occurrence-step pt-4 border-t hidden">
                         <legend class="text-md font-semibold text-gray-600">Ação 4/6: Decisão de Desfecho <span class="text-red-500">*</span></legend>
@@ -359,7 +393,7 @@
                     <!-- Grupo Ação 4: Encaminhamento ao CT (Opcional) -->
                     <fieldset id="group-encaminhamento-ct" class="dynamic-occurrence-step pt-4 border-t hidden">
                         <legend class="text-md font-semibold text-gray-600">Ação 4: Encaminhar ao Conselho Tutelar (Opcional)</legend>
-                        <p class="text-xs text-gray-500 mb-2">Preencha APENAS se o caso precisar ser encaminhado ao CT. Caso contrário, deixe em branco e preencha o Parecer Final abaixo.</p>
+                        <!-- <p class="text-xs text-gray-500 mb-2">Preencha APENAS se o caso precisar ser encaminhado ao CT. Caso contrário, deixe em branco e preencha o Parecer Final abaixo.</p> -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                            <div>
                                 <label for="follow-up-oficio-number" class="block text-sm font-medium">Nº do Ofício</label>
@@ -385,7 +419,7 @@
                     <!-- Grupo Ação 6: Parecer Final -->
                     <fieldset id="group-parecer-final" class="dynamic-occurrence-step pt-4 border-t hidden">
                         <legend class="text-md font-semibold text-gray-600">Ação 6: Dar Parecer Final</legend>
-                        <p class="text-xs text-gray-500 mb-2">Descreva a conclusão do caso pela escola. Preencher este campo finalizará o processo individual.</p>
+                        <!-- <p class="text-xs text-gray-500 mb-2">Descreva a conclusão do caso pela escola. Preencher este campo finalizará o processo individual.</p> -->
                         <div class="mt-2">
                             <label for="follow-up-parecer-final" class="block text-sm font-medium">Parecer / Desfecho <span class="text-red-500">*</span></label>
                             <textarea id="follow-up-parecer-final" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Conclusão do caso pela escola..." required></textarea>
@@ -393,20 +427,22 @@
                     </fieldset>
 
                 </div> <!-- Fim do dynamic-occurrence-fields -->
-                
+
                 <div class="pt-4 flex justify-end space-x-3">
                     <button type="button" id="cancel-follow-up-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button>
-                    <button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Etapa</button>
+                    <button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Etapa</button>
                 </div>
             </form>
         </div>
     </div>
     <!-- ============================================================================== -->
-    <!-- --- FIM DA MODIFICAÇÃO (Fluxo V3) --- -->
+    <!-- --- FIM DA MODIFICAÇÃO (Fluxo V3 / Papéis) --- -->
     <!-- ============================================================================== -->
 
 
-    <!-- Modal: Registro/Edição de Ação de Busca Ativa (Inalterado) -->
+    <!-- ============================================================================== -->
+    <!-- Modal: Registro/Edição de Ação de Busca Ativa (MODIFICADO) -->
+    <!-- ============================================================================== -->
     <div id="absence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0 max-h-[95vh] flex flex-col">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="absence-modal-title" class="text-xl font-semibold">Registar Ação</h3><button id="close-absence-modal-btn" class="text-gray-500 text-2xl font-bold">&times;</button></div>
@@ -420,32 +456,109 @@
                 </div>
                 <div class="border rounded-md p-3 space-y-2 bg-gray-50"><h5 class="text-sm font-semibold px-2">Faltas apuradas no período de:</h5><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label class="block text-sm">Início</label><input type="date" id="absence-start-date" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Fim</label><input type="date" id="absence-end-date" class="mt-1 w-full border-gray-300 rounded-md"></div></div><div class="pt-2"><label class="block text-sm">Nº de faltas</label><input type="number" id="absence-count" class="mt-1 w-full border-gray-300 rounded-md"></div></div>
                 <div><label class="block text-sm font-medium">Tipo de Ação</label><input type="text" id="action-type-display" class="mt-1 w-full bg-gray-100 p-2 border rounded" readonly><input type="hidden" id="action-type"></div>
+                
+                <!-- Container de Campos Dinâmicos (MODIFICADO) -->
                 <div id="dynamic-fields-container" class="space-y-4">
-                    <div id="group-tentativas" class="dynamic-field-group hidden space-y-4"><fieldset class="border rounded-md p-3 space-y-2 bg-gray-50"><legend class="text-sm font-semibold px-2">Data para notificação</legend><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label class="block text-sm">Data</label><input type="date" id="meeting-date" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Horário</label><input type="time" id="meeting-time" class="mt-1 w-full border-gray-300 rounded-md"></div></div></fieldset><fieldset id="family-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50"><legend class="text-sm font-semibold px-2">Família na escola</legend><div><span class="block text-sm">Conseguiu contato?</span><div class="mt-2 space-x-4"><label><input type="radio" name="contact-succeeded" value="yes"> Sim</label><label><input type="radio" name="contact-succeeded" value="no"> Não</label></div></div><div id="family-contact-fields" class="space-y-4">
-                        <div><label for="absence-contact-type" class="block text-sm font-medium">Tipo de Contato</label><select id="absence-contact-type" class="mt-1 w-full border-gray-300 rounded-md"><option value="">Selecione...</option><option value="WhatsApp">WhatsApp</option><option value="Ligação">Ligação</option><option value="Pessoalmente">Pessoalmente</option></select></div>
-                        <div><label class="block text-sm">Dia do contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                        <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div></div><div><span class="block text-sm">Aluno retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="contact-returned" value="yes"> Sim</label><label><input type="radio" name="contact-returned" value="no"> Não</label></div></div></fieldset></div>
-                    <div id="group-visita" class="dynamic-field-group hidden space-y-4"><div><label class="block text-sm">Agente da visita:</label><input type="text" id="visit-agent" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Dia da visita:</label><input type="date" id="visit-date" class="mt-1 w-full border-gray-300 rounded-md"></div><fieldset id="visit-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50"><legend class="text-sm font-semibold px-2">Detalhes do Contato</legend><div><span class="block text-sm">Conseguiu contato?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-succeeded" value="yes"> Sim</label><label><input type="radio" name="visit-succeeded" value="no"> Não</label></div></div><div id="visit-contact-fields" class="space-y-4"><div><label class="block text-sm">Com quem falou?</label><input type="text" id="visit-contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Justificativa:</label><textarea id="visit-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div><div><label class="block text-sm">Observações:</label><textarea id="visit-obs" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div></div><div><span class="block text-sm">Retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-returned" value="yes"> Sim</label><label><input type="radio" name="visit-returned" value="no"> Não</label></div></div></fieldset></div>
-                    <div id="group-encaminhamento_ct" class="dynamic-field-group hidden space-y-4"><div><label class="block text-sm">Data do envio:</label><input type="date" id="ct-sent-date" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Devolutiva do CT:</label><textarea id="ct-feedback" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div><div><span class="block text-sm">Retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="ct-returned" value="yes"> Sim</label><label><input type="radio" name="ct-returned" value="no"> Não</label></div></div></div>
-                    <div id="group-analise" class="dynamic-field-group hidden space-y-4"><div><label class="block text-sm">Parecer BAE:</label><textarea id="ct-parecer" rows="3" class="mt-1 w-full border-gray-300 rounded-md" required></textarea></div></div>
-                </div>
-                <div class="pt-4 flex justify-end space-x-3 bg-white sticky bottom-0 pb-6 -mx-6 px-6 border-t"><button type="button" id="cancel-absence-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Ação</button></div>
+                    
+                    <!-- Etapa: Tentativas (MODIFICADO) -->
+                    <div id="group-tentativas" class="dynamic-field-group hidden space-y-4">
+                        
+                        <!-- (MODIFICADO) Sub-grupo 1: Convocação (terá ID) -->
+                        <fieldset id="convocation-section" class="border rounded-md p-3 space-y-2 bg-gray-50">
+                            <legend class="text-sm font-semibold px-2">Data para notificação</legend>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div><label class="block text-sm">Data</label><input type="date" id="meeting-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Horário</label><input type="time" id="meeting-time" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                            </div>
+                        </fieldset>
+                        
+                        <!-- Sub-grupo 2: Contato (já tinha ID) -->
+                        <fieldset id="family-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
+                            <legend class="text-sm font-semibold px-2">Família na escola</legend>
+                            <div><span class="block text-sm">Conseguiu contato?</span><div class="mt-2 space-x-4"><label><input type="radio" name="contact-succeeded" value="yes"> Sim</label><label><input type="radio" name="contact-succeeded" value="no"> Não</label></div></div>
+                            <div id="family-contact-fields" class="space-y-4">
+                                <div><label for="absence-contact-type" class="block text-sm font-medium">Tipo de Contato</label><select id="absence-contact-type" class="mt-1 w-full border-gray-300 rounded-md"><option value="">Selecione...</option><option value="WhatsApp">WhatsApp</option><option value="Ligação">Ligação</option><option value="Pessoalmente">Pessoalmente</option></select></div>
+                                <div><label class="block text-sm">Dia do contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                            </div>
+                            <div><span class="block text-sm">Aluno retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="contact-returned" value="yes"> Sim</label><label><input type="radio" name="contact-returned" value="no"> Não</label></div></div>
+                        </fieldset>
+                    </div>
+
+                    <!-- Etapa: Visita (Inalterado) -->
+                    <div id="group-visita" class="dynamic-field-group hidden space-y-4">
+                        <div><label class="block text-sm">Agente da visita:</label><input type="text" id="visit-agent" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                        <div><label class="block text-sm">Dia da visita:</label><input type="date" id="visit-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                        <fieldset id="visit-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
+                            <legend class="text-sm font-semibold px-2">Detalhes do Contato</legend>
+                            <div><span class="block text-sm">Conseguiu contato?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-succeeded" value="yes"> Sim</label><label><input type="radio" name="visit-succeeded" value="no"> Não</label></div></div>
+                            <div id="visit-contact-fields" class="space-y-4">
+                                <div><label class="block text-sm">Com quem falou?</label><input type="text" id="visit-contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Justificativa:</label><textarea id="visit-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                                <div><label class="block text-sm">Observações:</label><textarea id="visit-obs" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                            </div>
+                            <div><span class="block text-sm">Retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-returned" value="yes"> Sim</label><label><input type="radio" name="visit-returned" value="no"> Não</label></div></div>
+                        </fieldset>
+                    </div>
+
+                    <!-- Etapa: Encaminhamento CT (MODIFICADO) -->
+                    <div id="group-encaminhamento_ct" class="dynamic-field-group hidden space-y-4">
+                        
+                        <!-- (MODIFICADO) Campos de Envio (Data, Nº, Ano) -->
+                        <fieldset class="border rounded-md p-3 space-y-2 bg-gray-50">
+                            <legend class="text-sm font-semibold px-2">Dados do Encaminhamento</legend>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm">Data do envio:</label>
+                                    <input type="date" id="ct-sent-date" class="mt-1 w-full border-gray-300 rounded-md">
+                                </div>
+                                <div>
+                                    <label class="block text-sm">Nº do Ofício:</label>
+                                    <input type="text" id="oficio-number" class="mt-1 w-full border-gray-300 rounded-md" placeholder="Ex: 123">
+                                </div>
+                                <div>
+                                    <label class="block text-sm">Ano do Ofício:</label>
+                                    <input type="number" id="oficio-year" class="mt-1 w-full border-gray-300 rounded-md" placeholder="Ex: 2025" min="2020" max="2099">
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <!-- Campos de Devolutiva (Inalterados, mas agora são 2ª parte) -->
+                        <fieldset class="border rounded-md p-3 space-y-4 bg-gray-50">
+                             <legend class="text-sm font-semibold px-2">Devolutiva do Conselho Tutelar</legend>
+                            <div><label class="block text-sm">Devolutiva do CT:</label><textarea id="ct-feedback" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                            <div><span class="block text-sm">Retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="ct-returned" value="yes"> Sim</label><label><input type="radio" name="ct-returned" value="no"> Não</label></div></div>
+                        </fieldset>
+                    </div>
+
+                    <!-- Etapa: Análise (Inalterado) -->
+                    <div id="group-analise" class="dynamic-field-group hidden space-y-4">
+                        <div><label class="block text-sm">Parecer BAE:</label><textarea id="ct-parecer" rows="3" class="mt-1 w-full border-gray-300 rounded-md" required></textarea></div>
+                    </div>
+
+                </div> <!-- Fim dynamic-fields-container -->
+
+                <div class="pt-4 flex justify-end space-x-3 bg-white sticky bottom-0 pb-6 -mx-6 px-6 border-t"><button type="button" id="cancel-absence-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Ação</button></div>
             </form>
         </div>
     </div>
+    <!-- ============================================================================== -->
+    <!-- --- FIM DA MODIFICAÇÃO (Modal Busca Ativa) --- -->
+    <!-- ============================================================================== -->
+
 
     <!-- Modal: Gerenciamento de Alunos (Inalterado) -->
     <div id="students-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 class="text-xl font-semibold">Gerir Lista de Alunos</h3><button id="close-students-modal-btn" class="text-gray-500 text-2xl font-bold">&times;</button></div>
             <div class="p-6 flex-grow overflow-y-auto space-y-6">
-                <div class="bg-gray-50 p-4 rounded-lg border"><h4 id="student-form-title" class="text-lg font-semibold mb-2">Adicionar Novo Aluno</h4><form id="student-form" class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start"><input type="hidden" id="student-id-input"><div><label class="block text-sm font-medium">Matrícula</label><input type="text" id="student-matricula-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Nome Completo</label><input type="text" id="student-name-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Turma</label><input type="text" id="student-class-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Contato</label><input type="text" id="student-contato-input" class="mt-1 w-full p-2 border"></div><div class="sm:col-span-2"><label class="block text-sm font-medium">Endereço</label><input type="text" id="student-endereco-input" class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 1</label><input type="text" id="student-resp1-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 2</label><input type="text" id="student-resp2-input" class="mt-1 w-full p-2 border"></div><div class="flex space-x-2 sm:col-span-2 self-end"><button type="submit" id="save-student-btn" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar</button><button type="button" id="cancel-edit-student-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hidden">Cancelar</button></div></form></div>
+                <div class="bg-gray-50 p-4 rounded-lg border"><h4 id="student-form-title" class="text-lg font-semibold mb-2">Adicionar Novo Aluno</h4><form id="student-form" class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start"><input type="hidden" id="student-id-input"><div><label class="block text-sm font-medium">Matrícula</label><input type="text" id="student-matricula-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Nome Completo</label><input type="text" id="student-name-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Turma</label><input type="text" id="student-class-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Contato</label><input type="text" id="student-contato-input" class="mt-1 w-full p-2 border"></div><div class="sm:col-span-2"><label class="block text-sm font-medium">Endereço</label><input type="text" id="student-endereco-input" class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 1</label><input type="text" id="student-resp1-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 2</label><input type="text" id="student-resp2-input" class="mt-1 w-full p-2 border"></div><div class="flex space-x-2 sm:col-span-2 self-end"><button type="submit" id="save-student-btn" class="w-full bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar</button><button type="button" id="cancel-edit-student-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hidden">Cancelar</button></div></form></div>
                 <div><h4 class="text-lg font-semibold mb-2">Alunos Registados</h4><div class="border rounded-lg overflow-hidden"><div class="overflow-y-auto max-h-64"><table class="min-w-full divide-y"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-4 py-2 text-left text-xs font-medium uppercase">Nome</th><th class="px-4 py-2 text-left text-xs font-medium uppercase">Turma</th><th class="px-4 py-2 text-right text-xs font-medium uppercase">Ações</th></tr></thead><tbody id="students-list-table" class="bg-white divide-y"></tbody></table></div></div></div>
-                <div class="border-t pt-6"><h4 class="text-lg font-semibold mb-2">Importar em Massa (CSV)</h4><p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`, `turma`, `endereco`, `contato`, `resp1`, `resp2`. Isto <strong>substituirá</strong> a lista atual.</p><div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4"><input type="file" id="csv-file" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"><button type="button" id="upload-csv-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg whitespace-nowrap">Carregar CSV</button></div><div id="csv-feedback" class="text-sm mt-2"></div></div>
+                <div class="border-t pt-6"><h4 class="text-lg font-semibold mb-2">Importar em Massa (CSV)</h4><p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`, `turma`, `endereco`, `contato`, `resp1`, `resp2`. Isto <strong>substituirá</strong> a lista atual.</p><div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4"><input type="file" id="csv-file" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"><button type="button" id="upload-csv-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg whitespace-nowrap">Carregar CSV</button></div><div id="csv-feedback" class="text-sm mt-2"></div></div>
             </div>
         </div>
     </div>
-    
+
     <!-- Modal: Configurações (Inalterado) -->
     <div id="settings-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0">
@@ -467,9 +580,21 @@
                     <input type="url" id="school-logo-input" placeholder="https://exemplo.com/logo.png" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
                     <p class="text-xs text-gray-500 mt-1">Insira o link completo da imagem. Deixe em branco para usar apenas o nome.</p>
                 </div>
+                
+                <!-- (Sugestão Híbrida) Campo de Gestão de Admin -->
+                <div>
+                    <label for="admin-emails-input" class="block text-sm font-medium text-gray-700">
+                        Emails dos Administradores (separados por vírgula)
+                    </label>
+                    <textarea id="admin-emails-input" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" placeholder="admin@escola.com, gestor@escola.com"></textarea>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Apenas os emails nesta lista (e o Super Admin) terão acesso a 'Configurações' e 'Gerir Alunos'.
+                    </p>
+                </div>
+                
                 <div class="pt-4 flex justify-end space-x-3">
                     <button type="button" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg" id="cancel-settings-btn">Cancelar</button>
-                    <button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Configurações</button>
+                    <button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Configurações</button>
                 </div>
             </form>
         </div>
@@ -499,9 +624,9 @@
             <form id="send-occurrence-ct-form">
                 <!-- Armazena IDs necessários -->
                 <input type="hidden" id="send-ct-group-id">
-                <input type="hidden" id="send-ct-record-id"> 
+                <input type="hidden" id="send-ct-record-id">
                 <input type="hidden" id="send-ct-student-id">
-                
+
                 <div class="p-6 space-y-4">
                     <!-- Informações do Incidente (Serão preenchidas por JS) -->
                     <div class="bg-gray-50 border rounded-md p-3 text-sm">
@@ -539,10 +664,34 @@
 
 
     <!-- Modais de Visualização e Impressão (Estrutura Genérica - Inalterados) -->
-    <div id="notification-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="notification-title" class="text-xl font-semibold">Notificação</h3><button id="close-notification-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="notification-content" class="p-8 overflow-y-auto bg-white"></div><div class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 no-print"><button id="share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
-    <div id="report-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3><button id="close-report-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="report-view-content" class="p-8 overflow-y-auto bg-white"></div><div class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 no-print"><button id="report-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="report-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
-    <div id="ficha-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="ficha-view-title" class="text-xl font-semibold">Documento</h3><button id="close-ficha-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="ficha-view-content" class="p-8 overflow-y-auto bg-white"></div><div class="p-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 no-print"><button id="ficha-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button><button id="ficha-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button></div></div></div>
-    
+    <div id="notification-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="notification-title" class="text-xl font-semibold">Notificação</h3><button id="close-notification-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="notification-content" class="p-8 overflow-y-auto bg-white"></div>
+        <!-- **** (REMOVIDO) Seletores de Margem e Espaçamento removidos **** -->
+        <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
+            <!-- Botões existentes -->
+            <button id="share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
+            <button id="print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
+        </div>
+        <!-- **** FIM DA CORREÇÃO **** -->
+    </div></div>
+    <div id="report-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3><button id="close-report-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="report-view-content" class="p-8 overflow-y-auto bg-white"></div>
+        <!-- **** (REMOVIDO) Seletores de Margem e Espaçamento removidos **** -->
+        <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
+            <!-- Botões existentes -->
+            <button id="report-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
+            <button id="report-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
+        </div>
+        <!-- **** FIM DA CORREÇÃO **** -->
+    </div></div>
+    <div id="ficha-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="ficha-view-title" class="text-xl font-semibold">Documento</h3><button id="close-ficha-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="ficha-view-content" class="p-8 overflow-y-auto bg-white"></div>
+        <!-- **** (REMOVIDO) Seletores de Margem e Espaçamento removidos **** -->
+        <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
+            <!-- Botões existentes -->
+            <button id="ficha-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
+            <button id="ficha-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
+        </div>
+        <!-- **** FIM DA CORREÇÃO **** -->
+    </div></div>
+
     <!-- Modal: Visualização de Histórico (Inalterado) -->
     <div id="history-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
@@ -558,11 +707,11 @@
     </div>
 
     <!-- Modal: Gerador de Relatório (Apenas Busca Ativa por enquanto - Inalterado) -->
-    <div id="report-generator-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="report-generator-title" class="text-xl font-semibold">Gerar Relatório</h3><button id="close-report-generator-btn" class="text-gray-500 text-2xl">&times;</button></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium">Selecione o Aluno(a)</label><select id="student-select" class="mt-1 block w-full"><option value="">Carregando...</option></select></div></div><div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg"><button type="button" id="cancel-report-generator-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="button" id="create-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg">Gerar</button></div></div></div>
+    <div id="report-generator-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="report-generator-title" class="text-xl font-semibold">Gerar Relatório</h3><button id="close-report-generator-btn" class="text-gray-500 text-2xl">&times;</button></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium">Selecione o Aluno(a)</label><select id="student-select" class="mt-1 block w-full"><option value="">Carregando...</option></select></div></div><div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg"><button type="button" id="cancel-report-generator-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="button" id="create-report-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">Gerar</button></div></div></div>
 
     <!-- Modal: Confirmação de Exclusão (Inalterado) -->
     <div id="delete-confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="p-6 text-center"><i class="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i><h3 class="text-lg font-semibold">Confirmar Exclusão</h3><p id="delete-confirm-message" class="mt-2 text-sm text-gray-500">Tem certeza?</p></div><div class="bg-gray-50 px-4 py-3 sm:px-6 flex flex-row-reverse rounded-b-lg"><button type="button" id="confirm-delete-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700">Excluir</button><button type="button" id="cancel-delete-btn" class="mt-3 sm:mt-0 w-full sm:w-auto inline-flex justify-center rounded-md px-4 py-2 bg-white text-gray-700 border hover:bg-gray-50 sm:mr-3">Cancelar</button></div></div></div>
-    
+
     <!-- Notificação Toast (Inalterado) -->
     <div id="toast-notification" class="fixed bottom-5 right-5 bg-gray-800 text-white py-3 px-5 rounded-lg shadow-lg transform translate-y-20 opacity-0 z-50"><p id="toast-message"></p></div>
 
@@ -571,3 +720,4 @@
 
 </body>
 </html>
+

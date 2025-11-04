@@ -1,12 +1,8 @@
 // ARQUIVO: firebase.js
-// RESPONSABILIDADE: Configurar e inicializar o Firebase de forma robusta.
-// ATUALIZAÇÃO: (Melhoria 3c) Removido o objeto `config` estático
-// (schoolName, city) que era redundante. O sistema agora depende
-// 100% da configuração carregada do Firestore (via `loadSchoolConfig`).
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Configuração padrão que serve como fallback caso a configuração dinâmica não seja fornecida.
 const firebaseConfig = {
