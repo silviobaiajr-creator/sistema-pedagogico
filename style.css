@@ -263,14 +263,11 @@ details[open] .process-content {
         display: none !important;
     }
 
-    /* Garante que o conteúdo impresso não tenha margens desnecessárias */
-    /* (Este seletor foi pego da sua versão funcional '3d911...') */
-    #occurrence-record-content, 
-    #notification-content,
-    #report-view-content,
-    #ficha-view-content {
-        padding: 1cm !important; /* Margem de impressão padrão */
-    }
+    /* --- (INÍCIO DA CORREÇÃO) --- */
+    /* O bloco que definia 'padding: 1cm !important;' foi REMOVIDO daqui. */
+    /* A regra @page abaixo (linha 332) é a única que deve */
+    /* controlar as margens da impressão. */
+    /* --- (FIM DA CORREÇÃO) --- */
 
     /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO --- */
     
