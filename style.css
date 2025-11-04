@@ -238,7 +238,12 @@ details[open] .process-content {
     }
     
     /* Garante que a área de impressão ocupe toda a página */
-    .printable-area, .printable-area .modal-content {
+    /* (CORREÇÃO DE ESPECIFICIDADE) Alvos por ID para máxima especificidade */
+    #notification-modal-backdrop,
+    #report-view-modal-backdrop,
+    #ficha-view-modal-backdrop,
+    .printable-area, 
+    .printable-area .modal-content {
         display: block !important;
         position: static !important;
         width: 100% !important;
@@ -273,12 +278,13 @@ details[open] .process-content {
     }
 
     /* (NOVA CORREÇÃO) */
-    /* Zera a margem superior do PRIMEIRO elemento DENTRO do container */
-    /* (ex: o div principal ou o header do relatório) para remover a página em branco ACIMA. */
+    /* Zera a margem superior E o padding superior do PRIMEIRO elemento */
+    /* DENTRO do container (ex: o div principal) para remover a página em branco ACIMA. */
     #notification-content > *:first-child,
     #report-view-content > *:first-child,
     #ficha-view-content > *:first-child {
         margin-top: 0 !important;
+        padding-top: 0 !important; /* <-- ADICIONADO ESTA LINHA */
     }
     /* --- (FIM DA SOLUÇÃO) --- */
 
@@ -331,4 +337,5 @@ details[open] .process-content {
 /* ============================================================================== */
 /* (FIM DA CORREÇÃO)                                                              */
 /* ============================================================================== */
+
 
