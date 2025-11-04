@@ -271,12 +271,11 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (NOVA LÓGICA DE IMPRESSÃO - GERAÇÃO DE PDF) ---
+// --- (LÓGICA DE GERAÇÃO DE PDF - CORREÇÃO "PELA METADE") ---
 // ==============================================================================
 
 /**
  * Gera um PDF a partir de um elemento HTML e inicia o download.
- * Substitui a antiga função 'handlePrintClick'.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso.
  * @param {string} fileName - O nome do arquivo PDF (ex: "Relatorio.pdf").
  * @param {HTMLElement} buttonElement - O botão que foi clicado.
@@ -296,6 +295,16 @@ async function handlePdfDownload(contentElementId, fileName, buttonElement) {
         return;
     }
 
+    // --- (NOVA CORREÇÃO) ---
+    // Encontra o container do modal que limita a altura
+    const modalContent = contentElement.closest('.modal-content');
+    if (!modalContent) {
+        console.error("Erro no PDF: container .modal-content não encontrado.");
+        showToast("Erro ao preparar o modal para PDF.");
+        return;
+    }
+    // --- (FIM DA NOVA CORREÇÃO) ---
+
     // 2. Define o estado de "Carregando" no botão
     const originalButtonHtml = buttonElement.innerHTML;
     buttonElement.disabled = true;
@@ -305,8 +314,19 @@ async function handlePdfDownload(contentElementId, fileName, buttonElement) {
     // Garante que o scroll do conteúdo esteja no topo para a captura
     contentElement.scrollTop = 0;
 
+    // --- (NOVA CORREÇÃO) Armazena estilos originais e os remove ---
+    // Removemos os limites de altura e overflow para que o html2canvas capture TUDO
+    const originalContentOverflow = contentElement.style.overflowY;
+    const originalContentHeight = contentElement.style.height;
+    const originalModalMaxHeight = modalContent.style.maxHeight;
+
+    contentElement.style.overflowY = 'visible';
+    contentElement.style.height = 'auto';
+    modalContent.style.maxHeight = 'none';
+    // --- (FIM DA NOVA CORREÇÃO) ---
+
     try {
-        // 3. Tira a "screenshot" do conteúdo
+        // 3. Tira a "screenshot" do conteúdo (agora expandido)
         const canvas = await html2canvas(contentElement, {
             scale: 2, // Aumenta a resolução da imagem
             useCORS: true, // Permite que imagens externas (como o logo) sejam carregadas
@@ -316,6 +336,13 @@ async function handlePdfDownload(contentElementId, fileName, buttonElement) {
                 const clonedContent = clonedDoc.getElementById(contentElementId);
                 if (clonedContent) {
                     clonedContent.style.backgroundColor = '#ffffff';
+                    // (NOVA CORREÇÃO) Garante que o clone também esteja expandido
+                    clonedContent.style.overflowY = 'visible';
+                    clonedContent.style.height = 'auto';
+                    const clonedModalContent = clonedContent.closest('.modal-content');
+                    if (clonedModalContent) {
+                        clonedModalContent.style.maxHeight = 'none';
+                    }
                 }
             }
         });
@@ -356,7 +383,12 @@ async function handlePdfDownload(contentElementId, fileName, buttonElement) {
         console.error("Erro ao gerar PDF:", error);
         showToast("Erro ao gerar o PDF. Verifique a consola.");
     } finally {
-        // 8. Restaura o botão ao estado original
+        // 8. (NOVA CORREÇÃO) Restaura os estilos originais do modal
+        contentElement.style.overflowY = originalContentOverflow;
+        contentElement.style.height = originalContentHeight;
+        modalContent.style.maxHeight = originalModalMaxHeight;
+
+        // Restaura o botão ao estado original
         buttonElement.disabled = false;
         buttonElement.innerHTML = originalButtonHtml;
     }
