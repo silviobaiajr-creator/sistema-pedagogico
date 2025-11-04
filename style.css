@@ -226,7 +226,7 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO - Abordagem Cirúrgica)    */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO V3 - FOCO NO CONTEÚDO)               */
 /* ============================================================================== */
 
 @media print {
@@ -239,65 +239,57 @@ details[open] .process-content {
         animation: none !important;
     }
 
-    /* --- INÍCIO DA CORREÇÃO --- */
-    /* (NOVA REGRA 1) Esconde APENAS os containers principais, não TUDO.
-       Os outros modais já estão .hidden, então não precisamos nos preocupar com eles. */
+    /* --- INÍCIO DA CORREÇÃO V3 --- */
+    
+    /* 1. Esconde os containers principais da tela */
     #main-content, #login-screen, #toast-notification {
         display: none !important;
     }
     
-    /* (NOVA REGRA 2) Reseta o modal .printing-now para impressão */
-    /* Esta regra agora é mais específica e segura */
+    /* 2. Reseta o .printable-area (o backdrop) */
     .printable-area.printing-now {
-        /* Remove o 'fixed', 'inset-0' e 'z-50' do modal */
         position: static !important;
         width: 100% !important;
         height: auto !important;
         overflow: visible !important;
         padding: 0 !important;
-        /* Remove transições e opacidade */
-        opacity: 1 !important; 
-        transform: none !important;
-        background: none !important; /* Remove o fundo escuro do backdrop */
-        /* Remove o flex-box de centralização */
+        background: none !important; 
         display: block !important;
         transition: none !important;
         animation: none !important;
     }
-    /* --- FIM DA CORREÇÃO --- */
 
-
-    /* (NOVA REGRA 3) Reseta o .modal-content DENTRO do backdrop visível */
+    /* 3. (A MUDANÇA CRÍTICA) Esconde a caixa branca do .modal-content */
     .printing-now .modal-content {
+        display: none !important;
+    }
+
+    /* 4. (A MUDANÇA CRÍTICA) Mostra APENAS o CONTEÚDO e faz ele preencher a página */
+    .printing-now #notification-content,
+    .printing-now #report-view-content,
+    .printing-now #ficha-view-content {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important; /* Remove o padding da tela */
+        overflow: visible !important;
+        height: auto !important;
+        /* Reseta estilos do modal que podem ter sido herdados */
         transform: none !important;
         opacity: 1 !important;
         box-shadow: none !important;
         border: none !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        max-height: none !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        display: block !important;
-        transition: none !important;
-        animation: none !important;
     }
 
-    /* (NOVA REGRA 4) Esconde elementos .no-print DENTRO do backdrop visível */
+    /* 5. Esconde elementos .no-print (Redundante, mas seguro) */
     .printing-now .no-print, .printing-now .no-print * {
         display: none !important;
     }
+    
+    /* --- FIM DA CORREÇÃO V3 --- */
 
 
-    /* (NOVA REGRA 5) Remove padding do conteúdo DENTRO do backdrop visível */
-    .printing-now #occurrence-record-content,
-    .printing-now #notification-content,
-    .printing-now #report-view-content,
-    .printing-now #ficha-view-content {
-        padding: 0 !important;
-    }
-
-    /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO (Mantidos do original) --- */
+    /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO (Mantidos) --- */
     
     /* Bloco de assinaturas (garante visibilidade e formatação) */
     .signature-block, .signature-block * {
