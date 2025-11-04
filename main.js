@@ -250,13 +250,14 @@ async function handleDeleteConfirmation() {
 
 // ==============================================================================
 // --- (INÍCIO DA SUBSTITUIÇÃO) ---
-// --- LÓGICA DE IMPRESSÃO DEFINITIVA (CORREÇÃO 5 - DOM Manipulation) ---
+// --- LÓGICA DE IMPRESSÃO DEFINITIVA (CORREÇÃO 6 - TÉCNICA DO IFRAME) ---
 // ==============================================================================
 /**
- * Prepara o DOM para impressão e chama window.print() de forma robusta.
- * Esta versão (Correção 5) MANIPULA O DOM para remover estilos conflitantes
- * (como overflow e max-height) que causam a "página em branco" no celular.
- * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
+ * Gera um Iframe isolado com o conteúdo do relatório e chama a impressão.
+ * Esta é a solução mais robusta para o bug da "página em branco" em
+ * navegadores móveis (iOS/Android).
+ *
+ * @param {string} contentElementId - O ID do elemento de conteúdo (ex: 'notification-content')
  */
 function handlePrintClick(contentElementId) {
     const contentElement = document.getElementById(contentElementId);
@@ -265,73 +266,94 @@ function handlePrintClick(contentElementId) {
         showToast("Erro ao preparar documento para impressão.");
         return;
     }
-    
-    const printableBackdrop = contentElement.closest('.printable-area');
-    const modalContent = contentElement.closest('.modal-content');
-    
-    if (!printableBackdrop || !modalContent) {
-         console.error("Estrutura do modal não encontrada ('.printable-area' ou '.modal-content').");
-         showToast("Erro ao preparar a área de impressão.");
-         return;
-    }
 
-    // --- (NOVO - Correção 5) ---
-    // 1. Salva os estilos/classes originais que vamos remover temporariamente
-    // para corrigir o bug do overflow no celular.
-    const originalModalClasses = modalContent.className;
-    const originalContentClasses = contentElement.className;
-    // --- Fim da Correção 5 ---
+    // 1. Copia o HTML exato do relatório
+    const printHTML = contentElement.innerHTML;
 
-    // 2. Define a função de limpeza (será chamada após a impressão)
-    const cleanupAfterPrint = () => {
-        // Restaura a classe de impressão do CSS (do style.css)
-        printableBackdrop.classList.remove('printing-now');
-        
-        // --- (NOVO - Correção 5) ---
-        // Restaura as classes originais para o modal voltar ao normal
-        modalContent.className = originalModalClasses;
-        contentElement.className = originalContentClasses;
-        // --- Fim da Correção 5 ---
-        
-        // Remove o listener para não acumular
-        window.removeEventListener('afterprint', cleanupAfterPrint);
-    };
+    // 2. Pega os links CSS necessários do documento principal
+    // (Tailwind, FontAwesome, e o seu style.css)
+    const tailwindScript = document.querySelector('script[src*="cdn.tailwindcss.com"]');
+    const fontAwesomeLink = document.querySelector('link[href*="font-awesome"]');
+    const styleLink = document.querySelector('link[href="style.css"]'); // Assume que o nome é style.css
 
-    // 3. Adiciona o listener para limpar DEPOIS que a impressão for fechada
-    window.addEventListener('afterprint', cleanupAfterPrint);
+    // 3. Cria o iframe invisível
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    iframe.setAttribute('aria-hidden', 'true');
 
-    // 4. Adiciona a classe para ativar o CSS de impressão (do style.css)
-    printableBackdrop.classList.add('printing-now');
+    // 4. Adiciona o iframe ao corpo
+    document.body.appendChild(iframe);
 
-    // --- (NOVO - Correção 5) ---
-    // 5. Remove MANUALMENTE as classes de overflow e max-height que
-    // quebram a impressão no celular (iOS). O CSS @media print tenta, mas o JS garante.
-    
-    // Remove 'max-h-[90vh]' e 'overflow-y-auto' do .modal-content
-    modalContent.className = originalModalClasses
-        .replace('max-h-[90vh]', '')
-        .replace('overflow-y-auto', ''); 
-        
-    // Remove 'overflow-y-auto' do #notification-content, etc.
-    contentElement.className = originalContentClasses
-        .replace('overflow-y-auto', '');
-    // --- Fim da Correção 5 ---
+    // 5. Escreve o novo documento HTML dentro do iframe
+    const iframeDoc = iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(`
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Impressão</title>
+            
+            <!-- Links de Estilo OBRIGATÓRIOS -->
+            ${tailwindScript ? `<script src="${tailwindScript.src}"></script>` : ''}
+            ${fontAwesomeLink ? `<link rel="stylesheet" href="${fontAwesomeLink.href}">` : ''}
+            ${styleLink ? `<link rel="stylesheet" href="${styleLink.href}">` : ''}
 
+            <!-- 
+              Regras de impressão cruciais (do style.css) 
+              para garantir que o *corpo do iframe* se comporte.
+            -->
+            <style>
+                @media print {
+                    body, html {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        overflow: visible !important;
+                        background: #fff !important;
+                        font-size: 11pt;
+                    }
+                    .no-print { display: none !important; }
+                    .signature-block { page-break-inside: avoid !important; margin-top: 2.5rem !important; }
+                    .signature-line { display: flex !important; flex-direction: column !important; align-items: center !important; width: 60% !important; margin: 1.5rem auto 0 auto !important; }
+                    .signature-text { border-top: 1px solid #374151 !important; width: 100% !important; padding-top: 0.25rem !important; text-align: center !important; font-weight: 600 !important; }
+                    .signature-role { font-size: 0.75rem !important; color: #4b5563 !important; }
+                    .break-inside-avoid { page-break-inside: avoid; }
+                    @page { margin: 1cm; }
+                }
+            </style>
+        </head>
+        <body>
+            <!-- 6. Insere o HTML do relatório copiado -->
+            ${printHTML}
+        </body>
+        </html>
+    `);
+    iframeDoc.close();
 
-    // 6. (Mantido da Correção 4)
-    // Usa requestAnimationFrame para garantir que as remoções de classe
-    // acima sejam processadas ANTES de chamar window.print().
-    requestAnimationFrame(() => {
+    // 7. Espera o iframe carregar (incluindo CSS e scripts externos)
+    iframe.onload = () => {
         try {
-            // Neste ponto, o CSS está ativo E os overflows foram removidos.
-            window.print();
-        } catch (printError) {
-            console.error("Erro durante a chamada window.print():", printError);
-            showToast("Não foi possível abrir a janela de impressão.");
-            // Limpa imediatamente se a impressão falhar
-            cleanupAfterPrint();
+            // Adiciona um pequeno delay para garantir que o Tailwind (script)
+            // tenha tempo de aplicar as classes de layout.
+            setTimeout(() => {
+                iframe.contentWindow.focus(); // Foco é necessário em alguns navegadores
+                iframe.contentWindow.print(); // Chama a impressão no iframe
+
+                // Limpa o iframe após a impressão ser chamada
+                setTimeout(() => document.body.removeChild(iframe), 500);
+            }, 300); // 300ms de espera para o CSS e scripts carregarem
+
+        } catch (e) {
+            console.error("Erro ao imprimir o iframe:", e);
+            showToast("Erro ao iniciar a impressão.");
+            document.body.removeChild(iframe); // Limpa em caso de erro
         }
-    });
+    };
 }
 // ==============================================================================
 // --- (FIM DA SUBSTITUIÇÃO) ---
