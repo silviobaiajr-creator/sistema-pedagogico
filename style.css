@@ -264,12 +264,21 @@ details[open] .process-content {
     }
 
     /* --- (INÍCIO DA SOLUÇÃO) --- */
-    /* Zera o padding interno dos containers de conteúdo para evitar margens duplas */
-    /* que causam a página em branco extra. */
+    /* Zera o padding/margin dos containers de conteúdo para evitar margens duplas */
     #notification-content,
     #report-view-content,
     #ficha-view-content {
         padding: 0 !important;
+        margin: 0 !important; /* Adicionado por segurança */
+    }
+
+    /* (NOVA CORREÇÃO) */
+    /* Zera a margem superior do PRIMEIRO elemento DENTRO do container */
+    /* (ex: o div principal ou o header do relatório) para remover a página em branco ACIMA. */
+    #notification-content > *:first-child,
+    #report-view-content > *:first-child,
+    #ficha-view-content > *:first-child {
+        margin-top: 0 !important;
     }
     /* --- (FIM DA SOLUÇÃO) --- */
 
@@ -322,3 +331,4 @@ details[open] .process-content {
 /* ============================================================================== */
 /* (FIM DA CORREÇÃO)                                                              */
 /* ============================================================================== */
+
