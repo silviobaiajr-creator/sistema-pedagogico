@@ -266,8 +266,29 @@ export const renderAbsences = () => {
 
 
     // --- Lógica para exibir estado vazio ou a lista ---
-    // (Verifica todos os filtros, incluindo datas)
-    if (filteredGroupKeys.length === 0 && state.filterAbsences === '' && state.filtersAbsences.processStatus === 'all' && state.filtersAbsences.pendingAction === 'all' && state.filtersAbsences.returnStatus === 'all' && !state.filtersAbsences.startDate && !state.filtersAbsences.endDate) {
+    // (CORREÇÃO - BUG TELA VAZIA)
+    if (filteredGroupKeys.length === 0) {
+        // Verifica se a lista está vazia por causa dos filtros ou se não há dados
+        const hasFilters = state.filterAbsences !== '' ||
+                           state.filtersAbsences.processStatus !== 'all' ||
+                           state.filtersAbsences.pendingAction !== 'all' ||
+                           state.filtersAbsences.returnStatus !== 'all' ||
+                           state.filtersAbsences.startDate ||
+                           state.filtersAbsences.endDate;
+        
+        // Atualiza o texto do 'empty-state' para ser mais útil
+        const emptyStateTitle = dom.emptyStateAbsences.querySelector('h3');
+        const emptyStateText = dom.emptyStateAbsences.querySelector('p');
+
+        if (hasFilters) {
+            if (emptyStateTitle) emptyStateTitle.textContent = "Nenhum resultado encontrado";
+            if (emptyStateText) emptyStateText.textContent = "Tente ajustar os filtros ou o termo de busca.";
+        } else {
+            // Mensagem original
+            if (emptyStateTitle) emptyStateTitle.textContent = "Nenhuma ação registrada";
+            if (emptyStateText) emptyStateText.textContent = "Use a busca acima para registrar uma nova ação.";
+        }
+
         dom.emptyStateAbsences.classList.remove('hidden');
         dom.absencesListDiv.innerHTML = '';
     } else {
@@ -346,8 +367,9 @@ export const renderAbsences = () => {
                 // --- (Melhoria 3) Adiciona botões "Ver" ---
                 let viewButtonHtml = '';
                 if (abs.actionType.startsWith('tentativa') && abs.meetingDate && abs.meetingTime) {
+                    // (ALTERADO - SUGESTÃO 5) Cores
                     viewButtonHtml = `
-                        <button type"button" class="view-notification-btn-hist text-indigo-600 hover:text-indigo-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Notificação">
+                        <button type"button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Notificação">
                             [<i class="fas fa-eye fa-fw"></i> Ver Notificação]
                         </button>`;
                 }
@@ -377,9 +399,10 @@ export const renderAbsences = () => {
             const disableReason = isConcluded ? "Processo concluído" : "Apenas a última ação pode ser alterada";
 
             // Botão Avançar Etapa
+            // (ALTERADO - SUGESTÃO 5) Cores
             const avancarBtn = `
                 <button type="button"
-                        class="avancar-etapa-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}"
+                        class="avancar-etapa-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}"
                         title="${isConcluded ? 'Processo concluído' : 'Avançar para a próxima etapa'}"
                         ${isConcluded ? 'disabled' : ''}
                         data-student-id="${student.matricula}">
@@ -431,7 +454,8 @@ export const renderAbsences = () => {
                         </div>
                         <div class="flex items-center space-x-4">
                             ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : '<span class="text-xs font-bold text-white bg-yellow-600 px-2 py-1 rounded-full">EM ANDAMENTO</span>'}
-                            <button class="generate-ficha-btn-row bg-purple-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-purple-700 text-xs no-print" data-student-id="${student.matricula}" data-process-id="${processId}">
+                            <!-- (ALTERADO - SUGESTÃO 5) Cores -->
+                            <button class="generate-ficha-btn-row bg-teal-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-teal-700 text-xs no-print" data-student-id="${student.matricula}" data-process-id="${processId}">
                                 <i class="fas fa-file-invoice"></i> Ficha
                             </button>
                             <i class="fas fa-chevron-down transition-transform duration-300"></i>
@@ -1219,6 +1243,7 @@ function handleDeleteAbsence(id) {
 // Função reescrita para controlar o acordeão e os novos botões (V4).
 // (MODIFICADO - Melhoria 1 & 3): Remove listener 'send-ct-btn' e atualiza
 // 'notification-btn' e 'view-oficio-btn' para as novas classes '...-hist'.
+// (MODIFICADO - SUGESTÃO 3) Adicionado listener para 'add-absence-btn'.
 // =================================================================================
 /**
  * Anexa todos os listeners de eventos relacionados a Busca Ativa.
@@ -1228,6 +1253,14 @@ export const initAbsenceListeners = () => {
     // --- CORREÇÃO: Usar dom.generalBaReportBtn em vez de document.getElementById ---
     if (dom.generalBaReportBtn) {
         dom.generalBaReportBtn.addEventListener('click', generateAndShowBuscaAtivaReport);
+    }
+
+    // (ADICIONADO - SUGESTÃO 3) Botão Nova Ação
+    if (dom.addAbsenceBtn) {
+        dom.addAbsenceBtn.addEventListener('click', () => {
+            dom.searchAbsences.focus(); // Foca na barra de busca
+            showToast("Digite o nome do aluno na busca para iniciar ou continuar uma ação.");
+        });
     }
 
     // Filtros
@@ -1283,6 +1316,7 @@ export const initAbsenceListeners = () => {
                 }
                 
                 // --- (Melhoria 3) Botões "Ver" movidos para o histórico ---
+                // (ALTERADO - SUGESTÃO 5) Cores
                 if (button.classList.contains('view-notification-btn-hist') && id) { openFichaViewModal(id); return; }
                 if (button.classList.contains('view-oficio-btn-hist') && id) { handleViewOficio(id); return; }
                 // --- Fim Melhoria 3 ---
@@ -1328,3 +1362,4 @@ export const initAbsenceListeners = () => {
 // =================================================================================
 // --- FIM DA REESCRITA (initAbsenceListeners) ---
 // =================================================================================
+

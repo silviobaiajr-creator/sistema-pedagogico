@@ -68,6 +68,7 @@ export const state = {
     db: null,
     userId: null,
     userEmail: null,
+    isAdmin: false, // <-- ADICIONADO (Sugestão 1)
     unsubscribeOccurrences: null,
     unsubscribeAbsences: null,
 };
@@ -143,8 +144,10 @@ export const initializeDOMReferences = () => {
 
     // Botões de Ação Principais
     dom.settingsBtn = document.getElementById('settings-btn');
+    dom.manageStudentsBtn = document.getElementById('manage-students-btn'); // (Garantindo que esta referência exista)
     dom.generalReportBtn = document.getElementById('general-report-btn');
     dom.generalBaReportBtn = document.getElementById('general-ba-report-btn');
+    dom.addAbsenceBtn = document.getElementById('add-absence-btn'); // <-- ADICIONADO (Sugestão 3)
 
     // --- CORREÇÃO CSV: Adicionando referências do modal de alunos ---
     dom.studentForm = document.getElementById('student-form');
@@ -154,4 +157,3 @@ export const initializeDOMReferences = () => {
     dom.csvFeedback = document.getElementById('csv-feedback');
     // --- Fim da Correção ---
 };
-
