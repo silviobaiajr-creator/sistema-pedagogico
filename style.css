@@ -226,7 +226,7 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO V3 - FOCO NO CONTEÚDO)               */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO V4 - Inversão de Lógica)             */
 /* ============================================================================== */
 
 @media print {
@@ -239,7 +239,7 @@ details[open] .process-content {
         animation: none !important;
     }
 
-    /* --- INÍCIO DA CORREÇÃO V3 --- */
+    /* --- INÍCIO DA CORREÇÃO V4 --- */
     
     /* 1. Esconde os containers principais da tela */
     #main-content, #login-screen, #toast-notification {
@@ -259,12 +259,30 @@ details[open] .process-content {
         animation: none !important;
     }
 
-    /* 3. (A MUDANÇA CRÍTICA) Esconde a caixa branca do .modal-content */
+    /* 3. (NOVA LÓGICA V4) Reseta o .modal-content SEM escondê-lo */
     .printing-now .modal-content {
-        display: none !important;
+        display: block !important; /* Garante que está visível */
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        overflow: visible !important; /* Crucial */
+        padding: 0 !important;
+        margin: 0 !important;
+        background: none !important; /* Remove o fundo branco */
+        border: none !important;
+        box-shadow: none !important; /* Remove a sombra */
+        transform: none !important;
+        opacity: 1 !important;
+        transition: none !important;
+        animation: none !important;
     }
 
-    /* 4. (A MUDANÇA CRÍTICA) Mostra APENAS o CONTEÚDO e faz ele preencher a página */
+    /* 4. (NOVA LÓGICA V4) Esconde os filhos indesejados (header/footer) do modal */
+    /* Usamos > * para pegar todos os filhos diretos... */
+    .printing-now .modal-content > * {
+        display: none !important;
+    }
+    /* ...e então re-mostramos APENAS o conteúdo que queremos. */
     .printing-now #notification-content,
     .printing-now #report-view-content,
     .printing-now #ficha-view-content {
@@ -274,19 +292,14 @@ details[open] .process-content {
         padding: 0 !important; /* Remove o padding da tela */
         overflow: visible !important;
         height: auto !important;
-        /* Reseta estilos do modal que podem ter sido herdados */
-        transform: none !important;
-        opacity: 1 !important;
-        box-shadow: none !important;
-        border: none !important;
     }
 
-    /* 5. Esconde elementos .no-print (Redundante, mas seguro) */
+    /* 5. Regra .no-print (Mantida por segurança) */
     .printing-now .no-print, .printing-now .no-print * {
         display: none !important;
     }
     
-    /* --- FIM DA CORREÇÃO V3 --- */
+    /* --- FIM DA CORREÇÃO V4 --- */
 
 
     /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO (Mantidos) --- */
