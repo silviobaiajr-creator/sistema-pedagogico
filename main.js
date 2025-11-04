@@ -250,12 +250,12 @@ async function handleDeleteConfirmation() {
 
 // ==============================================================================
 // --- (INÍCIO DA SUBSTITUIÇÃO) ---
-// --- LÓGICA DE IMPRESSÃO DEFINITIVA (CORREÇÃO 6 - TÉCNICA DO IFRAME) ---
+// --- LÓGICA DE IMPRESSÃO DEFINITIVA (CORREÇÃO 7 - TÉCNICA DA NOVA JANELA) ---
 // ==============================================================================
 /**
- * Gera um Iframe isolado com o conteúdo do relatório e chama a impressão.
- * Esta é a solução mais robusta para o bug da "página em branco" em
- * navegadores móveis (iOS/Android).
+ * Abre uma nova janela do navegador, copia o conteúdo e os estilos
+ * e chama a impressão. Esta é a solução mais robusta para todos
+ * os navegadores, incluindo o Safari no iOS (celular).
  *
  * @param {string} contentElementId - O ID do elemento de conteúdo (ex: 'notification-content')
  */
@@ -270,51 +270,48 @@ function handlePrintClick(contentElementId) {
     // 1. Copia o HTML exato do relatório
     const printHTML = contentElement.innerHTML;
 
-    // 2. Pega os links CSS necessários do documento principal
-    // (Tailwind, FontAwesome, e o seu style.css)
-    const tailwindScript = document.querySelector('script[src*="cdn.tailwindcss.com"]');
-    const fontAwesomeLink = document.querySelector('link[href*="font-awesome"]');
-    const styleLink = document.querySelector('link[href="style.css"]'); // Assume que o nome é style.css
+    // 2. Coleta todos os links CSS e scripts JS do <head> da página principal
+    //    Isso garante que Tailwind, FontAwesome e seu style.css sejam carregados
+    const headLinks = document.querySelectorAll('head > link[rel="stylesheet"]');
+    const headScripts = document.querySelectorAll('head > script[src]'); // Inclui Tailwind
 
-    // 3. Cria o iframe invisível
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.visibility = 'hidden';
-    iframe.setAttribute('aria-hidden', 'true');
+    let headHTML = '';
+    headLinks.forEach(link => {
+        headHTML += link.outerHTML;
+    });
+    headScripts.forEach(script => {
+        headHTML += script.outerHTML;
+    });
 
-    // 4. Adiciona o iframe ao corpo
-    document.body.appendChild(iframe);
+    // 3. Abre uma nova janela (ou aba) em branco
+    //    Usar _blank é crucial
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        showToast("Erro: O seu navegador bloqueou a janela de impressão. Por favor, permita pop-ups para este site.");
+        return;
+    }
 
-    // 5. Escreve o novo documento HTML dentro do iframe
-    const iframeDoc = iframe.contentWindow.document;
-    iframeDoc.open();
-    iframeDoc.write(`
+    // 4. Escreve o documento completo na nova janela
+    printWindow.document.open();
+    printWindow.document.write(`
         <!DOCTYPE html>
         <html lang="pt-BR">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Impressão</title>
+            <title>Imprimindo Documento...</title>
             
-            <!-- Links de Estilo OBRIGATÓRIOS -->
-            ${tailwindScript ? `<script src="${tailwindScript.src}"></script>` : ''}
-            ${fontAwesomeLink ? `<link rel="stylesheet" href="${fontAwesomeLink.href}">` : ''}
-            ${styleLink ? `<link rel="stylesheet" href="${styleLink.href}">` : ''}
-
-            <!-- 
-              Regras de impressão cruciais (do style.css) 
-              para garantir que o *corpo do iframe* se comporte.
-            -->
+            <!-- 5. Insere TODOS os links e scripts do <head> original -->
+            ${headHTML}
+            
+            <!-- 6. Insere nosso CSS de impressão (do style.css) -->
+            <!-- Esta regra garante que o corpo da *nova* página esteja pronto -->
             <style>
                 @media print {
+                    /* Regras robustas copiadas do style.css */
                     body, html {
-                        margin: 0 !important;
-                        padding: 0 !important;
-                        overflow: visible !important;
-                        background: #fff !important;
+                        margin: 0 !important; padding: 0 !important;
+                        overflow: visible !important; background: #fff !important;
                         font-size: 11pt;
                     }
                     .no-print { display: none !important; }
@@ -328,32 +325,28 @@ function handlePrintClick(contentElementId) {
             </style>
         </head>
         <body>
-            <!-- 6. Insere o HTML do relatório copiado -->
+            <!-- 7. Insere o HTML do relatório -->
             ${printHTML}
+
+            <!-- 
+              8. Script de auto-impressão (A CHAVE DA SOLUÇÃO)
+              window.onload garante que a impressão SÓ ocorra
+              DEPOIS que o Tailwind e o FontAwesome carregarem e estilizarem a página.
+            -->
+            <script type="text/javascript">
+                window.onload = function() {
+                    // Adiciona um delay final para garantir que o script do Tailwind
+                    // (que compila as classes) termine de rodar.
+                    setTimeout(function() { 
+                        window.print(); // Chama a impressão
+                        window.close(); // Fecha a aba após a impressão
+                    }, 500); // 500ms é uma margem de segurança para o Tailwind
+                };
+            </script>
         </body>
         </html>
     `);
-    iframeDoc.close();
-
-    // 7. Espera o iframe carregar (incluindo CSS e scripts externos)
-    iframe.onload = () => {
-        try {
-            // Adiciona um pequeno delay para garantir que o Tailwind (script)
-            // tenha tempo de aplicar as classes de layout.
-            setTimeout(() => {
-                iframe.contentWindow.focus(); // Foco é necessário em alguns navegadores
-                iframe.contentWindow.print(); // Chama a impressão no iframe
-
-                // Limpa o iframe após a impressão ser chamada
-                setTimeout(() => document.body.removeChild(iframe), 500);
-            }, 300); // 300ms de espera para o CSS e scripts carregarem
-
-        } catch (e) {
-            console.error("Erro ao imprimir o iframe:", e);
-            showToast("Erro ao iniciar a impressão.");
-            document.body.removeChild(iframe); // Limpa em caso de erro
-        }
-    };
+    printWindow.document.close();
 }
 // ==============================================================================
 // --- (FIM DA SUBSTITUIÇÃO) ---
