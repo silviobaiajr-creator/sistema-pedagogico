@@ -1,10 +1,5 @@
 // =================================================================================
 // ARQUIVO: settings.js
-// RESPONSABILIDADE: Gerenciar a lógica e a UI do modal de Configurações.
-// ATUALIZAÇÃO (Híbrida Admin):
-// 1. openSettingsModal agora preenche o textarea admin-emails-input.
-// 2. handleSettingsSubmit agora lê, processa e salva a lista de emails admin.
-// =================================================================================
 
 import { state, dom } from './state.js';
 import { saveSchoolConfig } from './firestore.js';
