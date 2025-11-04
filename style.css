@@ -217,41 +217,33 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* (INÍCIO DA SOLUÇÃO DEFINITIVA) SEÇÃO 2: ESTILOS PARA IMPRESSÃO                  */
-/* */
-/* Esta seção substitui todas as tentativas anteriores.                           */
-/* Ela depende das correções feitas no `index.html`, onde:                        */
-/* 1. A classe `.printable-area` foi movida para `div.modal-content`.             */
-/* 2. A classe `p-8` foi RESTAURADA nos containers de conteúdo                    */
-/* (#notification-content, #report-view-content, #ficha-view-content).         */
+/* (INÍCIO DA CORREÇÃO) SEÇÃO 2: ESTILOS PARA IMPRESSÃO (DA VERSÃO FUNCIONAL)      */
+/* Esta é a versão simples que funciona no celular, substituindo a lógica         */
+/* complexa de ".printing-now" que estava a falhar.                             */
 /* ============================================================================== */
 
 @media print {
-    /* Define a margem da página de impressão */
-    @page {
-        margin: 1cm;
-    }
-
-    /* Reseta a página (html, body) para remover margens e garantir fundo branco */
+    /* (NOVA CORREÇÃO) Reseta a página (html, body) para remover margens */
     html, body {
         margin: 0 !important;
         padding: 0 !important;
         height: auto !important;
         overflow: visible !important;
-        background: #fff !important;
+        background: #fff !important; /* Garante fundo branco */
     }
 
-    /* Esconde tudo que NÃO está na área de impressão designada */
+    /* Esconde tudo que não está na área de impressão designada */
     body > *:not(.printable-area) {
         display: none !important;
     }
     
-    /* * Força a `.printable-area` (que agora é o `div.modal-content`)
-     * a se comportar como o documento principal, removendo todos os
-     * estilos de modal (sombra, borda, posição, etc.).
-    */
+    /* Garante que a área de impressão ocupe toda a página */
+    /* (CORREÇÃO DE ESPECIFICIDADE) Alvos por ID para máxima especificidade */
+    #notification-modal-backdrop,
+    #report-view-modal-backdrop,
+    #ficha-view-modal-backdrop,
     .printable-area, 
-    .printable-area .modal-content { /* Alvo duplo por segurança */
+    .printable-area .modal-content {
         display: block !important;
         position: static !important;
         width: 100% !important;
@@ -263,9 +255,9 @@ details[open] .process-content {
         background-color: white !important;
         padding: 0 !important;
         margin: 0 !important;
-        overflow: visible !important; /* Garante que o conteúdo não seja cortado */
-        /* Evita que o próprio container quebre a página */
+        /* (NOVA CORREÇÃO) Evita que o próprio container do modal quebre a página */
         page-break-before: avoid !important;
+        break-before: avoid-page !important;
     }
     
     /* Mostra todo o conteúdo que poderia estar com scroll */
@@ -279,16 +271,36 @@ details[open] .process-content {
         display: none !important;
     }
 
-    /* * (ESTA É A CORREÇÃO PRINCIPAL)
-     * Remove o padding (`p-8` do Tailwind) dos containers de conteúdo,
-     * para que a margem `@page { margin: 1cm; }` seja a única
-     * margem/espaçamento externo aplicado.
-    */
+    /* --- (INÍCIO DA SOLUÇÃO) --- */
+    /* Zera o padding/margin dos containers de conteúdo para evitar margens duplas */
     #notification-content,
     #report-view-content,
     #ficha-view-content {
         padding: 0 !important;
+        margin: 0 !important; /* Adicionado por segurança */
+        /* (NOVA CORREÇÃO) Evita que o container de conteúdo quebre a página */
+        page-break-before: avoid !important;
+        break-before: avoid-page !important;
     }
+
+    /* (NOVA CORREÇÃO) */
+    /* Zera a margem/padding superior do PRIMEIRO elemento */
+    /* DENTRO do container e impede que *ele* cause a quebra. */
+    #notification-content > *:first-child,
+    #report-view-content > *:first-child,
+    #ficha-view-content > *:first-child {
+        margin: 0 !important; /* Reseta TODAS as margens */
+        padding: 0 !important; /* Reseta TODOS os paddings */
+        page-break-before: avoid !important; /* Evita quebra antes */
+        break-before: avoid-page !important; /* Evita quebra antes (moderno) */
+    }
+    /* --- (FIM DA SOLUÇÃO) --- */
+
+    /* --- (INÍCIO DA CORREÇÃO) --- */
+    /* O bloco que definia 'padding: 1cm !important;' foi REMOVIDO daqui. */
+    /* A regra @page abaixo (linha 332) é a única que deve */
+    /* controlar as margens da impressão. */
+    /* --- (FIM DA CORREÇÃO) --- */
 
     /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO --- */
     
@@ -324,8 +336,15 @@ details[open] .process-content {
     .break-inside-avoid {
         page-break-inside: avoid;
     }
+
+    /* (Adicionada regra @page da sua versão funcional) */
+    @page {
+        margin: 1cm;
+    }
 }
 /* ============================================================================== */
-/* (FIM DA SOLUÇÃO DEFINITIVA)                                                    */
+/* (FIM DA CORREÇÃO)                                                              */
 /* ============================================================================== */
+
+
 
