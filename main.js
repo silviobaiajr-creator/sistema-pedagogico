@@ -271,7 +271,7 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- LÓGICA DE IMPRESSÃO CORRIGIDA (Híbrida Definitiva + Mobile) ---
+// --- LÓGICA DE IMPRESSÃO CORRIGIDA (Abordagem Cirúrgica) ---
 // ==============================================================================
 
 /**
@@ -295,41 +295,33 @@ function handlePrintClick(contentElementId) {
          return;
     }
 
-    // --- INÍCIO DA NOVA CORREÇÃO (Anti-Animação) ---
-    // 1. Encontra o .modal-content que contém o conteúdo
-    const modalContent = contentElement.closest('.modal-content');
-    if (!modalContent) {
-        console.error("Erro na impressão: .modal-content não encontrado.");
-        return;
-    }
-
-    // 2. Salva a transição original e a desativa FORÇADAMENTE via JS
-    // Isso impede que o navegador tente "animar" a renderização de impressão
-    const originalTransition = modalContent.style.transition;
-    modalContent.style.transition = 'none !important';
-    // --- FIM DA NOVA CORREÇÃO (Anti-Animação) ---
+    // --- CORREÇÃO ---
+    // Removemos a manipulação manual da 'transition' do JavaScript.
+    // O novo CSS em @media print (style.css) agora cuida disso
+    // de forma mais confiável com 'transition: none !important;'.
+    // --- FIM DA CORREÇÃO ---
 
 
-    // 3. Adiciona classe específica ('printing-now')
+    // 1. Adiciona classe específica ('printing-now')
     printableBackdrop.classList.add('printing-now');
 
-    // 4. Define a função de limpeza
+    // 2. Define a função de limpeza
     const cleanupAfterPrint = () => {
         printableBackdrop.classList.remove('printing-now');
-        // Restaura a transição original do modal
-        modalContent.style.transition = originalTransition;
+        // Não precisamos mais restaurar a transição aqui
     };
 
-    // 5. Chama a impressão
+    // 3. Chama a impressão
     try {
         // ==================================================================
-        // INÍCIO DA NOVA CORREÇÃO (Delay Aumentado)
+        // INÍCIO DA NOVA CORREÇÃO (Delay Simples)
         // ==================================================================
         
-        // Passo A: Espera 300ms (aumentado de 150ms)
-        // Este tempo é necessário para o JS desativar a transição E
-        // o navegador aplicar a classe .printing-now
-        setTimeout(() => { // <--- CORRIGIDO
+        // Passo A: Espera 100ms.
+        // Um pequeno delay ainda é útil para garantir que a classe .printing-now
+        // seja aplicada antes do navegador "bater a foto" da página.
+        // Não precisamos mais do delay longo de 300ms.
+        setTimeout(() => { 
             try {
                 // Passo B: Chama a impressão.
                 window.print();
@@ -342,7 +334,7 @@ function handlePrintClick(contentElementId) {
                 showToast("Não foi possível abrir a janela de impressão.");
                 cleanupAfterPrint(); // Limpa se a impressão falhar
             }
-        }, 300); // <--- CORRIGIDO (Aumentado de 150ms para 300ms)
+        }, 100); // Usamos um delay curto e seguro (100ms)
         // ==================================================================
         // FIM DA NOVA CORREÇÃO
         // ==================================================================
