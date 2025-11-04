@@ -249,14 +249,14 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- LÓGICA DE IMPRESSÃO CORRIGIDA (Abordagem Cirúrgica) ---
+// --- (INÍCIO DA SUBSTITUIÇÃO) ---
+// A função 'handlePrintClick' abaixo foi substituída pela versão com html2pdf.js
 // ==============================================================================
 
 /**
- * Prepara o DOM para impressão adicionando uma classe específica ao modal
- * e limpa depois.
+ * Gera um PDF do conteúdo do modal e inicia o download.
+ * Isso garante uma impressão 100% consistente em desktop e mobile.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
- * (ex: 'notification-content', 'report-view-content').
  */
 function handlePrintClick(contentElementId) {
     const contentElement = document.getElementById(contentElementId);
@@ -266,65 +266,69 @@ function handlePrintClick(contentElementId) {
         return;
     }
     
-    const printableBackdrop = contentElement.closest('.printable-area');
-    if (!printableBackdrop) {
-         console.error("Backdrop '.printable-area' pai não encontrado para:", contentElementId);
-         showToast("Erro ao preparar a área de impressão.");
-         return;
-    }
+    // 1. (NOVO) Encontrar o título do modal para usar como nome do arquivo
+    // (Esta busca funciona para 'notification', 'report-view' e 'ficha-view')
+    const modalContent = contentElement.closest('.modal-content');
+    const titleElement = modalContent ? modalContent.querySelector('h3[id$="-title"]') : null;
+    // Remove caracteres inválidos do nome do arquivo (como Nº)
+    const fileName = (titleElement ? titleElement.textContent.replace(/Nº/g, 'Num') : 'documento') + '.pdf';
 
-    // --- CORREÇÃO ---
-    // Removemos a manipulação manual da 'transition' do JavaScript.
-    // O novo CSS em @media print (style.css) agora cuida disso
-    // de forma mais confiável com 'transition: none !important;'.
-    // --- FIM DA CORREÇÃO ---
+    // 2. (NOVO) Reutilizar sua função de toast para feedback
+    // (A função showToast já existe em utils.js)
+    showToast("A gerar PDF... Por favor, aguarde.");
 
-
-    // 1. Adiciona classe específica ('printing-now')
-    printableBackdrop.classList.add('printing-now');
-
-    // 2. Define a função de limpeza
-    const cleanupAfterPrint = () => {
-        printableBackdrop.classList.remove('printing-now');
-        // Não precisamos mais restaurar a transição aqui
+    // 3. (NOVO) Definir as opções do html2pdf
+    const options = {
+        // Define a margem do PDF (em polegadas)
+        margin: 0.5,
+        // Define o nome do arquivo
+        filename: fileName,
+        // Configura a qualidade da imagem (html2canvas)
+        image: { type: 'jpeg', quality: 0.98 },
+        // Configura o html2canvas
+        html2canvas: {
+            scale: 2, // Escala 2x para fontes mais nítidas
+            useCORS: true // Tenta carregar imagens de outros domínios (ex: logo)
+        },
+        // Configura o jsPDF
+        jsPDF: {
+            unit: 'in', // Unidade em polegadas
+            format: 'a4', // Formato A4
+            orientation: 'portrait' // Orientação retrato
+        }
     };
 
-    // 3. Chama a impressão
+    // 4. (NOVO) Chamar a biblioteca html2pdf
     try {
-        // ==================================================================
-        // INÍCIO DA NOVA CORREÇÃO (Delay Simples)
-        // ==================================================================
-        
-        // Passo A: Espera 100ms.
-        // Um pequeno delay ainda é útil para garantir que a classe .printing-now
-        // seja aplicada antes do navegador "bater a foto" da página.
-        // Não precisamos mais do delay longo de 300ms.
-        setTimeout(() => { 
-            try {
-                // Passo B: Chama a impressão.
-                window.print();
-            
-                // Passo C: Limpeza agendada
-                setTimeout(cleanupAfterPrint, 500); 
+        // Verifica se a biblioteca foi carregada
+        if (typeof html2pdf === 'undefined') {
+            showToast("Erro: Biblioteca de PDF (html2pdf) não carregada.");
+            console.error("html2pdf is not defined.");
+            return;
+        }
 
-            } catch (printError) {
-                console.error("Erro durante a chamada window.print():", printError);
-                showToast("Não foi possível abrir a janela de impressão.");
-                cleanupAfterPrint(); // Limpa se a impressão falhar
-            }
-        }, 100); // Usamos um delay curto e seguro (100ms)
-        // ==================================================================
-        // FIM DA NOVA CORREÇÃO
-        // ==================================================================
-        
+        // Gera o PDF a partir do elemento HTML e salva (inicia o download)
+        html2pdf().from(contentElement).set(options).save()
+            .then(() => {
+                // Opcional: pode mostrar um toast de sucesso aqui
+                // showToast("Download do PDF iniciado!");
+            })
+            .catch(err => {
+                console.error("Erro ao gerar PDF:", err);
+                showToast("Erro ao gerar o PDF.");
+            });
+
     } catch (e) {
-        // Este catch externo pega erros síncronos (raro)
-        console.error("Erro ao preparar a impressão:", e);
-        showToast("Não foi possível abrir a janela de impressão.");
-        // Se falhar, limpa imediatamente
-        cleanupAfterPrint();
+        console.error("Erro crítico ao chamar html2pdf:", e);
+        showToast("Erro ao iniciar a geração do PDF.");
     }
+
+    // 5. (REMOVIDO) A lógica antiga de adicionar/remover classes
+    // e chamar window.print() não é mais necessária.
 }
+// ==============================================================================
+// --- (FIM DA SUBSTITUIÇÃO) ---
+// ==============================================================================
 
 
 // --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
@@ -379,4 +383,3 @@ function setupModalCloseButtons() {
     document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
-
