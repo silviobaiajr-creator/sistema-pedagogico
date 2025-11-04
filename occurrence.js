@@ -74,7 +74,6 @@ let editingRoleId = null; // Guarda o ID do aluno cujo papel está sendo editado
 
 /**
  * (MODIFICADO - Papéis) Renderiza as tags dos alunos selecionados com ícones de papel e botão de edição.
- * (MODIFICADO - SUGESTÃO 5) Cores alteradas
  */
 const renderTags = () => {
     const tagsContainerElement = document.getElementById('student-tags-container');
@@ -88,20 +87,17 @@ const renderTags = () => {
     state.selectedStudents.forEach((data, studentId) => {
         const { student, role } = data;
         const tag = document.createElement('span');
-        // (ALTERADO - SUGESTÃO 5) Cores
-        tag.className = 'bg-sky-100 text-sky-800 text-sm font-medium me-2 px-2.5 py-1 rounded-full flex items-center gap-1.5';
+        tag.className = 'bg-indigo-100 text-indigo-800 text-sm font-medium me-2 px-2.5 py-1 rounded-full flex items-center gap-1.5';
         const iconClass = roleIcons[role] || roleIcons[defaultRole];
 
         tag.innerHTML = `
             <i class="${iconClass} fa-fw" title="${role}"></i>
             <span>${student.name}</span>
-            <!-- (ALTERADO - SUGESTÃO 5) Cores -->
-            <span class="text-xs text-sky-500 font-normal">(${student.class || 'S/ Turma'})</span>
-            <button type="button" class="edit-role-btn ml-1 text-gray-400 hover:text-sky-600" data-id="${studentId}" title="Editar Papel">
+            <span class="text-xs text-indigo-500 font-normal">(${student.class || 'S/ Turma'})</span>
+            <button type="button" class="edit-role-btn ml-1 text-gray-400 hover:text-indigo-600" data-id="${studentId}" title="Editar Papel">
                 <i class="fas fa-pencil-alt fa-xs"></i>
             </button>
-            <!-- (ALTERADO - SUGESTÃO 5) Cores -->
-            <button type="button" class="remove-tag-btn ms-1 text-sky-600 hover:text-sky-800">&times;</button>
+            <button type="button" class="remove-tag-btn ms-1 text-indigo-600 hover:text-indigo-800">&times;</button>
         `;
 
         // Listener para remover a tag
@@ -147,7 +143,6 @@ const openRoleEditDropdown = (buttonElement, studentId) => {
 
 /**
  * (MODIFICADO - Papéis) Gerencia a UI de seleção de múltiplos alunos e a seleção/edição de papéis.
- * (MODIFICADO - SUGESTÃO 5) Cores alteradas
  */
 export const setupStudentTagInput = (inputElement, suggestionsElement, tagsContainerElement) => {
     const roleSelectionPanel = document.getElementById('role-selection-panel');
@@ -180,8 +175,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             suggestionsElement.classList.remove('hidden');
             filteredStudents.forEach(student => {
                 const item = document.createElement('div');
-                // (ALTERADO - SUGESTÃO 5) Cores
-                item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50'; // Tailwind
+                item.className = 'suggestion-item p-2 cursor-pointer hover:bg-indigo-50'; // Tailwind
                 item.textContent = student.name;
                 item.addEventListener('click', () => {
                     // Guarda o aluno e mostra o painel de seleção de papel
@@ -325,8 +319,6 @@ export const getFilteredOccurrences = () => {
 // Função reescrita para usar o layout de acordeão (V4).
 // CORREÇÃO (01/11/2025): Trocado <details>/<summary> por <div>s para
 // corrigir o bug de 'scrollHeight' ser 0.
-// (MODIFICADO - SUGESTÃO 4) Filtro de privacidade adicionado.
-// (MODIFICADO - SUGESTÃO 5) Cores alteradas.
 // =================================================================================
 
 /**
@@ -360,15 +352,6 @@ export const renderOccurrences = () => {
         // --- (INÍCIO DA LÓGICA V4) ---
         // Gera o HTML do acordeão para cada aluno
         const studentAccordionsHTML = [...incident.participantsInvolved.values()]
-            // (ADICIONADO - SUGESTÃO 4) Filtra para mostrar apenas o aluno procurado
-            .filter(participant => {
-                // Se a busca NÃO está vazia E o nome deste participante NÃO corresponde, esconda-o
-                if (studentSearch && !participant.student.name.toLowerCase().includes(studentSearch)) {
-                    return false;
-                }
-                return true; // Caso contrário, mostre
-            })
-            // FIM DO FILTRO
             .map(participant => {
                 const { student, role } = participant;
                 if (!student) return '';
@@ -408,10 +391,9 @@ export const renderOccurrences = () => {
                 // 2. Gera os Botões de Ação (para dentro do acordeão)
                 
                 // Botão Avançar Etapa
-                // (ALTERADO - SUGESTÃO 5) Cores
                 const avancarBtn = `
                     <button type="button"
-                            class="avancar-etapa-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100 ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
+                            class="avancar-etapa-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100 ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
                             title="${isIndividualResolvido ? 'Processo individual finalizado' : `Avançar acompanhamento de ${student.name}`}"
                             ${isIndividualResolvido ? 'disabled' : ''}
                             data-group-id="${incident.id}"
@@ -432,10 +414,9 @@ export const renderOccurrences = () => {
                 ` : '';
 
                 // Botão Notificação (movido para dentro)
-                // (ALTERADO - SUGESTÃO 5) Cores
                 const notificationBtn = (record && record.meetingDate && record.meetingTime) ? `
                     <button type="button"
-                            class="notification-student-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100"
+                            class="notification-student-btn text-indigo-600 hover:text-indigo-900 text-xs font-semibold py-1 px-2 rounded-md bg-indigo-50 hover:bg-indigo-100"
                             data-record-id="${recordId}"
                             data-student-id="${student.matricula}"
                             data-group-id="${incident.id}"
@@ -476,8 +457,7 @@ export const renderOccurrences = () => {
                 return `
                     <div class="bg-gray-50 rounded-lg border border-gray-200">
                         <!-- Cabeçalho Clicável (DIV, não <summary>) -->
-                        <!-- (ALTERADO - SUGESTÃO 5) Cores -->
-                        <div class="occurrence-summary p-3 cursor-pointer hover:bg-sky-50 flex justify-between items-center"
+                        <div class="occurrence-summary p-3 cursor-pointer hover:bg-indigo-50 flex justify-between items-center"
                              data-content-id="${contentId}">
                             
                             <div class="flex items-center gap-2">
@@ -1686,3 +1666,4 @@ export const initOccurrenceListeners = () => {
 // =================================================================================
 // --- FIM DA REESCRITA (initOccurrenceListeners) ---
 // =================================================================================
+

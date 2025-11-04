@@ -39,16 +39,16 @@
                     <form id="login-form" class="space-y-4">
                         <div>
                             <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
-                            <input type="email" id="login-email" name="email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
+                            <input type="email" id="login-email" name="email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
                         </div>
                         <div>
                             <label for="login-password" class="block text-sm font-medium text-gray-700">Senha</label>
-                            <input type="password" id="login-password" name="password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
+                            <input type="password" id="login-password" name="password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
                         </div>
-                        <button type="submit" class="w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">Entrar</button>
+                        <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Entrar</button>
                     </form>
                     <p class="text-center text-sm text-gray-500 mt-6">
-                        Não tem uma conta? <button id="show-register-view" class="font-semibold text-sky-600 hover:underline">Registe-se</button>
+                        Não tem uma conta? <button id="show-register-view" class="font-semibold text-indigo-600 hover:underline">Registe-se</button>
                     </p>
                 </div>
 
@@ -59,16 +59,16 @@
                     <form id="register-form" class="space-y-4">
                         <div>
                             <label for="register-email" class="block text-sm font-medium text-gray-700">Email</label>
-                            <input type="email" id="register-email" name="email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
+                            <input type="email" id="register-email" name="email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
                         </div>
                         <div>
                             <label for="register-password" class="block text-sm font-medium text-gray-700">Senha (mínimo 6 caracteres)</label>
-                            <input type="password" id="register-password" name="password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
+                            <input type="password" id="register-password" name="password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border">
                         </div>
-                        <button type="submit" class="w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">Criar Conta</button>
+                        <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">Criar Conta</button>
                     </form>
                     <p class="text-center text-sm text-gray-500 mt-6">
-                        Já tem uma conta? <button id="show-login-view" class="font-semibold text-sky-600 hover:underline">Entrar</button>
+                        Já tem uma conta? <button id="show-login-view" class="font-semibold text-indigo-600 hover:underline">Entrar</button>
                     </p>
                 </div>
             </div>
@@ -81,27 +81,22 @@
     <div id="main-content" class="hidden">
         <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
             <!-- Cabeçalho -->
-            <!-- (ALTERADO - SUGESTÃO 2) Classes flex alteradas para responsividade -->
-            <!-- (ALTERADO - SUGESTÃO 5) Cores do gradiente alteradas -->
-            <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-sky-500 to-teal-600 text-white shadow-lg flex flex-wrap sm:flex-nowrap justify-between items-center gap-4 text-center sm:text-left">
+            <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg flex flex-col sm:flex-row justify-between sm:items-center gap-4 text-center sm:text-left">
                 <div>
                     <h1 id="header-school-name" class="text-2xl sm:text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
                     <p class="opacity-90 mt-1 text-sm sm:text-base">Base de dados partilhada entre todos os utilizadores.</p>
                 </div>
                 <div class="flex items-center gap-2 sm:gap-4">
-                     <!-- (ALTERADO - SUGESTÃO 1) Adicionado 'hidden' -->
-                     <button id="settings-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
+                     <button id="settings-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm">
                         <i class="fas fa-cog mr-2"></i>Configurações
                     </button>
-                    <!-- (ALTERADO - SUGESTÃO 1) Adicionado 'hidden' -->
-                    <button id="manage-students-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
+                    <button id="manage-students-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm">
                         <i class="fas fa-users-cog mr-2"></i>Gerir Alunos
                     </button>
                     <div id="user-profile" class="flex items-center space-x-4 hidden self-center sm:self-auto">
                         <div class="text-right">
                             <p id="user-email" class="font-semibold text-sm"></p>
-                            <!-- (ALTERADO - SUGESTÃO 5) Cor do texto -->
-                            <button id="logout-btn" class="text-xs sm:text-sm text-sky-200 hover:text-white transition">Sair</button>
+                            <button id="logout-btn" class="text-xs sm:text-sm text-indigo-200 hover:text-white transition">Sair</button>
                         </div>
                     </div>
                 </div>
@@ -124,12 +119,10 @@
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <h2 id="occurrences-title" class="text-xl sm:text-2xl font-semibold text-gray-700">Registos de Ocorrências</h2>
                     <div class="flex gap-4">
-                        <!-- (ALTERADO - SUGESTÃO 5) Cores alteradas -->
-                        <button id="general-report-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
+                        <button id="general-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral
                         </button>
-                        <!-- (ALTERADO - SUGESTÃO 5) Cores alteradas -->
-                        <button id="add-occurrence-btn" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">
+                        <button id="add-occurrence-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">
                             <i class="fas fa-plus mr-2"></i>Nova Ocorrência
                         </button>
                     </div>
@@ -171,8 +164,7 @@
                     <div class="mb-4">
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
-                            <!-- (ALTERADO - SUGESTÃO 5) Cores do focus -->
-                            <input type="text" id="search-occurrences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 sm:text-sm" placeholder="Filtrar por nome do aluno...">
+                            <input type="text" id="search-occurrences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Filtrar por nome do aluno...">
                         </div>
                     </div>
                     <div id="loading-occurrences" class="text-center p-8"><i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i><p class="mt-2 text-gray-500">A carregar registos...</p></div>
@@ -189,14 +181,8 @@
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
                     <div class="flex gap-4">
-                        <!-- (ALTERADO - SUGESTÃO 5) Cores alteradas -->
-                        <button id="general-ba-report-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
+                        <button id="general-ba-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral
-                        </button>
-                        <!-- (ADICIONADO - SUGESTÃO 3) Botão Nova Ação -->
-                        <!-- (ALTERADO - SUGESTÃO 5) Cores alteradas para emerald -->
-                        <button id="add-absence-btn" class="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-emerald-700 transition duration-300">
-                            <i class="fas fa-plus mr-2"></i>Nova Ação
                         </button>
                     </div>
                 </div>
@@ -292,8 +278,7 @@
                                 <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200" data-role="Vítima"><i class="fas fa-user-shield fa-fw"></i> Vítima</button>
                                 <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200" data-role="Agente"><i class="fas fa-gavel fa-fw"></i> Agente</button>
                                 <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200" data-role="Testemunha"><i class="fas fa-eye fa-fw"></i> Testemunha</button>
-                                <!-- (ALTERADO - SUGESTÃO 5) Cor do anel -->
-                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 ring-1 ring-inset ring-sky-500" data-role="Envolvido"><i class="fas fa-user fa-fw"></i> Envolvido</button> <!-- Padrão -->
+                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 ring-1 ring-inset ring-indigo-500" data-role="Envolvido"><i class="fas fa-user fa-fw"></i> Envolvido</button> <!-- Padrão -->
                             </div>
                         </div>
                     </div>
@@ -308,8 +293,8 @@
                     <!-- (NOVO V3) Campo Providências da Escola (Ação 1) -->
                     <div><label for="providencias-escola" class="block text-sm font-medium">Providências Imediatas da Escola <span class="text-red-500">*</span></label><textarea id="providencias-escola" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="O que a escola fez imediatamente após o fato?" required></textarea></div>
                 </div>
-                <!-- (ALTERADO - SUGESTÃO 5) Cores do botão -->
-                <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Fato (Ação 1)</button></div>
+
+                <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Fato (Ação 1)</button></div>
             </form>
             <!-- (NOVO) Dropdown Escondido para Edição de Papel -->
             <div id="role-edit-dropdown" class="hidden absolute z-20 w-32 bg-white rounded-md shadow-lg border">
@@ -426,11 +411,10 @@
                     </fieldset>
 
                 </div> <!-- Fim do dynamic-occurrence-fields -->
-                
-                <!-- (ALTERADO - SUGESTÃO 5) Cores do botão -->
+
                 <div class="pt-4 flex justify-end space-x-3">
                     <button type="button" id="cancel-follow-up-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button>
-                    <button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Etapa</button>
+                    <button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Etapa</button>
                 </div>
             </form>
         </div>
@@ -537,8 +521,7 @@
                     </div>
 
                 </div> <!-- Fim dynamic-fields-container -->
-                
-                <!-- (ALTERADO - SUGESTÃO 5) Cores do botão -->
+
                 <div class="pt-4 flex justify-end space-x-3 bg-white sticky bottom-0 pb-6 -mx-6 px-6 border-t"><button type="button" id="cancel-absence-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Ação</button></div>
             </form>
         </div>
@@ -553,11 +536,9 @@
         <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 class="text-xl font-semibold">Gerir Lista de Alunos</h3><button id="close-students-modal-btn" class="text-gray-500 text-2xl font-bold">&times;</button></div>
             <div class="p-6 flex-grow overflow-y-auto space-y-6">
-                <!-- (ALTERADO - SUGESTÃO 5) Cores do botão -->
-                <div class="bg-gray-50 p-4 rounded-lg border"><h4 id="student-form-title" class="text-lg font-semibold mb-2">Adicionar Novo Aluno</h4><form id="student-form" class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start"><input type="hidden" id="student-id-input"><div><label class="block text-sm font-medium">Matrícula</label><input type="text" id="student-matricula-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Nome Completo</label><input type="text" id="student-name-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Turma</label><input type="text" id="student-class-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Contato</label><input type="text" id="student-contato-input" class="mt-1 w-full p-2 border"></div><div class="sm:col-span-2"><label class="block text-sm font-medium">Endereço</label><input type="text" id="student-endereco-input" class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 1</label><input type="text" id="student-resp1-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 2</label><input type="text" id="student-resp2-input" class="mt-1 w-full p-2 border"></div><div class="flex space-x-2 sm:col-span-2 self-end"><button type="submit" id="save-student-btn" class="w-full bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar</button><button type="button" id="cancel-edit-student-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hidden">Cancelar</button></div></form></div>
+                <div class="bg-gray-50 p-4 rounded-lg border"><h4 id="student-form-title" class="text-lg font-semibold mb-2">Adicionar Novo Aluno</h4><form id="student-form" class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start"><input type="hidden" id="student-id-input"><div><label class="block text-sm font-medium">Matrícula</label><input type="text" id="student-matricula-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Nome Completo</label><input type="text" id="student-name-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Turma</label><input type="text" id="student-class-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Contato</label><input type="text" id="student-contato-input" class="mt-1 w-full p-2 border"></div><div class="sm:col-span-2"><label class="block text-sm font-medium">Endereço</label><input type="text" id="student-endereco-input" class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 1</label><input type="text" id="student-resp1-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 2</label><input type="text" id="student-resp2-input" class="mt-1 w-full p-2 border"></div><div class="flex space-x-2 sm:col-span-2 self-end"><button type="submit" id="save-student-btn" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar</button><button type="button" id="cancel-edit-student-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hidden">Cancelar</button></div></form></div>
                 <div><h4 class="text-lg font-semibold mb-2">Alunos Registados</h4><div class="border rounded-lg overflow-hidden"><div class="overflow-y-auto max-h-64"><table class="min-w-full divide-y"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-4 py-2 text-left text-xs font-medium uppercase">Nome</th><th class="px-4 py-2 text-left text-xs font-medium uppercase">Turma</th><th class="px-4 py-2 text-right text-xs font-medium uppercase">Ações</th></tr></thead><tbody id="students-list-table" class="bg-white divide-y"></tbody></table></div></div></div>
-                <!-- (ALTERADO - SUGESTÃO 5) Cores do input file -->
-                <div class="border-t pt-6"><h4 class="text-lg font-semibold mb-2">Importar em Massa (CSV)</h4><p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`, `turma`, `endereco`, `contato`, `resp1`, `resp2`. Isto <strong>substituirá</strong> a lista atual.</p><div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4"><input type="file" id="csv-file" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"><button type="button" id="upload-csv-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg whitespace-nowrap">Carregar CSV</button></div><div id="csv-feedback" class="text-sm mt-2"></div></div>
+                <div class="border-t pt-6"><h4 class="text-lg font-semibold mb-2">Importar em Massa (CSV)</h4><p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`, `turma`, `endereco`, `contato`, `resp1`, `resp2`. Isto <strong>substituirá</strong> a lista atual.</p><div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4"><input type="file" id="csv-file" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"><button type="button" id="upload-csv-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg whitespace-nowrap">Carregar CSV</button></div><div id="csv-feedback" class="text-sm mt-2"></div></div>
             </div>
         </div>
     </div>
@@ -583,10 +564,9 @@
                     <input type="url" id="school-logo-input" placeholder="https://exemplo.com/logo.png" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
                     <p class="text-xs text-gray-500 mt-1">Insira o link completo da imagem. Deixe em branco para usar apenas o nome.</p>
                 </div>
-                <!-- (ALTERADO - SUGESTÃO 5) Cores do botão -->
                 <div class="pt-4 flex justify-end space-x-3">
                     <button type="button" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg" id="cancel-settings-btn">Cancelar</button>
-                    <button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Configurações</button>
+                    <button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Configurações</button>
                 </div>
             </form>
         </div>
@@ -599,7 +579,6 @@
                 <h3 class="text-xl font-semibold">Gerar Notificação</h3>
                 <button id="close-student-selection-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
-            <!-- (ALTERADO - SUGESTÃO 5) Cores do hover -->
             <div class="p-6">
                 <p class="text-sm text-gray-600 mb-4">Este incidente envolve múltiplos alunos. Selecione para qual aluno deseja gerar a notificação individual:</p>
                 <div id="student-selection-modal-body" class="space-y-2"></div>
@@ -659,13 +638,12 @@
     <!-- Modais de Visualização e Impressão (Estrutura Genérica - Inalterados) -->
     <div id="notification-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="notification-title" class="text-xl font-semibold">Notificação</h3><button id="close-notification-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="notification-content" class="p-8 overflow-y-auto bg-white"></div>
         <!-- **** CORREÇÃO: Adicionados seletores de Margem e Espaçamento **** -->
-        <!-- (ALTERADO - SUGESTÃO 5) Cores dos selects -->
         <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
             <!-- NOVOS CONTROLOS (INSERIDOS AQUI) -->
             <div class="flex-grow flex items-center justify-start gap-4">
                 <div>
                     <label for="print-margin-select-notificacao" class="block text-xs font-medium text-gray-500">Margens</label>
-                    <select id="print-margin-select-notificacao" name="print-margin-select" class="print-options-margin block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
+                    <select id="print-margin-select-notificacao" name="print-margin-select" class="print-options-margin block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-xs py-1">
                         <option value="normal">Normal (2cm)</option>
                         <option value="narrow" selected>Estreita (1.27cm)</option>
                         <option value="wide">Larga (2.54cm)</option>
@@ -673,7 +651,7 @@
                 </div>
                 <div>
                     <label for="print-spacing-select-notificacao" class="block text-xs font-medium text-gray-500">Espaçamento</label>
-                    <select id="print-spacing-select-notificacao" name="print-spacing-select" class="print-options-spacing block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
+                    <select id="print-spacing-select-notificacao" name="print-spacing-select" class="print-options-spacing block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-xs py-1">
                         <option value="normal">Normal (1.5)</option>
                         <option value="compact" selected>Compacto (1.15)</option>
                         <option value="single">Simples (1.0)</option>
@@ -688,13 +666,12 @@
     </div></div>
     <div id="report-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3><button id="close-report-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="report-view-content" class="p-8 overflow-y-auto bg-white"></div>
         <!-- **** CORREÇÃO: Adicionados seletores de Margem e Espaçamento **** -->
-        <!-- (ALTERADO - SUGESTÃO 5) Cores dos selects -->
         <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
             <!-- NOVOS CONTROLOS (INSERIDOS AQUI) -->
             <div class="flex-grow flex items-center justify-start gap-4">
                 <div>
                     <label for="print-margin-select-relatorio" class="block text-xs font-medium text-gray-500">Margens</label>
-                    <select id="print-margin-select-relatorio" name="print-margin-select" class="print-options-margin block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
+                    <select id="print-margin-select-relatorio" name="print-margin-select" class="print-options-margin block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-xs py-1">
                         <option value="normal">Normal (2cm)</option>
                         <option value="narrow" selected>Estreita (1.27cm)</option>
                         <option value="wide">Larga (2.54cm)</option>
@@ -702,7 +679,7 @@
                 </div>
                 <div>
                     <label for="print-spacing-select-relatorio" class="block text-xs font-medium text-gray-500">Espaçamento</label>
-                    <select id="print-spacing-select-relatorio" name="print-spacing-select" class="print-options-spacing block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
+                    <select id="print-spacing-select-relatorio" name="print-spacing-select" class="print-options-spacing block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-xs py-1">
                         <option value="normal">Normal (1.5)</option>
                         <option value="compact" selected>Compacto (1.15)</option>
                         <option value="single">Simples (1.0)</option>
@@ -717,13 +694,12 @@
     </div></div>
     <div id="ficha-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="ficha-view-title" class="text-xl font-semibold">Documento</h3><button id="close-ficha-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="ficha-view-content" class="p-8 overflow-y-auto bg-white"></div>
         <!-- **** CORREÇÃO: Adicionados seletores de Margem e Espaçamento **** -->
-        <!-- (ALTERADO - SUGESTÃO 5) Cores dos selects -->
         <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
             <!-- NOVOS CONTROLOS (INSERIDOS AQUI) -->
             <div class="flex-grow flex items-center justify-start gap-4">
                 <div>
                     <label for="print-margin-select-ficha" class="block text-xs font-medium text-gray-500">Margens</label>
-                    <select id="print-margin-select-ficha" name="print-margin-select" class="print-options-margin block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
+                    <select id="print-margin-select-ficha" name="print-margin-select" class="print-options-margin block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-xs py-1">
                         <option value="normal">Normal (2cm)</option>
                         <option value="narrow" selected>Estreita (1.27cm)</option>
                         <option value="wide">Larga (2.54cm)</option>
@@ -731,7 +707,7 @@
                 </div>
                 <div>
                     <label for="print-spacing-select-ficha" class="block text-xs font-medium text-gray-500">Espaçamento</label>
-                    <select id="print-spacing-select-ficha" name="print-spacing-select" class="print-options-spacing block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
+                    <select id="print-spacing-select-ficha" name="print-spacing-select" class="print-options-spacing block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-xs py-1">
                         <option value="normal">Normal (1.5)</option>
                         <option value="compact" selected>Compacto (1.15)</option>
                         <option value="single">Simples (1.0)</option>
@@ -760,8 +736,7 @@
     </div>
 
     <!-- Modal: Gerador de Relatório (Apenas Busca Ativa por enquanto - Inalterado) -->
-    <!-- (ALTERADO - SUGESTÃO 5) Cores do botão -->
-    <div id="report-generator-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="report-generator-title" class="text-xl font-semibold">Gerar Relatório</h3><button id="close-report-generator-btn" class="text-gray-500 text-2xl">&times;</button></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium">Selecione o Aluno(a)</label><select id="student-select" class="mt-1 block w-full"><option value="">Carregando...</option></select></div></div><div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg"><button type="button" id="cancel-report-generator-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="button" id="create-report-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">Gerar</button></div></div></div>
+    <div id="report-generator-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="report-generator-title" class="text-xl font-semibold">Gerar Relatório</h3><button id="close-report-generator-btn" class="text-gray-500 text-2xl">&times;</button></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium">Selecione o Aluno(a)</label><select id="student-select" class="mt-1 block w-full"><option value="">Carregando...</option></select></div></div><div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg"><button type="button" id="cancel-report-generator-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="button" id="create-report-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg">Gerar</button></div></div></div>
 
     <!-- Modal: Confirmação de Exclusão (Inalterado) -->
     <div id="delete-confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="p-6 text-center"><i class="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i><h3 class="text-lg font-semibold">Confirmar Exclusão</h3><p id="delete-confirm-message" class="mt-2 text-sm text-gray-500">Tem certeza?</p></div><div class="bg-gray-50 px-4 py-3 sm:px-6 flex flex-row-reverse rounded-b-lg"><button type="button" id="confirm-delete-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700">Excluir</button><button type="button" id="cancel-delete-btn" class="mt-3 sm:mt-0 w-full sm:w-auto inline-flex justify-center rounded-md px-4 py-2 bg-white text-gray-700 border hover:bg-gray-50 sm:mr-3">Cancelar</button></div></div></div>

@@ -2,11 +2,6 @@
 // ARQUIVO: auth.js
 // RESPONSABILIDADE: Gerenciar a lógica de autenticação (Login, Registro)
 // e a UI da tela de login.
-//
-// ATUALIZAÇÃO (Sug. 5 - Cores):
-// Nenhuma alteração de cor foi necessária *neste* ficheiro,
-// pois os estilos (cores dos botões, links)
-// são controlados diretamente no 'index.html'.
 // =================================================================================
 
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";

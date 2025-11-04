@@ -7,14 +7,6 @@
 /* de papel inline, dropdown de edição de papel e ajustes nas tags.               */
 /* ATUALIZAÇÃO (V4 - ACORDEÃO OCORRÊNCIAS - 01/11/2025): Adicionados estilos       */
 /* para o novo layout de acordeão de alunos na aba Ocorrências.                   */
-/* ATUALIZAÇÃO (TEMA Cores): Classe .tab-active atualizada para novo tema.         */
-/* ATUALIZAÇÃO (IMPRESSÃO v5 - 03/11/2025): Regras @media print reescritas        */
-/* com !important para forçar a renderização correta em navegadores móveis.       */
-/* */
-/* --- ATUALIZAÇÃO (CORREÇÃO CRASH IMPRESSÃO MÓVEL - 03/11/2025) ---            */
-/* 1. Removidas regras redundantes 'max-height' e 'overflow' do @media print.   */
-/* Estas regras entravam em conflito com a correção "v6" do main.js,         */
-/* causando o crash do motor de impressão em dispositivos móveis.            */
 /* ============================================================================== */
 
 /* --- ESTILOS GERAIS E FONTES --- */
@@ -42,11 +34,10 @@ body {
 }
 
 /* --- ESTILOS DE NAVEGAÇÃO E TABELAS --- */
-/* (MODIFICADO - TEMA Cores) */
 .tab-active {
-    border-color: #0284c7; /* sky-600 */
-    color: #0284c7; /* sky-600 */
-    background-color: #f0f9ff; /* sky-50 */
+    border-color: #4f46e5;
+    color: #4f46e5;
+    background-color: #eef2ff;
 }
 tbody tr:nth-child(even) {
     background-color: #f9fafb; /* Estilo "zebrado" */
@@ -233,88 +224,107 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO - v5 - MOBILE FORCE)                */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO - Abordagem Híbrida Definitiva)    */
 /* ============================================================================== */
 
+/* 1. (REMOVIDO) Estilos .is-printing (não são mais necessários) */
+/*
+body.is-printing > * {
+    display: none !important;
+}
+body.is-printing .printable-area {
+    display: block !important;
+    position: static !important;
+}
+*/
+
+/* 2. Estilos @media print (Agora usam a classe .printing-now) */
 @media print {
-    /* 1. Configurações Globais de Impressão */
+    /* Garante que o body não tenha margens */
     body, html {
         margin: 0 !important;
         padding: 0 !important;
-        background: #ffffff !important; /* Fundo branco para impressão */
+        background: none !important;
+        /* --- NOVA CORREÇÃO (ANTI-ANIMAÇÃO) --- */
+        /* Remove transições que podem atrasar a renderização no mobile */
         transition: none !important; 
         animation: none !important;
+        /* --- FIM DA CORREÇÃO --- */
     }
 
-    /* 2. Esconde o conteúdo principal da página */
-    body > #main-content,
-    body > #login-screen,
-    body > #toast-notification {
+    /* (NOVA REGRA 1) Esconde TUDO no body. */
+    body > * {
         display: none !important;
     }
     
-    /* 3. Prepara o Modal de Impressão (Backdrop) */
+    /* (NOVA REGRA 2) MOSTRA APENAS o backdrop que o JS marcou com .printing-now.
+       Esta regra reseta o backdrop .printable-area que tem a classe .printing-now
+    */
     body > .printing-now {
-        /* Remove todos os estilos de modal */
+        /* Remove o 'fixed', 'inset-0' e 'z-50' do modal */
         position: static !important;
-        display: block !important;
         width: 100% !important;
         height: auto !important;
         overflow: visible !important;
         padding: 0 !important;
+        /* Remove transições e opacidade */
         opacity: 1 !important; 
         transform: none !important;
-        background: none !important;
+        background: none !important; /* Remove o fundo escuro do backdrop */
+        /* Remove o flex-box de centralização */
+        display: block !important;
+        /* --- NOVA CORREÇÃO (ANTI-ANIMAÇÃO) --- */
         transition: none !important;
         animation: none !important;
+        /* --- FIM DA CORREÇÃO --- */
     }
 
-    /* 4. Prepara o Conteúdo do Modal */
+    /* (NOVA REGRA 3) Reseta o .modal-content DENTRO do backdrop visível */
     .printing-now .modal-content {
-        /* Remove todos os estilos de modal */
         transform: none !important;
         opacity: 1 !important;
         box-shadow: none !important;
         border: none !important;
         width: 100% !important;
         max-width: 100% !important;
+        max-height: none !important;
         margin: 0 !important;
         padding: 0 !important;
         display: block !important;
-        /* FORÇA A EXPANSÃO VERTICAL (Chave para o celular) */
-        height: auto !important;
-        /* max-height: none !important; */ /* <-- REMOVIDO: Conflitava com a correção v6 do main.js */
-        /* overflow: visible !important; */ /* <-- REMOVIDO: Conflitava com a correção v6 do main.js */
+        /* --- NOVA CORREÇÃO (ANTI-ANIMAÇÃO) --- */
         transition: none !important;
         animation: none !important;
+        /* --- FIM DA CORREÇÃO --- */
     }
 
-    /* 5. Esconde os elementos .no-print DENTRO do modal de impressão */
-    .printing-now .no-print, 
-    .printing-now .no-print * {
+    /* (NOVA REGRA 4) Esconde elementos .no-print DENTRO do backdrop visível */
+    .printing-now .no-print, .printing-now .no-print * {
         display: none !important;
     }
 
-    /* 6. FORÇA a expansão do conteúdo de scroll (A Chave para o celular) */
+    /* (REMOVIDA) A regra genérica .printing-content foi removida. */
+    /* (REMOVIDA) A regra 'body * { visibility: hidden }' foi removida. */
+
+
+    /* (NOVA REGRA 5) Remove padding do conteúdo DENTRO do backdrop visível */
     .printing-now #occurrence-record-content,
     .printing-now #notification-content,
     .printing-now #report-view-content,
     .printing-now #ficha-view-content {
         padding: 0 !important;
-        /* FORÇA a expansão e remove scrollbars */
-        /* overflow: visible !important; */ /* <-- REMOVIDO: Conflitava com a correção v6 do main.js */
-        height: auto !important;
-        /* max-height: none !important; */ /* <-- REMOVIDO: Conflitava com a correção v6 do main.js */
     }
 
-    /* 7. Estilos de Assinatura e Quebra de Página (Inalterados) */
+    /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO (Mantidos do original) --- */
+    
+    /* Bloco de assinaturas (garante visibilidade e formatação) */
     .signature-block, .signature-block * {
+        /* visibility: visible !important; */ /* Não é mais necessário com display:none */
         display: block !important;
     }
     
     .signature-block {
-        page-break-inside: avoid !important;
-        margin-top: 2.5rem !important;
+        page-break-inside: avoid !important; /* CORREÇÃO: Adicionado !important */
+        margin-top: 2.5rem !important; /* CORREÇÃO: Reduzido de 4rem (mt-16) para 2.5rem (mt-10) */
     }
     
     .signature-line {
@@ -322,8 +332,8 @@ details[open] .process-content {
         flex-direction: column !important;
         align-items: center !important;
         width: 60% !important;
-        margin: 1.5rem auto 0 auto !important;
-        page-break-inside: avoid !important;
+        margin: 1.5rem auto 0 auto !important; /* CORREÇÃO: Reduzido de 2rem (mt-8) para 1.5rem (mt-6) */
+        page-break-inside: avoid !important; /* CORREÇÃO: Adicionado !important */
     }
 
     .signature-text {
@@ -339,6 +349,7 @@ details[open] .process-content {
         color: #4b5563 !important;
     }
 
+    /* Evita quebras de página ruins em elementos comuns */
     .break-inside-avoid {
         page-break-inside: avoid;
     }
