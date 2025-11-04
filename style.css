@@ -217,125 +217,80 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* (INÍCIO DA SUBSTITUIÇÃO) SEÇÃO 2: NOVOS ESTILOS ROBUSTOS PARA IMPRESSÃO DIRETA  */
-/* Esta é a versão à prova de falhas que corrige o bug da "página em branco"     */
+/* (INÍCIO DA CORREÇÃO) SEÇÃO 2: ESTILOS PARA IMPRESSÃO (DA VERSÃO FUNCIONAL)      */
+/* Esta é a versão simples que funciona no celular, substituindo a lógica         */
+/* complexa de ".printing-now" que estava a falhar.                             */
 /* ============================================================================== */
 
 @media print {
-
-    /* --- 1. Preparação do Corpo --- */
-    /* Remove fundos, transições e garante que o layout ocupe a página */
-    body, html {
-        margin: 0 !important;
-        padding: 0 !important;
-        background: #fff !important; /* Fundo branco para impressão */
-        color: #000 !important;
-        font-size: 11pt; /* Tamanho de fonte consistente para impressão */
-        transition: none !important;
-        animation: none !important;
-    }
-
-    /* --- 2. Esconde o conteúdo principal da UI --- */
-    /* Escondemos explicitamente os elementos que NUNCA queremos imprimir */
-    #main-content, #login-screen, #toast-notification {
+    /* Esconde tudo que não está na área de impressão designada */
+    body > *:not(.printable-area) {
         display: none !important;
     }
     
-    /* --- 3. Esconde TODOS os modais por padrão --- */
-    /* Isso garante que apenas o modal ativo seja impresso */
-    .printable-area {
-        display: none !important;
-    }
-    
-    /* --- 4. MOSTRA APENAS o modal marcado para impressão --- */
-    /* Esta é a regra principal. O JS adicionará a classe '.printing-now' */
-    .printable-area.printing-now {
-        display: block !important;
-        position: static !important; /* Remove 'fixed' */
-        width: 100% !important;
-        height: auto !important;
-        overflow: visible !important; /* Mostra todo o conteúdo */
-        padding: 0 !important;
-        margin: 0 !important;
-        background: none !important;
-        border: none !important;
-        box-shadow: none !important;
-        transition: none !important;
-        animation: none !important;
-    }
-
-    /* --- 5. Reseta o '.modal-content' (Filho do backdrop) --- */
-    /* Reseta o container do modal para ser um documento simples */
-    .printing-now .modal-content {
+    /* Garante que a área de impressão ocupe toda a página */
+    .printable-area, .printable-area .modal-content {
         display: block !important;
         position: static !important;
         width: 100% !important;
-        max-width: 100% !important;
         height: auto !important;
-        overflow: visible !important; /* Crucial */
+        max-height: none !important;
+        box-shadow: none !important;
+        border: none !important;
+        transform: none !important;
+        background-color: white !important;
         padding: 0 !important;
         margin: 0 !important;
-        background: none !important;
-        border: none !important;
-        box-shadow: none !important;
-        transform: none !important; /* Remove 'scale' */
-        opacity: 1 !important;
-        transition: none !important;
-        animation: none !important;
-    }
-
-    /* --- 6. Esconde o "Chrome" do Modal --- */
-    /* Esta é a correção da "Lógica V4". Escondemos APENAS .no-print */
-    /* (Isto é mais seguro do que esconder tudo e re-mostrar o conteúdo) */
-    .printing-now .no-print {
-        display: none !important;
     }
     
-    /* --- 7. Garante que o CONTEÚDO do relatório esteja visível --- */
-    /* (Esta regra garante que o overflow-y-auto da tela seja removido) */
-    .printing-now #notification-content,
-    .printing-now #report-view-content,
-    .printing-now #ficha-view-content {
-        display: block !important;
-        width: 100% !important;
-        max-width: 100% !important;
+    /* Mostra todo o conteúdo que poderia estar com scroll */
+    .printable-area .overflow-y-auto {
         overflow: visible !important;
         height: auto !important;
     }
-
-    /* --- 8. Estilos Específicos do Documento --- */
-    /* (Estes estilos já estavam corretos no seu arquivo) */
     
-    /* Bloco de assinaturas (garante visibilidade e formatação) */
-    .signature-block, .signature-block * {
-        display: block !important;
+    /* Esconde elementos que não devem aparecer na impressão (botões, etc.) */
+    .no-print {
+        display: none !important;
     }
+
+    /* Garante que o conteúdo impresso não tenha margens desnecessárias */
+    /* (Este seletor foi pego da sua versão funcional '3d911...') */
+    #occurrence-record-content, 
+    #notification-content,
+    #report-view-content,
+    #ficha-view-content {
+        padding: 1cm !important; /* Margem de impressão padrão */
+    }
+
+    /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO --- */
     
+    /* Bloco de assinaturas, visível apenas na impressão */
     .signature-block {
-        page-break-inside: avoid !important; 
-        margin-top: 2.5rem !important; 
+        display: block !important;
+        page-break-inside: avoid; /* Tenta não quebrar o bloco no meio da página */
     }
     
     .signature-line {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        width: 60% !important;
-        margin: 1.5rem auto 0 auto !important; 
-        page-break-inside: avoid !important; 
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 60%;
+        margin-left: auto;
+        margin-right: auto;
     }
 
     .signature-text {
-        border-top: 1px solid #374151 !important;
-        width: 100% !important;
-        padding-top: 0.25rem !important;
-        text-align: center !important;
-        font-weight: 600 !important;
+        border-top: 1px solid #374151; /* Linha de assinatura */
+        width: 100%;
+        padding-top: 0.25rem;
+        text-align: center;
+        font-weight: 600;
     }
 
     .signature-role {
-        font-size: 0.75rem !important;
-        color: #4b5563 !important;
+        font-size: 0.75rem; /* 12px */
+        color: #4b5563; /* text-gray-600 */
     }
 
     /* Evita quebras de página ruins em elementos comuns */
@@ -343,12 +298,11 @@ details[open] .process-content {
         page-break-inside: avoid;
     }
 
-    /* Define as margens da página de impressão */
+    /* (Adicionada regra @page da sua versão funcional) */
     @page {
         margin: 1cm;
     }
 }
 /* ============================================================================== */
-/* (FIM DA SUBSTITUIÇÃO)                                                          */
+/* (FIM DA CORREÇÃO)                                                              */
 /* ============================================================================== */
-
