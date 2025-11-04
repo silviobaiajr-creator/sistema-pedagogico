@@ -1,32 +1,5 @@
 // =================================================================================
 // ARQUIVO: reports.js
-// RESPONSABILIDADE: Gerar todos os documentos e relatórios (Atas, Fichas, Ofícios, Relatórios Gerais).
-//
-// CORREÇÃO (STATUS ATA - 29/10/2025):
-// 1. Corrigida a lógica de cálculo do `overallStatus` na função
-//    `openOccurrenceRecordModal` para refletir corretamente o status geral
-//    do incidente (Pendente se algum aluno não estiver Resolvido).
-//
-// CORREÇÃO (ATA/RELATÓRIO - 29/10/2025):
-// ... (histórico anterior mantido) ...
-//
-// --- CORREÇÃO (REVISÃO DE LAYOUT OFICIAL - 01/11/2025) ---
-// 1. (OFÍCIOS/NOTIFICAÇÕES) Movidos dados do aluno (nome, turma) para
-//    o corpo do primeiro parágrafo, removendo os blocos de dados.
-// 2. (OFÍCIOS/NOTIFICAÇÕES) Data e Local alinhados à direita.
-// 3. (NOTIFICAÇÕES) Removidas linhas separadoras (`border-t`)
-//    extras acima dos blocos de assinatura.
-//
-// --- ATUALIZAÇÃO (ATA NARRATIVA - 01/11/2025) ---
-// 1. A função `openOccurrenceRecordModal` foi reescrita para gerar uma ata
-//    em formato narrativo (texto corrido), seguindo padrões técnicos
-//    para arquivamento em livro físico.
-//
-// ATUALIZAÇÃO (Sugestões 4 e 5):
-// 1. (Sug. 4) Adicionado filtro de privacidade em `generateAndShowGeneralReport`.
-// 2. (Sug. 5) Cores do tema atualizadas de `indigo`/`purple` para `sky`/`teal`.
-// =================================================================================
-
 
 import { state, dom } from './state.js';
 // formatPeriodo foi removido dos imports de utils.js pois não é usado aqui diretamente agora
