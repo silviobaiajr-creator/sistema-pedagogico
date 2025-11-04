@@ -222,7 +222,7 @@ details[open] .process-content {
 /* Esta seção substitui todas as tentativas anteriores.                           */
 /* Ela depende das correções feitas no `index.html`, onde:                        */
 /* 1. A classe `.printable-area` foi movida para `div.modal-content`.             */
-/* 2. A classe `p-8` foi removida dos containers de conteúdo                      */
+/* 2. A classe `p-8` foi RESTAURADA nos containers de conteúdo                    */
 /* (#notification-content, #report-view-content, #ficha-view-content).         */
 /* ============================================================================== */
 
@@ -279,6 +279,17 @@ details[open] .process-content {
         display: none !important;
     }
 
+    /* * (ESTA É A CORREÇÃO PRINCIPAL)
+     * Remove o padding (`p-8` do Tailwind) dos containers de conteúdo,
+     * para que a margem `@page { margin: 1cm; }` seja a única
+     * margem/espaçamento externo aplicado.
+    */
+    #notification-content,
+    #report-view-content,
+    #ficha-view-content {
+        padding: 0 !important;
+    }
+
     /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO --- */
     
     /* Bloco de assinaturas, visível apenas na impressão */
@@ -313,11 +324,6 @@ details[open] .process-content {
     .break-inside-avoid {
         page-break-inside: avoid;
     }
-
-    /* * As regras anteriores que zeravam #notification-content, etc.,
-     * foram removidas pois o padding (`p-8`) foi removido diretamente no HTML.
-     * A regra `@page { margin: 1cm; }` agora funciona como a única margem.
-    */
 }
 /* ============================================================================== */
 /* (FIM DA SOLUÇÃO DEFINITIVA)                                                    */
