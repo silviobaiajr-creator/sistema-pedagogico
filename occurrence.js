@@ -1,37 +1,5 @@
 // =================================================================================
-// ARQUIVO: occurrence.js (Fluxo V4 - UI de Acordeão)
-// RESPONSABILIDADE: Gerenciar toda a lógica, UI e eventos da
-// funcionalidade "Ocorrências".
-//
-// ATUALIZAÇÃO (SUGESTÃO DO USUÁRIO - 01/11/2025):
-// 1. A função `renderOccurrences` foi reescrita para adotar o layout de
-//    "Acordeão" (semelhante ao 'absence.js') para cada aluno.
-// 2. A lista de botões ("Avançar", "Editar", "Limpar", "Notificação", "Ver Ofício")
-//    foi movida para DENTRO do acordeão, limpando a UI principal.
-// 3. O acordeão agora exibe um histórico resumido das etapas concluídas.
-// 4. A função `initOccurrenceListeners` foi atualizada para controlar a
-//    abertura/fechamento dos novos acordeões e os cliques nos botões internos.
-//
-// CORREÇÃO (BUG DO ACORDEÃO - 01/11/2025):
-// 1. (renderOccurrences) Removidas as tags <details> e <summary>. Agora são
-//    usados <div>s, assim como em 'absence.js', para evitar conflitos
-//    de renderização com 'scrollHeight'.
-// 2. (initOccurrenceListeners) A lógica de clique do acordeão foi atualizada
-//    para controlar os <div>s (em vez de <summary>) e usar a lógica
-//    de 'isHidden' e 'maxHeight = null' de 'absence.js'.
-//
-// ATUALIZAÇÃO (SESSÃO ATUAL - SUGESTÕES 4 e 5):
-// 1. (Sug. 4 - Privacidade) `renderOccurrences` agora filtra a exibição dos
-//    alunos se um nome estiver na barra de busca.
-// 2. (Sug. 5 - Cores) Classes `indigo` substituídas por `sky`.
-//
-// ATUALIZAÇÃO (SESSÃO ATUAL - COERÊNCIA DE DATAS):
-// 1. `openOccurrenceModal`: Define a data MÁXIMA da Ação 1 (Fato) como 'hoje'.
-// 2. `openOccurrenceStepModal`: Define a data MÍNIMA para as Ações 2, 3 e 4,
-//    baseando-se na data da ação anterior.
-// 3. `handleOccurrenceStepSubmit`: Adiciona verificação final de cronologia
-//    antes de salvar no banco de dados.
-// =================================================================================
+// ARQUIVO: occurrence.js 
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
