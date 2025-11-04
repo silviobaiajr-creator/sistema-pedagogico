@@ -1,13 +1,5 @@
 // =================================================================================
 // ARQUIVO: students.js
-// RESPONSABILIDADE: Gerenciar a lógica e a UI do modal "Gerir Alunos",
-// incluindo adição, edição, exclusão e importação via CSV.
-//
-// ATUALIZAÇÃO (Sug. 5 - Cores):
-// 1. Atualizada a cor do feedback de carregamento (text-blue-500 -> text-sky-500).
-// 2. As cores dos botões (Salvar, Editar, Excluir) são controladas
-//    no index.html (semanticamente) ou já foram atualizadas lá.
-// =================================================================================
 
 import { state, dom } from './state.js';
 import { setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
