@@ -1,5 +1,17 @@
 // =================================================================================
 // ARQUIVO: reports.js
+// RESPONSABILIDADE: Gerar todos os documentos e relatórios (Atas, Fichas, Ofícios, Relatórios Gerais).
+//
+// ATUALIZAÇÃO (FLUXO V3):
+// ... (histórico anterior mantido) ...
+//
+// ATUALIZAÇÃO (PLANO DE CORREÇÃO - 29/10/2025):
+// 1. (Plano 3a) Importada a função `getIncidentByGroupId` de `occurrence.js`.
+// 2. (Plano 3a) `openOccurrenceRecordModal`, `openHistoryModal`, e
+//    `openStudentSelectionModal` refatoradas para usar `getIncidentByGroupId`,
+//    eliminando a lógica redundante de `reduce`.
+// =================================================================================
+
 
 import { state, dom } from './state.js';
 // formatPeriodo foi removido dos imports de utils.js pois não é usado aqui diretamente agora
@@ -7,11 +19,8 @@ import { formatDate, formatTime, formatText, showToast, openModal, closeModal, g
 // Imports de ui.js removidos pois não são necessários aqui
 // import { getFilteredOccurrences, getStatusBadge } from './ui.js';
 
-// (NOVO - Papéis) Importa ícones de papéis
-// (CORREÇÃO ATA/RELATÓRIO) Importa getFilteredOccurrences daqui
-import { roleIcons, defaultRole, getFilteredOccurrences } from './occurrence.js';
-// (CORREÇÃO LOGIN) Importa a função de busca de 'firestore.js'
-import { getIncidentByGroupId as fetchIncidentById } from './firestore.js';
+// (NOVO - Plano 3a) Importa a função otimizada
+import { getIncidentByGroupId } from './occurrence.js';
 
 
 // NOVO: Constante movida de ui.js
@@ -26,7 +35,7 @@ export const actionDisplayTitles = {
 
 /**
  * Helper para gerar o cabeçalho com logo.
- * (Inalterado)
+ * @returns {string} HTML do cabeçalho do relatório.
  */
 export const getReportHeaderHTML = () => {
     const logoUrl = state.config?.schoolLogoUrl || null;
@@ -54,23 +63,18 @@ export const getReportHeaderHTML = () => {
 /**
  * Abre um modal de seleção para o usuário escolher para qual aluno
  * de um incidente a notificação deve ser gerada.
- * (MODIFICADO - Papéis) Usa fetchIncidentById e participantsInvolved.
- * (OBS: Esta função pode se tornar menos necessária com o botão direto na lista)
- * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
+ * (MODIFICADO - Plano 3a) Usa getIncidentByGroupId.
  */
-export const openStudentSelectionModal = async (groupId) => {
-    // (MODIFICADO - Papéis / Otimização) Usa a função otimizada
-    const incident = await fetchIncidentById(groupId);
+export const openStudentSelectionModal = (groupId) => {
+    // (MODIFICADO - Plano 3a) Usa a função otimizada
+    const incident = getIncidentByGroupId(groupId);
 
-    // (MODIFICADO - Papéis) Verifica participantsInvolved
-    if (!incident || incident.participantsInvolved.size === 0) return showToast('Incidente não encontrado ou sem alunos associados.');
+    if (!incident || incident.studentsInvolved.size === 0) return showToast('Incidente não encontrado ou sem alunos associados.');
 
-    // (MODIFICADO - Papéis) Pega a lista de { student, role }
-    const participants = [...incident.participantsInvolved.values()];
+    const students = [...incident.studentsInvolved.values()];
 
-    if (participants.length === 1) {
-        // Passa o incident completo e o objeto student do participante
-        openIndividualNotificationModal(incident, participants[0].student);
+    if (students.length === 1) {
+        openIndividualNotificationModal(incident, students[0]);
         return;
     }
 
@@ -83,13 +87,11 @@ export const openStudentSelectionModal = async (groupId) => {
 
     modalBody.innerHTML = '';
 
-    participants.forEach(participant => {
-        const student = participant.student; // Pega o objeto student
+    students.forEach(student => {
         const btn = document.createElement('button');
-        btn.className = 'w-full text-left bg-gray-50 hover:bg-sky-100 p-3 rounded-lg transition';
-        btn.innerHTML = `<span class="font-semibold text-sky-800">${student.name}</span><br><span class="text-sm text-gray-600">Turma: ${student.class}</span>`;
+        btn.className = 'w-full text-left bg-gray-50 hover:bg-indigo-100 p-3 rounded-lg transition';
+        btn.innerHTML = `<span class="font-semibold text-indigo-800">${student.name}</span><br><span class="text-sm text-gray-600">Turma: ${student.class}</span>`;
         btn.onclick = () => {
-            // Passa o incident completo e o objeto student selecionado
             openIndividualNotificationModal(incident, student);
             closeModal(modal);
         };
@@ -101,12 +103,12 @@ export const openStudentSelectionModal = async (groupId) => {
 
 /**
  * Gera e exibe a notificação formal.
- * (MODIFICADO - Papéis) Recebe 'incident' completo. Pequenos ajustes.
- * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
- * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
+ * (MODIFICADO V3: Checagem de `meetingDate` e `meetingTime` (Ação 2) mantida)
+ * @param {object} incident - O objeto completo do incidente (com records e studentsInvolved).
+ * @param {object} student - O objeto do aluno selecionado.
  */
 export const openIndividualNotificationModal = (incident, student) => {
-    // Encontra o registro específico para este aluno dentro do incidente
+    // A função `getIncidentByGroupId` já garante que `incident` está preenchido
     const data = incident.records.find(r => r.studentId === student.matricula);
 
     if (!data) {
@@ -114,10 +116,10 @@ export const openIndividualNotificationModal = (incident, student) => {
         return;
     }
 
-    // A checagem de convocação permanece
+    // (V3) Esta checagem agora valida se a Ação 2 (Convocação) foi concluída.
     if (!data.meetingDate || !data.meetingTime) {
         showToast(`Erro: É necessário agendar a Convocação (Ação 2) para ${student.name}.`);
-        // showToast("Clique no nome do aluno na lista para avançar a etapa."); // Comentado pois o botão agora direciona
+        showToast("Clique no nome do aluno na lista para avançar a etapa.");
         return;
     }
 
@@ -126,27 +128,29 @@ export const openIndividualNotificationModal = (incident, student) => {
 
     document.getElementById('notification-title').innerText = 'Notificação de Ocorrência';
     document.getElementById('notification-content').innerHTML = `
-        <div class="space-y-6 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+        <div class="space-y-6 text-sm">
             ${getReportHeaderHTML()}
-            
-            <!-- --- CORREÇÃO 2: Data movida para a direita e antes do título --- -->
-            <p class="text-right mt-4">${state.config?.city || "Cidade"}, ${currentDate}</p>
-
             <h3 class="text-lg font-semibold mt-4 text-center">NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR</h3>
+
+            <p class="text-right mt-4">Data de Envio: ${currentDate}</p>
 
             <div class="pt-4">
                 <p class="mb-2"><strong>Aos Responsáveis:</strong> ${formatText(responsibleNames)}</p>
+                <p>Pelo(a) seguinte aluno(a):</p>
+                <div class="mt-2 p-3 bg-gray-50 rounded border">
+                    <p><strong>Aluno:</strong> ${formatText(student.name)}</p>
+                    <p><strong>Turma:</strong> ${formatText(student.class)}</p>
+                    <p><strong>Endereço:</strong> ${formatText(student.endereco)}</p>
+                    <p><strong>Contato:</strong> ${formatText(student.contato)}</p>
+                </div>
             </div>
 
-            <!-- --- CORREÇÃO 1: Bloco de dados do aluno removido e mesclado ao parágrafo abaixo --- -->
-            
             <p class="text-justify mt-4">
-                Prezados(as), vimos por meio desta notificá-los sobre um registro referente ao(à) aluno(a) <strong>${formatText(student.name)}</strong>,
-                regularmente matriculado(a) na turma <strong>${formatText(student.class)}</strong>,
-                referente a um incidente classificado como <strong>"${formatText(data.occurrenceType)}"</strong>, ocorrido em ${formatDate(data.date)}.
+                Prezados(as), vimos por meio desta notificá-los sobre um registro referente ao(à) aluno(a) supracitado(a),
+                classificado como <strong>"${formatText(data.occurrenceType)}"</strong>, ocorrido em ${formatDate(data.date)}.
             </p>
 
-            <p class="text-justify bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded" style="font-family: 'Inter', sans-serif;">
+            <p class="text-justify bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
                 Conforme a legislação vigente, como a Lei de Diretrizes e Bases da Educação Nacional (LDB - Lei 9.394/96) e o
                 Estatuto da Criança e do Adolescente (ECA - Lei 8.069/90), ressaltamos a importância da parceria e do
                 acompanhamento ativo da família na vida escolar do(a) estudante, que é fundamental para seu desenvolvimento
@@ -157,19 +161,18 @@ export const openIndividualNotificationModal = (incident, student) => {
                 Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica para uma reunião
                 na seguinte data e horário:
             </p>
-            <div class="mt-4 p-3 bg-sky-100 text-sky-800 rounded-md text-center font-semibold" style="font-family: 'Inter', sans-serif;">
+            <div class="mt-4 p-3 bg-indigo-100 text-indigo-800 rounded-md text-center font-semibold">
                 <p><strong>Data:</strong> ${formatDate(data.meetingDate)}</p>
                 <p><strong>Horário:</strong> ${formatTime(data.meetingTime)}</p>
             </div>
 
-            <!-- --- CORREÇÃO 3: Removido 'border-t' e 'pt-8' dos divs de assinatura --- -->
-            <div class="mt-8">
+            <div class="border-t pt-16 mt-16">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="text-center mt-1">Ciente do Responsável</p>
                 </div>
             </div>
-             <div class="mt-8">
+             <div class="border-t pt-16 mt-16">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="text-center mt-1">Assinatura da Gestão Escolar</p>
@@ -179,232 +182,114 @@ export const openIndividualNotificationModal = (incident, student) => {
     openModal(dom.notificationModalBackdrop);
 };
 
-// ==============================================================================
-// --- INÍCIO DA ATUALIZAÇÃO (ATA NARRATIVA - 01/11/2025) ---
-// A função 'openOccurrenceRecordModal' foi reescrita.
-// ==============================================================================
-
 /**
- * Gera a Ata Formal em formato NARRATIVO para o livro de ocorrências.
+ * Gera a Ata Formal, incluindo "Providências da Família".
+ * (MODIFICADO V3: Atualizado para ler os campos das novas 6 etapas)
+ * (MODIFICADO - Plano 3a) Usa getIncidentByGroupId.
  * @param {string} groupId - O ID do grupo da ocorrência.
  */
-export const openOccurrenceRecordModal = async (groupId) => {
-    const incident = await fetchIncidentById(groupId);
+export const openOccurrenceRecordModal = (groupId) => {
+    // (MODIFICADO - Plano 3a) Usa a função otimizada
+    const incident = getIncidentByGroupId(groupId);
+
     if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
 
-    const mainRecord = incident.records[0]; // Pega o primeiro registro para dados do FATO
-    const city = state.config?.city || "Cidade";
-    
-    // Converte a data do fato para formato extenso (ex: 01 de novembro de 2025)
-    let fullDateText = "Data não registrada";
-    try {
-        const dateObj = new Date(mainRecord.date + 'T12:00:00'); // Adiciona T12 para evitar fuso
-        fullDateText = dateObj.toLocaleDateString('pt-BR', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-            timeZone: 'UTC' // Garante consistência
-        });
-    } catch (e) { console.error("Erro ao formatar data da ata:", e); }
+    // O status geral já é calculado por getIncidentByGroupId
+    // const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
+    // incident.overallStatus = allResolved ? 'Finalizada' : 'Resolvido'; // 'Resolvido' para consistência
 
-    // --- MONTAGEM DOS PARÁGRAFOS NARRATIVOS ---
+    const data = incident.records[0]; // Pega o primeiro registro para dados do FATO
+    const students = [...incident.studentsInvolved.values()];
+    const studentNames = students.map(s => `${s.name} (Turma: ${s.class})`).join('<br>');
+    const responsibleNames = [...new Set(students.flatMap(s => [s.resp1, s.resp2]).filter(Boolean))].join(' e ');
 
-    // 1. Abertura
-    let aberturaHTML = `
-        <p class="indent-8">
-            Aos ${fullDateText}, nas dependências desta unidade de ensino, foi lavrada a presente ata pela Coordenação Pedagógica para registrar os fatos e providências referentes ao incidente <strong>Nº ${incident.id}</strong>, classificado como <strong>"${formatText(mainRecord.occurrenceType)}"</strong>.
-        </p>`;
-
-    // 2. Fatos e Envolvidos
-    // (Pega todos os participantes do Map 'participantsInvolved')
-    const participantsDetails = [...incident.participantsInvolved.values()].map(p => {
-        return `
-            <li>
-                <strong>${formatText(p.student.name)}</strong>
-                (Turma: ${formatText(p.student.class || 'N/A')}),
-                identificado(a) como <strong>[${formatText(p.role)}]</strong>.
-            </li>`;
-    }).join('');
-
-    let fatosHTML = `
-        <h4 class="section-title">DOS FATOS E ENVOLVIDOS</h4>
-        <p class="indent-8">
-            Constatou-se o seguinte fato:
-        </p>
-        <p class="report-block-quote">
-            ${formatText(mainRecord.description)}
-        </p>
-        <p class="mt-2 indent-8">
-            Estiveram envolvidos no incidente os seguintes alunos:
-        </p>
-        <ul class="list-disc list-inside ml-8 my-2">
-            ${participantsDetails}
-        </ul>`;
-
-    // 3. Providências Imediatas (Ação 1)
-    let providenciasHTML = `
-        <h4 class="section-title">DAS PROVIDÊNCIAS IMEDIATAS DA ESCOLA (AÇÃO 1)</h4>
-        <p class="indent-8">
-            Após a constatação do fato, a gestão escolar tomou as seguintes providências imediatas:
-        </p>
-        <p class="report-block-quote">
-            ${formatText(mainRecord.providenciasEscola)}
-        </p>`;
-
-    // 4. Acompanhamentos e Desfecho (Ações 2-6)
-    let acompanhamentosHTML = `
-        <h4 class="section-title">DOS ACOMPANHAMENTOS E DESFECHO (AÇÕES 2-6)</h4>
-        <p class="indent-8">
-            Para o acompanhamento individual dos envolvidos, foram registradas as seguintes etapas:
-        </p>
-        <div class="space-y-3 mt-2">
-            ${incident.records.map(rec => {
-                const participant = incident.participantsInvolved.get(rec.studentId);
-                const studentName = participant ? participant.student.name : 'Aluno desconhecido';
-                
-                // Monta o texto para cada aluno
-                let textoAcoesAluno = "";
-                if (rec.meetingDate) {
-                    textoAcoesAluno += `<li><strong>Ação 2 (Convocação):</strong> Agendada reunião para ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}.</li>`;
-                }
-                if (rec.contactSucceeded != null) {
-                    const diaContato = rec.contactDate ? ` em ${formatDate(rec.contactDate)}` : '';
-                    if (rec.contactSucceeded === 'yes') {
-                        textoAcoesAluno += `<li><strong>Ação 3 (Contato):</strong> Contato realizado${diaContato}. Providências da família: ${formatText(rec.providenciasFamilia)}.</li>`;
-                    } else {
-                        textoAcoesAluno += `<li><strong>Ação 3 (Contato):</strong> Tentativa de contato registrada sem sucesso${diaContato}.</li>`;
-                    }
-                }
-                if (rec.oficioNumber) {
-                    textoAcoesAluno += `<li><strong>Ação 4 (Enc. CT):</strong> Encaminhado ao Conselho Tutelar (Ofício Nº ${formatText(rec.oficioNumber)}/${formatText(rec.oficioYear)}).</li>`;
-                }
-                if (rec.ctFeedback) {
-                    textoAcoesAluno += `<li><strong>Ação 5 (Devolutiva CT):</strong> Devolutiva recebida: ${formatText(rec.ctFeedback)}.</li>`;
-                }
-                if (rec.parecerFinal) {
-                    textoAcoesAluno += `<li><strong>Ação 6 (Parecer Final):</strong> Desfecho registrado: ${formatText(rec.parecerFinal)}.</li>`;
-                }
-                if(textoAcoesAluno === "") {
-                    textoAcoesAluno = `<li>Nenhuma ação de acompanhamento registrada.</li>`;
-                }
-
-                return `
-                    <div class="report-block-quote-inner">
-                        <strong class="font-semibold">${formatText(studentName)}</strong> (Status: ${rec.statusIndividual || 'Pendente'})
-                        <ul class="list-disc list-inside ml-4 text-sm">
-                            ${textoAcoesAluno}
-                        </ul>
-                    </div>`;
-            }).join('')}
-        </div>`;
-
-    // 5. Fechamento
-    const displayOverallStatus = incident.overallStatus === 'Finalizada' ?
-        "O presente incidente é considerado <strong>Finalizado</strong> pela gestão escolar." :
-        "O presente incidente segue <strong>Pendente</strong> de acompanhamento pela gestão escolar.";
-
-    let fechamentoHTML = `
-        <p class="mt-4 indent-8">
-            ${displayOverallStatus}
-        </p>
-        <p class="mt-4 indent-8">
-            Nada mais havendo a tratar, encerra-se a presente ata, que será impressa e assinada pelos presentes para que surta seus devidos efeitos e seja arquivada no livro de registros desta instituição.
-        </p>
-        <p class="mt-4 text-center">
-            ${city}, ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.
-        </p>`;
-
-    // 6. Assinaturas (Mantidas conforme o original, mas sem a linha extra)
-    let assinaturasHTML = `
-        <div class="signature-block mt-12 space-y-12">
-            <div class="text-center w-2/3 mx-auto">
-                <div class="border-t border-gray-400"></div>
-                <p class="text-center mt-1 text-xs">Ciente do(s) Responsável(is)</p>
-            </div>
-            <div class="text-center w-2/3 mx-auto">
-                <div class="border-t border-gray-400"></div>
-                <p class="text-center mt-1 text-xs">Ciente do(s) Aluno(s)</p>
-            </div>
-            <div class="text-center w-2/3 mx-auto">
-                <div class="border-t border-gray-400"></div>
-                <p class="text-center mt-1 text-xs">Assinatura da Gestão Escolar</p>
-            </div>
-        </div>`;
-
-    // --- RENDERIZAÇÃO FINAL ---
-    document.getElementById('report-view-title').textContent = `Ata de Ocorrência Nº ${incident.id}`;
+    document.getElementById('report-view-title').textContent = 'Ata de Registro de Ocorrência';
     document.getElementById('report-view-content').innerHTML = `
-        <!-- Estilos específicos para a Ata Narrativa -->
-        <style>
-            .report-narrative {
-                font-family: 'Times New Roman', serif;
-                font-size: 11pt;
-                line-height: 1.6;
-                text-align: justify;
-            }
-            .report-narrative .indent-8 {
-                text-indent: 2rem;
-            }
-            .report-narrative .section-title {
-                font-weight: bold;
-                text-align: center;
-                margin-top: 1rem;
-                margin-bottom: 0.5rem;
-                font-size: 11pt;
-            }
-            .report-narrative .report-block-quote {
-                margin-left: 2rem;
-                margin-right: 2rem;
-                padding: 0.5rem 1rem;
-                background-color: #f9fafb; /* bg-gray-50 */
-                border-left: 3px solid #e5e7eb; /* border-gray-200 */
-                font-style: italic;
-                font-family: 'Inter', sans-serif;
-                font-size: 10pt;
-            }
-             .report-narrative .report-block-quote-inner {
-                padding: 0.5rem 1rem;
-                background-color: #f9fafb; /* bg-gray-50 */
-                border: 1px solid #e5e7eb; /* border-gray-200 */
-                border-radius: 0.25rem;
-                font-family: 'Inter', sans-serif;
-                font-size: 10pt;
-            }
-            .report-narrative .signature-block p {
-                 font-family: 'Inter', sans-serif;
-            }
-        </style>
-        
-        <div class="report-narrative space-y-2">
+        <div class="space-y-6 text-sm">
             ${getReportHeaderHTML()}
-            <h3 class="text-lg font-semibold mt-4 text-center uppercase">ATA DE REGISTRO DE OCORRÊNCIA Nº ${incident.id}</h3>
-            
-            ${aberturaHTML}
-            ${fatosHTML}
-            ${providenciasHTML}
-            ${acompanhamentosHTML}
-            ${fechamentoHTML}
-            ${assinaturasHTML}
+            <h3 class="text-lg font-semibold mt-4 text-center uppercase">Ata de Registro de Ocorrência</h3>
+
+            <p class="text-sm text-gray-500 text-right">ID do Incidente: ${incident.id}</p>
+
+            <div class="border rounded-lg p-4 bg-gray-50 space-y-3">
+                <div><h4 class="font-semibold">Data da Ocorrência:</h4><p>${formatDate(data.date)}</p></div>
+                <div><h4 class="font-semibold">Tipo:</h4><p>${formatText(data.occurrenceType)}</p></div>
+                <div><h4 class="font-semibold">Status Geral:</h4><p>${formatText(incident.overallStatus)}</p></div>
+                <div><h4 class="font-semibold">Aluno(s) Envolvido(s):</h4><p>${studentNames}</p></div>
+                <div><h4 class="font-semibold">Responsáveis:</h4><p>${formatText(responsibleNames)}</p></div>
+            </div>
+
+            <div class="border-t pt-4 space-y-4">
+                <!-- (MODIFICADO V3) Adicionados campos da Ação 1 -->
+                <div><h4 class="font-semibold mb-1">Ação 1: Descrição Detalhada dos Fatos:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.description)}</p></div>
+                <div><h4 class="font-semibold mb-1">Ação 1: Providências Imediatas da Escola:</h4><p class="text-gray-700 bg-gray-50 p-2 rounded-md whitespace-pre-wrap">${formatText(data.providenciasEscola)}</p></div>
+
+                <div class="border-t pt-4">
+                    <h4 class="text-md font-semibold text-gray-700 mb-2">Acompanhamentos Individuais (Ações 2-6)</h4>
+
+                    <!-- (MODIFICADO V3) Loop atualizado para ler os novos campos -->
+                    ${incident.records.map(rec => {
+                        const student = incident.studentsInvolved.get(rec.studentId);
+                        // (V3) Usa o status individual real
+                        const statusIndividual = rec.statusIndividual || 'Aguardando Convocação';
+
+                        return `
+                        <div class="mt-2 p-3 border rounded-md bg-gray-50 break-inside-avoid">
+                            <div class="flex justify-between items-center">
+                                <p class="font-semibold">${student?.name || 'Aluno desconhecido'}</p>
+                                ${getStatusBadge(statusIndividual)}
+                            </div>
+
+                            <!-- Ação 2: Convocação -->
+                            ${(rec.meetingDate) ? `
+                            <div class="mt-2 p-2 bg-indigo-50 rounded-md text-sm">
+                                <p><strong>Ação 2 - Convocação:</strong> Data: ${formatDate(rec.meetingDate)} | Horário: ${formatTime(rec.meetingTime)}</p>
+                            </div>
+                            ` : ''}
+
+                            <!-- Ação 3: Contato com Família -->
+                            <p class="mt-1"><strong>Ação 3 - Providências da Família:</strong> ${formatText(rec.providenciasFamilia)}</p>
+                            ${(rec.contactSucceeded != null) ? `
+                            <p class="text-xs text-gray-600 ml-2">↳ Contato em ${formatDate(rec.contactDate)} (${rec.contactType || 'N/A'}) foi ${rec.contactSucceeded === 'yes' ? 'realizado.' : 'sem sucesso.'}</p>
+                            ` : ''}
+
+                            <!-- Ação 4: Encaminhamento CT -->
+                            ${(rec.oficioNumber) ? `
+                            <p class="mt-1"><strong>Ação 4 - Encaminhamento ao CT:</strong> Ofício Nº ${formatText(rec.oficioNumber)}/${formatText(rec.oficioYear)} (Enviado em: ${formatDate(rec.ctSentDate)})</p>
+                            ` : ''}
+
+                            <!-- Ação 5: Devolutiva CT -->
+                            <p class="mt-1"><strong>Ação 5 - Devolutiva do CT:</strong> ${formatText(rec.ctFeedback)}</p>
+
+                            <!-- Ação 6: Parecer Final -->
+                            <p class="mt-1"><strong>Ação 6 - Parecer/Desfecho:</strong> ${formatText(rec.parecerFinal)}</p>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+
+            <div class="signature-block pt-16 mt-16 space-y-12">
+                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do(s) Responsável(is)</p></div>
+                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do(s) Aluno(s)</p></div>
+                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Assinatura da Gestão Escolar</p></div>
+            </div>
         </div>`;
     openModal(dom.reportViewModalBackdrop);
 };
 
-// ==============================================================================
-// --- FIM DA ATUALIZAÇÃO (ATA NARRATIVA) ---
-// ==============================================================================
-
 
 /**
  * Abre o modal de histórico de alterações de uma ocorrência.
- * (MODIFICADO - Papéis) Usa fetchIncidentById.
+ * (MODIFICADO - Plano 3a) Usa getIncidentByGroupId.
  */
-export const openHistoryModal = async (groupId) => {
-     // (MODIFICADO - Otimização) Usa a função otimizada
-     const incident = await fetchIncidentById(groupId);
+export const openHistoryModal = (groupId) => {
+    // (MODIFICADO - Plano 3a) Usa a função otimizada
+    const incident = getIncidentByGroupId(groupId);
 
     if (!incident) return showToast('Incidente não encontrado.');
 
-    // Agrupa o histórico de todos os registros do incidente (lógica mantida)
+    // A lógica de agregação do histórico permanece a mesma
     const allHistory = incident.records.flatMap(r => r.history || []);
 
     const history = allHistory.sort((a, b) => (b.timestamp?.seconds || new Date(b.timestamp).getTime()) - (a.timestamp?.seconds || new Date(a.timestamp).getTime()));
@@ -417,24 +302,31 @@ export const openHistoryModal = async (groupId) => {
         : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este incidente.</p>';
 
     document.getElementById('history-view-title').textContent = `Histórico do Incidente`;
-    // Pega a data do primeiro registro (lógica mantida)
-    const incidentDate = incident.records.length > 0 ? incident.records[0].date : null;
-    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${groupId}<br><strong>Data:</strong> ${formatDate(incidentDate)}`;
+    // Usa a data do primeiro registro para exibir
+    const displayDate = incident.records.length > 0 ? incident.records[0].date : null;
+    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${groupId}<br><strong>Data:</strong> ${formatDate(displayDate)}`;
     document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
     openModal(document.getElementById('history-view-modal-backdrop'));
 };
 
 /**
  * Abre o modal de histórico de alterações de um processo de Busca Ativa.
- * (Inalterado - Não afetado pela mudança em Ocorrências)
  */
 export const openAbsenceHistoryModal = (processId) => {
     const processActions = state.absences.filter(a => a.processId === processId);
     if (processActions.length === 0) return showToast('Processo não encontrado.');
 
+    // ==============================================================================
+    // --- (NOVO) Busca o nome do aluno ---
+    // ==============================================================================
+    // 1. Pega o ID do aluno da primeira ação (todas as ações no processo são do mesmo aluno)
     const studentId = processActions[0].studentId;
+    // 2. Encontra o aluno no estado global
     const student = state.students.find(s => s.matricula === studentId);
     const studentName = student ? formatText(student.name) : 'Aluno Desconhecido';
+    // ==============================================================================
+    // --- FIM NOVO ---
+    // ==============================================================================
 
     const allHistory = processActions.flatMap(a => a.history || []);
 
@@ -450,7 +342,7 @@ export const openAbsenceHistoryModal = (processId) => {
 
     const history = allHistory.sort((a, b) => {
         const timeA = a.timestamp?.seconds ? a.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
-        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
+        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(b.timestamp).getTime();
         return timeB - timeA;
     });
 
@@ -462,10 +354,12 @@ export const openAbsenceHistoryModal = (processId) => {
         : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este processo.</p>';
 
     document.getElementById('history-view-title').textContent = `Histórico do Processo`;
+    // --- LINHA MODIFICADA ---
     document.getElementById('history-view-subtitle').innerHTML = `
         <strong>Aluno:</strong> ${studentName}<br>
         <strong class="text-xs">ID do Processo:</strong> ${processId}
     `;
+    // --- FIM DA MODIFICAÇÃO ---
     document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
     openModal(document.getElementById('history-view-modal-backdrop'));
 };
@@ -473,7 +367,6 @@ export const openAbsenceHistoryModal = (processId) => {
 
 /**
  * Abre a ficha de notificação de Busca Ativa (usada pelos botões de notificação).
- * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
  */
 export const openFichaViewModal = (id) => {
     const record = state.absences.find(abs => abs.id === id);
@@ -490,16 +383,13 @@ export const openFichaViewModal = (id) => {
 
     switch (record.actionType) {
         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
-            // --- CORREÇÃO 1: Dados do aluno (nome, turma) movidos para este parágrafo ---
             body = `
                 <p class="mt-4 text-justify">Prezados(as) Responsáveis, <strong>${formatText(responsaveis)}</strong>,</p>
                 <p class="mt-4 text-justify">
-                    Vimos por meio desta notificar que o(a) estudante <strong>${student.name}</strong>,
-                    regularmente matriculado(a) na turma <strong>${student.class || ''}</strong>,
-                    acumulou <strong>${formatText(record.absenceCount)} faltas</strong> no período de ${formatDate(record.periodoFaltasStart)} a ${formatDate(record.periodoFaltasEnd)},
+                    Vimos por meio desta notificar que o(a) estudante supracitado(a) acumulou <strong>${formatText(record.absenceCount)} faltas</strong> no período de ${formatDate(record.periodoFaltasStart)} a ${formatDate(record.periodoFaltasEnd)},
                     configurando baixa frequência escolar. Esta é a <strong>${attemptLabels[record.actionType]} tentativa de contato</strong> realizada pela escola.
                 </p>
-                <p class="mt-4 text-justify bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded" style="font-family: 'Inter', sans-serif;">
+                <p class="mt-4 text-justify bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
                     Ressaltamos que, conforme a Lei de Diretrizes e Bases da Educação Nacional (LDB - Lei 9.394/96) e o Estatuto da Criança e do Adolescente (ECA - Lei 8.069/90),
                     é dever da família zelar pela frequência do(a) estudante à escola. A persistência das faltas implicará no acionamento do Conselho Tutelar para as devidas providências.
                 </p>
@@ -507,7 +397,7 @@ export const openFichaViewModal = (id) => {
                 <p class="mt-4 text-justify">
                     Diante do exposto, solicitamos o comparecimento de um(a) responsável na <strong>coordenação pedagógica</strong> desta unidade escolar para tratarmos do assunto na data e horário abaixo:
                 </p>
-                <div class="mt-4 p-3 bg-gray-100 rounded-md text-center" style="font-family: 'Inter', sans-serif;">
+                <div class="mt-4 p-3 bg-gray-100 rounded-md text-center">
                     <p><strong>Data:</strong> ${formatDate(record.meetingDate)}</p>
                     <p><strong>Horário:</strong> ${formatTime(record.meetingTime)}</p>
                 </div>
@@ -518,43 +408,36 @@ export const openFichaViewModal = (id) => {
             break;
         case 'visita':
             title = actionDisplayTitles[record.actionType];
-            // --- CORREÇÃO 1: Dados do aluno (nome, turma) movidos para este parágrafo ---
-            body = `
-                <p class="mt-4 text-justify">Prezados(as) Responsáveis, <strong>${formatText(responsaveis)}</strong>,</p>
-                <p class="mt-4 text-justify">
-                    Notificamos que na data de <strong>${formatDate(record.visitDate)}</strong>, o agente escolar <strong>${formatText(record.visitAgent)}</strong> realizou uma visita domiciliar
-                    referente ao acompanhamento de frequência do(a) aluno(a) <strong>${student.name}</strong> (Turma: <strong>${student.class || ''}</strong>).
-                </p>
-                <p class="mt-2"><strong>Justificativa do responsável (se houver):</strong> ${formatText(record.visitReason)}</p>
-            `;
+            body = `<p class="mt-4">Notificamos que na data de <strong>${formatDate(record.visitDate)}</strong>, o agente escolar <strong>${formatText(record.visitAgent)}</strong> realizou uma visita domiciliar.</p><p class="mt-2"><strong>Justificativa do responsável:</strong> ${formatText(record.visitReason)}</p>`;
             break;
         default:
             title = actionDisplayTitles[record.actionType] || 'Documento de Busca Ativa';
-            body = `<p class="mt-4">Registro de ação administrativa referente à busca ativa do(a) aluno(a) <strong>${student.name}</strong>.</p>`;
+            body = `<p class="mt-4">Registro de ação administrativa referente à busca ativa do(a) aluno(a).</p>`;
             break;
     }
 
     const contentHTML = `
-        <div class="space-y-6 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+        <div class="space-y-6 text-sm text-gray-800">
             ${getReportHeaderHTML()}
-            
-            <!-- --- CORREÇÃO 2: Data movida para a direita e antes do título --- -->
-            <p class="text-right mt-4">${state.config?.city || "Cidade"}, ${currentDate}</p>
-
             <h3 class="font-semibold mt-1 uppercase text-center">${title}</h3>
 
-            <!-- --- CORREÇÃO 1: Bloco de dados do aluno removido daqui --- -->
-            
+             <p class="text-right mt-4">Data de Emissão: ${currentDate}</p>
+
+
+            <div class="pt-4 border-t mt-4">
+                <p><strong>Aluno(a):</strong> ${student.name}</p>
+                <p><strong>Turma:</strong> ${student.class || ''}</p>
+                <p><strong>Endereço:</strong> ${formatText(student.endereco)}</p>
+                <p><strong>Contato:</strong> ${formatText(student.contato)}</p>
+            </div>
             <div class="text-justify">${body}</div>
-            
-            <!-- --- CORREÇÃO 3: Removido 'border-t' e 'pt-8' dos divs de assinatura --- -->
-            <div class="mt-8">
+            <div class="border-t pt-16 mt-16">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="text-center mt-1">Ciente do Responsável</p>
                 </div>
             </div>
-             <div class="mt-8">
+             <div class="border-t pt-16 mt-16">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="text-center mt-1">Assinatura da Gestão Escolar</p>
@@ -570,7 +453,6 @@ export const openFichaViewModal = (id) => {
 
 /**
  * Gera a Ficha Consolidada de Busca Ativa.
- * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
  */
 export const generateAndShowConsolidatedFicha = (studentId, processId = null) => {
     let studentActions = state.absences.filter(action => action.studentId === studentId);
@@ -578,6 +460,11 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
     if (processId) {
         studentActions = studentActions.filter(action => action.processId === processId);
     } else {
+        // Se nenhum processId for fornecido, pega o ciclo atual
+        // Precisamos importar getStudentProcessInfo de logic.js se for usar aqui
+        // OU passar currentCycleActions como parâmetro.
+        // Por ora, vamos assumir que queremos TODAS as ações do aluno se processId for null.
+        // Se precisar *apenas* do ciclo atual sem ID, a lógica precisará ser ajustada.
         console.warn("Gerando ficha consolidada sem processId específico. Incluindo todas as ações do aluno.");
     }
 
@@ -595,12 +482,12 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
     const currentProcessId = processId || faltasData.processId || 'N/A';
 
     const fichaHTML = `
-        <div class="space-y-4 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+        <div class="space-y-4 text-sm">
             ${getReportHeaderHTML()}
             <h3 class="font-semibold mt-1 text-center uppercase">Ficha de Acompanhamento da Busca Ativa</h3>
              <p class="text-xs text-gray-500 text-center">ID do Processo: ${currentProcessId}</p>
 
-            <div class="border rounded-md p-3" style="font-family: 'Inter', sans-serif;">
+            <div class="border rounded-md p-3">
                 <h4 class="font-semibold text-base mb-2">Identificação</h4>
                 <p><strong>Nome do aluno:</strong> ${studentData.name}</p>
                 <p><strong>Ano/Ciclo:</strong> ${studentData.class || ''}</p>
@@ -609,14 +496,14 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
                 <p><strong>Responsáveis:</strong> ${[studentData.resp1, studentData.resp2].filter(Boolean).join(' / ')}</p>
             </div>
 
-            <div class="border rounded-md p-3" style="font-family: 'Inter', sans-serif;">
+            <div class="border rounded-md p-3">
                 <h4 class="font-semibold text-base mb-2">Faltas apuradas no período de:</h4>
                 <p><strong>Data de início:</strong> ${formatDate(faltasData.periodoFaltasStart)}</p>
                 <p><strong>Data de fim:</strong> ${formatDate(faltasData.periodoFaltasEnd)}</p>
                 <p><strong>Nº de faltas:</strong> ${formatText(faltasData.absenceCount)}</p>
             </div>
 
-            <div class="border rounded-md p-3 space-y-3" style="font-family: 'Inter', sans-serif;">
+            <div class="border rounded-md p-3 space-y-3">
                 <h4 class="font-semibold text-base">Tentativas de contato com o responsável pelo estudante (ligações, whatsApp ou carta ao responsável)</h4>
                 <div class="pl-4">
                     <p class="font-medium underline">1ª Tentativa:</p>
@@ -650,7 +537,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
                 </div>
             </div>
 
-            <div class="border rounded-md p-3 space-y-2" style="font-family: 'Inter', sans-serif;">
+            <div class="border rounded-md p-3 space-y-2">
                 <h4 class="font-semibold text-base">Contato in loco/Conversa com o responsável</h4>
                 <p><strong>Nome do agente que realizou a visita:</strong> ${formatText(visita.visitAgent)}</p>
                 <p><strong>Dia da visita:</strong> ${formatDate(visita.visitDate)}</p>
@@ -661,7 +548,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
                 <p><strong>Observação:</strong> ${formatText(visita.visitObs)}</p>
             </div>
 
-            <div class="border rounded-md p-3 space-y-2" style="font-family: 'Inter', sans-serif;">
+            <div class="border rounded-md p-3 space-y-2">
                 <h4 class="font-semibold text-base">Encaminhamento ao Conselho Tutelar</h4>
                 <p><strong>Data de envio:</strong> ${formatDate(ct.ctSentDate)}</p>
                  <p><strong>Nº Ofício:</strong> ${formatText(ct.oficioNumber)}/${formatText(ct.oficioYear)}</p>
@@ -669,13 +556,12 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
                 <p><strong>Aluno retornou?</strong> ${ct.ctReturned === 'yes' ? 'Sim' : ct.ctReturned === 'no' ? 'Não' : ''}</p>
             </div>
 
-            <div class="border rounded-md p-3 space-y-2" style="font-family: 'Inter', sans-serif;">
+            <div class="border rounded-md p-3 space-y-2">
                 <h4 class="font-semibold text-base">Análise</h4>
                 <p><strong>Parecer da BAE:</strong> ${formatText(analise.ctParecer)}</p>
             </div>
 
-            <!-- --- CORREÇÃO 3: Removido 'pt-16' (CSS cuida da margem) --- -->
-            <div class="signature-block mt-8 space-y-12">
+            <div class="signature-block pt-16 mt-8 space-y-12">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="mt-1">Diretor(a)</p>
@@ -693,7 +579,6 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
 
 /**
  * Gera o Ofício para o Conselho Tutelar (Busca Ativa).
- * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
  */
 export const generateAndShowOficio = (action, oficioNumber = null) => {
     if (!action) return showToast('Ação de origem não encontrada.');
@@ -719,7 +604,11 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
 
+    // =======================================================================
+    // CORREÇÃO (Mantida)
     const schoolName = state.config?.schoolName || "Nome da Escola";
+    // =======================================================================
+
     const city = state.config?.city || "Cidade";
 
     let attemptsSummary = contactAttempts.map((attempt, index) => {
@@ -743,10 +632,10 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
 
     const oficioHTML = `
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
-            <!-- --- CORREÇÃO 2: Removido 'text-center' do container e 'text-right' adicionado à data --- -->
-            <div>
+            <div class="text-center">
                 ${getReportHeaderHTML()}
-                <p class="text-right mt-4">${city}, ${currentDate}.</p>
+                <!-- <p class="font-bold uppercase mt-4">${schoolName}</p> -->
+                <p>${city}, ${currentDate}.</p>
             </div>
 
             <div class="mt-8">
@@ -765,8 +654,6 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
 
             <div class="mt-8 text-justify">
                 <p class="indent-8">Prezados(as) Conselheiros(as),</p>
-                
-                <!-- --- CORREÇÃO 1: Este parágrafo já estava correto (dados no corpo) --- -->
                 <p class="mt-4 indent-8">
                     Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>,
                     regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino,
@@ -779,7 +666,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
                 <p class="mt-4 indent-8">
                     Informamos que a escola esgotou as tentativas de contato com a família, conforme descrito abaixo:
                 </p>
-                <div class="mt-2" style="font-family: 'Inter', sans-serif;">${attemptsSummary}</div>
+                <div class="mt-2">${attemptsSummary}</div>
                 ${visitAction ? `
                 <p class="mt-4 indent-8">
                     Adicionalmente, foi realizada uma visita in loco em <strong>${formatDate(visitAction?.visitDate)}</strong> pelo agente escolar <strong>${formatText(visitAction?.visitAgent)}</strong>.
@@ -797,8 +684,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
                 <p>Atenciosamente,</p>
             </div>
 
-            <!-- --- CORREÇÃO 3: Removido 'pt-16' (CSS cuida da margem) --- -->
-            <div class="signature-block mt-8 space-y-12">
+            <div class="signature-block pt-16 mt-8 space-y-12">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="mt-1">Diretor(a)</p>
@@ -819,40 +705,30 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
 // --- GRÁFICOS (dependem de Chart.js) ---
 /**
  * Gera o relatório geral de ocorrências com gráficos.
- * (MODIFICADO - Papéis) Usa fetchIncidentById, participantsInvolved e exibe papéis.
- * (CORREÇÃO - RELATÓRIO) Importa getFilteredOccurrences corretamente.
- * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
- * (MODIFICADO - Sug. 4: Filtro de Privacidade)
- * (MODIFICADO - Sug. 5: Cores)
+ * (MODIFICADO V3: Atualizado para ler o status individual V3)
+ * (MODIFICADO - Plano 3a) Usa getIncidentByGroupId na lógica de filtro.
  */
-export const generateAndShowGeneralReport = async () => { // Adicionado async
-     // Usa a função getFilteredOccurrences que já busca e filtra
-     // OBS: getFilteredOccurrences foi atualizada para usar a nova estrutura de participantes
-     const filteredIncidentsMap = getFilteredOccurrences(); // Retorna um Map
-     const filteredIncidents = [...filteredIncidentsMap.values()]; // Converte para Array
+export const generateAndShowGeneralReport = () => {
+     // (MODIFICADO - Plano 3a) A lógica de filtro agora usa a busca otimizada
+     // implicitamente, pois getIncidentByGroupId já faz parte do fluxo
+     // de renderização que `state.occurrences` reflete.
+     // Contudo, para o relatório GERAL, ainda precisamos iterar sobre todos.
+     // Usaremos getFilteredOccurrences() aqui pois ele já tem a lógica de filtro.
+     const filteredIncidentsMap = getFilteredOccurrences(); // Usa a função existente que já filtra
+     const filteredIncidents = [...filteredIncidentsMap.values()];
 
     if (filteredIncidents.length === 0) {
         return showToast('Nenhum incidente encontrado para os filtros selecionados.');
     }
 
     const { startDate, endDate, status, type } = state.filtersOccurrences;
-    const studentFilter = state.filterOccurrences; // (Usado pela Sug. 4)
+    const studentFilter = state.filterOccurrences;
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    // (MODIFICADO - Papéis) Calcula total de alunos únicos usando participantsInvolved
-    // (MODIFICADO - Sug. 4) Filtra os alunos totais se um filtro estiver ativo
-    const totalStudentsSet = new Set(
-        filteredIncidents.flatMap(i => 
-            [...i.participantsInvolved.values()]
-                .filter(p => !studentFilter || (p.student && p.student.name.toLowerCase().includes(studentFilter.toLowerCase())))
-                .map(p => p.student.matricula)
-        )
-    );
-    const totalStudents = totalStudentsSet.size;
+    const totalStudents = new Set(filteredIncidents.flatMap(i => [...i.studentsInvolved.keys()])).size;
 
     const occurrencesByType = filteredIncidents.reduce((acc, incident) => {
-        // Garante que incident.records[0] exista
-        const occType = incident.records?.[0]?.occurrenceType || 'Não especificado';
+        const occType = incident.records[0].occurrenceType || 'Não especificado';
         acc[occType] = (acc[occType] || 0) + 1;
         return acc;
     }, {});
@@ -882,9 +758,9 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
             <div class="border rounded-lg p-4 bg-gray-50">
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <div><p class="text-2xl font-bold text-sky-600">${filteredIncidents.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Total de Incidentes</p></div>
-                    <div><p class="text-2xl font-bold text-sky-600">${totalStudents}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos ${studentFilter ? '(Filtrados)' : ''}</p></div>
-                    <div><p class="text-lg font-bold text-sky-600">${sortedTypes.length > 0 ? formatText(sortedTypes[0][0]) : 'N/A'}</p><p class="text-xs font-medium text-gray-500 uppercase">Principal Tipo</p></div>
+                    <div><p class="text-2xl font-bold text-indigo-600">${filteredIncidents.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Total de Incidentes</p></div>
+                    <div><p class="text-2xl font-bold text-indigo-600">${totalStudents}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos</p></div>
+                    <div><p class="text-lg font-bold text-indigo-600">${sortedTypes.length > 0 ? formatText(sortedTypes[0][0]) : 'N/A'}</p><p class="text-xs font-medium text-gray-500 uppercase">Principal Tipo</p></div>
                 </div>
                 ${(startDate || endDate || status !== 'all' || type !== 'all' || studentFilter) ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong></p><ul class="list-disc list-inside ml-2">${startDate ? `<li>De: <strong>${formatDate(startDate)}</strong></li>` : ''}${endDate ? `<li>Até: <strong>${formatDate(endDate)}</strong></li>` : ''}${status !== 'all' ? `<li>Status: <strong>${status}</strong></li>` : ''}${type !== 'all' ? `<li>Tipo: <strong>${formatText(type)}</strong></li>` : ''}${studentFilter ? `<li>Aluno: <strong>"${formatText(studentFilter)}"</strong></li>` : ''}</ul></div>` : ''}
             </div>
@@ -903,18 +779,9 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
             <div>
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Incidentes</h4>
                 <div class="space-y-6">
-                ${filteredIncidents.sort((a,b) => new Date(b.records?.[0]?.date || 0) - new Date(a.records?.[0]?.date || 0)).map(incident => { // Adiciona ? para segurança
-                    const mainRecord = incident.records?.[0]; // Adiciona ? para segurança
-                    if (!mainRecord) return ''; // Pula se não houver registro principal
-                    
-                    // (MODIFICADO - Sug. 4: Filtro de Privacidade)
-                    const participantsDetails = [...incident.participantsInvolved.values()]
-                        .filter(p => !studentFilter || (p.student && p.student.name.toLowerCase().includes(studentFilter.toLowerCase())))
-                        .map(p => {
-                             const iconClass = roleIcons[p.role] || roleIcons[defaultRole];
-                             return `<span class="inline-flex items-center gap-1 mr-2"><i class="${iconClass} fa-fw"></i>${formatText(p.student.name)} (${p.role})</span>`;
-                        }).join(', ');
-
+                ${filteredIncidents.sort((a,b) => new Date(b.records[0].date) - new Date(a.records[0].date)).map(incident => {
+                    const mainRecord = incident.records[0];
+                    const studentNames = [...incident.studentsInvolved.values()].map(s => formatText(s.name)).join(', ');
                     return `
                     <div class="border rounded-lg overflow-hidden break-inside-avoid">
                         <div class="bg-gray-100 p-3 flex justify-between items-center">
@@ -925,25 +792,16 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
                             ${getStatusBadge(incident.overallStatus)}
                         </div>
                         <div class="p-4 space-y-3">
-                            <p><strong>Participantes ${studentFilter ? '(Filtrados)' : ''}:</strong> ${participantsDetails}</p>
+                            <p><strong>Alunos Envolvidos:</strong> ${studentNames}</p>
                             <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição do Fato (Ação 1)</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
 
-                            <!-- (MODIFICADO - Sug. 4: Filtro de Privacidade) -->
-                            ${incident.records
-                                .filter(rec => {
-                                    const participant = incident.participantsInvolved.get(rec.studentId);
-                                    if (studentFilter && participant && !participant.student.name.toLowerCase().includes(studentFilter.toLowerCase())) {
-                                        return false;
-                                    }
-                                    return true;
-                                })
-                                .map(rec => {
-                                const participant = incident.participantsInvolved.get(rec.studentId);
-                                const studentName = participant ? participant.student.name : 'Aluno Removido';
+                            <!-- (MODIFICADO V3) Loop de acompanhamento individual -->
+                            ${incident.records.map(rec => {
+                                const student = incident.studentsInvolved.get(rec.studentId);
                                 return `<div class="text-xs border-t mt-2 pt-2">
-                                    <p class="font-bold">${formatText(studentName)} (${rec.statusIndividual || 'Pendente'})</p>
+                                    <p class="font-bold">${formatText(student?.name || '')} (${rec.statusIndividual || 'Pendente'})</p>
                                     ${rec.meetingDate ? `<p><strong>Ação 2 - Convocação:</strong> ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}</p>` : ''}
-                                    ${rec.contactSucceeded != null ? `<p><strong>Ação 3 - Contato:</strong> ${rec.contactSucceeded === 'yes' ? 'Sim' : 'Não'} (${formatDate(rec.contactDate)})</p>` : ''}
+                                    ${rec.contactSucceeded != null ? `<p><strong>Ação 3 - Contato:</strong> ${rec.contactSucceeded === 'yes' ? `Sim (${formatDate(rec.contactDate)})` : 'Não'}</p>` : ''}
                                     <p><strong>Ação 3 - Provid. Família:</strong> ${formatText(rec.providenciasFamilia)}</p>
                                     ${rec.oficioNumber ? `<p><strong>Ação 4 - Enc. CT:</strong> Ofício ${rec.oficioNumber}/${rec.oficioYear}</p>` : ''}
                                     <p><strong>Ação 5 - Devolutiva CT:</strong> ${formatText(rec.ctFeedback)}</p>
@@ -956,8 +814,7 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
                 </div>
             </div>
 
-            <!-- --- CORREÇÃO 3: Removido 'pt-16' (CSS cuida da margem) --- -->
-            <div class="signature-block mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
+            <div class="signature-block pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
         </div>
     `;
 
@@ -965,15 +822,13 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
     document.getElementById('report-view-content').innerHTML = reportHTML;
     openModal(dom.reportViewModalBackdrop);
 
-    // Renderiza gráficos (lógica mantida)
     setTimeout(() => {
         try {
             const typeCtx = document.getElementById('report-chart-by-type')?.getContext('2d');
             if (typeCtx && typeof Chart !== 'undefined') {
                 new Chart(typeCtx, {
                     type: 'bar',
-                    // (MODIFICADO - Cores)
-                    data: { labels: chartDataByType.labels, datasets: [{ label: 'Total', data: chartDataByType.data, backgroundColor: '#0284c7' }] },
+                    data: { labels: chartDataByType.labels, datasets: [{ label: 'Total', data: chartDataByType.data, backgroundColor: '#4f46e5' }] },
                     options: { responsive: true, plugins: { legend: { display: false } }, indexAxis: 'y' }
                 });
             } else if (!typeCtx) { console.warn("Canvas 'report-chart-by-type' não encontrado.");}
@@ -1005,8 +860,6 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
 
 /**
  * Gera o relatório geral de Busca Ativa com gráficos.
- * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
- * (MODIFICADO - Cores)
  */
 export const generateAndShowBuscaAtivaReport = () => {
     const groupedByProcess = state.absences.reduce((acc, action) => {
@@ -1056,11 +909,7 @@ export const generateAndShowBuscaAtivaReport = () => {
              isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null);
 
             const ctAction = proc.actions.find(a => a.actionType === 'encaminhamento_ct');
-            // **** LINHA DA CORREÇÃO ****
-            // O código antigo (com bug) era: isPendingFeedback = ctAction && !isConcluido;
-            // O código correto é:
             isPendingFeedback = ctAction && !ctAction.ctFeedback;
-            // **** FIM DA CORREÇÃO ****
         }
 
         if (pendingAction === 'pending_contact' && !isPendingContact) return false;
@@ -1102,9 +951,9 @@ export const generateAndShowBuscaAtivaReport = () => {
             <div class="border rounded-lg p-4 bg-gray-50">
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <div><p class="text-2xl font-bold text-sky-600">${filteredProcesses.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Processos Filtrados</p></div>
-                    <div><p class="text-2xl font-bold text-sky-600">${statusEmAndamento}</p><p class="text-xs font-medium text-gray-500 uppercase">Em Andamento</p></div>
-                    <div><p class="text-2xl font-bold text-sky-600">${retornoSim}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Retornaram</p></div>
+                    <div><p class="text-2xl font-bold text-indigo-600">${filteredProcesses.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Processos Filtrados</p></div>
+                    <div><p class="text-2xl font-bold text-indigo-600">${statusEmAndamento}</p><p class="text-xs font-medium text-gray-500 uppercase">Em Andamento</p></div>
+                    <div><p class="text-2xl font-bold text-indigo-600">${retornoSim}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Retornaram</p></div>
                 </div>
                  ${filterDescriptions.length > 0 ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong> ${filterDescriptions.join('; ')}</p></div>` : ''}
             </div>
@@ -1143,8 +992,7 @@ export const generateAndShowBuscaAtivaReport = () => {
                 </div>
             </div>
 
-            <!-- --- CORREÇÃO 3: Removido 'pt-16' (CSS cuida da margem) --- -->
-            <div class="signature-block mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
+            <div class="signature-block pt-16 mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
         </div>
     `;
 
@@ -1152,7 +1000,6 @@ export const generateAndShowBuscaAtivaReport = () => {
     document.getElementById('report-view-content').innerHTML = reportHTML;
     openModal(dom.reportViewModalBackdrop);
 
-     // Renderiza gráficos (lógica mantida)
      setTimeout(() => {
         try {
             const statusCtx = document.getElementById('ba-chart-status')?.getContext('2d');
@@ -1177,8 +1024,7 @@ export const generateAndShowBuscaAtivaReport = () => {
              if (pendenteCtx && typeof Chart !== 'undefined') {
                  new Chart(pendenteCtx, {
                     type: 'bar',
-                    // (MODIFICADO - Cores)
-                    data: { labels: chartDataPendente.labels, datasets: [{ label: 'Total', data: chartDataPendente.data, backgroundColor: ['#0ea5e9', '#0d9488'] }] },
+                    data: { labels: chartDataPendente.labels, datasets: [{ label: 'Total', data: chartDataPendente.data, backgroundColor: ['#3b82f6', '#f97316'] }] },
                     options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
                 });
              } else if (!pendenteCtx) { console.warn("Canvas 'ba-chart-pendente' não encontrado."); }
@@ -1200,13 +1046,12 @@ export const generateAndShowBuscaAtivaReport = () => {
 
 
 // ==============================================================================
-// --- (MODIFICADO - Papéis) Ofício para Ocorrências ---
-// (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
+// --- (MODIFICADO V3) Ofício para Ocorrências ---
 // ==============================================================================
 
 /**
  * Gera o Ofício para o Conselho Tutelar (baseado em Ocorrência).
- * (MODIFICADO - Papéis) Inclui papel do aluno no texto, se relevante.
+ * (MODIFICADO V3: Atualizado para ler `providenciasEscola` (Ação 1))
  * @param {object} record - O registro individual da ocorrência.
  * @param {object} student - O objeto do aluno.
  * @param {string} oficioNumber - O número do ofício (do formulário).
@@ -1217,15 +1062,6 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
         return showToast('Dados insuficientes para gerar o ofício.');
     }
 
-    // (NOVO - Papéis) Encontra o papel do aluno neste incidente específico
-    let studentRole = defaultRole; // Papel padrão
-    if (record.participants && Array.isArray(record.participants)) {
-        const participantData = record.participants.find(p => p.studentId === student.matricula);
-        if (participantData) {
-            studentRole = participantData.role;
-        }
-    }
-
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
     const schoolName = state.config?.schoolName || "Nome da Escola";
@@ -1233,10 +1069,9 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
 
     const oficioHTML = `
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
-            <!-- --- CORREÇÃO 2: Removido 'text-center' do container e 'text-right' adicionado à data --- -->
-            <div>
+            <div class="text-center">
                 ${getReportHeaderHTML()}
-                <p class="text-right mt-4">${city}, ${currentDate}.</p>
+                <p>${city}, ${currentDate}.</p>
             </div>
 
             <div class="mt-8">
@@ -1255,23 +1090,20 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
 
             <div class="mt-8 text-justify">
                 <p class="indent-8">Prezados(as) Conselheiros(as),</p>
-                
-                <!-- --- CORREÇÃO 1: Este parágrafo já estava correto (dados no corpo) --- -->
                 <p class="mt-4 indent-8">
                     Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>,
                     regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino,
                     filho(a) de <strong>${formatText(responsaveis)}</strong>, residente no endereço: ${formatText(student.endereco)}.
                 </p>
                 <p class="mt-4 indent-8">
-                    O(A) referido(a) aluno(a) esteve envolvido(a) ${studentRole !== defaultRole ? `(identificado como <strong>${studentRole}</strong>)` : ''} <!-- (NOVO - Papéis) Adiciona papel se não for 'Envolvido' -->
-                    em um incidente em <strong>${formatDate(record.date)}</strong>,
+                    O(A) referido(a) aluno(a) esteve envolvido(a) em um incidente em <strong>${formatDate(record.date)}</strong>,
                     classificado como <strong>"${formatText(record.occurrenceType)}"</strong>, conforme descrição abaixo:
                 </p>
                 <p class="mt-2 p-3 bg-gray-100 border rounded" style="font-family: 'Inter', sans-serif;">
                     ${formatText(record.description)}
                 </p>
                 <p class="mt-4 indent-8">
-                    <!-- Leitura de 'providenciasEscola' (Ação 1) mantida -->
+                    <!-- (MODIFICADO V3) Lendo 'providenciasEscola' (Ação 1) -->
                     Informamos que a escola já realizou as seguintes providências imediatas (Ação 1):
                     <strong>${formatText(record.providenciasEscola) || 'Nenhuma providência imediata registrada.'}</strong>
                 </p>
@@ -1284,8 +1116,7 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
                 <p>Atenciosamente,</p>
             </div>
 
-            <!-- --- CORREÇÃO 3: Removido 'pt-16' (CSS cuida da margem) --- -->
-            <div class="signature-block mt-8 space-y-12">
+            <div class="signature-block pt-16 mt-8 space-y-12">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="mt-1">Diretor(a)</p>
@@ -1305,4 +1136,3 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
 // ==============================================================================
 // --- FIM NOVO ---
 // ==============================================================================
-

@@ -1,5 +1,11 @@
 // =================================================================================
-// ARQUIVO: utils.js 
+// ARQUIVO: utils.js (REFATORADO E CORRIGIDO)
+// RESPONSABILIDADE: Funções pequenas e reutilizáveis (helpers).
+// ATUALIZAÇÃO: Adicionada a função getStatusBadge (movida de ui.js).
+// CORREÇÃO (24/10/2025): A função formatText foi robustecida para converter
+// explicitamente o input para string antes de usar .replace(), evitando
+// TypeErrors quando recebe números ou outros tipos não-string.
+// =================================================================================
 
 export const formatDate = (dateString) => dateString ? new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '';
 export const formatTime = (timeString) => timeString || '';

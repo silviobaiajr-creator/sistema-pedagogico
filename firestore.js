@@ -1,10 +1,20 @@
 // =================================================================================
 // ARQUIVO: firestore.js
+// RESPONSABILIDADE: Funções de comunicação com a base de dados (CRUD).
+// ATUALIZAÇÃO GERAL (Conforme Análise):
+// 1. (Item 6) `addRecord` e `updateRecord` foram substituídos por
+//    `addRecordWithHistory` e `updateRecordWithHistory` para adicionar
+//    histórico de auditoria a todos os registros (Ocorrências e Busca Ativa).
+// 2. (Item 8) Nova função `getCounterDocRef` para suportar a geração
+//    de IDs sequenciais para ocorrências.
+// 3. (Item 5) Novas funções `getSchoolConfigDocRef` e `loadSchoolConfig`
+//    para carregar dinamicamente as configurações da escola (nome, logo).
+// 4. (Problema 3) Adicionada a nova função `saveSchoolConfig` para persistir
+//    as configurações da escola no banco de dados.
+// 5. Funções foram refatoradas para maior clareza e reutilização.
+// =================================================================================
 
-import {
-    doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
-    query, where, getDocs // <-- ADICIONADO
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { db } from './firebase.js';
 import { state } from './state.js';
 
@@ -173,65 +183,4 @@ export const saveSchoolConfig = (data) => {
     const configRef = getSchoolConfigDocRef();
     // Usa setDoc com 'merge: true' para não sobrescrever outros campos que possam existir no futuro.
     return setDoc(configRef, data, { merge: true });
-};
-
-/**
- * NOVO (CORREÇÃO LOGIN): Função em falta que estava a ser importada.
- * Busca todos os registos de ocorrência para um 'groupId' específico
- * e agrupa-os num único objeto de "Incidente".
- * Esta função é necessária para 'occurrence.js' e 'reports.js'.
- * @param {string} groupId - O ID do grupo (ex: "OCC-2025-001").
- * @returns {Promise<object|null>} Um objeto de incidente ou null se não for encontrado.
- */
-export const getIncidentByGroupId = async (groupId) => {
-    const incidentQuery = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', groupId));
-    
-    try {
-        const querySnapshot = await getDocs(incidentQuery);
-        if (querySnapshot.empty) {
-            console.warn(`Nenhum registo encontrado para o groupId: ${groupId}`);
-            return null;
-        }
-
-        const incident = {
-            id: groupId,
-            records: [],
-            participantsInvolved: new Map(), // Será preenchido
-        };
-
-        querySnapshot.forEach(doc => {
-            incident.records.push({ id: doc.id, ...doc.data() });
-        });
-
-        // Pega os dados do primeiro registo (dados coletivos)
-        // Garante que records[0] existe
-        if (incident.records.length === 0) {
-             console.warn(`Registos encontrados mas array 'records' está vazio para groupId: ${groupId}`);
-             return null;
-        }
-        
-        const mainRecord = incident.records[0];
-        const participantsList = mainRecord.participants || []; // Lista de { studentId, role }
-
-        // Preenche o Map 'participantsInvolved' com os dados completos dos alunos
-        participantsList.forEach(participant => {
-            const student = state.students.find(s => s.matricula === participant.studentId);
-            if (student && !incident.participantsInvolved.has(participant.studentId)) {
-                incident.participantsInvolved.set(participant.studentId, {
-                    student: student,
-                    role: participant.role || 'Envolvido' // Usa 'Envolvido' como fallback
-                });
-            }
-        });
-
-        // Recalcula o status geral (lógica de getFilteredOccurrences)
-        const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
-        incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
-
-        return incident;
-
-    } catch (error) {
-        console.error(`Erro ao buscar incidente por GroupId (${groupId}):`, error);
-        return null;
-    }
 };
