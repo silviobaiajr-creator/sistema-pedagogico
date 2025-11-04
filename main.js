@@ -20,6 +20,14 @@
 // 2. Importada a `updateRecordWithHistory` do firestore.js.
 // 3. A função `handleDeleteConfirmation` foi atualizada para lidar com
 //    o novo tipo de ação 'occurrence-reset', permitindo o rollback de etapas.
+//
+// ATUALIZAÇÃO (PDF V3 - "PDF INTELIGENTE"):
+// 1. A função `handlePdfDownload` foi reescrita para usar a lógica de "PDF Inteligente".
+// 2. Ela agora detecta o tipo de relatório (Simples vs. Complexo).
+// 3. Para relatórios complexos (com 'pdf-card'), ela captura cada card
+//    individualmente e gerencia as quebras de página para evitar cortes.
+// 4. Ela força a largura do "notebook" na captura, resolvendo a
+//    inconsistência de 2 páginas vs. 4 páginas entre dispositivos.
 // =================================================================================
 
 // --- MÓDULOS IMPORTADOS ---
@@ -271,7 +279,7 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (LÓGICA DE GERAÇÃO DE PDF - CORREÇÃO "PELA METADE") ---
+// --- (LÓGICA DE GERAÇÃO DE PDF V3 - "PDF INTELIGENTE") ---
 // ==============================================================================
 
 /**
@@ -295,87 +303,132 @@ async function handlePdfDownload(contentElementId, fileName, buttonElement) {
         return;
     }
 
-    // --- (NOVA CORREÇÃO) ---
-    // Encontra o container do modal que limita a altura
+    // Encontra o container do modal que limita a altura e define a largura
     const modalContent = contentElement.closest('.modal-content');
     if (!modalContent) {
         console.error("Erro no PDF: container .modal-content não encontrado.");
         showToast("Erro ao preparar o modal para PDF.");
         return;
     }
-    // --- (FIM DA NOVA CORREÇÃO) ---
 
     // 2. Define o estado de "Carregando" no botão
     const originalButtonHtml = buttonElement.innerHTML;
     buttonElement.disabled = true;
     buttonElement.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>Gerando...`;
     showToast("A gerar o seu PDF. Por favor, aguarde...");
+    contentElement.scrollTop = 0; // Garante que o scroll esteja no topo
 
-    // Garante que o scroll do conteúdo esteja no topo para a captura
-    contentElement.scrollTop = 0;
+    // 3. Detecta os marcadores que colocamos no reports.js
+    const simpleSection = contentElement.querySelector('.pdf-section');
+    const headerSection = contentElement.querySelector('.pdf-section-header');
+    const cardSections = contentElement.querySelectorAll('.pdf-card');
+    const footerSection = contentElement.querySelector('.pdf-section-footer');
+    
+    // --- (INÍCIO DA LÓGICA V3) ---
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const margin = 15; // Margem de 1.5cm
+    const usableWidth = pdfWidth - (margin * 2);
+    const usableHeight = pdfHeight - (margin * 2);
+    let currentY = margin; // Nosso "cursor" vertical na página
 
-    // --- (NOVA CORREÇÃO) Armazena estilos originais e os remove ---
-    // Removemos os limites de altura e overflow para que o html2canvas capture TUDO
-    const originalContentOverflow = contentElement.style.overflowY;
-    const originalContentHeight = contentElement.style.height;
-    const originalModalMaxHeight = modalContent.style.maxHeight;
+    // Helper para adicionar uma imagem (canvas) ao PDF, controlando a quebra de página
+    const addCanvasToPdf = (canvas) => {
+        const imgHeight = (canvas.height * usableWidth) / canvas.width;
+        const pageBreakPadding = 4; // Espaçamento entre os blocos (4mm)
 
-    contentElement.style.overflowY = 'visible';
-    contentElement.style.height = 'auto';
-    modalContent.style.maxHeight = 'none';
-    // --- (FIM DA NOVA CORREÇÃO) ---
+        // Verifica se o bloco cabe na página atual
+        // (Se não couber E não estivermos já no topo de uma página nova)
+        if (currentY + imgHeight > usableHeight && currentY > margin) {
+            pdf.addPage();
+            currentY = margin; // Reseta o cursor para o topo da nova página
+        }
+        
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, currentY, usableWidth, imgHeight);
+        currentY += imgHeight + pageBreakPadding; // Move o cursor para baixo
+    };
 
     try {
-        // 3. Tira a "screenshot" do conteúdo (agora expandido)
-        const canvas = await html2canvas(contentElement, {
-            scale: 2, // Aumenta a resolução da imagem
-            useCORS: true, // Permite que imagens externas (como o logo) sejam carregadas
-            logging: false,
-            onclone: (clonedDoc) => {
-                // Garante que o fundo da captura seja branco
-                const clonedContent = clonedDoc.getElementById(contentElementId);
-                if (clonedContent) {
-                    clonedContent.style.backgroundColor = '#ffffff';
-                    // (NOVA CORREÇÃO) Garante que o clone também esteja expandido
-                    clonedContent.style.overflowY = 'visible';
-                    clonedContent.style.height = 'auto';
-                    const clonedModalContent = clonedContent.closest('.modal-content');
-                    if (clonedModalContent) {
-                        clonedModalContent.style.maxHeight = 'none';
-                    }
-                }
+        // MODO 1: PDF "Inteligente" (para Relatórios com cards)
+        if (headerSection || cardSections.length > 0) {
+            
+            // Força a largura de captura do 'notebook' para consistência
+            const captureWidth = modalContent.offsetWidth;
+            const options = { 
+                scale: 2, 
+                useCORS: true, 
+                logging: false, 
+                width: captureWidth, // Força a largura
+                windowWidth: captureWidth, // Garante que o CSS responsivo use a largura forçada
+                backgroundColor: '#ffffff'
+            };
+
+            // Captura o Cabeçalho (Gráficos, Resumo)
+            if (headerSection) {
+                const headerCanvas = await html2canvas(headerSection, options);
+                addCanvasToPdf(headerCanvas);
             }
-        });
-
-        const imgData = canvas.toDataURL('image/png');
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'mm', 'a4'); // PDF em modo Retrato (p), milímetros (mm), tamanho A4
-
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        const margin = 10; // margem de 10mm (1cm)
-        const usableWidth = pdfWidth - (margin * 2);
-
-        // 4. Calcula a altura da imagem no PDF, mantendo a proporção
-        const imgHeight = (canvas.height * usableWidth) / canvas.width;
+            
+            // Captura CADA card individualmente
+            for (const card of cardSections) {
+                const cardCanvas = await html2canvas(card, options);
+                addCanvasToPdf(cardCanvas); // O helper cuida da quebra de página
+            }
+            
+            // Captura o Rodapé (Assinatura)
+            if (footerSection) {
+                const footerCanvas = await html2canvas(footerSection, options);
+                addCanvasToPdf(footerCanvas);
+            }
         
-        let heightLeft = imgHeight;
-        let position = margin; // Posição Y inicial (com margem)
+        // MODO 2: PDF "Simples" (para Atas, Ofícios, Notificações)
+        } else if (simpleSection) {
+            
+            // Prepara o modal para captura total (remove altura máxima e scroll)
+            const originalContentOverflow = simpleSection.style.overflowY;
+            const originalContentHeight = simpleSection.style.height;
+            const originalModalMaxHeight = modalContent.style.maxHeight;
 
-        // 5. Adiciona a imagem (que pode ter várias páginas)
-        pdf.addImage(imgData, 'PNG', margin, position, usableWidth, imgHeight);
-        heightLeft -= (pdfHeight - (margin * 2)); // Subtrai a altura da primeira página
+            simpleSection.style.overflowY = 'visible';
+            simpleSection.style.height = 'auto';
+            modalContent.style.maxHeight = 'none';
 
-        // 6. Lógica de Múltiplas Páginas
-        // Se a imagem for mais alta que a página, adiciona novas páginas
-        while (heightLeft > 0) {
-            position = -heightLeft - margin; // A nova posição Y (negativa) para "puxar" a imagem para cima
-            pdf.addPage();
-            pdf.addImage(imgData, 'PNG', margin, position, usableWidth, imgHeight);
-            heightLeft -= (pdfHeight - (margin * 2)); // Subtrai a altura de outra página
+            let canvas;
+            try {
+                canvas = await html2canvas(simpleSection, { 
+                    scale: 2, 
+                    useCORS: true, 
+                    logging: false,
+                    backgroundColor: '#ffffff'
+                });
+            } finally {
+                // Restaura os estilos IMEDIATAMENTE após a captura
+                simpleSection.style.overflowY = originalContentOverflow;
+                simpleSection.style.height = originalContentHeight;
+                modalContent.style.maxHeight = originalModalMaxHeight;
+            }
+
+            // Lógica V2 (corte de página para imagem única)
+            const imgHeight = (canvas.height * usableWidth) / canvas.width;
+            let heightLeft = imgHeight;
+            let position = margin;
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, position, usableWidth, imgHeight);
+            heightLeft -= (usableHeight);
+            
+            while (heightLeft > 0) {
+                position = -heightLeft + margin; // Puxa a imagem para cima
+                pdf.addPage();
+                pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, position, usableWidth, imgHeight);
+                heightLeft -= usableHeight;
+            }
+
+        } else {
+            throw new Error("Nenhum conteúdo marcadopara PDF (.pdf-section ou .pdf-card) foi encontrado.");
         }
 
-        // 7. Salva o PDF (inicia o download)
+        // 8. Salva o PDF (inicia o download)
         pdf.save(fileName);
         showToast("PDF gerado com sucesso!");
 
@@ -383,12 +436,7 @@ async function handlePdfDownload(contentElementId, fileName, buttonElement) {
         console.error("Erro ao gerar PDF:", error);
         showToast("Erro ao gerar o PDF. Verifique a consola.");
     } finally {
-        // 8. (NOVA CORREÇÃO) Restaura os estilos originais do modal
-        contentElement.style.overflowY = originalContentOverflow;
-        contentElement.style.height = originalContentHeight;
-        modalContent.style.maxHeight = originalModalMaxHeight;
-
-        // Restaura o botão ao estado original
+        // 9. Restaura o botão ao estado original
         buttonElement.disabled = false;
         buttonElement.innerHTML = originalButtonHtml;
     }
@@ -445,23 +493,23 @@ function setupModalCloseButtons() {
     // (MODIFICADO - GERAÇÃO DE PDF)
     // Altera o texto dos botões e atribui a nova função 'handlePdfDownload'
 
-    const printBtn = document.getElementById('print-btn');
-    if (printBtn) {
-        printBtn.innerHTML = '<i class="fas fa-file-pdf mr-2"></i>Baixar PDF';
-        // Passamos o ID do conteúdo, o nome do arquivo, e o próprio botão (e.currentTarget)
-        printBtn.addEventListener('click', (e) => handlePdfDownload('notification-content', 'Notificacao.pdf', e.currentTarget));
-    }
+    // Remove listeners antigos para evitar chamadas duplicadas
+    const cleanAndSetListener = (buttonId, contentId, fileName) => {
+        const button = document.getElementById(buttonId);
+        if (button) {
+            button.innerHTML = '<i class="fas fa-file-pdf mr-2"></i>Baixar PDF';
+            
+            // Clonamos o botão para remover TODOS os event listeners antigos
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+            
+            // Adicionamos o novo listener
+            newButton.addEventListener('click', (e) => handlePdfDownload(contentId, fileName, e.currentTarget));
+        }
+    };
 
-    const reportPrintBtn = document.getElementById('report-print-btn');
-    if (reportPrintBtn) {
-        reportPrintBtn.innerHTML = '<i class="fas fa-file-pdf mr-2"></i>Baixar PDF';
-        reportPrintBtn.addEventListener('click', (e) => handlePdfDownload('report-view-content', 'Relatorio.pdf', e.currentTarget));
-    }
-
-    const fichaPrintBtn = document.getElementById('ficha-print-btn');
-    if (fichaPrintBtn) {
-        fichaPrintBtn.innerHTML = '<i class="fas fa-file-pdf mr-2"></i>Baixar PDF';
-        fichaPrintBtn.addEventListener('click', (e) => handlePdfDownload('ficha-view-content', 'Ficha.pdf', e.currentTarget));
-    }
+    cleanAndSetListener('print-btn', 'notification-content', 'Notificacao.pdf');
+    cleanAndSetListener('report-print-btn', 'report-view-content', 'Relatorio.pdf');
+    cleanAndSetListener('ficha-print-btn', 'ficha-view-content', 'Ficha.pdf');
 }
 
