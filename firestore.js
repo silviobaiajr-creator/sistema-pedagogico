@@ -1,11 +1,5 @@
 // =================================================================================
 // ARQUIVO: firestore.js
-// RESPONSABILIDADE: Funções de comunicação com a base de dados (CRUD).
-//
-// CORREÇÃO (LOGIN - 29/10/2025):
-// 1. Adicionada a função em falta `getIncidentByGroupId`.
-// 2. Adicionadas importações `query`, `where`, `getDocs` para a nova função.
-// =================================================================================
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
