@@ -288,7 +288,6 @@ function handlePrintClick(contentElementId) {
         return;
     }
     
-    // Encontra o backdrop pai, que tem a classe .printable-area
     const printableBackdrop = contentElement.closest('.printable-area');
     if (!printableBackdrop) {
          console.error("Backdrop '.printable-area' pai não encontrado para:", contentElementId);
@@ -296,42 +295,54 @@ function handlePrintClick(contentElementId) {
          return;
     }
 
-    // 1. Adiciona classe específica ('printing-now')
-    //    APENAS ao backdrop do modal que queremos imprimir.
+    // --- INÍCIO DA NOVA CORREÇÃO (Anti-Animação) ---
+    // 1. Encontra o .modal-content que contém o conteúdo
+    const modalContent = contentElement.closest('.modal-content');
+    if (!modalContent) {
+        console.error("Erro na impressão: .modal-content não encontrado.");
+        return;
+    }
+
+    // 2. Salva a transição original e a desativa FORÇADAMENTE via JS
+    // Isso impede que o navegador tente "animar" a renderização de impressão
+    const originalTransition = modalContent.style.transition;
+    modalContent.style.transition = 'none !important';
+    // --- FIM DA NOVA CORREÇÃO (Anti-Animação) ---
+
+
+    // 3. Adiciona classe específica ('printing-now')
     printableBackdrop.classList.add('printing-now');
 
-    // 2. Define a função de limpeza
+    // 4. Define a função de limpeza
     const cleanupAfterPrint = () => {
         printableBackdrop.classList.remove('printing-now');
-        // REMOVIDO: window.removeEventListener('afterprint', cleanupAfterPrint);
+        // Restaura a transição original do modal
+        modalContent.style.transition = originalTransition;
     };
 
-    // 3. REMOVIDO: window.addEventListener('afterprint', cleanupAfterPrint);
-
-    // 4. Chama a impressão com a nova lógica (sem afterprint)
+    // 5. Chama a impressão
     try {
         // ==================================================================
-        // INÍCIO DA NOVA CORREÇÃO (Sem 'afterprint')
+        // INÍCIO DA NOVA CORREÇÃO (Delay Aumentado)
         // ==================================================================
         
-        // Passo A: Espera 150ms para o navegador aplicar a classe .printing-now
-        setTimeout(() => {
+        // Passo A: Espera 300ms (aumentado de 150ms)
+        // Este tempo é necessário para o JS desativar a transição E
+        // o navegador aplicar a classe .printing-now
+        setTimeout(() => { // <--- CORRIGIDO
             try {
-                // Passo B: Chama a impressão. O JS vai "pausar" aqui.
+                // Passo B: Chama a impressão.
                 window.print();
             
-                // Passo C: O JS "descongela" aqui (depois de imprimir ou cancelar).
-                // Agenda a limpeza para rodar logo em seguida.
-                // Usamos 500ms como um "cooldown" seguro para o navegador.
+                // Passo C: Limpeza agendada
                 setTimeout(cleanupAfterPrint, 500); 
 
             } catch (printError) {
-                // Se o window.print() falhar, limpa imediatamente.
                 console.error("Erro durante a chamada window.print():", printError);
                 showToast("Não foi possível abrir a janela de impressão.");
                 cleanupAfterPrint(); // Limpa se a impressão falhar
             }
-        }, 150); // 150ms de espera (aumentado de 100)
+        }, 300); // <--- CORRIGIDO (Aumentado de 150ms para 300ms)
         // ==================================================================
         // FIM DA NOVA CORREÇÃO
         // ==================================================================
@@ -399,3 +410,5 @@ function setupModalCloseButtons() {
     document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
 }
 
+
+}
