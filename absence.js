@@ -1,38 +1,5 @@
 // =================================================================================
-// ARQUIVO: absence.js (NOVO E CORRIGIDO)
-// RESPONSABILIDADE: Gerenciar toda a lógica, UI e eventos da
-// funcionalidade "Busca Ativa".
-//
-// ATUALIZAÇÃO (V4 - LAYOUT UNIFICADO - 01/11/2025):
-// 1. (renderAbsences) Reescrita para espelhar o layout do 'occurrence.js'.
-// 2. O conteúdo do acordeão agora é dividido em "Histórico Individual" (lista)
-//    e "Ações" (bloco de botões).
-// 3. Removidos os menus Kebab de cada linha de histórico.
-// 4. (initAbsenceListeners) Atualizada para lidar com os novos botões no
-//    bloco "Ações" (Avançar, Editar, Limpar, etc.).
-//
-// CORREÇÃO (BUG DO BOTÃO - 01/11/2025):
-// 1. (setupAbsenceAutocomplete) Corrigida referência para usar `dom.searchAbsences`.
-// 2. (initAbsenceListeners) Corrigida referência para usar `dom.generalBaReportBtn`.
-//
-// ATUALIZAÇÃO (MELHORIAS DE FLUXO - 02/11/2025):
-// 1. (Melhoria 1) Removido `handleSendToCT` e o `prompt()` do ofício. Campos de Nº/Ano
-//    agora estão no modal, em `openAbsenceModalForStudent` e `getAbsenceFormData`.
-// 2. (Melhoria 2) `openAbsenceModalForStudent` agora divide as etapas "Tentativas"
-//    e "Encaminhamento CT" em sub-etapas (Convocação vs Contato; Envio vs Devolutiva).
-// 3. (Melhoria 2) `handleAbsenceSubmit` atualizado para mesclar dados de sub-etapas
-//    escondidas durante a edição, evitando perda de dados.
-// 4. (Melhoria 3) `renderAbsences` move os botões "Ver Notificação" e "Ver Ofício"
-//    para dentro do `historyHtml`, ao lado da etapa correspondente.
-// 5. (Melhoria 3) `initAbsenceListeners` atualizada para detetar os novos botões
-//    no histórico (ex: `.view-notification-btn-hist`).
-//
-// ATUALIZAÇÃO (TEMA Cores + Correção Bug + Sug. 3):
-// 1. (renderAbsences) Cores 'purple' e 'indigo' trocadas por 'teal' e 'sky'.
-// 2. (renderAbsences) Corrigido bug que mostrava tela em branco se filtros
-//    não encontrassem resultados.
-// 3. (initAbsenceListeners) Adicionada lógica para o novo botão 'add-absence-btn'.
-// =================================================================================
+// ARQUIVO: absence.js 
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js'; // Adicionado formatTime
