@@ -7,7 +7,7 @@
 /* de papel inline, dropdown de edição de papel e ajustes nas tags.               */
 /* ATUALIZAÇÃO (V4 - ACORDEÃO OCORRÊNCIAS - 01/11/2025): Adicionados estilos       */
 /* para o novo layout de acordeão de alunos na aba Ocorrências.                   */
-/* ATUALIZAÇÃO (SUGESTÃO 5 - 03/11/2025): Alterada a cor do .tab-active.           */
+/* ATUALIZAÇÃO (TEMA Cores): Classe .tab-active atualizada para novo tema.         */
 /* ============================================================================== */
 
 /* --- ESTILOS GERAIS E FONTES --- */
@@ -35,7 +35,7 @@ body {
 }
 
 /* --- ESTILOS DE NAVEGAÇÃO E TABELAS --- */
-/* (ALTERADO - SUGESTÃO 5) Cores atualizadas para sky (azul) */
+/* (MODIFICADO - TEMA Cores) */
 .tab-active {
     border-color: #0284c7; /* sky-600 */
     color: #0284c7; /* sky-600 */
@@ -62,7 +62,7 @@ tbody tr:nth-child(even) {
     cursor: pointer;
 }
 .suggestion-item:hover {
-    background-color: #eef2ff; /* Mantido indigo-50 ou pode mudar para sky-50 */
+    background-color: #eef2ff;
 }
 
 /* ============================================================================== */
@@ -145,7 +145,7 @@ tbody tr:nth-child(even) {
 
 .occurrence-summary {
     list-style: none; /* Remove o marcador padrão do <summary> */
-    /* O cursor-pointer e hover:bg-sky-50 são aplicados via Tailwind no JS */
+    /* O cursor-pointer e hover:bg-indigo-50 são aplicados via Tailwind no JS */
 }
 .occurrence-summary::-webkit-details-marker {
     display: none; /* Remove o marcador padrão (Safari) */
@@ -361,3 +361,4 @@ body.is-printing .printable-area {
         margin: 1cm;
     }
 }
+
