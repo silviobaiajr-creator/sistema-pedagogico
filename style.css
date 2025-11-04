@@ -1,5 +1,13 @@
 /* ============================================================================== */
 /* ARQUIVO: style.css                                                             */
+/* TODO O SEU CÓDIGO DE DESIGN ESTÁ AQUI                                          */
+/* ATUALIZAÇÃO: Adicionados estilos para o novo menu de ações "kebab" (Item 10)   */
+/* para melhorar a usabilidade e organização dos botões.                          */
+/* ATUALIZAÇÃO (PAPÉIS - 29/10/2025): Adicionados estilos para o painel de seleção */
+/* de papel inline, dropdown de edição de papel e ajustes nas tags.               */
+/* ATUALIZAÇÃO (V4 - ACORDEÃO OCORRÊNCIAS - 01/11/2025): Adicionados estilos       */
+/* para o novo layout de acordeão de alunos na aba Ocorrências.                   */
+/* ============================================================================== */
 
 /* --- ESTILOS GERAIS E FONTES --- */
 body {
@@ -26,11 +34,10 @@ body {
 }
 
 /* --- ESTILOS DE NAVEGAÇÃO E TABELAS --- */
-/* (MODIFICADO - TEMA Cores) */
 .tab-active {
-    border-color: #0284c7; /* sky-600 */
-    color: #0284c7; /* sky-600 */
-    background-color: #f0f9ff; /* sky-50 */
+    border-color: #4f46e5;
+    color: #4f46e5;
+    background-color: #eef2ff;
 }
 tbody tr:nth-child(even) {
     background-color: #f9fafb; /* Estilo "zebrado" */
@@ -217,103 +224,107 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* (INÍCIO DA SUBSTITUIÇÃO) SEÇÃO 2: NOVOS ESTILOS ROBUSTOS PARA IMPRESSÃO DIRETA  */
-/* Esta é a versão à prova de falhas que corrige o bug da "página em branco"     */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORRIGIDO - Abordagem Híbrida Definitiva)    */
 /* ============================================================================== */
 
-@media print {
+/* 1. (REMOVIDO) Estilos .is-printing (não são mais necessários) */
+/*
+body.is-printing > * {
+    display: none !important;
+}
+body.is-printing .printable-area {
+    display: block !important;
+    position: static !important;
+}
+*/
 
-    /* --- 1. Preparação do Corpo --- */
-    /* Remove fundos, transições e garante que o layout ocupe a página */
+/* 2. Estilos @media print (Agora usam a classe .printing-now) */
+@media print {
+    /* Garante que o body não tenha margens */
     body, html {
         margin: 0 !important;
         padding: 0 !important;
-        background: #fff !important; /* Fundo branco para impressão */
-        color: #000 !important;
-        font-size: 11pt; /* Tamanho de fonte consistente para impressão */
-        transition: none !important;
-        animation: none !important;
-    }
-
-    /* --- 2. Esconde o conteúdo principal da UI --- */
-    /* Escondemos explicitamente os elementos que NUNCA queremos imprimir */
-    #main-content, #login-screen, #toast-notification {
-        display: none !important;
-    }
-    
-    /* --- 3. Esconde TODOS os modais por padrão --- */
-    /* Isso garante que apenas o modal ativo seja impresso */
-    .printable-area {
-        display: none !important;
-    }
-    
-    /* --- 4. MOSTRA APENAS o modal marcado para impressão --- */
-    /* Esta é a regra principal. O JS adicionará a classe '.printing-now' */
-    .printable-area.printing-now {
-        display: block !important;
-        position: static !important; /* Remove 'fixed' */
-        width: 100% !important;
-        height: auto !important;
-        overflow: visible !important; /* Mostra todo o conteúdo */
-        padding: 0 !important;
-        margin: 0 !important;
         background: none !important;
-        border: none !important;
-        box-shadow: none !important;
-        transition: none !important;
+        /* --- NOVA CORREÇÃO (ANTI-ANIMAÇÃO) --- */
+        /* Remove transições que podem atrasar a renderização no mobile */
+        transition: none !important; 
         animation: none !important;
+        /* --- FIM DA CORREÇÃO --- */
     }
 
-    /* --- 5. Reseta o '.modal-content' (Filho do backdrop) --- */
-    /* Reseta o container do modal para ser um documento simples */
-    .printing-now .modal-content {
-        display: block !important;
+    /* (NOVA REGRA 1) Esconde TUDO no body. */
+    body > * {
+        display: none !important;
+    }
+    
+    /* (NOVA REGRA 2) MOSTRA APENAS o backdrop que o JS marcou com .printing-now.
+       Esta regra reseta o backdrop .printable-area que tem a classe .printing-now
+    */
+    body > .printing-now {
+        /* Remove o 'fixed', 'inset-0' e 'z-50' do modal */
         position: static !important;
         width: 100% !important;
-        max-width: 100% !important;
         height: auto !important;
-        overflow: visible !important; /* Crucial */
+        overflow: visible !important;
         padding: 0 !important;
-        margin: 0 !important;
-        background: none !important;
-        border: none !important;
-        box-shadow: none !important;
-        transform: none !important; /* Remove 'scale' */
-        opacity: 1 !important;
+        /* Remove transições e opacidade */
+        opacity: 1 !important; 
+        transform: none !important;
+        background: none !important; /* Remove o fundo escuro do backdrop */
+        /* Remove o flex-box de centralização */
+        display: block !important;
+        /* --- NOVA CORREÇÃO (ANTI-ANIMAÇÃO) --- */
         transition: none !important;
         animation: none !important;
+        /* --- FIM DA CORREÇÃO --- */
     }
 
-    /* --- 6. Esconde o "Chrome" do Modal --- */
-    /* Esta é a correção da "Lógica V4". Escondemos APENAS .no-print */
-    /* (Isto é mais seguro do que esconder tudo e re-mostrar o conteúdo) */
-    .printing-now .no-print {
+    /* (NOVA REGRA 3) Reseta o .modal-content DENTRO do backdrop visível */
+    .printing-now .modal-content {
+        transform: none !important;
+        opacity: 1 !important;
+        box-shadow: none !important;
+        border: none !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
+        /* --- NOVA CORREÇÃO (ANTI-ANIMAÇÃO) --- */
+        transition: none !important;
+        animation: none !important;
+        /* --- FIM DA CORREÇÃO --- */
+    }
+
+    /* (NOVA REGRA 4) Esconde elementos .no-print DENTRO do backdrop visível */
+    .printing-now .no-print, .printing-now .no-print * {
         display: none !important;
     }
-    
-    /* --- 7. Garante que o CONTEÚDO do relatório esteja visível --- */
-    /* (Esta regra garante que o overflow-y-auto da tela seja removido) */
+
+    /* (REMOVIDA) A regra genérica .printing-content foi removida. */
+    /* (REMOVIDA) A regra 'body * { visibility: hidden }' foi removida. */
+
+
+    /* (NOVA REGRA 5) Remove padding do conteúdo DENTRO do backdrop visível */
+    .printing-now #occurrence-record-content,
     .printing-now #notification-content,
     .printing-now #report-view-content,
     .printing-now #ficha-view-content {
-        display: block !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        overflow: visible !important;
-        height: auto !important;
+        padding: 0 !important;
     }
 
-    /* --- 8. Estilos Específicos do Documento --- */
-    /* (Estes estilos já estavam corretos no seu arquivo) */
+    /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO (Mantidos do original) --- */
     
     /* Bloco de assinaturas (garante visibilidade e formatação) */
     .signature-block, .signature-block * {
+        /* visibility: visible !important; */ /* Não é mais necessário com display:none */
         display: block !important;
     }
     
     .signature-block {
-        page-break-inside: avoid !important; 
-        margin-top: 2.5rem !important; 
+        page-break-inside: avoid !important; /* CORREÇÃO: Adicionado !important */
+        margin-top: 2.5rem !important; /* CORREÇÃO: Reduzido de 4rem (mt-16) para 2.5rem (mt-10) */
     }
     
     .signature-line {
@@ -321,8 +332,8 @@ details[open] .process-content {
         flex-direction: column !important;
         align-items: center !important;
         width: 60% !important;
-        margin: 1.5rem auto 0 auto !important; 
-        page-break-inside: avoid !important; 
+        margin: 1.5rem auto 0 auto !important; /* CORREÇÃO: Reduzido de 2rem (mt-8) para 1.5rem (mt-6) */
+        page-break-inside: avoid !important; /* CORREÇÃO: Adicionado !important */
     }
 
     .signature-text {
@@ -348,7 +359,3 @@ details[open] .process-content {
         margin: 1cm;
     }
 }
-/* ============================================================================== */
-/* (FIM DA SUBSTITUIÇÃO)                                                          */
-/* ============================================================================== */
-

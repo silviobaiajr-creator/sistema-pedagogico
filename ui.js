@@ -1,5 +1,9 @@
 // =================================================================================
-// ARQUIVO: ui.js 
+// ARQUIVO: ui.js (REFATORADO)
+// RESPONSABILIDADE: Função de renderização principal que orquestra
+// qual módulo de funcionalidade (occurrence.js ou absence.js)
+// deve desenhar seu conteúdo na tela.
+// =================================================================================
 
 import { state } from './state.js';
 // Importa as funções de renderização específicas dos novos módulos

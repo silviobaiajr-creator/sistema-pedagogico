@@ -1,5 +1,29 @@
 // =================================================================================
 // ARQUIVO: state.js
+// RESPONSABILIDADE: Guardar o estado global da aplicação e as referências
+// aos elementos do DOM para acesso rápido.
+// ATUALIZAÇÃO GERAL (Conforme Análise):
+// 1. (Item 5) Adicionado o objeto `config` ao estado para armazenar as
+//    configurações da escola (nome, logo) carregadas do Firestore.
+// 2. Adicionadas referências do DOM para os novos elementos da interface, como
+//    o botão de configurações e o de relatório da Busca Ativa.
+// 3. (Problema 3) Adicionadas referências para o novo modal de configurações.
+// 4. (Item 2) Adicionadas referências para o novo modal de Acompanhamento.
+// 5. (Item 3a) Adicionada referência para a tabela de alunos (otimização).
+// 6. (CORREÇÃO GERAL) Movida a atribuição do DOM para uma função
+//    `initializeDOMReferences` para evitar erros de timing no carregamento.
+//
+// ATUALIZAÇÃO (CORREÇÃO CSV):
+// 1. Adicionadas referências para os elementos do modal de Alunos
+//    (student-form, cancel-edit-student-btn, csv-file, upload-csv-btn, csv-feedback)
+//    ao objeto `dom` para garantir que sejam encontrados após o DOM carregar.
+//
+// ATUALIZAÇÃO (FILTRO DATA BA - 24/10/2025):
+// 1. Adicionados `startDate` e `endDate` a `filtersAbsences`.
+//
+// ATUALIZAÇÃO (NOVO FLUXO CT OCORRÊNCIA - 24/10/2025):
+// 1. Adicionadas referências DOM para o novo modal `send-occurrence-ct-modal`.
+// =================================================================================
 
 export const state = {
     // Dados carregados do Firestore
@@ -11,8 +35,7 @@ export const state = {
     config: {
         schoolName: "Carregando...",
         city: "",
-        schoolLogoUrl: null,
-        adminEmails: [] // (ADICIONADO - Híbrida Admin)
+        schoolLogoUrl: null
     },
 
     // Filtros para a aba de Ocorrências
@@ -45,7 +68,6 @@ export const state = {
     db: null,
     userId: null,
     userEmail: null,
-    isAdmin: false, // (ADICIONADO - Híbrida Admin)
     unsubscribeOccurrences: null,
     unsubscribeAbsences: null,
 };
@@ -121,10 +143,8 @@ export const initializeDOMReferences = () => {
 
     // Botões de Ação Principais
     dom.settingsBtn = document.getElementById('settings-btn');
-    dom.manageStudentsBtn = document.getElementById('manage-students-btn'); // (ADICIONADO)
     dom.generalReportBtn = document.getElementById('general-report-btn');
     dom.generalBaReportBtn = document.getElementById('general-ba-report-btn');
-    dom.addAbsenceBtn = document.getElementById('add-absence-btn'); // (ADICIONADO - Sug. 3)
 
     // --- CORREÇÃO CSV: Adicionando referências do modal de alunos ---
     dom.studentForm = document.getElementById('student-form');

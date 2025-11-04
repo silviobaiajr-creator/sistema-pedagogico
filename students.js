@@ -1,5 +1,8 @@
 // =================================================================================
 // ARQUIVO: students.js
+// RESPONSABILIDADE: Gerenciar a lógica e a UI do modal "Gerir Alunos",
+// incluindo adição, edição, exclusão e importação via CSV.
+// =================================================================================
 
 import { state, dom } from './state.js';
 import { setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -52,7 +55,6 @@ const resetStudentForm = () => {
 /**
  * Lida com o upload do ficheiro CSV de alunos.
  * (Movido de main.js)
- * (MODIFICADO - Cores)
  */
 async function handleCsvUpload() {
     const fileInput = dom.csvFile; // Usa a referência do DOM
@@ -63,7 +65,7 @@ async function handleCsvUpload() {
     try {
         // Verifica se Papa já está carregado
         if (typeof window.Papa === 'undefined') {
-            feedbackDiv.innerHTML = `<p class="text-sky-500">A carregar biblioteca de CSV...</p>`; // Cor atualizada
+            feedbackDiv.innerHTML = `<p class="text-blue-500">A carregar biblioteca de CSV...</p>`;
             const papaScriptUrl = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js';
             await loadScript(papaScriptUrl);
             if (typeof window.Papa === 'undefined') {
@@ -258,3 +260,4 @@ export const initStudentListeners = () => {
     
     // Os botões de fechar/cancelar do modal já são tratados pelo `setupModalCloseButtons` no main.js
 };
+
