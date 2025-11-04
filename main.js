@@ -250,18 +250,14 @@ async function handleDeleteConfirmation() {
 
 // ==============================================================================
 // --- (INÍCIO DA SUBSTITUIÇÃO) ---
-// --- LÓGICA DE IMPRESSÃO (CORREÇÃO 10 - TÉCNICA DA NOVA JANELA) ---
+// --- LÓGICA DE IMPRESSÃO ROBUSTA (CORREÇÃO 4 - requestAnimationFrame) ---
 // ==============================================================================
 /**
- * Abre uma nova janela, copia o HTML do relatório e os estilos
- * compilados do Tailwind, e chama a impressão.
- *
- * Esta solução resolve:
- * 1. O bloqueador de pop-ups (chamando window.open imediatamente).
- * 2. A "má formatação" (clonando estilos compilados, não o script JIT).
- * 3. A "página em branco" (imprimindo um documento limpo, não um modal).
- *
- * @param {string} contentElementId - O ID do elemento de conteúdo (ex: 'notification-content')
+ * Prepara o DOM para impressão e chama window.print() de forma robusta.
+ * Usa requestAnimationFrame para garantir que o CSS seja aplicado ANTES da impressão,
+ * corrigindo o bug da "página em branco" em dispositivos móveis (race condition).
+ * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
+ * (ex: 'notification-content', 'report-view-content').
  */
 function handlePrintClick(contentElementId) {
     const contentElement = document.getElementById(contentElementId);
@@ -270,113 +266,49 @@ function handlePrintClick(contentElementId) {
         showToast("Erro ao preparar documento para impressão.");
         return;
     }
-
-    // 1. Abrir a nova janela IMEDIATAMENTE.
-    // Isso é crucial para evitar o bloqueador de pop-ups.
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-        showToast("Erro ao abrir a janela de impressão. Verifique o bloqueador de pop-ups.");
-        return;
-    }
-
-    // 2. Coletar os links CSS (FontAwesome, Google Fonts, style.css)
-    const headLinks = document.querySelectorAll('head > link[rel="stylesheet"]');
-    let headLinksHTML = '';
-    headLinks.forEach(link => {
-        headLinksHTML += link.outerHTML;
-    });
-
-    // 3. Coletar os ESTILOS COMPILADOS (Tailwind)
-    // O script JIT do Tailwind cria tags <style> no <head>. Vamos copiá-las.
-    const headStyles = document.querySelectorAll('head > style');
-    let headStylesHTML = '';
-    headStyles.forEach(style => {
-        headStylesHTML += style.outerHTML;
-    });
-
-    // 4. Coletar o HTML do *interior* do relatório (sem o modal container)
-    // Isso corrige o problema da "má formatação" e das "4 páginas"
-    const printHTML = contentElement.innerHTML;
     
-    // 5. Coletar o Título
-    const modalContent = contentElement.closest('.modal-content');
-    const titleElement = modalContent ? modalContent.querySelector('h3[id$="-title"]') : null;
-    const title = titleElement ? titleElement.textContent : 'Imprimir Documento';
-
-    // 6. Escrever o documento na nova janela
-    try {
-        printWindow.document.open();
-        printWindow.document.write(`
-            <!DOCTYPE html>
-            <html lang="pt-BR">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>${title}</title>
-                
-                <!-- 7. Inserir os LINKS (style.css, FontAwesome, etc) -->
-                ${headLinksHTML}
-                
-                <!-- 8. Inserir os ESTILOS COMPILADOS (Tailwind) -->
-                ${headStylesHTML}
-
-                <!-- 9. Inserir CSS de impressão (do style.css) -->
-                <style>
-                    /* Regra de impressão robusta do style.css */
-                    @media print {
-                        body, html {
-                            margin: 0 !important; padding: 0 !important;
-                            overflow: visible !important; background: #fff !important;
-                            font-size: 11pt;
-                        }
-                        /* Esconde botões que possam ter sido copiados acidentalmente */
-                        .no-print { display: none !important; }
-                        
-                        /* Regras de formatação do documento */
-                        .signature-block { page-break-inside: avoid !important; margin-top: 2.5rem !important; }
-                        .signature-line { display: flex !important; flex-direction: column !important; align-items: center !important; width: 60% !important; margin: 1.5rem auto 0 auto !important; }
-                        .signature-text { border-top: 1px solid #374151 !important; width: 100% !important; padding-top: 0.25rem !important; text-align: center !important; font-weight: 600 !important; }
-                        .signature-role { font-size: 0.75rem !important; color: #4b5563 !important; }
-                        .break-inside-avoid { page-break-inside: avoid; }
-                        @page { margin: 1cm; }
-                    }
-                </style>
-            </head>
-            <body>
-                <!-- 10. Insere o HTML do relatório (sem o modal) -->
-                <!-- Adicionamos uma margem de "folha" para o corpo -->
-                <div class="p-8">
-                    ${printHTML}
-                </div>
-
-                <!-- 11. O Script de Impressão -->
-                <script>
-                    // Espera a página (e todos os estilos) carregar
-                    window.onload = function() {
-                        // Um pequeno delay extra (100ms) por segurança
-                        // para garantir a renderização completa no celular.
-                        setTimeout(function() {
-                            window.print(); // Chama a impressão
-                            
-                            // Em alguns navegadores (Chrome), window.close() só funciona
-                            // se a janela foi aberta pelo próprio script.
-                            // Em outros (Safari), ela pode permanecer aberta.
-                            // Isso é um comportamento esperado.
-                            setTimeout(function() {
-                                window.close();
-                            }, 100);
-                        }, 100); 
-                    }
-                </script>
-            </body>
-            </html>
-        `);
-        printWindow.document.close();
-    } catch (e) {
-        console.error("Erro ao escrever na nova janela:", e);
-        showToast("Erro ao preparar a página de impressão.");
-        printWindow.close(); // Fecha a janela se falhar
+    const printableBackdrop = contentElement.closest('.printable-area');
+    if (!printableBackdrop) {
+         console.error("Backdrop '.printable-area' pai não encontrado para:", contentElementId);
+         showToast("Erro ao preparar a área de impressão.");
+         return;
     }
+
+    // 1. Define a função de limpeza (será chamada após a impressão)
+    // Usamos 'once: true' para garantir que execute apenas uma vez.
+    const cleanupAfterPrint = () => {
+        printableBackdrop.classList.remove('printing-now');
+        // console.log("Impressão finalizada, limpeza concluída."); // Log de depuração
+    };
+
+    // 2. Adiciona o listener para limpar DEPOIS que a impressão for fechada
+    // 'once: true' remove o listener automaticamente após ser disparado.
+    window.addEventListener('afterprint', cleanupAfterPrint, { once: true });
+
+    // 3. Adiciona a classe para ativar o CSS de impressão
+    printableBackdrop.classList.add('printing-now');
+    // console.log("Classe '.printing-now' adicionada. Preparando para imprimir..."); // Log de depuração
+
+    // 4. (A CORREÇÃO DEFINITIVA)
+    // Em vez de usar setTimeout (uma aposta), usamos requestAnimationFrame.
+    // Isso diz ao navegador: "Execute o seguinte código *exatamente*
+    // antes do próximo redesenho da tela."
+    requestAnimationFrame(() => {
+        // Neste ponto, o navegador JÁ processou a adição da classe '.printing-now'
+        // e o CSS de impressão (do style.css) está ativo.
+        // Agora é 100% seguro chamar window.print().
+        // console.log("requestAnimationFrame executado. Chamando window.print()."); // Log de depuração
+        
+        try {
+            window.print();
+        } catch (printError) {
+            console.error("Erro durante a chamada window.print():", printError);
+            showToast("Não foi possível abrir a janela de impressão.");
+            // Se a impressão falhar (ex: bloqueada), limpa imediatamente
+            window.removeEventListener('afterprint', cleanupAfterPrint); // Remove o listener que não vai disparar
+            cleanupAfterPrint();
+        }
+    });
 }
 // ==============================================================================
 // --- (FIM DA SUBSTITUIÇÃO) ---
