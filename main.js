@@ -250,14 +250,13 @@ async function handleDeleteConfirmation() {
 
 // ==============================================================================
 // --- (INÍCIO DA SUBSTITUIÇÃO) ---
-// --- LÓGICA DE IMPRESSÃO ROBUSTA (CORREÇÃO 4 - requestAnimationFrame) ---
+// --- LÓGICA DE IMPRESSÃO DEFINITIVA (CORREÇÃO 5 - DOM Manipulation) ---
 // ==============================================================================
 /**
  * Prepara o DOM para impressão e chama window.print() de forma robusta.
- * Usa requestAnimationFrame para garantir que o CSS seja aplicado ANTES da impressão,
- * corrigindo o bug da "página em branco" em dispositivos móveis (race condition).
+ * Esta versão (Correção 5) MANIPULA O DOM para remover estilos conflitantes
+ * (como overflow e max-height) que causam a "página em branco" no celular.
  * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
- * (ex: 'notification-content', 'report-view-content').
  */
 function handlePrintClick(contentElementId) {
     const contentElement = document.getElementById(contentElementId);
@@ -268,44 +267,68 @@ function handlePrintClick(contentElementId) {
     }
     
     const printableBackdrop = contentElement.closest('.printable-area');
-    if (!printableBackdrop) {
-         console.error("Backdrop '.printable-area' pai não encontrado para:", contentElementId);
+    const modalContent = contentElement.closest('.modal-content');
+    
+    if (!printableBackdrop || !modalContent) {
+         console.error("Estrutura do modal não encontrada ('.printable-area' ou '.modal-content').");
          showToast("Erro ao preparar a área de impressão.");
          return;
     }
 
-    // 1. Define a função de limpeza (será chamada após a impressão)
-    // Usamos 'once: true' para garantir que execute apenas uma vez.
+    // --- (NOVO - Correção 5) ---
+    // 1. Salva os estilos/classes originais que vamos remover temporariamente
+    // para corrigir o bug do overflow no celular.
+    const originalModalClasses = modalContent.className;
+    const originalContentClasses = contentElement.className;
+    // --- Fim da Correção 5 ---
+
+    // 2. Define a função de limpeza (será chamada após a impressão)
     const cleanupAfterPrint = () => {
+        // Restaura a classe de impressão do CSS (do style.css)
         printableBackdrop.classList.remove('printing-now');
-        // console.log("Impressão finalizada, limpeza concluída."); // Log de depuração
+        
+        // --- (NOVO - Correção 5) ---
+        // Restaura as classes originais para o modal voltar ao normal
+        modalContent.className = originalModalClasses;
+        contentElement.className = originalContentClasses;
+        // --- Fim da Correção 5 ---
+        
+        // Remove o listener para não acumular
+        window.removeEventListener('afterprint', cleanupAfterPrint);
     };
 
-    // 2. Adiciona o listener para limpar DEPOIS que a impressão for fechada
-    // 'once: true' remove o listener automaticamente após ser disparado.
-    window.addEventListener('afterprint', cleanupAfterPrint, { once: true });
+    // 3. Adiciona o listener para limpar DEPOIS que a impressão for fechada
+    window.addEventListener('afterprint', cleanupAfterPrint);
 
-    // 3. Adiciona a classe para ativar o CSS de impressão
+    // 4. Adiciona a classe para ativar o CSS de impressão (do style.css)
     printableBackdrop.classList.add('printing-now');
-    // console.log("Classe '.printing-now' adicionada. Preparando para imprimir..."); // Log de depuração
 
-    // 4. (A CORREÇÃO DEFINITIVA)
-    // Em vez de usar setTimeout (uma aposta), usamos requestAnimationFrame.
-    // Isso diz ao navegador: "Execute o seguinte código *exatamente*
-    // antes do próximo redesenho da tela."
-    requestAnimationFrame(() => {
-        // Neste ponto, o navegador JÁ processou a adição da classe '.printing-now'
-        // e o CSS de impressão (do style.css) está ativo.
-        // Agora é 100% seguro chamar window.print().
-        // console.log("requestAnimationFrame executado. Chamando window.print()."); // Log de depuração
+    // --- (NOVO - Correção 5) ---
+    // 5. Remove MANUALMENTE as classes de overflow e max-height que
+    // quebram a impressão no celular (iOS). O CSS @media print tenta, mas o JS garante.
+    
+    // Remove 'max-h-[90vh]' e 'overflow-y-auto' do .modal-content
+    modalContent.className = originalModalClasses
+        .replace('max-h-[90vh]', '')
+        .replace('overflow-y-auto', ''); 
         
+    // Remove 'overflow-y-auto' do #notification-content, etc.
+    contentElement.className = originalContentClasses
+        .replace('overflow-y-auto', '');
+    // --- Fim da Correção 5 ---
+
+
+    // 6. (Mantido da Correção 4)
+    // Usa requestAnimationFrame para garantir que as remoções de classe
+    // acima sejam processadas ANTES de chamar window.print().
+    requestAnimationFrame(() => {
         try {
+            // Neste ponto, o CSS está ativo E os overflows foram removidos.
             window.print();
         } catch (printError) {
             console.error("Erro durante a chamada window.print():", printError);
             showToast("Não foi possível abrir a janela de impressão.");
-            // Se a impressão falhar (ex: bloqueada), limpa imediatamente
-            window.removeEventListener('afterprint', cleanupAfterPrint); // Remove o listener que não vai disparar
+            // Limpa imediatamente se a impressão falhar
             cleanupAfterPrint();
         }
     });
