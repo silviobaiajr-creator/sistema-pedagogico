@@ -25,12 +25,6 @@
 // ATUALIZAÇÃO (Sugestões 4 e 5):
 // 1. (Sug. 4) Adicionado filtro de privacidade em `generateAndShowGeneralReport`.
 // 2. (Sug. 5) Cores do tema atualizadas de `indigo`/`purple` para `sky`/`teal`.
-//
-// ATUALIZAÇÃO (PDF V3 - "PDF INTELIGENTE"):
-// 1. Adicionadas classes `pdf-section`, `pdf-section-header`, `pdf-card` e
-//    `pdf-section-footer` para marcar os blocos de conteúdo. Isso permite
-//    ao `main.js` capturar cada bloco individualmente e controlar
-//    as quebras de página, evitando cortes no meio dos cards.
 // =================================================================================
 
 
@@ -137,7 +131,6 @@ export const openStudentSelectionModal = async (groupId) => {
  * (MODIFICADO - Papéis) Recebe 'incident' completo. Pequenos ajustes.
  * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
  * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
- * (MODIFICADO - PDF V3) Adicionada classe 'pdf-section'
  */
 export const openIndividualNotificationModal = (incident, student) => {
     // Encontra o registro específico para este aluno dentro do incidente
@@ -159,9 +152,8 @@ export const openIndividualNotificationModal = (incident, student) => {
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
     document.getElementById('notification-title').innerText = 'Notificação de Ocorrência';
-    // (MODIFICADO - PDF V3) Adicionada classe 'pdf-section'
     document.getElementById('notification-content').innerHTML = `
-        <div class="space-y-6 text-sm pdf-section" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+        <div class="space-y-6 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             ${getReportHeaderHTML()}
             
             <!-- --- CORREÇÃO 2: Data movida para a direita e antes do título --- -->
@@ -222,7 +214,6 @@ export const openIndividualNotificationModal = (incident, student) => {
 /**
  * Gera a Ata Formal em formato NARRATIVO para o livro de ocorrências.
  * @param {string} groupId - O ID do grupo da ocorrência.
- * (MODIFICADO - PDF V3) Adicionada classe 'pdf-section'
  */
 export const openOccurrenceRecordModal = async (groupId) => {
     const incident = await fetchIncidentById(groupId);
@@ -369,7 +360,6 @@ export const openOccurrenceRecordModal = async (groupId) => {
 
     // --- RENDERIZAÇÃO FINAL ---
     document.getElementById('report-view-title').textContent = `Ata de Ocorrência Nº ${incident.id}`;
-    // (MODIFICADO - PDF V3) Adicionada classe 'pdf-section'
     document.getElementById('report-view-content').innerHTML = `
         <!-- Estilos específicos para a Ata Narrativa -->
         <style>
@@ -412,7 +402,7 @@ export const openOccurrenceRecordModal = async (groupId) => {
             }
         </style>
         
-        <div class="report-narrative space-y-2 pdf-section">
+        <div class="report-narrative space-y-2">
             ${getReportHeaderHTML()}
             <h3 class="text-lg font-semibold mt-4 text-center uppercase">ATA DE REGISTRO DE OCORRÊNCIA Nº ${incident.id}</h3>
             
@@ -487,7 +477,7 @@ export const openAbsenceHistoryModal = (processId) => {
 
     const history = allHistory.sort((a, b) => {
         const timeA = a.timestamp?.seconds ? a.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
-        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(b.timestamp).getTime();
+        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
         return timeB - timeA;
     });
 
@@ -511,7 +501,6 @@ export const openAbsenceHistoryModal = (processId) => {
 /**
  * Abre a ficha de notificação de Busca Ativa (usada pelos botões de notificação).
  * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
- * (MODIFICADO - PDF V3) Adicionada classe 'pdf-section'
  */
 export const openFichaViewModal = (id) => {
     const record = state.absences.find(abs => abs.id === id);
@@ -572,9 +561,8 @@ export const openFichaViewModal = (id) => {
             break;
     }
 
-    // (MODIFICADO - PDF V3) Adicionada classe 'pdf-section'
     const contentHTML = `
-        <div class="space-y-6 text-sm pdf-section" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+        <div class="space-y-6 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             ${getReportHeaderHTML()}
             
             <!-- --- CORREÇÃO 2: Data movida para a direita e antes do título --- -->
@@ -610,7 +598,6 @@ export const openFichaViewModal = (id) => {
 /**
  * Gera a Ficha Consolidada de Busca Ativa.
  * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
- * (MODIFICADO - PDF V3) Adicionada classe 'pdf-section'
  */
 export const generateAndShowConsolidatedFicha = (studentId, processId = null) => {
     let studentActions = state.absences.filter(action => action.studentId === studentId);
@@ -634,9 +621,8 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
     const faltasData = studentActions.find(a => a.periodoFaltasStart) || {};
     const currentProcessId = processId || faltasData.processId || 'N/A';
 
-    // (MODIFICADO - PDF V3) Adicionada classe 'pdf-section'
     const fichaHTML = `
-        <div class="space-y-4 text-sm pdf-section" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+        <div class="space-y-4 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             ${getReportHeaderHTML()}
             <h3 class="font-semibold mt-1 text-center uppercase">Ficha de Acompanhamento da Busca Ativa</h3>
              <p class="text-xs text-gray-500 text-center">ID do Processo: ${currentProcessId}</p>
@@ -735,7 +721,6 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
 /**
  * Gera o Ofício para o Conselho Tutelar (Busca Ativa).
  * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
- * (MODIFICADO - PDF V3) Adicionada classe 'pdf-section'
  */
 export const generateAndShowOficio = (action, oficioNumber = null) => {
     if (!action) return showToast('Ação de origem não encontrada.');
@@ -783,9 +768,8 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
         return '(não informado)';
     }
 
-    // (MODIFICADO - PDF V3) Adicionada classe 'pdf-section'
     const oficioHTML = `
-        <div class="space-y-6 text-sm text-gray-800 pdf-section" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+        <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             <!-- --- CORREÇÃO 2: Removido 'text-center' do container e 'text-right' adicionado à data --- -->
             <div>
                 ${getReportHeaderHTML()}
@@ -867,7 +851,6 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
  * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
  * (MODIFICADO - Sug. 4: Filtro de Privacidade)
  * (MODIFICADO - Sug. 5: Cores)
- * (MODIFICADO - PDF V3) Adicionadas classes 'pdf-section-header', 'pdf-card', 'pdf-section-footer'
  */
 export const generateAndShowGeneralReport = async () => { // Adicionado async
      // Usa a função getFilteredOccurrences que já busca e filtra
@@ -919,35 +902,31 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
 
     const reportHTML = `
         <div class="space-y-8 text-sm font-sans">
-            <!-- (MODIFICADO - PDF V3) Esta seção inteira (Cabeçalho, Resumo, Gráficos) é um bloco -->
-            <div class="pdf-section-header">
-                ${getReportHeaderHTML()}
-                <h3 class="text-xl font-semibold text-gray-700 mt-2 text-center">Relatório Geral de Ocorrências</h3>
-                <p class="text-gray-500 mt-1 text-center">Gerado em: ${currentDate}</p>
+            ${getReportHeaderHTML()}
+            <h3 class="text-xl font-semibold text-gray-700 mt-2 text-center">Relatório Geral de Ocorrências</h3>
+            <p class="text-gray-500 mt-1 text-center">Gerado em: ${currentDate}</p>
 
-                <div class="border rounded-lg p-4 bg-gray-50 mt-8">
-                    <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                        <div><p class="text-2xl font-bold text-sky-600">${filteredIncidents.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Total de Incidentes</p></div>
-                        <div><p class="text-2xl font-bold text-sky-600">${totalStudents}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos ${studentFilter ? '(Filtrados)' : ''}</p></div>
-                        <div><p class="text-lg font-bold text-sky-600">${sortedTypes.length > 0 ? formatText(sortedTypes[0][0]) : 'N/A'}</p><p class="text-xs font-medium text-gray-500 uppercase">Principal Tipo</p></div>
-                    </div>
-                    ${(startDate || endDate || status !== 'all' || type !== 'all' || studentFilter) ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong></p><ul class="list-disc list-inside ml-2">${startDate ? `<li>De: <strong>${formatDate(startDate)}</strong></li>` : ''}${endDate ? `<li>Até: <strong>${formatDate(endDate)}</strong></li>` : ''}${status !== 'all' ? `<li>Status: <strong>${status}</strong></li>` : ''}${type !== 'all' ? `<li>Tipo: <strong>${formatText(type)}</strong></li>` : ''}${studentFilter ? `<li>Aluno: <strong>"${formatText(studentFilter)}"</strong></li>` : ''}</ul></div>` : ''}
+            <div class="border rounded-lg p-4 bg-gray-50">
+                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                    <div><p class="text-2xl font-bold text-sky-600">${filteredIncidents.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Total de Incidentes</p></div>
+                    <div><p class="text-2xl font-bold text-sky-600">${totalStudents}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos ${studentFilter ? '(Filtrados)' : ''}</p></div>
+                    <div><p class="text-lg font-bold text-sky-600">${sortedTypes.length > 0 ? formatText(sortedTypes[0][0]) : 'N/A'}</p><p class="text-xs font-medium text-gray-500 uppercase">Principal Tipo</p></div>
                 </div>
+                ${(startDate || endDate || status !== 'all' || type !== 'all' || studentFilter) ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong></p><ul class="list-disc list-inside ml-2">${startDate ? `<li>De: <strong>${formatDate(startDate)}</strong></li>` : ''}${endDate ? `<li>Até: <strong>${formatDate(endDate)}</strong></li>` : ''}${status !== 'all' ? `<li>Status: <strong>${status}</strong></li>` : ''}${type !== 'all' ? `<li>Tipo: <strong>${formatText(type)}</strong></li>` : ''}${studentFilter ? `<li>Aluno: <strong>"${formatText(studentFilter)}"</strong></li>` : ''}</ul></div>` : ''}
+            </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 break-inside-avoid mt-6">
-                    <div class="border rounded-lg p-4 shadow-sm bg-white">
-                        <h5 class="font-semibold text-center mb-2">Ocorrências por Tipo</h5>
-                        <canvas id="report-chart-by-type" data-labels='${JSON.stringify(chartDataByType.labels)}' data-data='${JSON.stringify(chartDataByType.data)}'></canvas>
-                    </div>
-                    <div class="border rounded-lg p-4 shadow-sm bg-white">
-                        <h5 class="font-semibold text-center mb-2">Ocorrências por Status (Geral)</h5>
-                        <canvas id="report-chart-by-status" data-labels='${JSON.stringify(chartDataByStatus.labels)}' data-data='${JSON.stringify(chartDataByStatus.data)}'></canvas>
-                    </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 break-inside-avoid">
+                <div class="border rounded-lg p-4 shadow-sm bg-white">
+                    <h5 class="font-semibold text-center mb-2">Ocorrências por Tipo</h5>
+                    <canvas id="report-chart-by-type" data-labels='${JSON.stringify(chartDataByType.labels)}' data-data='${JSON.stringify(chartDataByType.data)}'></canvas>
+                </div>
+                <div class="border rounded-lg p-4 shadow-sm bg-white">
+                    <h5 class="font-semibold text-center mb-2">Ocorrências por Status (Geral)</h5>
+                    <canvas id="report-chart-by-status" data-labels='${JSON.stringify(chartDataByStatus.labels)}' data-data='${JSON.stringify(chartDataByStatus.data)}'></canvas>
                 </div>
             </div>
 
-            <!-- (MODIFICADO - PDF V3) Esta seção (Detalhes) é separada do cabeçalho -->
             <div>
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Incidentes</h4>
                 <div class="space-y-6">
@@ -963,9 +942,8 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
                              return `<span class="inline-flex items-center gap-1 mr-2"><i class="${iconClass} fa-fw"></i>${formatText(p.student.name)} (${p.role})</span>`;
                         }).join(', ');
 
-                    // (MODIFICADO - PDF V3) Adicionada classe 'pdf-card' a cada card
                     return `
-                    <div class="border rounded-lg overflow-hidden break-inside-avoid pdf-card">
+                    <div class="border rounded-lg overflow-hidden break-inside-avoid">
                         <div class="bg-gray-100 p-3 flex justify-between items-center">
                             <div>
                                 <p class="font-bold text-gray-800">${formatText(mainRecord.occurrenceType)}</p>
@@ -1005,11 +983,8 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
                 </div>
             </div>
 
-            <!-- (MODIFICADO - PDF V3) Adicionada classe 'pdf-section-footer' -->
-            <div class="pdf-section-footer">
-                <!-- --- CORREÇÃO 3: Removido 'pt-16' (CSS cuida da margem) --- -->
-                <div class="signature-block mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
-            </div>
+            <!-- --- CORREÇÃO 3: Removido 'pt-16' (CSS cuida da margem) --- -->
+            <div class="signature-block mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
         </div>
     `;
 
@@ -1059,7 +1034,6 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
  * Gera o relatório geral de Busca Ativa com gráficos.
  * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
  * (MODIFICADO - Cores)
- * (MODIFICADO - PDF V3) Adicionadas classes 'pdf-section-header', 'pdf-card', 'pdf-section-footer'
  */
 export const generateAndShowBuscaAtivaReport = () => {
     const groupedByProcess = state.absences.reduce((acc, action) => {
@@ -1148,30 +1122,26 @@ export const generateAndShowBuscaAtivaReport = () => {
 
     const reportHTML = `
         <div class="space-y-8 text-sm font-sans">
-            <!-- (MODIFICADO - PDF V3) Esta seção inteira (Cabeçalho, Resumo, Gráficos) é um bloco -->
-            <div class="pdf-section-header">
-                ${getReportHeaderHTML()}
-                <h3 class="text-xl font-semibold text-gray-700 mt-2 text-center">Relatório Geral de Busca Ativa</h3>
-                <p class="text-gray-500 mt-1 text-center">Gerado em: ${currentDate}</p>
+            ${getReportHeaderHTML()}
+            <h3 class="text-xl font-semibold text-gray-700 mt-2 text-center">Relatório Geral de Busca Ativa</h3>
+            <p class="text-gray-500 mt-1 text-center">Gerado em: ${currentDate}</p>
 
-                <div class="border rounded-lg p-4 bg-gray-50 mt-8">
-                    <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                        <div><p class="text-2xl font-bold text-sky-600">${filteredProcesses.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Processos Filtrados</p></div>
-                        <div><p class="text-2xl font-bold text-sky-600">${statusEmAndamento}</p><p class="text-xs font-medium text-gray-500 uppercase">Em Andamento</p></div>
-                        <div><p class="text-2xl font-bold text-sky-600">${retornoSim}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Retornaram</p></div>
-                    </div>
-                    ${filterDescriptions.length > 0 ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong> ${filterDescriptions.join('; ')}</p></div>` : ''}
+            <div class="border rounded-lg p-4 bg-gray-50">
+                <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                    <div><p class="text-2xl font-bold text-sky-600">${filteredProcesses.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Processos Filtrados</p></div>
+                    <div><p class="text-2xl font-bold text-sky-600">${statusEmAndamento}</p><p class="text-xs font-medium text-gray-500 uppercase">Em Andamento</p></div>
+                    <div><p class="text-2xl font-bold text-sky-600">${retornoSim}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Retornaram</p></div>
                 </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 break-inside-avoid mt-6">
-                    <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Status dos Processos</h5><canvas id="ba-chart-status"></canvas></div>
-                    <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Status de Retorno</h5><canvas id="ba-chart-retorno"></canvas></div>
-                    <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Ações Pendentes (Em Andamento)</h5><canvas id="ba-chart-pendente"></canvas></div>
-                </div>
+                 ${filterDescriptions.length > 0 ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong> ${filterDescriptions.join('; ')}</p></div>` : ''}
             </div>
 
-            <!-- (MODIFICADO - PDF V3) Esta seção (Detalhes) é separada do cabeçalho -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 break-inside-avoid">
+                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Status dos Processos</h5><canvas id="ba-chart-status"></canvas></div>
+                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Status de Retorno</h5><canvas id="ba-chart-retorno"></canvas></div>
+                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Ações Pendentes (Em Andamento)</h5><canvas id="ba-chart-pendente"></canvas></div>
+            </div>
+
             <div>
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Processos</h4>
                 <div class="space-y-4">
@@ -1179,9 +1149,8 @@ export const generateAndShowBuscaAtivaReport = () => {
                     const student = state.students.find(s => s.matricula === proc.studentId);
                     const lastAction = proc.actions[proc.actions.length - 1];
                     const isConcluded = lastAction.actionType === 'analise';
-                    // (MODIFICADO - PDF V3) Adicionada classe 'pdf-card' a cada card
                     return `
-                    <div class="border rounded-lg overflow-hidden break-inside-avoid pdf-card">
+                    <div class="border rounded-lg overflow-hidden break-inside-avoid">
                         <div class="bg-gray-100 p-3 flex justify-between items-center">
                             <div>
                                 <p class="font-bold text-gray-800">${student ? formatText(student.name) : 'Aluno Removido'}</p>
@@ -1201,11 +1170,8 @@ export const generateAndShowBuscaAtivaReport = () => {
                 </div>
             </div>
 
-            <!-- (MODIFICADO - PDF V3) Adicionada classe 'pdf-section-footer' -->
-            <div class="pdf-section-footer">
-                <!-- --- CORREÇÃO 3: Removido 'pt-16' (CSS cuida da margem) --- -->
-                <div class="signature-block mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
-            </div>
+            <!-- --- CORREÇÃO 3: Removido 'pt-16' (CSS cuida da margem) --- -->
+            <div class="signature-block mt-8"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1 text-sm">Assinatura da Gestão Escolar</p></div></div>
         </div>
     `;
 
@@ -1272,7 +1238,6 @@ export const generateAndShowBuscaAtivaReport = () => {
  * @param {object} student - O objeto do aluno.
  * @param {string} oficioNumber - O número do ofício (do formulário).
  * @param {string} oficioYear - O ano do ofício (do formulário).
- * (MODIFICADO - PDF V3) Adicionada classe 'pdf-section'
  */
 export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, oficioYear) => {
     if (!record || !student || !oficioNumber || !oficioYear) {
@@ -1293,9 +1258,8 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
     const schoolName = state.config?.schoolName || "Nome da Escola";
     const city = state.config?.city || "Cidade";
 
-    // (MODIFICADO - PDF V3) Adicionada classe 'pdf-section'
     const oficioHTML = `
-        <div class="space-y-6 text-sm text-gray-800 pdf-section" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+        <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             <!-- --- CORREÇÃO 2: Removido 'text-center' do container e 'text-right' adicionado à data --- -->
             <div>
                 ${getReportHeaderHTML()}
