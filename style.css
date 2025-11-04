@@ -223,6 +223,15 @@ details[open] .process-content {
 /* ============================================================================== */
 
 @media print {
+    /* (NOVA CORREÇÃO) Reseta a página (html, body) para remover margens */
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        height: auto !important;
+        overflow: visible !important;
+        background: #fff !important; /* Garante fundo branco */
+    }
+
     /* Esconde tudo que não está na área de impressão designada */
     body > *:not(.printable-area) {
         display: none !important;
@@ -306,3 +315,4 @@ details[open] .process-content {
 /* ============================================================================== */
 /* (FIM DA CORREÇÃO)                                                              */
 /* ============================================================================== */
+
