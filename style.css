@@ -125,7 +125,7 @@ tbody tr:nth-child(even) {
 /* Reutiliza estilo .menu-item para as opções do dropdown */
 .role-edit-option {
     /* display: flex; */ /* Vem de .menu-item */
-    /* align-items: center; */ /* Vem de .menu-item */
+    /* align-items: center; */ /* Já aplicado via Tailwind */
     /* padding: 0.5rem 1rem; */ /* Vem de .menu-item */
     /* ... outros estilos de .menu-item ... */
 }
@@ -226,7 +226,7 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO V4 - Inversão de Lógica)             */
+/* SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO V5 - Lógica "Teletransporte")        */
 /* ============================================================================== */
 
 @media print {
@@ -239,67 +239,36 @@ details[open] .process-content {
         animation: none !important;
     }
 
-    /* --- INÍCIO DA CORREÇÃO V4 --- */
+    /* --- INÍCIO DA CORREÇÃO V5 --- */
     
-    /* 1. Esconde os containers principais da tela */
-    #main-content, #login-screen, #toast-notification {
+    /* 1. Esconde TUDO que for filho direto do body */
+    body > * {
         display: none !important;
     }
     
-    /* 2. Reseta o .printable-area (o backdrop) */
-    .printable-area.printing-now {
-        position: static !important;
+    /* 2. MOSTRA APENAS o elemento que foi movido para o body e marcado com .printing-now */
+    /* (Este elemento é o #report-view-content, #notification-content, etc.) */
+    body > .printing-now {
+        display: block !important;
         width: 100% !important;
         height: auto !important;
         overflow: visible !important;
-        padding: 0 !important;
-        background: none !important; 
-        display: block !important;
-        transition: none !important;
-        animation: none !important;
-    }
-
-    /* 3. (NOVA LÓGICA V4) Reseta o .modal-content SEM escondê-lo */
-    .printing-now .modal-content {
-        display: block !important; /* Garante que está visível */
-        width: 100% !important;
-        max-width: 100% !important;
-        height: auto !important;
-        overflow: visible !important; /* Crucial */
-        padding: 0 !important;
+        padding: 0 !important; 
         margin: 0 !important;
-        background: none !important; /* Remove o fundo branco */
-        border: none !important;
-        box-shadow: none !important; /* Remove a sombra */
+        /* Reseta estilos que ele possa ter herdado */
         transform: none !important;
         opacity: 1 !important;
-        transition: none !important;
-        animation: none !important;
+        box-shadow: none !important;
+        border: none !important;
     }
 
-    /* 4. (NOVA LÓGICA V4) Esconde os filhos indesejados (header/footer) do modal */
-    /* Usamos > * para pegar todos os filhos diretos... */
-    .printing-now .modal-content > * {
-        display: none !important;
-    }
-    /* ...e então re-mostramos APENAS o conteúdo que queremos. */
-    .printing-now #notification-content,
-    .printing-now #report-view-content,
-    .printing-now #ficha-view-content {
-        display: block !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        padding: 0 !important; /* Remove o padding da tela */
-        overflow: visible !important;
-        height: auto !important;
-    }
-
-    /* 5. Regra .no-print (Mantida por segurança) */
+    /* 3. Garante que os filhos indesejados (no-print) sejam escondidos */
+    /* (Embora o JS já evite mover o .no-print, esta é uma garantia extra) */
     .printing-now .no-print, .printing-now .no-print * {
         display: none !important;
     }
     
-    /* --- FIM DA CORREÇÃO V4 --- */
+    /* --- FIM DA CORREÇÃO V5 --- */
 
 
     /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO (Mantidos) --- */
