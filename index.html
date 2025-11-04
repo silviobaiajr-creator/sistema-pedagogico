@@ -81,25 +81,26 @@
     <div id="main-content" class="hidden">
         <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
             <!-- Cabeçalho -->
-            <!-- CORREÇÃO DE LAYOUT MÓVEL (Sug. 2 e 5): classes 'flex-wrap' e 'sm:flex-nowrap' aplicadas -->
+            <!-- (ALTERADO - SUGESTÃO 2) Classes flex alteradas para responsividade -->
+            <!-- (ALTERADO - SUGESTÃO 5) Cores do gradiente alteradas -->
             <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-sky-500 to-teal-600 text-white shadow-lg flex flex-wrap sm:flex-nowrap justify-between items-center gap-4 text-center sm:text-left">
                 <div>
                     <h1 id="header-school-name" class="text-2xl sm:text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
                     <p class="opacity-90 mt-1 text-sm sm:text-base">Base de dados partilhada entre todos os utilizadores.</p>
                 </div>
-                <!-- CORREÇÃO DE LAYOUT MÓVEL: Adicionado 'flex-wrap justify-center sm:justify-end' para o grupo de botões/perfil quebrar a linha no móvel -->
-                <div class="flex items-center flex-wrap justify-center sm:justify-end gap-2 sm:gap-4">
-                     <!-- (Sug. 1) Adicionado 'hidden' -->
+                <div class="flex items-center gap-2 sm:gap-4">
+                     <!-- (ALTERADO - SUGESTÃO 1) Adicionado 'hidden' -->
                      <button id="settings-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
                         <i class="fas fa-cog mr-2"></i>Configurações
                     </button>
-                     <!-- (Sug. 1) Adicionado 'hidden' -->
+                    <!-- (ALTERADO - SUGESTÃO 1) Adicionado 'hidden' -->
                     <button id="manage-students-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
                         <i class="fas fa-users-cog mr-2"></i>Gerir Alunos
                     </button>
                     <div id="user-profile" class="flex items-center space-x-4 hidden self-center sm:self-auto">
                         <div class="text-right">
                             <p id="user-email" class="font-semibold text-sm"></p>
+                            <!-- (ALTERADO - SUGESTÃO 5) Cor do texto -->
                             <button id="logout-btn" class="text-xs sm:text-sm text-sky-200 hover:text-white transition">Sair</button>
                         </div>
                     </div>
@@ -120,15 +121,15 @@
 
             <!-- Conteúdo da Aba de Ocorrências -->
             <div id="tab-content-occurrences">
-                <!-- CORREÇÃO DE LAYOUT MÓVEL: Botões agora empilham (flex-col) em telas pequenas -->
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <h2 id="occurrences-title" class="text-xl sm:text-2xl font-semibold text-gray-700">Registos de Ocorrências</h2>
-                    <!-- ADICIONADO: flex-col sm:flex-row w-full sm:w-auto -->
-                    <div class="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
-                        <button id="general-report-btn" class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
+                    <div class="flex gap-4">
+                        <!-- (ALTERADO - SUGESTÃO 5) Cores alteradas -->
+                        <button id="general-report-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral
                         </button>
-                        <button id="add-occurrence-btn" class="w-full sm:w-auto bg-sky-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">
+                        <!-- (ALTERADO - SUGESTÃO 5) Cores alteradas -->
+                        <button id="add-occurrence-btn" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">
                             <i class="fas fa-plus mr-2"></i>Nova Ocorrência
                         </button>
                     </div>
@@ -170,6 +171,7 @@
                     <div class="mb-4">
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
+                            <!-- (ALTERADO - SUGESTÃO 5) Cores do focus -->
                             <input type="text" id="search-occurrences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 sm:text-sm" placeholder="Filtrar por nome do aluno...">
                         </div>
                     </div>
@@ -184,16 +186,16 @@
 
             <!-- Conteúdo da Aba de Busca Ativa -->
             <div id="tab-content-absences" class="hidden">
-                <!-- CORREÇÃO DE LAYOUT MÓVEL: Botões agora empilham (flex-col) em telas pequenas -->
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
-                    <!-- ADICIONADO: flex-col sm:flex-row w-full sm:w-auto -->
-                    <div class="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
-                        <button id="general-ba-report-btn" class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
+                    <div class="flex gap-4">
+                        <!-- (ALTERADO - SUGESTÃO 5) Cores alteradas -->
+                        <button id="general-ba-report-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral
                         </button>
-                        <!-- (Sug. 3) Botão "Nova Ação" Adicionado -->
-                        <button id="add-absence-btn" class="w-full sm:w-auto bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-emerald-700 transition duration-300">
+                        <!-- (ADICIONADO - SUGESTÃO 3) Botão Nova Ação -->
+                        <!-- (ALTERADO - SUGESTÃO 5) Cores alteradas para emerald -->
+                        <button id="add-absence-btn" class="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-emerald-700 transition duration-300">
                             <i class="fas fa-plus mr-2"></i>Nova Ação
                         </button>
                     </div>
@@ -290,6 +292,7 @@
                                 <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200" data-role="Vítima"><i class="fas fa-user-shield fa-fw"></i> Vítima</button>
                                 <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200" data-role="Agente"><i class="fas fa-gavel fa-fw"></i> Agente</button>
                                 <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200" data-role="Testemunha"><i class="fas fa-eye fa-fw"></i> Testemunha</button>
+                                <!-- (ALTERADO - SUGESTÃO 5) Cor do anel -->
                                 <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 ring-1 ring-inset ring-sky-500" data-role="Envolvido"><i class="fas fa-user fa-fw"></i> Envolvido</button> <!-- Padrão -->
                             </div>
                         </div>
@@ -305,7 +308,7 @@
                     <!-- (NOVO V3) Campo Providências da Escola (Ação 1) -->
                     <div><label for="providencias-escola" class="block text-sm font-medium">Providências Imediatas da Escola <span class="text-red-500">*</span></label><textarea id="providencias-escola" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="O que a escola fez imediatamente após o fato?" required></textarea></div>
                 </div>
-
+                <!-- (ALTERADO - SUGESTÃO 5) Cores do botão -->
                 <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Fato (Ação 1)</button></div>
             </form>
             <!-- (NOVO) Dropdown Escondido para Edição de Papel -->
@@ -423,7 +426,8 @@
                     </fieldset>
 
                 </div> <!-- Fim do dynamic-occurrence-fields -->
-
+                
+                <!-- (ALTERADO - SUGESTÃO 5) Cores do botão -->
                 <div class="pt-4 flex justify-end space-x-3">
                     <button type="button" id="cancel-follow-up-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button>
                     <button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Etapa</button>
@@ -533,8 +537,9 @@
                     </div>
 
                 </div> <!-- Fim dynamic-fields-container -->
-
-                <div class="pt-4 flex justify-end space-x-3 bg-white sticky bottom-0 pb-6 -mx-6 px-6 border-t"><button type="button" id="cancel-absence-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Ação</button></div>
+                
+                <!-- (ALTERADO - SUGESTÃO 5) Cores do botão -->
+                <div class="pt-4 flex justify-end space-x-3 bg-white sticky bottom-0 pb-6 -mx-6 px-6 border-t"><button type="button" id="cancel-absence-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Ação</button></div>
             </form>
         </div>
     </div>
@@ -548,8 +553,10 @@
         <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 class="text-xl font-semibold">Gerir Lista de Alunos</h3><button id="close-students-modal-btn" class="text-gray-500 text-2xl font-bold">&times;</button></div>
             <div class="p-6 flex-grow overflow-y-auto space-y-6">
+                <!-- (ALTERADO - SUGESTÃO 5) Cores do botão -->
                 <div class="bg-gray-50 p-4 rounded-lg border"><h4 id="student-form-title" class="text-lg font-semibold mb-2">Adicionar Novo Aluno</h4><form id="student-form" class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start"><input type="hidden" id="student-id-input"><div><label class="block text-sm font-medium">Matrícula</label><input type="text" id="student-matricula-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Nome Completo</label><input type="text" id="student-name-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Turma</label><input type="text" id="student-class-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Contato</label><input type="text" id="student-contato-input" class="mt-1 w-full p-2 border"></div><div class="sm:col-span-2"><label class="block text-sm font-medium">Endereço</label><input type="text" id="student-endereco-input" class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 1</label><input type="text" id="student-resp1-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 2</label><input type="text" id="student-resp2-input" class="mt-1 w-full p-2 border"></div><div class="flex space-x-2 sm:col-span-2 self-end"><button type="submit" id="save-student-btn" class="w-full bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar</button><button type="button" id="cancel-edit-student-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hidden">Cancelar</button></div></form></div>
                 <div><h4 class="text-lg font-semibold mb-2">Alunos Registados</h4><div class="border rounded-lg overflow-hidden"><div class="overflow-y-auto max-h-64"><table class="min-w-full divide-y"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-4 py-2 text-left text-xs font-medium uppercase">Nome</th><th class="px-4 py-2 text-left text-xs font-medium uppercase">Turma</th><th class="px-4 py-2 text-right text-xs font-medium uppercase">Ações</th></tr></thead><tbody id="students-list-table" class="bg-white divide-y"></tbody></table></div></div></div>
+                <!-- (ALTERADO - SUGESTÃO 5) Cores do input file -->
                 <div class="border-t pt-6"><h4 class="text-lg font-semibold mb-2">Importar em Massa (CSV)</h4><p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`, `turma`, `endereco`, `contato`, `resp1`, `resp2`. Isto <strong>substituirá</strong> a lista atual.</p><div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4"><input type="file" id="csv-file" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"><button type="button" id="upload-csv-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg whitespace-nowrap">Carregar CSV</button></div><div id="csv-feedback" class="text-sm mt-2"></div></div>
             </div>
         </div>
@@ -576,18 +583,7 @@
                     <input type="url" id="school-logo-input" placeholder="https://exemplo.com/logo.png" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
                     <p class="text-xs text-gray-500 mt-1">Insira o link completo da imagem. Deixe em branco para usar apenas o nome.</p>
                 </div>
-                
-                <!-- (Sugestão Híbrida) Campo de Gestão de Admin -->
-                <div>
-                    <label for="admin-emails-input" class="block text-sm font-medium text-gray-700">
-                        Emails dos Administradores (separados por vírgula)
-                    </label>
-                    <textarea id="admin-emails-input" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" placeholder="admin@escola.com, gestor@escola.com"></textarea>
-                    <p class="text-xs text-gray-500 mt-1">
-                        Apenas os emails nesta lista (e o Super Admin) terão acesso a 'Configurações' e 'Gerir Alunos'.
-                    </p>
-                </div>
-                
+                <!-- (ALTERADO - SUGESTÃO 5) Cores do botão -->
                 <div class="pt-4 flex justify-end space-x-3">
                     <button type="button" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg" id="cancel-settings-btn">Cancelar</button>
                     <button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Configurações</button>
@@ -603,6 +599,7 @@
                 <h3 class="text-xl font-semibold">Gerar Notificação</h3>
                 <button id="close-student-selection-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
+            <!-- (ALTERADO - SUGESTÃO 5) Cores do hover -->
             <div class="p-6">
                 <p class="text-sm text-gray-600 mb-4">Este incidente envolve múltiplos alunos. Selecione para qual aluno deseja gerar a notificação individual:</p>
                 <div id="student-selection-modal-body" class="space-y-2"></div>
@@ -659,140 +656,94 @@
     </div>
 
 
-    <!-- ============================================================================== -->
-    <!-- --- INÍCIO DA CORREÇÃO (Estrutura de Impressão v7) --- -->
-    <!-- Os 'modal-content' agora contêm APENAS o cabeçalho e rodapé (.no-print). -->
-    <!-- O conteúdo real (ex: #notification-content) foi movido para fora, -->
-    <!-- diretamente dentro do 'printable-area'. -->
-    <!-- ============================================================================== -->
-
-    <!-- Modal: Notificação -->
-    <div id="notification-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area">
-        <!-- (ETAPA 1) O 'modal-content' agora controla apenas a UI (cabeçalho/rodapé) -->
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
-            <!-- Cabeçalho (Não impresso) -->
-            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print">
-                <h3 id="notification-title" class="text-xl font-semibold">Notificação</h3>
-                <button id="close-notification-btn" class="text-gray-500 text-2xl">&times;</button>
-            </div>
-            
-            <!-- (ETAPA 2) O CONTEÚDO foi movido para fora do 'modal-content' -->
-            <!-- Agora ele rola independentemente, e o CSS pode formatá-lo para impressão -->
-            <div id="notification-content" class="p-8 overflow-y-auto bg-white">
-                <!-- O conteúdo será preenchido pelo JS -->
-            </div>
-
-            <!-- Rodapé (Não impresso) -->
-            <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
-                <div class="flex-grow flex items-center justify-start gap-4">
-                    <div>
-                        <label for="print-margin-select-notificacao" class="block text-xs font-medium text-gray-500">Margens</label>
-                        <select id="print-margin-select-notificacao" name="print-margin-select" class="print-options-margin block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
-                            <option value="normal">Normal (2cm)</option>
-                            <option value="narrow" selected>Estreita (1.27cm)</option>
-                            <option value="wide">Larga (2.54cm)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="print-spacing-select-notificacao" class="block text-xs font-medium text-gray-500">Espaçamento</label>
-                        <select id="print-spacing-select-notificacao" name="print-spacing-select" class="print-options-spacing block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
-                            <option value="normal">Normal (1.5)</option>
-                            <option value="compact" selected>Compacto (1.15)</option>
-                            <option value="single">Simples (1.0)</option>
-                        </select>
-                    </div>
+    <!-- Modais de Visualização e Impressão (Estrutura Genérica - Inalterados) -->
+    <div id="notification-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="notification-title" class="text-xl font-semibold">Notificação</h3><button id="close-notification-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="notification-content" class="p-8 overflow-y-auto bg-white"></div>
+        <!-- **** CORREÇÃO: Adicionados seletores de Margem e Espaçamento **** -->
+        <!-- (ALTERADO - SUGESTÃO 5) Cores dos selects -->
+        <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
+            <!-- NOVOS CONTROLOS (INSERIDOS AQUI) -->
+            <div class="flex-grow flex items-center justify-start gap-4">
+                <div>
+                    <label for="print-margin-select-notificacao" class="block text-xs font-medium text-gray-500">Margens</label>
+                    <select id="print-margin-select-notificacao" name="print-margin-select" class="print-options-margin block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
+                        <option value="normal">Normal (2cm)</option>
+                        <option value="narrow" selected>Estreita (1.27cm)</option>
+                        <option value="wide">Larga (2.54cm)</option>
+                    </select>
                 </div>
-                <button id="share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
-                <button id="print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Relatório -->
-    <div id="report-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area">
-        <!-- (ETAPA 1) O 'modal-content' agora controla apenas a UI (cabeçalho/rodapé) -->
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
-            <!-- Cabeçalho (Não impresso) -->
-            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print">
-                <h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3>
-                <button id="close-report-view-btn" class="text-gray-500 text-2xl">&times;</button>
-            </div>
-
-            <!-- (ETAPA 2) O CONTEÚDO foi movido para fora do 'modal-content' -->
-            <div id="report-view-content" class="p-8 overflow-y-auto bg-white">
-                <!-- O conteúdo será preenchido pelo JS -->
-            </div>
-
-            <!-- Rodapé (Não impresso) -->
-            <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
-                <div class="flex-grow flex items-center justify-start gap-4">
-                    <div>
-                        <label for="print-margin-select-relatorio" class="block text-xs font-medium text-gray-500">Margens</label>
-                        <select id="print-margin-select-relatorio" name="print-margin-select" class="print-options-margin block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
-                            <option value="normal">Normal (2cm)</option>
-                            <option value="narrow" selected>Estreita (1.27cm)</option>
-                            <option value="wide">Larga (2.54cm)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="print-spacing-select-relatorio" class="block text-xs font-medium text-gray-500">Espaçamento</label>
-                        <select id="print-spacing-select-relatorio" name="print-spacing-select" class="print-options-spacing block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
-                            <option value="normal">Normal (1.5)</option>
-                            <option value="compact" selected>Compacto (1.15)</option>
-                            <option value="single">Simples (1.0)</option>
-                        </select>
-                    </div>
+                <div>
+                    <label for="print-spacing-select-notificacao" class="block text-xs font-medium text-gray-500">Espaçamento</label>
+                    <select id="print-spacing-select-notificacao" name="print-spacing-select" class="print-options-spacing block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
+                        <option value="normal">Normal (1.5)</option>
+                        <option value="compact" selected>Compacto (1.15)</option>
+                        <option value="single">Simples (1.0)</option>
+                    </select>
                 </div>
-                <button id="report-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
-                <button id="report-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
             </div>
+            <!-- Botões existentes -->
+            <button id="share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
+            <button id="print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
         </div>
-    </div>
-    
-    <!-- Modal: Ficha -->
-    <div id="ficha-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area">
-        <!-- (ETAPA 1) O 'modal-content' agora controla apenas a UI (cabeçalho/rodapé) -->
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
-            <!-- Cabeçalho (Não impresso) -->
-            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print">
-                <h3 id="ficha-view-title" class="text-xl font-semibold">Documento</h3>
-                <button id="close-ficha-view-btn" class="text-gray-500 text-2xl">&times;</button>
-            </div>
-
-            <!-- (ETAPA 2) O CONTEÚDO foi movido para fora do 'modal-content' -->
-            <div id="ficha-view-content" class="p-8 overflow-y-auto bg-white">
-                <!-- O conteúdo será preenchido pelo JS -->
-            </div>
-
-            <!-- Rodapé (Não impresso) -->
-            <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
-                <div class="flex-grow flex items-center justify-start gap-4">
-                    <div>
-                        <label for="print-margin-select-ficha" class="block text-xs font-medium text-gray-500">Margens</label>
-                        <select id="print-margin-select-ficha" name="print-margin-select" class="print-options-margin block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
-                            <option value="normal">Normal (2cm)</option>
-                            <option value="narrow" selected>Estreita (1.27cm)</option>
-                            <option value="wide">Larga (2.54cm)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="print-spacing-select-ficha" class="block text-xs font-medium text-gray-500">Espaçamento</label>
-                        <select id="print-spacing-select-ficha" name="print-spacing-select" class="print-options-spacing block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
-                            <option value="normal">Normal (1.5)</option>
-                            <option value="compact" selected>Compacto (1.15)</option>
-                            <option value="single">Simples (1.0)</option>
-                        </select>
-                    </div>
+        <!-- **** FIM DA CORREÇÃO **** -->
+    </div></div>
+    <div id="report-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3><button id="close-report-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="report-view-content" class="p-8 overflow-y-auto bg-white"></div>
+        <!-- **** CORREÇÃO: Adicionados seletores de Margem e Espaçamento **** -->
+        <!-- (ALTERADO - SUGESTÃO 5) Cores dos selects -->
+        <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
+            <!-- NOVOS CONTROLOS (INSERIDOS AQUI) -->
+            <div class="flex-grow flex items-center justify-start gap-4">
+                <div>
+                    <label for="print-margin-select-relatorio" class="block text-xs font-medium text-gray-500">Margens</label>
+                    <select id="print-margin-select-relatorio" name="print-margin-select" class="print-options-margin block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
+                        <option value="normal">Normal (2cm)</option>
+                        <option value="narrow" selected>Estreita (1.27cm)</option>
+                        <option value="wide">Larga (2.54cm)</option>
+                    </select>
                 </div>
-                <button id="ficha-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
-                <button id="ficha-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
+                <div>
+                    <label for="print-spacing-select-relatorio" class="block text-xs font-medium text-gray-500">Espaçamento</label>
+                    <select id="print-spacing-select-relatorio" name="print-spacing-select" class="print-options-spacing block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
+                        <option value="normal">Normal (1.5)</option>
+                        <option value="compact" selected>Compacto (1.15)</option>
+                        <option value="single">Simples (1.0)</option>
+                    </select>
+                </div>
             </div>
+            <!-- Botões existentes -->
+            <button id="report-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
+            <button id="report-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
         </div>
-    </div>
-    
-    <!-- ============================================================================== -->
-    <!-- --- FIM DA CORREÇÃO (Estrutura de Impressão v7) --- -->
-    <!-- ============================================================================== -->
+        <!-- **** FIM DA CORREÇÃO **** -->
+    </div></div>
+    <div id="ficha-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="ficha-view-title" class="text-xl font-semibold">Documento</h3><button id="close-ficha-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="ficha-view-content" class="p-8 overflow-y-auto bg-white"></div>
+        <!-- **** CORREÇÃO: Adicionados seletores de Margem e Espaçamento **** -->
+        <!-- (ALTERADO - SUGESTÃO 5) Cores dos selects -->
+        <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
+            <!-- NOVOS CONTROLOS (INSERIDOS AQUI) -->
+            <div class="flex-grow flex items-center justify-start gap-4">
+                <div>
+                    <label for="print-margin-select-ficha" class="block text-xs font-medium text-gray-500">Margens</label>
+                    <select id="print-margin-select-ficha" name="print-margin-select" class="print-options-margin block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
+                        <option value="normal">Normal (2cm)</option>
+                        <option value="narrow" selected>Estreita (1.27cm)</option>
+                        <option value="wide">Larga (2.54cm)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="print-spacing-select-ficha" class="block text-xs font-medium text-gray-500">Espaçamento</label>
+                    <select id="print-spacing-select-ficha" name="print-spacing-select" class="print-options-spacing block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm text-xs py-1">
+                        <option value="normal">Normal (1.5)</option>
+                        <option value="compact" selected>Compacto (1.15)</option>
+                        <option value="single">Simples (1.0)</option>
+                    </select>
+                </div>
+            </div>
+            <!-- Botões existentes -->
+            <button id="ficha-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
+            <button id="ficha-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
+        </div>
+        <!-- **** FIM DA CORREÇÃO **** -->
+    </div></div>
 
     <!-- Modal: Visualização de Histórico (Inalterado) -->
     <div id="history-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
@@ -809,6 +760,7 @@
     </div>
 
     <!-- Modal: Gerador de Relatório (Apenas Busca Ativa por enquanto - Inalterado) -->
+    <!-- (ALTERADO - SUGESTÃO 5) Cores do botão -->
     <div id="report-generator-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="report-generator-title" class="text-xl font-semibold">Gerar Relatório</h3><button id="close-report-generator-btn" class="text-gray-500 text-2xl">&times;</button></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium">Selecione o Aluno(a)</label><select id="student-select" class="mt-1 block w-full"><option value="">Carregando...</option></select></div></div><div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg"><button type="button" id="cancel-report-generator-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="button" id="create-report-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">Gerar</button></div></div></div>
 
     <!-- Modal: Confirmação de Exclusão (Inalterado) -->
