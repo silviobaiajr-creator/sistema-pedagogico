@@ -271,80 +271,94 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- LÓGICA DE IMPRESSÃO CORRIGIDA (Abordagem Cirúrgica) ---
+// --- (NOVA LÓGICA DE IMPRESSÃO - GERAÇÃO DE PDF) ---
 // ==============================================================================
 
 /**
- * Prepara o DOM para impressão adicionando uma classe específica ao modal
- * e limpa depois.
- * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso
- * (ex: 'notification-content', 'report-view-content').
+ * Gera um PDF a partir de um elemento HTML e inicia o download.
+ * Substitui a antiga função 'handlePrintClick'.
+ * @param {string} contentElementId - O ID do elemento de conteúdo a ser impresso.
+ * @param {string} fileName - O nome do arquivo PDF (ex: "Relatorio.pdf").
+ * @param {HTMLElement} buttonElement - O botão que foi clicado.
  */
-function handlePrintClick(contentElementId) {
-    const contentElement = document.getElementById(contentElementId);
-    if (!contentElement) {
-        console.error("Elemento de impressão não encontrado:", contentElementId);
-        showToast("Erro ao preparar documento para impressão.");
+async function handlePdfDownload(contentElementId, fileName, buttonElement) {
+    // 1. Verifica se as bibliotecas (de index.html) estão carregadas
+    if (typeof window.jspdf === 'undefined' || typeof window.html2canvas === 'undefined') {
+        console.error("jsPDF ou html2canvas não estão carregados.");
+        showToast("Erro: Bibliotecas de PDF não carregadas.");
         return;
     }
-    
-    const printableBackdrop = contentElement.closest('.printable-area');
-    if (!printableBackdrop) {
-         console.error("Backdrop '.printable-area' pai não encontrado para:", contentElementId);
-         showToast("Erro ao preparar a área de impressão.");
-         return;
+
+    const contentElement = document.getElementById(contentElementId);
+    if (!contentElement) {
+        console.error("Elemento de conteúdo PDF não encontrado:", contentElementId);
+        showToast("Erro: Conteúdo para PDF não encontrado.");
+        return;
     }
 
-    // --- CORREÇÃO ---
-    // Removemos a manipulação manual da 'transition' do JavaScript.
-    // O novo CSS em @media print (style.css) agora cuida disso
-    // de forma mais confiável com 'transition: none !important;'.
-    // --- FIM DA CORREÇÃO ---
+    // 2. Define o estado de "Carregando" no botão
+    const originalButtonHtml = buttonElement.innerHTML;
+    buttonElement.disabled = true;
+    buttonElement.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>Gerando...`;
+    showToast("A gerar o seu PDF. Por favor, aguarde...");
 
+    // Garante que o scroll do conteúdo esteja no topo para a captura
+    contentElement.scrollTop = 0;
 
-    // 1. Adiciona classe específica ('printing-now')
-    printableBackdrop.classList.add('printing-now');
-
-    // 2. Define a função de limpeza
-    const cleanupAfterPrint = () => {
-        printableBackdrop.classList.remove('printing-now');
-        // Não precisamos mais restaurar a transição aqui
-    };
-
-    // 3. Chama a impressão
     try {
-        // ==================================================================
-        // INÍCIO DA NOVA CORREÇÃO (Delay Simples)
-        // ==================================================================
-        
-        // Passo A: Espera 100ms.
-        // Um pequeno delay ainda é útil para garantir que a classe .printing-now
-        // seja aplicada antes do navegador "bater a foto" da página.
-        // Não precisamos mais do delay longo de 300ms.
-        setTimeout(() => { 
-            try {
-                // Passo B: Chama a impressão.
-                window.print();
-            
-                // Passo C: Limpeza agendada
-                setTimeout(cleanupAfterPrint, 500); 
-
-            } catch (printError) {
-                console.error("Erro durante a chamada window.print():", printError);
-                showToast("Não foi possível abrir a janela de impressão.");
-                cleanupAfterPrint(); // Limpa se a impressão falhar
+        // 3. Tira a "screenshot" do conteúdo
+        const canvas = await html2canvas(contentElement, {
+            scale: 2, // Aumenta a resolução da imagem
+            useCORS: true, // Permite que imagens externas (como o logo) sejam carregadas
+            logging: false,
+            onclone: (clonedDoc) => {
+                // Garante que o fundo da captura seja branco
+                const clonedContent = clonedDoc.getElementById(contentElementId);
+                if (clonedContent) {
+                    clonedContent.style.backgroundColor = '#ffffff';
+                }
             }
-        }, 100); // Usamos um delay curto e seguro (100ms)
-        // ==================================================================
-        // FIM DA NOVA CORREÇÃO
-        // ==================================================================
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4'); // PDF em modo Retrato (p), milímetros (mm), tamanho A4
+
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const margin = 10; // margem de 10mm (1cm)
+        const usableWidth = pdfWidth - (margin * 2);
+
+        // 4. Calcula a altura da imagem no PDF, mantendo a proporção
+        const imgHeight = (canvas.height * usableWidth) / canvas.width;
         
-    } catch (e) {
-        // Este catch externo pega erros síncronos (raro)
-        console.error("Erro ao preparar a impressão:", e);
-        showToast("Não foi possível abrir a janela de impressão.");
-        // Se falhar, limpa imediatamente
-        cleanupAfterPrint();
+        let heightLeft = imgHeight;
+        let position = margin; // Posição Y inicial (com margem)
+
+        // 5. Adiciona a imagem (que pode ter várias páginas)
+        pdf.addImage(imgData, 'PNG', margin, position, usableWidth, imgHeight);
+        heightLeft -= (pdfHeight - (margin * 2)); // Subtrai a altura da primeira página
+
+        // 6. Lógica de Múltiplas Páginas
+        // Se a imagem for mais alta que a página, adiciona novas páginas
+        while (heightLeft > 0) {
+            position = -heightLeft - margin; // A nova posição Y (negativa) para "puxar" a imagem para cima
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', margin, position, usableWidth, imgHeight);
+            heightLeft -= (pdfHeight - (margin * 2)); // Subtrai a altura de outra página
+        }
+
+        // 7. Salva o PDF (inicia o download)
+        pdf.save(fileName);
+        showToast("PDF gerado com sucesso!");
+
+    } catch (error) {
+        console.error("Erro ao gerar PDF:", error);
+        showToast("Erro ao gerar o PDF. Verifique a consola.");
+    } finally {
+        // 8. Restaura o botão ao estado original
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = originalButtonHtml;
     }
 }
 
@@ -391,14 +405,31 @@ function setupModalCloseButtons() {
     
     // --- ATUALIZAÇÃO DOS BOTÕES DE SHARE E PRINT ---
     
-    // Botões de Share (Partilhar)
+    // Botões de Share (Partilhar) - (Sem alteração)
     document.getElementById('share-btn').addEventListener('click', () => shareContent(document.getElementById('notification-title').textContent, document.getElementById('notification-content').innerText));
     document.getElementById('report-share-btn').addEventListener('click', () => shareContent(document.getElementById('report-view-title').textContent, document.getElementById('report-view-content').innerText));
     document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
 
-    // Botões de Impressão (AGORA USAM A NOVA FUNÇÃO HÍBRIDA)
-    document.getElementById('print-btn').addEventListener('click', () => handlePrintClick('notification-content'));
-    document.getElementById('report-print-btn').addEventListener('click', () => handlePrintClick('report-view-content'));
-    document.getElementById('ficha-print-btn').addEventListener('click', () => handlePrintClick('ficha-view-content'));
+    // (MODIFICADO - GERAÇÃO DE PDF)
+    // Altera o texto dos botões e atribui a nova função 'handlePdfDownload'
+
+    const printBtn = document.getElementById('print-btn');
+    if (printBtn) {
+        printBtn.innerHTML = '<i class="fas fa-file-pdf mr-2"></i>Baixar PDF';
+        // Passamos o ID do conteúdo, o nome do arquivo, e o próprio botão (e.currentTarget)
+        printBtn.addEventListener('click', (e) => handlePdfDownload('notification-content', 'Notificacao.pdf', e.currentTarget));
+    }
+
+    const reportPrintBtn = document.getElementById('report-print-btn');
+    if (reportPrintBtn) {
+        reportPrintBtn.innerHTML = '<i class="fas fa-file-pdf mr-2"></i>Baixar PDF';
+        reportPrintBtn.addEventListener('click', (e) => handlePdfDownload('report-view-content', 'Relatorio.pdf', e.currentTarget));
+    }
+
+    const fichaPrintBtn = document.getElementById('ficha-print-btn');
+    if (fichaPrintBtn) {
+        fichaPrintBtn.innerHTML = '<i class="fas fa-file-pdf mr-2"></i>Baixar PDF';
+        fichaPrintBtn.addEventListener('click', (e) => handlePdfDownload('ficha-view-content', 'Ficha.pdf', e.currentTarget));
+    }
 }
 
