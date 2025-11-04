@@ -21,6 +21,10 @@
 // 1. A função `openOccurrenceRecordModal` foi reescrita para gerar uma ata
 //    em formato narrativo (texto corrido), seguindo padrões técnicos
 //    para arquivamento em livro físico.
+//
+// ATUALIZAÇÃO (Sugestões 4 e 5):
+// 1. (Sug. 4) Adicionado filtro de privacidade em `generateAndShowGeneralReport`.
+// 2. (Sug. 5) Cores do tema atualizadas de `indigo`/`purple` para `sky`/`teal`.
 // =================================================================================
 
 
@@ -79,6 +83,7 @@ export const getReportHeaderHTML = () => {
  * de um incidente a notificação deve ser gerada.
  * (MODIFICADO - Papéis) Usa fetchIncidentById e participantsInvolved.
  * (OBS: Esta função pode se tornar menos necessária com o botão direto na lista)
+ * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
  */
 export const openStudentSelectionModal = async (groupId) => {
     // (MODIFICADO - Papéis / Otimização) Usa a função otimizada
@@ -108,7 +113,6 @@ export const openStudentSelectionModal = async (groupId) => {
     participants.forEach(participant => {
         const student = participant.student; // Pega o objeto student
         const btn = document.createElement('button');
-        // (ALTERADO - SUGESTÃO 5) Cores
         btn.className = 'w-full text-left bg-gray-50 hover:bg-sky-100 p-3 rounded-lg transition';
         btn.innerHTML = `<span class="font-semibold text-sky-800">${student.name}</span><br><span class="text-sm text-gray-600">Turma: ${student.class}</span>`;
         btn.onclick = () => {
@@ -126,6 +130,7 @@ export const openStudentSelectionModal = async (groupId) => {
  * Gera e exibe a notificação formal.
  * (MODIFICADO - Papéis) Recebe 'incident' completo. Pequenos ajustes.
  * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
+ * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
  */
 export const openIndividualNotificationModal = (incident, student) => {
     // Encontra o registro específico para este aluno dentro do incidente
@@ -179,7 +184,6 @@ export const openIndividualNotificationModal = (incident, student) => {
                 Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica para uma reunião
                 na seguinte data e horário:
             </p>
-            <!-- (ALTERADO - SUGESTÃO 5) Cores -->
             <div class="mt-4 p-3 bg-sky-100 text-sky-800 rounded-md text-center font-semibold" style="font-family: 'Inter', sans-serif;">
                 <p><strong>Data:</strong> ${formatDate(data.meetingDate)}</p>
                 <p><strong>Horário:</strong> ${formatTime(data.meetingTime)}</p>
@@ -473,7 +477,7 @@ export const openAbsenceHistoryModal = (processId) => {
 
     const history = allHistory.sort((a, b) => {
         const timeA = a.timestamp?.seconds ? a.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
-        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(b.timestamp).getTime();
+        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
         return timeB - timeA;
     });
 
@@ -845,8 +849,8 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
  * (MODIFICADO - Papéis) Usa fetchIncidentById, participantsInvolved e exibe papéis.
  * (CORREÇÃO - RELATÓRIO) Importa getFilteredOccurrences corretamente.
  * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
- * (MODIFICADO - SUGESTÃO 4) Filtro de privacidade adicionado.
- * (MODIFICADO - SUGESTÃO 5) Cores alteradas.
+ * (MODIFICADO - Sug. 4: Filtro de Privacidade)
+ * (MODIFICADO - Sug. 5: Cores)
  */
 export const generateAndShowGeneralReport = async () => { // Adicionado async
      // Usa a função getFilteredOccurrences que já busca e filtra
@@ -859,11 +863,19 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
     }
 
     const { startDate, endDate, status, type } = state.filtersOccurrences;
-    const studentFilter = state.filterOccurrences.toLowerCase(); // (ALTERADO - SUGESTÃO 4) .toLowerCase()
+    const studentFilter = state.filterOccurrences; // (Usado pela Sug. 4)
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
     // (MODIFICADO - Papéis) Calcula total de alunos únicos usando participantsInvolved
-    const totalStudents = new Set(filteredIncidents.flatMap(i => [...i.participantsInvolved.keys()])).size;
+    // (MODIFICADO - Sug. 4) Filtra os alunos totais se um filtro estiver ativo
+    const totalStudentsSet = new Set(
+        filteredIncidents.flatMap(i => 
+            [...i.participantsInvolved.values()]
+                .filter(p => !studentFilter || (p.student && p.student.name.toLowerCase().includes(studentFilter.toLowerCase())))
+                .map(p => p.student.matricula)
+        )
+    );
+    const totalStudents = totalStudentsSet.size;
 
     const occurrencesByType = filteredIncidents.reduce((acc, incident) => {
         // Garante que incident.records[0] exista
@@ -897,9 +909,8 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
             <div class="border rounded-lg p-4 bg-gray-50">
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <!-- (ALTERADO - SUGESTÃO 5) Cores -->
                     <div><p class="text-2xl font-bold text-sky-600">${filteredIncidents.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Total de Incidentes</p></div>
-                    <div><p class="text-2xl font-bold text-sky-600">${totalStudents}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos</p></div>
+                    <div><p class="text-2xl font-bold text-sky-600">${totalStudents}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Envolvidos ${studentFilter ? '(Filtrados)' : ''}</p></div>
                     <div><p class="text-lg font-bold text-sky-600">${sortedTypes.length > 0 ? formatText(sortedTypes[0][0]) : 'N/A'}</p><p class="text-xs font-medium text-gray-500 uppercase">Principal Tipo</p></div>
                 </div>
                 ${(startDate || endDate || status !== 'all' || type !== 'all' || studentFilter) ? `<div class="mt-4 border-t pt-3 text-xs text-gray-600"><p><strong>Filtros Aplicados:</strong></p><ul class="list-disc list-inside ml-2">${startDate ? `<li>De: <strong>${formatDate(startDate)}</strong></li>` : ''}${endDate ? `<li>Até: <strong>${formatDate(endDate)}</strong></li>` : ''}${status !== 'all' ? `<li>Status: <strong>${status}</strong></li>` : ''}${type !== 'all' ? `<li>Tipo: <strong>${formatText(type)}</strong></li>` : ''}${studentFilter ? `<li>Aluno: <strong>"${formatText(studentFilter)}"</strong></li>` : ''}</ul></div>` : ''}
@@ -923,17 +934,12 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
                     const mainRecord = incident.records?.[0]; // Adiciona ? para segurança
                     if (!mainRecord) return ''; // Pula se não houver registro principal
                     
-                    // (MODIFICADO - SUGESTÃO 4) Filtro de privacidade
+                    // (MODIFICADO - Sug. 4: Filtro de Privacidade)
                     const participantsDetails = [...incident.participantsInvolved.values()]
-                        .filter(p => {
-                            if (studentFilter && !p.student.name.toLowerCase().includes(studentFilter)) {
-                                return false;
-                            }
-                            return true;
-                        })
+                        .filter(p => !studentFilter || (p.student && p.student.name.toLowerCase().includes(studentFilter.toLowerCase())))
                         .map(p => {
-                            const iconClass = roleIcons[p.role] || roleIcons[defaultRole];
-                            return `<span class="inline-flex items-center gap-1 mr-2"><i class="${iconClass} fa-fw"></i>${formatText(p.student.name)} (${p.role})</span>`;
+                             const iconClass = roleIcons[p.role] || roleIcons[defaultRole];
+                             return `<span class="inline-flex items-center gap-1 mr-2"><i class="${iconClass} fa-fw"></i>${formatText(p.student.name)} (${p.role})</span>`;
                         }).join(', ');
 
                     return `
@@ -946,14 +952,14 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
                             ${getStatusBadge(incident.overallStatus)}
                         </div>
                         <div class="p-4 space-y-3">
-                            <p><strong>Participantes:</strong> ${participantsDetails}</p>
+                            <p><strong>Participantes ${studentFilter ? '(Filtrados)' : ''}:</strong> ${participantsDetails}</p>
                             <div><h5 class="text-xs font-semibold uppercase text-gray-500">Descrição do Fato (Ação 1)</h5><p class="whitespace-pre-wrap text-xs bg-gray-50 p-2 rounded">${formatText(mainRecord.description)}</p></div>
 
-                            <!-- (MODIFICADO - SUGESTÃO 4) Filtro de privacidade -->
+                            <!-- (MODIFICADO - Sug. 4: Filtro de Privacidade) -->
                             ${incident.records
                                 .filter(rec => {
                                     const participant = incident.participantsInvolved.get(rec.studentId);
-                                    if (studentFilter && participant && !participant.student.name.toLowerCase().includes(studentFilter)) {
+                                    if (studentFilter && participant && !participant.student.name.toLowerCase().includes(studentFilter.toLowerCase())) {
                                         return false;
                                     }
                                     return true;
@@ -993,7 +999,7 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
             if (typeCtx && typeof Chart !== 'undefined') {
                 new Chart(typeCtx, {
                     type: 'bar',
-                    // (ALTERADO - SUGESTÃO 5) Cor
+                    // (MODIFICADO - Cores)
                     data: { labels: chartDataByType.labels, datasets: [{ label: 'Total', data: chartDataByType.data, backgroundColor: '#0284c7' }] },
                     options: { responsive: true, plugins: { legend: { display: false } }, indexAxis: 'y' }
                 });
@@ -1027,7 +1033,7 @@ export const generateAndShowGeneralReport = async () => { // Adicionado async
 /**
  * Gera o relatório geral de Busca Ativa com gráficos.
  * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
- * (MODIFICADO - SUGESTÃO 5) Cores alteradas.
+ * (MODIFICADO - Cores)
  */
 export const generateAndShowBuscaAtivaReport = () => {
     const groupedByProcess = state.absences.reduce((acc, action) => {
@@ -1123,7 +1129,6 @@ export const generateAndShowBuscaAtivaReport = () => {
             <div class="border rounded-lg p-4 bg-gray-50">
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <!-- (ALTERADO - SUGESTÃO 5) Cores -->
                     <div><p class="text-2xl font-bold text-sky-600">${filteredProcesses.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Processos Filtrados</p></div>
                     <div><p class="text-2xl font-bold text-sky-600">${statusEmAndamento}</p><p class="text-xs font-medium text-gray-500 uppercase">Em Andamento</p></div>
                     <div><p class="text-2xl font-bold text-sky-600">${retornoSim}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Retornaram</p></div>
@@ -1181,7 +1186,7 @@ export const generateAndShowBuscaAtivaReport = () => {
             if (statusCtx && typeof Chart !== 'undefined') {
                 new Chart(statusCtx, {
                     type: 'doughnut',
-                    data: { labels: chartDataStatus.labels, datasets: [{ data: chartDataStatus.data, backgroundColor: ['#f59e0b', '#10b981'] }] }, // Cores semânticas mantidas
+                    data: { labels: chartDataStatus.labels, datasets: [{ data: chartDataStatus.data, backgroundColor: ['#f59e0b', '#10b981'] }] },
                     options: { responsive: true }
                 });
             } else if (!statusCtx) { console.warn("Canvas 'ba-chart-status' não encontrado."); }
@@ -1190,7 +1195,7 @@ export const generateAndShowBuscaAtivaReport = () => {
              if (retornoCtx && typeof Chart !== 'undefined') {
                 new Chart(retornoCtx, {
                     type: 'pie',
-                    data: { labels: chartDataRetorno.labels, datasets: [{ data: chartDataRetorno.data, backgroundColor: ['#10b981', '#ef4444', '#6b7280'] }] }, // Cores semânticas mantidas
+                    data: { labels: chartDataRetorno.labels, datasets: [{ data: chartDataRetorno.data, backgroundColor: ['#10b981', '#ef4444', '#6b7280'] }] },
                     options: { responsive: true }
                 });
              } else if (!retornoCtx) { console.warn("Canvas 'ba-chart-retorno' não encontrado."); }
@@ -1199,7 +1204,7 @@ export const generateAndShowBuscaAtivaReport = () => {
              if (pendenteCtx && typeof Chart !== 'undefined') {
                  new Chart(pendenteCtx, {
                     type: 'bar',
-                    // (ALTERADO - SUGESTÃO 5) Cores
+                    // (MODIFICADO - Cores)
                     data: { labels: chartDataPendente.labels, datasets: [{ label: 'Total', data: chartDataPendente.data, backgroundColor: ['#0ea5e9', '#0d9488'] }] },
                     options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
                 });
@@ -1327,3 +1332,4 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
 // ==============================================================================
 // --- FIM NOVO ---
 // ==============================================================================
+

@@ -20,9 +20,17 @@
 //    para controlar os <div>s (em vez de <summary>) e usar a lógica
 //    de 'isHidden' e 'maxHeight = null' de 'absence.js'.
 //
-// ATUALIZAÇÃO (Sugestões 4 e 5):
-// 1. (Sug. 4) Adicionado filtro de privacidade em `renderOccurrences`.
-// 2. (Sug. 5) Cores do tema atualizadas de `indigo` para `sky`.
+// ATUALIZAÇÃO (SESSÃO ATUAL - SUGESTÕES 4 e 5):
+// 1. (Sug. 4 - Privacidade) `renderOccurrences` agora filtra a exibição dos
+//    alunos se um nome estiver na barra de busca.
+// 2. (Sug. 5 - Cores) Classes `indigo` substituídas por `sky`.
+//
+// ATUALIZAÇÃO (SESSÃO ATUAL - COERÊNCIA DE DATAS):
+// 1. `openOccurrenceModal`: Define a data MÁXIMA da Ação 1 (Fato) como 'hoje'.
+// 2. `openOccurrenceStepModal`: Define a data MÍNIMA para as Ações 2, 3 e 4,
+//    baseando-se na data da ação anterior.
+// 3. `handleOccurrenceStepSubmit`: Adiciona verificação final de cronologia
+//    antes de salvar no banco de dados.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -78,7 +86,7 @@ let editingRoleId = null; // Guarda o ID do aluno cujo papel está sendo editado
 
 /**
  * (MODIFICADO - Papéis) Renderiza as tags dos alunos selecionados com ícones de papel e botão de edição.
- * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
+ * (MODIFICADO - Sug. 5 Cores)
  */
 const renderTags = () => {
     const tagsContainerElement = document.getElementById('student-tags-container');
@@ -92,6 +100,7 @@ const renderTags = () => {
     state.selectedStudents.forEach((data, studentId) => {
         const { student, role } = data;
         const tag = document.createElement('span');
+        // (Sug. 5 Cores)
         tag.className = 'bg-sky-100 text-sky-800 text-sm font-medium me-2 px-2.5 py-1 rounded-full flex items-center gap-1.5';
         const iconClass = roleIcons[role] || roleIcons[defaultRole];
 
@@ -148,7 +157,7 @@ const openRoleEditDropdown = (buttonElement, studentId) => {
 
 /**
  * (MODIFICADO - Papéis) Gerencia a UI de seleção de múltiplos alunos e a seleção/edição de papéis.
- * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
+ * (MODIFICADO - Sug. 5 Cores)
  */
 export const setupStudentTagInput = (inputElement, suggestionsElement, tagsContainerElement) => {
     const roleSelectionPanel = document.getElementById('role-selection-panel');
@@ -181,6 +190,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             suggestionsElement.classList.remove('hidden');
             filteredStudents.forEach(student => {
                 const item = document.createElement('div');
+                // (Sug. 5 Cores)
                 item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50'; // Tailwind
                 item.textContent = student.name;
                 item.addEventListener('click', () => {
@@ -325,7 +335,8 @@ export const getFilteredOccurrences = () => {
 // Função reescrita para usar o layout de acordeão (V4).
 // CORREÇÃO (01/11/2025): Trocado <details>/<summary> por <div>s para
 // corrigir o bug de 'scrollHeight' ser 0.
-// ATUALIZAÇÃO (Sug. 4 e 5): Adicionado filtro de privacidade e cores atualizadas.
+// ATUALIZAÇÃO (Sug. 4 - Privacidade): Adicionado filtro de exibição de alunos.
+// ATUALIZAÇÃO (Sug. 5 - Cores): Classes `indigo` alteradas para `sky`.
 // =================================================================================
 
 /**
@@ -359,15 +370,18 @@ export const renderOccurrences = () => {
         // --- (INÍCIO DA LÓGICA V4) ---
         // Gera o HTML do acordeão para cada aluno
         const studentAccordionsHTML = [...incident.participantsInvolved.values()]
-            // (ADICIONADO - Sug. 4: Filtro de Privacidade)
+            // ==================================================================
+            // --- (Sug. 4 - INÍCIO DA CORREÇÃO DE PRIVACIDADE) ---
+            // Adiciona filtro para mostrar APENAS o aluno pesquisado, se houver pesquisa
             .filter(participant => {
                 // Se a busca NÃO está vazia E o nome deste participante NÃO corresponde, esconda-o
-                if (studentSearch && participant.student && !participant.student.name.toLowerCase().includes(studentSearch)) {
+                if (studentSearch && !participant.student.name.toLowerCase().includes(studentSearch)) {
                     return false;
                 }
-                return true; // Caso contrário, mostre
+                return true; // Caso contrário (busca vazia OU nome corresponde), mostre
             })
-            // (FIM DO FILTRO)
+            // --- (Sug. 4 - FIM DA CORREÇÃO DE PRIVACIDADE) ---
+            // ==================================================================
             .map(participant => {
                 const { student, role } = participant;
                 if (!student) return '';
@@ -406,7 +420,7 @@ export const renderOccurrences = () => {
                 
                 // 2. Gera os Botões de Ação (para dentro do acordeão)
                 
-                // Botão Avançar Etapa (Cores atualizadas)
+                // Botão Avançar Etapa (Sug. 5 Cores)
                 const avancarBtn = `
                     <button type="button"
                             class="avancar-etapa-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100 ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
@@ -429,7 +443,7 @@ export const renderOccurrences = () => {
                     </button>
                 ` : '';
 
-                // Botão Notificação (movido para dentro, cores atualizadas)
+                // Botão Notificação (movido para dentro) (Sug. 5 Cores)
                 const notificationBtn = (record && record.meetingDate && record.meetingTime) ? `
                     <button type="button"
                             class="notification-student-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100"
@@ -473,6 +487,7 @@ export const renderOccurrences = () => {
                 return `
                     <div class="bg-gray-50 rounded-lg border border-gray-200">
                         <!-- Cabeçalho Clicável (DIV, não <summary>) -->
+                        <!-- (Sug. 5 Cores) hover:bg-sky-50 -->
                         <div class="occurrence-summary p-3 cursor-pointer hover:bg-sky-50 flex justify-between items-center"
                              data-content-id="${contentId}">
                             
@@ -559,11 +574,21 @@ export const renderOccurrences = () => {
 /**
  * Abre o modal para registrar ou editar os dados COLETIVOS (Ação 1).
  * (MODIFICADO - Papéis) Carrega participantes com papéis ao editar.
- * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
+ * (MODIFICADO - Coerência de Datas) Define 'max' para data do fato.
  */
 export const openOccurrenceModal = (incidentToEdit = null) => {
     dom.occurrenceForm.reset();
     state.selectedStudents.clear(); // Limpa o Map de alunos selecionados
+
+    // ==================================================================
+    // --- (NOVO - Coerência de Datas) ---
+    // Define a data máxima como "hoje" para o campo de data da ocorrência
+    const occurrenceDateInput = document.getElementById('occurrence-date');
+    const today = new Date().toISOString().split('T')[0];
+    occurrenceDateInput.max = today;
+    // --- (FIM DA NOVA CORREÇÃO) ---
+    // ==================================================================
+
 
     if (incidentToEdit) {
         const mainRecord = incidentToEdit.records[0];
@@ -576,13 +601,13 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
         });
 
         document.getElementById('occurrence-type').value = mainRecord.occurrenceType || '';
-        document.getElementById('occurrence-date').value = mainRecord.date || '';
+        occurrenceDateInput.value = mainRecord.date || ''; // Usa a var
         document.getElementById('description').value = mainRecord.description || '';
         document.getElementById('providencias-escola').value = mainRecord.providenciasEscola || '';
     } else {
         document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
         document.getElementById('occurrence-group-id').value = '';
-        document.getElementById('occurrence-date').valueAsDate = new Date();
+        occurrenceDateInput.valueAsDate = new Date(); // Usa a var
     }
 
     // Configura o input de alunos (agora com lógica de papéis)
@@ -637,6 +662,7 @@ const toggleDesfechoFields = (choice) => {
 /**
  * Abre o modal de ACOMPANHAMENTO e exibe APENAS a etapa atual.
  * (MODIFICADO - Plano 3b) Esconde/mostra campos da Ação 4/6 com base nos rádios.
+ * (MODIFICADO - Coerência de Datas) Define 'min' para os campos de data.
  */
 export const openOccurrenceStepModal = (student, record, actionType) => {
     const followUpForm = document.getElementById('follow-up-form');
@@ -651,6 +677,17 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
     const modalTitle = document.getElementById('follow-up-modal-title');
     modalTitle.textContent = occurrenceActionTitles[actionType] || 'Acompanhamento Individual';
     statusDisplay.innerHTML = `<strong>Status:</strong> ${getStatusBadge(record.statusIndividual || 'Aguardando Convocação')}`;
+
+    // ==================================================================
+    // --- (NOVO - Coerência de Datas) ---
+    // Limpa 'min' attributes antigos para evitar dados estagnados
+    ['follow-up-meeting-date', 'follow-up-contact-date', 'follow-up-ct-sent-date'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.removeAttribute('min');
+    });
+    // --- (FIM DA NOVA CORREÇÃO) ---
+    // ==================================================================
+
 
     // Esconde todos os grupos dinâmicos e desabilita campos
     document.querySelectorAll('.dynamic-occurrence-step').forEach(group => {
@@ -679,6 +716,15 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
                 timeInput.value = record.meetingTime || '';
                 dateInput.disabled = false; dateInput.required = true;
                 timeInput.disabled = false; timeInput.required = true;
+                
+                // ==================================================================
+                // --- (NOVO - Coerência de Datas) ---
+                // Define data mínima (data do fato, Ação 1)
+                if (record.date) {
+                    dateInput.min = record.date;
+                }
+                // --- (FIM DA NOVA CORREÇÃO) ---
+                // ==================================================================
             }
             break;
 
@@ -703,7 +749,18 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
                     // A visibilidade dos campos depende do valor carregado
                     toggleOccurrenceContactFields(currentSucceededValue === 'yes');
                     document.getElementById('follow-up-contact-type').value = record.contactType || '';
-                    document.getElementById('follow-up-contact-date').value = record.contactDate || '';
+                    
+                    // ==================================================================
+                    // --- (NOVO - Coerência de Datas) ---
+                    const contactDateInput = document.getElementById('follow-up-contact-date');
+                    contactDateInput.value = record.contactDate || '';
+                    // Define data mínima (data da convocação, Ação 2)
+                    if (record.meetingDate) {
+                        contactDateInput.min = record.meetingDate;
+                    }
+                    // --- (FIM DA NOVA CORREÇÃO) ---
+                    // ==================================================================
+
                     document.getElementById('follow-up-family-actions').value = record.providenciasFamilia || '';
                 }
             }
@@ -744,6 +801,25 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
                 if(oficioInput) oficioInput.value = record.oficioNumber || '';
                 if(dateCtInput) dateCtInput.value = record.ctSentDate || '';
                 if(parecerInput) parecerInput.value = record.parecerFinal || '';
+                
+                // ==================================================================
+                // --- (NOVO - Coerência de Datas) ---
+                if (dateCtInput) {
+                    // Define data mínima:
+                    // Se o contato (Ação 3) foi 'Sim', a data mínima é a data desse contato.
+                    // Se o contato (Ação 3) foi 'Não', a data mínima é a data da convocação (Ação 2).
+                    if (record.contactSucceeded === 'yes' && record.contactDate) {
+                        dateCtInput.min = record.contactDate;
+                    } else if (record.contactSucceeded === 'no' && record.meetingDate) {
+                        dateCtInput.min = record.meetingDate;
+                    } else if (record.meetingDate) { // Fallback se Ação 3 não foi preenchida (ex: dados antigos)
+                         dateCtInput.min = record.meetingDate;
+                    } else { // Fallback se Ação 2 não foi preenchida
+                        dateCtInput.min = record.date; // Data do Fato
+                    }
+                }
+                // --- (FIM DA NOVA CORREÇÃO) ---
+                // ==================================================================
             }
             break;
 
@@ -758,6 +834,7 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
                     const feedbackInput = document.getElementById('follow-up-ct-feedback');
                     feedbackInput.value = record.ctFeedback || '';
                     feedbackInput.disabled = false; feedbackInput.required = true;
+                    // (Coerência de Datas): Esta etapa não possui campo de data no schema atual.
                 }
             }
             break;
@@ -777,6 +854,7 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
                     const parecerInputFinal = document.getElementById('follow-up-parecer-final');
                     parecerInputFinal.value = record.parecerFinal || '';
                     parecerInputFinal.disabled = false; parecerInputFinal.required = true;
+                    // (Coerência de Datas): Esta etapa não possui campo de data no schema atual.
                 }
             }
             break;
@@ -832,6 +910,17 @@ async function handleOccurrenceSubmit(e) {
         // (MODIFICADO - Papéis) Salva o array de participantes
         participants: participants
     };
+    
+    // ==================================================================
+    // --- (NOVO - Coerência de Datas) ---
+    // Validação final da data (Ação 1)
+    const today = new Date().toISOString().split('T')[0];
+    if (collectiveData.date > today) {
+        return showToast("Erro: A data da ocorrência não pode ser no futuro.");
+    }
+    // --- (FIM DA NOVA CORREÇÃO) ---
+    // ==================================================================
+
 
     if (!collectiveData.providenciasEscola) {
         showToast("O campo 'Providências da Escola' é obrigatório.");
@@ -952,6 +1041,7 @@ async function handleOccurrenceSubmit(e) {
  * (MODIFICADO - Plano 1a) Avança status mesmo se contato="Não".
  * (MODIFICADO - Plano 2a) Gera notificação após salvar Ação 2.
  * (MODIFICADO - Plano 3b) Lê a escolha (CT ou Parecer) dos rádios na Ação 4/6.
+ * (MODIFICADO - Coerência de Datas) Adiciona validação final de cronologia.
  */
 async function handleOccurrenceStepSubmit(e) {
     e.preventDefault();
@@ -983,6 +1073,13 @@ async function handleOccurrenceStepSubmit(e) {
                 if (!dataToUpdate.meetingDate || !dataToUpdate.meetingTime) {
                     return showToast('Data e Horário da convocação são obrigatórios.');
                 }
+                // ==================================================================
+                // --- (NOVO - Coerência de Datas) ---
+                if (record.date && dataToUpdate.meetingDate < record.date) {
+                    return showToast('Erro: A data da convocação (Ação 2) não pode ser anterior à data do fato (Ação 1).');
+                }
+                // --- (FIM DA NOVA CORREÇÃO) ---
+                // ==================================================================
                 historyAction = `Ação 2 (Convocação) agendada para ${formatDate(dataToUpdate.meetingDate)} às ${formatTime(dataToUpdate.meetingTime)}.`;
                 nextStatus = occurrenceNextStatusMap['Aguardando Convocação']; // Próximo status é 'Aguardando Contato'
                 break;
@@ -1003,6 +1100,13 @@ async function handleOccurrenceStepSubmit(e) {
                     if (!dataToUpdate.contactType || !dataToUpdate.contactDate || !dataToUpdate.providenciasFamilia) {
                          return showToast('Preencha Tipo, Data do Contato e Providências da Família.');
                     }
+                    // ==================================================================
+                    // --- (NOVO - Coerência de Datas) ---
+                    if (record.meetingDate && dataToUpdate.contactDate < record.meetingDate) {
+                        return showToast('Erro: A data do contato (Ação 3) não pode ser anterior à data da convocação (Ação 2).');
+                    }
+                    // --- (FIM DA NOVA CORREÇÃO) ---
+                    // ==================================================================
                     historyAction = `Ação 3 (Contato) registrada com sucesso (Família ciente). Providências: ${dataToUpdate.providenciasFamilia}`;
                 } else { // contactSucceeded === 'no'
                     dataToUpdate = {
@@ -1041,6 +1145,17 @@ async function handleOccurrenceStepSubmit(e) {
                         // (NOVO) Guarda a escolha feita
                         desfechoChoice: 'ct'
                     };
+                    
+                    // ==================================================================
+                    // --- (NOVO - Coerência de Datas) ---
+                    // A data base é a data da Ação 3 (contato) ou Ação 2 (convocação) se Ação 3 falhou
+                    const minDateCt = (record.contactSucceeded === 'yes' && record.contactDate) ? record.contactDate : record.meetingDate;
+                    if (minDateCt && dataToUpdate.ctSentDate < minDateCt) {
+                         return showToast('Erro: A data de envio ao CT (Ação 4) não pode ser anterior à data da última ação (contato/convocação).');
+                    }
+                    // --- (FIM DA NOVA CORREÇÃO) ---
+                    // ==================================================================
+
                     historyAction = `Ação 4 (Encaminhamento ao CT) registrada. Ofício: ${oficioNumber}/${dataToUpdate.oficioYear}.`;
                     nextStatus = 'Aguardando Devolutiva CT'; // Próximo status
 
@@ -1078,6 +1193,7 @@ async function handleOccurrenceStepSubmit(e) {
                  if (!dataToUpdate.ctFeedback) {
                      return showToast("Erro: Preencha a Devolutiva do CT.");
                  }
+                // (Coerência de Datas): Esta etapa não possui campo de data, apenas textarea.
                 historyAction = `Ação 5 (Devolutiva do CT) registrada.`;
                 nextStatus = 'Aguardando Parecer Final'; // Próximo status
                 break;
@@ -1089,6 +1205,7 @@ async function handleOccurrenceStepSubmit(e) {
                  if (!dataToUpdate.parecerFinal) {
                      return showToast("Erro: Preencha o Parecer/Desfecho final.");
                  }
+                // (Coerência de Datas): Esta etapa não possui campo de data, apenas textarea.
                 historyAction = record.oficioNumber
                    ? `Ação 6 (Parecer Final) registrada após devolutiva do CT.`
                    : `Ação 6 (Parecer Final) registrada diretamente após contato.`;
@@ -1354,6 +1471,7 @@ async function openSendOccurrenceCtModal(groupId) {
 /**
  * Lida com a submissão do modal "Enviar ao CT" (via botão principal).
  * (Inalterado na lógica principal, mas depende do estado atualizado)
+ * (MODIFICADO - Coerência de Datas) Adiciona validação de data.
  */
 async function handleSendOccurrenceCtSubmit(e) {
     e.preventDefault();
@@ -1376,6 +1494,16 @@ async function handleSendOccurrenceCtSubmit(e) {
 
     const oficioYear = new Date().getFullYear();
     const ctSentDate = new Date().toISOString().split('T')[0]; // Data atual
+    
+    // ==================================================================
+    // --- (NOVO - Coerência de Datas) ---
+    // Validação final da data (Ação 4)
+    const minDateCt = (record.contactSucceeded === 'yes' && record.contactDate) ? record.contactDate : record.meetingDate;
+    if (minDateCt && ctSentDate < minDateCt) {
+         return showToast('Erro: A data de envio ao CT (hoje) não pode ser anterior à data da última ação (contato/convocação).');
+    }
+    // --- (FIM DA NOVA CORREÇÃO) ---
+    // ==================================================================
 
     const dataToUpdate = {
         oficioNumber, oficioYear, ctSentDate,
@@ -1494,7 +1622,7 @@ async function handleGenerateNotification(recordId, studentId, groupId) {
 // Função reescrita para controlar o acordeão e os novos botões (V4).
 // CORREÇÃO (01/11/2025): Lógica de clique atualizada para <div>s,
 // copiando o padrão funcional de 'absence.js'.
-// ATUALIZAÇÃO (Sug. 5): Cores atualizadas de 'indigo' para 'sky'.
+// ATUALIZAÇÃO (Sug. 5 - Cores): Classes `indigo` alteradas para `sky`.
 // =================================================================================
 
 /**

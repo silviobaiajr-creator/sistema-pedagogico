@@ -2,6 +2,11 @@
 // ARQUIVO: students.js
 // RESPONSABILIDADE: Gerenciar a lógica e a UI do modal "Gerir Alunos",
 // incluindo adição, edição, exclusão e importação via CSV.
+//
+// ATUALIZAÇÃO (Sug. 5 - Cores):
+// 1. Atualizada a cor do feedback de carregamento (text-blue-500 -> text-sky-500).
+// 2. As cores dos botões (Salvar, Editar, Excluir) são controladas
+//    no index.html (semanticamente) ou já foram atualizadas lá.
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -55,6 +60,7 @@ const resetStudentForm = () => {
 /**
  * Lida com o upload do ficheiro CSV de alunos.
  * (Movido de main.js)
+ * (MODIFICADO - Cores)
  */
 async function handleCsvUpload() {
     const fileInput = dom.csvFile; // Usa a referência do DOM
@@ -65,7 +71,7 @@ async function handleCsvUpload() {
     try {
         // Verifica se Papa já está carregado
         if (typeof window.Papa === 'undefined') {
-            feedbackDiv.innerHTML = `<p class="text-blue-500">A carregar biblioteca de CSV...</p>`;
+            feedbackDiv.innerHTML = `<p class="text-sky-500">A carregar biblioteca de CSV...</p>`; // Cor atualizada
             const papaScriptUrl = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js';
             await loadScript(papaScriptUrl);
             if (typeof window.Papa === 'undefined') {
@@ -260,4 +266,3 @@ export const initStudentListeners = () => {
     
     // Os botões de fechar/cancelar do modal já são tratados pelo `setupModalCloseButtons` no main.js
 };
-
