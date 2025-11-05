@@ -283,18 +283,27 @@ details[open] .process-content {
         break-before: avoid-page !important;
     }
 
-    /* (NOVA CORREÇÃO) */
-    /* Zera a margem/padding superior do PRIMEIRO elemento */
-    /* DENTRO do container e impede que *ele* cause a quebra. */
-    #notification-content > *:first-child,
-    #report-view-content > *:first-child,
-    #ficha-view-content > *:first-child {
+    /* ========================================================================== */
+    /* ======================== (INÍCIO DA CORREÇÃO) ======================== */
+    /*
+        O seletor antigo `*:first-child` falhava quando o primeiro
+        elemento era uma tag <style> (como na "Ata de Ocorrência").
+        
+        Mudamos para `div:first-of-type` para mirar no *primeiro <div>*
+        dentro do contêiner, ignorando a tag <style>.
+        Isso zera a margem superior padrão do <div> e impede a página em branco.
+    */
+    #notification-content > div:first-of-type,
+    #report-view-content > div:first-of-type,
+    #ficha-view-content > div:first-of-type {
         margin: 0 !important; /* Reseta TODAS as margens */
         padding: 0 !important; /* Reseta TODOS os paddings */
         page-break-before: avoid !important; /* Evita quebra antes */
         break-before: avoid-page !important; /* Evita quebra antes (moderno) */
     }
-    /* --- (FIM DA SOLUÇÃO) --- */
+    /* ========================= (FIM DA CORREÇÃO) ========================== */
+    /* ========================================================================== */
+
 
     /* --- (INÍCIO DA CORREÇÃO) --- */
     /* O bloco que definia 'padding: 1cm !important;' foi REMOVIDO daqui. */
@@ -345,6 +354,3 @@ details[open] .process-content {
 /* ============================================================================== */
 /* (FIM DA CORREÇÃO)                                                              */
 /* ============================================================================== */
-
-
-
