@@ -163,13 +163,15 @@ export const openIndividualNotificationModal = (incident, student) => {
             </div>
 
             <!-- --- CORREÇÃO 3: Removido 'border-t' e 'pt-8' dos divs de assinatura --- -->
-            <div class="mt-8">
+            <!-- (CORREÇÃO IMPRESSÃO) Adicionada classe 'signature-block' -->
+            <div class="mt-8 signature-block">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="text-center mt-1">Ciente do Responsável</p>
                 </div>
             </div>
-             <div class="mt-8">
+             <!-- (CORREÇÃO IMPRESSÃO) Adicionada classe 'signature-block' -->
+             <div class="mt-8 signature-block">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="text-center mt-1">Assinatura da Gestão Escolar</p>
@@ -548,13 +550,15 @@ export const openFichaViewModal = (id) => {
             <div class="text-justify">${body}</div>
             
             <!-- --- CORREÇÃO 3: Removido 'border-t' e 'pt-8' dos divs de assinatura --- -->
-            <div class="mt-8">
+            <!-- (CORREÇÃO IMPRESSÃO) Adicionada classe 'signature-block' -->
+            <div class="mt-8 signature-block">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="text-center mt-1">Ciente do Responsável</p>
                 </div>
             </div>
-             <div class="mt-8">
+            <!-- (CORREÇÃO IMPRESSÃO) Adicionada classe 'signature-block' -->
+             <div class="mt-8 signature-block">
                 <div class="text-center w-2/3 mx-auto">
                     <div class="border-t border-gray-400"></div>
                     <p class="text-center mt-1">Assinatura da Gestão Escolar</p>
@@ -1305,4 +1309,3 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
 // ==============================================================================
 // --- FIM NOVO ---
 // ==============================================================================
-
