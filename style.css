@@ -217,13 +217,12 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* (INÍCIO DA CORREÇÃO) SEÇÃO 2: ESTILOS PARA IMPRESSÃO (DA VERSÃO FUNCIONAL)      */
-/* Esta é a versão simples que funciona no celular, substituindo a lógica         */
-/* complexa de ".printing-now" que estava a falhar.                             */
+/* (INÍCIO DA CORREÇÃO) SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO INTERMITENTE)    */
+/* Esta é a versão final que corrige o problema dos "modais fantasma".           */
 /* ============================================================================== */
 
 @media print {
-    /* (NOVA CORREÇÃO) Reseta a página (html, body) para remover margens */
+    /* (CORREÇÃO) Reseta a página (html, body) para remover margens */
     html, body {
         margin: 0 !important;
         padding: 0 !important;
@@ -232,18 +231,29 @@ details[open] .process-content {
         background: #fff !important; /* Garante fundo branco */
     }
 
-    /* Esconde tudo que não está na área de impressão designada */
-    body > *:not(.printable-area) {
+    /* ========================================================================== */
+    /* ======================== (INÍCIO DA CORREÇÃO) ========================== */
+    /*
+        A regra original era: body > *:not(.printable-area)
+        Mudamos para: body > *:not(.printable-area-active)
+        
+        Isso garante que APENAS o modal *atualmente aberto* (que o JS marcou
+        com 'printable-area-active') seja visível para a impressora.
+        Modais antigos fechados (que ainda têm 'printable-area')
+        serão escondidos por esta regra.
+    */
+    /* Esconde tudo que não está na área de impressão ATIVA */
+    body > *:not(.printable-area-active) {
         display: none !important;
     }
     
     /* Garante que a área de impressão ocupe toda a página */
-    /* (CORREÇÃO DE ESPECIFICIDADE) Alvos por ID para máxima especificidade */
+    /* (CORREÇÃO) As regras agora miram em .printable-area-active */
     #notification-modal-backdrop,
     #report-view-modal-backdrop,
     #ficha-view-modal-backdrop,
-    .printable-area, 
-    .printable-area .modal-content {
+    .printable-area-active, 
+    .printable-area-active .modal-content {
         display: block !important;
         position: static !important;
         width: 100% !important;
@@ -255,13 +265,13 @@ details[open] .process-content {
         background-color: white !important;
         padding: 0 !important;
         margin: 0 !important;
-        /* (NOVA CORREÇÃO) Evita que o próprio container do modal quebre a página */
         page-break-before: avoid !important;
         break-before: avoid-page !important;
     }
     
     /* Mostra todo o conteúdo que poderia estar com scroll */
-    .printable-area .overflow-y-auto {
+    /* (CORREÇÃO) Mira em .printable-area-active */
+    .printable-area-active .overflow-y-auto {
         overflow: visible !important;
         height: auto !important;
     }
@@ -271,18 +281,15 @@ details[open] .process-content {
         display: none !important;
     }
 
-    /* --- (INÍCIO DA SOLUÇÃO) --- */
-    /* ========================================================================== */
-    /* ======================== (INÍCIO DA CORREÇÃO 2) ======================== */
     /*
-        Aumentamos a especificidade dos seletores (adicionando 'body .printable-area')
+        Aumentamos a especificidade dos seletores (adicionando 'body .printable-area-active')
         para garantir que estas regras de zerar o padding/margin ganhem
         das classes de utilitário do Tailwind (como 'p-8') que estão no index.html.
     */
     /* Zera o padding/margin dos containers de conteúdo (os pais) */
-    body .printable-area#notification-modal-backdrop #notification-content,
-    body .printable-area#report-view-modal-backdrop #report-view-content,
-    body .printable-area#ficha-view-modal-backdrop #ficha-view-content {
+    body .printable-area-active#notification-modal-backdrop #notification-content,
+    body .printable-area-active#report-view-modal-backdrop #report-view-content,
+    body .printable-area-active#ficha-view-modal-backdrop #ficha-view-content {
         padding: 0 !important;
         margin: 0 !important;
         page-break-before: avoid !important;
@@ -298,23 +305,21 @@ details[open] .process-content {
         Isso zera a margem superior padrão do <div> e impede a página em branco.
     */
     /* Zera o margin/padding do *primeiro <div> filho* dentro do container */
-    body .printable-area #notification-content > div:first-of-type,
-    body .printable-area #report-view-content > div:first-of-type,
-    body .printable-area #ficha-view-content > div:first-of-type {
+    body .printable-area-active #notification-content > div:first-of-type,
+    body .printable-area-active #report-view-content > div:first-of-type,
+    body .printable-area-active #ficha-view-content > div:first-of-type {
         margin: 0 !important; /* Reseta TODAS as margens */
         padding: 0 !important; /* Reseta TODOS os paddings */
         page-break-before: avoid !important; /* Evita quebra antes */
         break-before: avoid-page !important; /* Evita quebra antes (moderno) */
     }
-    /* ========================= (FIM DA CORREÇÃO 2) ========================== */
+    /* ========================= (FIM DA CORREÇÃO) ========================== */
     /* ========================================================================== */
 
 
-    /* --- (INÍCIO DA CORREÇÃO) --- */
     /* O bloco que definia 'padding: 1cm !important;' foi REMOVIDO daqui. */
-    /* A regra @page abaixo (linha 332) é a única que deve */
+    /* A regra @page abaixo é a única que deve */
     /* controlar as margens da impressão. */
-    /* --- (FIM DA CORREÇÃO) --- */
 
     /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO --- */
     
@@ -351,7 +356,7 @@ details[open] .process-content {
         page-break-inside: avoid;
     }
 
-    /* (Adicionada regra @page da sua versão funcional) */
+    /* Regra @page para margens da página */
     @page {
         margin: 1cm;
     }
