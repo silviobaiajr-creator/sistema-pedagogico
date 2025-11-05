@@ -1,3 +1,227 @@
+// =================================================================================
+// ARQUIVO: reports.js
+
+import { state, dom } from './state.js';
+// formatPeriodo foi removido dos imports de utils.js pois não é usado aqui diretamente agora
+import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
+// Imports de ui.js removidos pois não são necessários aqui
+// import { getFilteredOccurrences, getStatusBadge } from './ui.js';
+
+// (NOVO - Papéis) Importa ícones de papéis
+// (CORREÇÃO ATA/RELATÓRIO) Importa getFilteredOccurrences daqui
+import { roleIcons, defaultRole, getFilteredOccurrences } from './occurrence.js';
+// (CORREÇÃO LOGIN) Importa a função de busca de 'firestore.js'
+import { getIncidentByGroupId as fetchIncidentById } from './firestore.js';
+
+
+// NOVO: Constante movida de ui.js
+export const actionDisplayTitles = {
+    tentativa_1: "1ª Tentativa de Contato",
+    tentativa_2: "2ª Tentativa de Contato",
+    tentativa_3: "3ª Tentativa de Contato",
+    visita: "Visita In Loco",
+    encaminhamento_ct: "Encaminhamento ao Conselho Tutelar",
+    analise: "Análise"
+};
+
+/**
+ * Helper para gerar o cabeçalho com logo.
+ * (Inalterado)
+ */
+export const getReportHeaderHTML = () => {
+    const logoUrl = state.config?.schoolLogoUrl || null;
+    const schoolName = state.config?.schoolName || "Nome da Escola";
+    const city = state.config?.city || "Cidade";
+
+    if (logoUrl) {
+        // Adiciona onerror para fallback caso a URL da imagem falhe
+        return `
+            <div class="text-center mb-4">
+                <img src="${logoUrl}" alt="Logo da Escola" class="max-w-full max-h-40 mx-auto" onerror="this.onerror=null; this.src='https://placehold.co/150x50/indigo/white?text=Logo'; this.alt='Logo Placeholder';">
+                <h2 class="text-xl font-bold uppercase mt-2">${schoolName}</h2>
+                <p class="text-sm text-gray-600">${city}</p>
+            </div>`;
+    }
+
+    return `
+        <div class="text-center border-b pb-4">
+            <h2 class="text-xl font-bold uppercase">${schoolName}</h2>
+            <p class="text-sm text-gray-600">${city}</p>
+        </div>`;
+};
+
+
+/**
+ * Abre um modal de seleção para o usuário escolher para qual aluno
+ * de um incidente a notificação deve ser gerada.
+ * (MODIFICADO - Papéis) Usa fetchIncidentById e participantsInvolved.
+ * (OBS: Esta função pode se tornar menos necessária com o botão direto na lista)
+ * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
+ */
+export const openStudentSelectionModal = async (groupId) => {
+    // (MODIFICADO - Papéis / Otimização) Usa a função otimizada
+    const incident = await fetchIncidentById(groupId);
+
+    // (MODIFICADO - Papéis) Verifica participantsInvolved
+    if (!incident || incident.participantsInvolved.size === 0) return showToast('Incidente não encontrado ou sem alunos associados.');
+
+    // (MODIFICADO - Papéis) Pega a lista de { student, role }
+    const participants = [...incident.participantsInvolved.values()];
+
+    if (participants.length === 1) {
+        // Passa o incident completo e o objeto student do participante
+        openIndividualNotificationModal(incident, participants[0].student);
+        return;
+    }
+
+    const modal = document.getElementById('student-selection-modal');
+    const modalBody = document.getElementById('student-selection-modal-body');
+
+    if (!modal || !modalBody) {
+        return showToast('Erro: O modal de seleção de aluno não foi encontrado na página.');
+    }
+
+    modalBody.innerHTML = '';
+
+    participants.forEach(participant => {
+        const student = participant.student; // Pega o objeto student
+        const btn = document.createElement('button');
+        btn.className = 'w-full text-left bg-gray-50 hover:bg-sky-100 p-3 rounded-lg transition';
+        btn.innerHTML = `<span class="font-semibold text-sky-800">${student.name}</span><br><span class="text-sm text-gray-600">Turma: ${student.class}</span>`;
+        btn.onclick = () => {
+            // Passa o incident completo e o objeto student selecionado
+            openIndividualNotificationModal(incident, student);
+            closeModal(modal);
+        };
+        modalBody.appendChild(btn);
+    });
+
+    openModal(modal);
+}
+
+/**
+ * Gera e exibe a notificação formal.
+ * (MODIFICADO - Papéis) Recebe 'incident' completo. Pequenos ajustes.
+ * (MODIFICADO - REVISÃO DE LAYOUT OFICIAL - 01/11/2025)
+ * (MODIFICADO - Cores) Atualizado de 'indigo' para 'sky'.
+ */
+export const openIndividualNotificationModal = (incident, student) => {
+    // Encontra o registro específico para este aluno dentro do incidente
+    const data = incident.records.find(r => r.studentId === student.matricula);
+
+    if (!data) {
+        showToast(`Erro: Registro individual não encontrado para ${student.name}.`);
+        return;
+    }
+
+    // A checagem de convocação permanece
+    if (!data.meetingDate || !data.meetingTime) {
+        showToast(`Erro: É necessário agendar a Convocação (Ação 2) para ${student.name}.`);
+        // showToast("Clique no nome do aluno na lista para avançar a etapa."); // Comentado pois o botão agora direciona
+        return;
+    }
+
+    const responsibleNames = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    document.getElementById('notification-title').innerText = 'Notificação de Ocorrência';
+    document.getElementById('notification-content').innerHTML = `
+        <div class="space-y-6 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+            ${getReportHeaderHTML()}
+            
+            <!-- --- CORREÇÃO 2: Data movida para a direita e antes do título --- -->
+            <p class="text-right mt-4">${state.config?.city || "Cidade"}, ${currentDate}</p>
+
+            <h3 class="text-lg font-semibold mt-4 text-center">NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR</h3>
+
+            <div class="pt-4">
+                <p class="mb-2"><strong>Aos Responsáveis:</strong> ${formatText(responsibleNames)}</p>
+            </div>
+
+            <!-- --- CORREÇÃO 1: Bloco de dados do aluno removido e mesclado ao parágrafo abaixo --- -->
+            
+            <p class="text-justify mt-4">
+                Prezados(as), vimos por meio desta notificá-los sobre um registro referente ao(à) aluno(a) <strong>${formatText(student.name)}</strong>,
+                regularmente matriculado(a) na turma <strong>${formatText(student.class)}</strong>,
+                referente a um incidente classificado como <strong>"${formatText(data.occurrenceType)}"</strong>, ocorrido em ${formatDate(data.date)}.
+            </p>
+
+            <p class="text-justify bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded" style="font-family: 'Inter', sans-serif;">
+                Conforme a legislação vigente, como a Lei de Diretrizes e Bases da Educação Nacional (LDB - Lei 9.394/96) e o
+                Estatuto da Criança e do Adolescente (ECA - Lei 8.069/90), ressaltamos a importância da parceria e do
+                acompanhamento ativo da família na vida escolar do(a) estudante, que é fundamental para seu desenvolvimento
+                e para a manutenção de um ambiente escolar saudável.
+            </p>
+
+            <p class="mt-4 text-justify">
+                Diante do exposto, solicitamos o comparecimento de um responsável na coordenação pedagógica para uma reunião
+                na seguinte data e horário:
+            </p>
+            <div class="mt-4 p-3 bg-sky-100 text-sky-800 rounded-md text-center font-semibold" style="font-family: 'Inter', sans-serif;">
+                <p><strong>Data:</strong> ${formatDate(data.meetingDate)}</p>
+                <p><strong>Horário:</strong> ${formatTime(data.meetingTime)}</p>
+            </div>
+
+            <!-- --- CORREÇÃO 3: Removido 'border-t' e 'pt-8' dos divs de assinatura --- -->
+            <div class="mt-8">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="text-center mt-1">Ciente do Responsável</p>
+                </div>
+            </div>
+             <div class="mt-8">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="text-center mt-1">Assinatura da Gestão Escolar</p>
+                </div>
+            </div>
+        </div>`;
+    openModal(dom.notificationModalBackdrop);
+};
+
+// ==============================================================================
+// --- INÍCIO DA ATUALIZAÇÃO (ATA NARRATIVA - 01/11/2025) ---
+// A função 'openOccurrenceRecordModal' foi reescrita.
+// ==============================================================================
+
+/**
+ * Gera a Ata Formal em formato NARRATIVO para o livro de ocorrências.
+ * @param {string} groupId - O ID do grupo da ocorrência.
+ */
+export const openOccurrenceRecordModal = async (groupId) => {
+    const incident = await fetchIncidentById(groupId);
+    if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
+
+    const mainRecord = incident.records[0]; // Pega o primeiro registro para dados do FATO
+    const city = state.config?.city || "Cidade";
+    
+    // Converte a data do fato para formato extenso (ex: 01 de novembro de 2025)
+    let fullDateText = "Data não registrada";
+    try {
+        const dateObj = new Date(mainRecord.date + 'T12:00:00'); // Adiciona T12 para evitar fuso
+        fullDateText = dateObj.toLocaleDateString('pt-BR', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            timeZone: 'UTC' // Garante consistência
+        });
+    } catch (e) { console.error("Erro ao formatar data da ata:", e); }
+
+    // --- MONTAGEM DOS PARÁGRAFOS NARRATIVOS ---
+
+    // 1. Abertura
+    let aberturaHTML = `
+        <p class="indent-8">
+            Aos ${fullDateText}, nas dependências desta unidade de ensino, foi lavrada a presente ata pela Coordenação Pedagógica para registrar os fatos e providências referentes ao incidente <strong>Nº ${incident.id}</strong>, classificado como <strong>"${formatText(mainRecord.occurrenceType)}"</strong>.
+        </p>`;
+
+    // 2. Fatos e Envolvidos
+    // (Pega todos os participantes do Map 'participantsInvolved')
+    const participantsDetails = [...incident.participantsInvolved.values()].map(p => {
+        return `
+            <li>
+                <strong>${formatText(p.student.name)}</strong>
+                (Turma: ${formatText(p.student.class || 'N/A')}),
                 identificado(a) como <strong>[${formatText(p.role)}]</strong>.
             </li>`;
     }).join('');

@@ -1,3 +1,228 @@
+/* ============================================================================== */
+/* ARQUIVO: style.css                                                             */
+
+/* --- ESTILOS GERAIS E FONTES --- */
+body {
+    font-family: 'Inter', sans-serif; /* Define a fonte padrão da página */
+    background-color: #f3f4f6; /* Cor de fundo suave */
+}
+
+/* --- EFEITOS DE TRANSIÇÃO PARA MODAIS --- */
+.modal-backdrop {
+    background-color: rgba(0,0,0,0.5);
+    transition: opacity 0.3s ease-in-out;
+}
+.modal-content {
+    transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+}
+
+/* --- NOTIFICAÇÃO TOAST --- */
+#toast-notification {
+    transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
+}
+#toast-notification.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+/* --- ESTILOS DE NAVEGAÇÃO E TABELAS --- */
+/* (MODIFICADO - TEMA Cores) */
+.tab-active {
+    border-color: #0284c7; /* sky-600 */
+    color: #0284c7; /* sky-600 */
+    background-color: #f0f9ff; /* sky-50 */
+}
+tbody tr:nth-child(even) {
+    background-color: #f9fafb; /* Estilo "zebrado" */
+}
+
+/* --- AUTOCOMPLETAR --- */
+.autocomplete-suggestions {
+    position: absolute;
+    background-color: white;
+    border: 1px solid #d1d5db;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    max-height: 150px;
+    overflow-y: auto;
+    z-index: 20; /* Aumentado para ficar sobre outros elementos */
+    width: 100%;
+}
+.suggestion-item {
+    padding: 0.5rem;
+    cursor: pointer;
+}
+.suggestion-item:hover {
+    background-color: #eef2ff;
+}
+
+/* ============================================================================== */
+/* SEÇÃO 1: NOVOS ESTILOS PARA O FLUXO DE OCORRÊNCIAS                             */
+/* ============================================================================== */
+
+/* --- TAGS DE SELEÇÃO DE ALUNOS --- */
+/* Estilos principais agora via Tailwind no JS (renderTags), mas ajustes podem ser feitos aqui */
+.student-tag {
+    /* display: inline-flex; */ /* Já aplicado via Tailwind */
+    /* align-items: center; */ /* Já aplicado via Tailwind */
+    /* padding: 0.25rem 0.75rem; */ /* Ajustado no Tailwind */
+    /* ... outros estilos base ... */
+    white-space: nowrap; /* Garante que a tag não quebre linha internamente */
+}
+
+.student-tag i.fa-fw {
+    /* Garante alinhamento e largura fixa para os ícones de papel */
+    text-align: center;
+}
+
+.student-tag .edit-role-btn,
+.student-tag .remove-tag-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 2px; /* Pequeno espaçamento para clique */
+}
+/* Estilos hover já aplicados via Tailwind */
+
+
+/* (NOVO - Papéis) Painel Inline de Seleção de Papel */
+#role-selection-panel {
+    /* Estilos base já aplicados via Tailwind no HTML */
+    /* Podemos adicionar transições se desejado */
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+#role-selection-panel.hidden {
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+}
+.role-select-btn {
+     /* Estilos base já aplicados via Tailwind no HTML */
+     transition: background-color 0.15s ease-in-out;
+}
+
+/* (NOVO - Papéis) Dropdown de Edição de Papel */
+#role-edit-dropdown {
+     /* Estilos base já aplicados via Tailwind no HTML */
+     /* Posicionamento é feito via JS */
+     transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+#role-edit-dropdown.hidden {
+    opacity: 0;
+    transform: scale(0.95);
+    pointer-events: none;
+}
+/* Reutiliza estilo .menu-item para as opções do dropdown */
+.role-edit-option {
+    /* display: flex; */ /* Vem de .menu-item */
+    /* align-items: center; */ /* Vem de .menu-item */
+    /* padding: 0.5rem 1rem; */ /* Vem de .menu-item */
+    /* ... outros estilos de .menu-item ... */
+}
+
+
+/* --- CONTEÚDO EXPANSÍVEL (ACORDEÃO) --- */
+.process-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease-in-out;
+}
+
+/* ============================================================================== */
+/* --- (NOVO - V4 Acordeão Ocorrências) --- */
+/* Estilos para o novo layout de acordeão de alunos em Ocorrências. */
+/* A classe .process-content acima já se aplica ao conteúdo. */
+
+.occurrence-summary {
+    list-style: none; /* Remove o marcador padrão do <summary> */
+    /* O cursor-pointer e hover:bg-indigo-50 são aplicados via Tailwind no JS */
+}
+.occurrence-summary::-webkit-details-marker {
+    display: none; /* Remove o marcador padrão (Safari) */
+}
+/* A transição do ícone de seta já é aplicada via Tailwind (transition-transform duration-300) */
+/* .occurrence-summary .fa-chevron-down { */
+    /* transition: transform 0.3s ease-in-out; */
+/* } */
+
+/* Garante que o conteúdo de dropdowns dentro do acordeão (ex: Kebab) não seja cortado */
+/* Esta regra é aplicada via JS (style.overflow = 'visible') quando o acordeão é aberto */
+/*
+details[open] .process-content {
+    overflow: visible;
+}
+*/
+/* --- FIM NOVO (V4) --- */
+/* ============================================================================== */
+
+
+/* --- BOTÕES DE AÇÃO E NOVO MENU KEBAB (Item 10) --- */
+.action-btn-main {
+    font-size: 0.875rem; /* 14px */
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    transition: background-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.action-btn-secondary {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    background-color: #f3f4f6; /* bg-gray-100 */
+    border: 1px solid #d1d5db; /* border-gray-300 */
+    color: #4b5563; /* text-gray-600 */
+    transition: background-color 0.2s;
+}
+.action-btn-secondary:hover {
+    background-color: #e5e7eb; /* bg-gray-200 */
+}
+
+/* Estilos para o menu dropdown */
+.kebab-menu-container {
+    position: relative;
+    display: inline-block;
+}
+
+.kebab-menu-dropdown {
+    /* A visibilidade é controlada por JS/Tailwind, mas definimos a base aqui */
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+#kebab-menu-dropdown.hidden { /* Adicionado para garantir a transição de fechamento */
+    opacity: 0;
+    transform: scale(0.95);
+    pointer-events: none;
+}
+
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    color: #374151; /* text-gray-700 */
+    cursor: pointer;
+    transition: background-color 0.15s ease-in-out;
+}
+.menu-item:hover {
+    background-color: #f3f4f6; /* bg-gray-100 */
+    color: #111827; /* text-gray-900 */
+}
+/* Estilo para ações perigosas, como excluir */
+.menu-item-danger:hover {
+    background-color: #fee2e2; /* red-100 */
+    color: #991b1b; /* red-800 */
+}
+
+/* ============================================================================== */
+/* (INÍCIO DA CORREÇÃO) SEÇÃO 2: ESTILOS PARA IMPRESSÃO (DA VERSÃO FUNCIONAL)      */
+/* Esta é a versão simples que funciona no celular, substituindo a lógica         */
+/* complexa de ".printing-now" que estava a falhar.                             */
+/* ============================================================================== */
+
+@media print {
     /* (NOVA CORREÇÃO) Reseta a página (html, body) para remover margens */
     html, body {
         margin: 0 !important;
