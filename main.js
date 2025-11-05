@@ -249,54 +249,14 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (INÍCIO DA CORREÇÃO - IMPRESSÃO CELULAR) ---
-// Função de Impressão Robusta (Versão 2)
+// --- (INÍCIO DA CORREÇÃO) ---
+// A função 'handlePrintClick' (que usava requestAnimationFrame) foi REMOVIDA.
+// A função 'setupModalCloseButtons' abaixo foi modificada para usar
+// 'window.print()' diretamente, conforme a versão funcional (3d911...).
 // ==============================================================================
 
-/**
- * Prepara ativamente a página para impressão, isolando o conteúdo do relatório.
- * Esta versão (V2) é mais segura para celulares.
- * Em vez de criar/destruir um DIV (o que causa 'race conditions' no mobile),
- * ela apenas adiciona/remove uma classe 'printing-now' ao <body>.
- * O CSS @media print usará essa classe para isolar o modal ativo.
- */
-function handleRobustPrint() {
-    // 1. Encontra o modal de relatório que está ATIVO
-    const activeModal = document.querySelector('.printable-area-active');
-    if (!activeModal) {
-        showToast("Nenhum relatório ativo encontrado para imprimir.");
-        return;
-    }
+// --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
 
-    // 2. Adiciona a classe de contexto ao BODY
-    document.body.classList.add('printing-now');
-
-    // 3. Define o que fazer DEPOIS que a impressão (ou cancelamento) terminar
-    const afterPrint = () => {
-        // Remove a classe de contexto
-        document.body.classList.remove('printing-now');
-        // Limpa este listener
-        window.removeEventListener('afterprint', afterPrint);
-    };
-
-    // 4. Adiciona o listener para limpar a página
-    window.addEventListener('afterprint', afterPrint);
-
-    // 5. Chama a impressão do navegador
-    window.print();
-
-    // 6. (Fallback) Se 'afterprint' não disparar
-    setTimeout(() => {
-        // Chama a função de limpeza por segurança
-        afterPrint();
-    }, 2000); // 2 segundos de fallback
-}
-
-
-/**
- * Anexa listeners aos botões de fechar/cancelar modais.
- * (MODIFICADO - Correção de Impressão)
- */
 function setupModalCloseButtons() {
     // (Esta função permanece inalterada, pois lida com TODOS os modais)
     const modalMap = {
@@ -343,10 +303,10 @@ function setupModalCloseButtons() {
     // (CORRIGIDO O ID QUE CAUSAVA O ERRO DA IMAGEM)
     document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
 
-    // Botões de Impressão (CORRIGIDO: Chamando a função robusta V2)
-    document.getElementById('print-btn').addEventListener('click', handleRobustPrint);
-    document.getElementById('report-print-btn').addEventListener('click', handleRobustPrint);
-    document.getElementById('ficha-print-btn').addEventListener('click', handleRobustPrint);
+    // Botões de Impressão (CORRIGIDO: Voltando ao window.print() simples)
+    document.getElementById('print-btn').addEventListener('click', () => window.print());
+    document.getElementById('report-print-btn').addEventListener('click', () => window.print());
+    document.getElementById('ficha-print-btn').addEventListener('click', () => window.print());
 }
 // ==============================================================================
 // --- (FIM DA CORREÇÃO) ---

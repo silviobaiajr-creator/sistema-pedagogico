@@ -217,20 +217,12 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* (INÍCIO DA CORREÇÃO) SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO CELULAR)     */
-/* Esta versão usa uma classe 'printing-now' no <body> para isolar o modal    */
-/* ativo, evitando a criação de divs temporários que falham no celular.      */
+/* (INÍCIO DA CORREÇÃO) SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO INTERMITENTE)    */
+/* Esta é a versão final que corrige o problema dos "modais fantasma".           */
 /* ============================================================================== */
 
-/* (REMOVIDA) A regra #print-container-temp não é mais necessária */
-/*
-#print-container-temp {
-    display: none; 
-}
-*/
-
 @media print {
-    /* (MANTIDO) Reseta a página (html, body) para remover margens */
+    /* (CORREÇÃO) Reseta a página (html, body) para remover margens */
     html, body {
         margin: 0 !important;
         padding: 0 !important;
@@ -241,28 +233,28 @@ details[open] .process-content {
 
     /* ========================================================================== */
     /* ======================== (INÍCIO DA CORREÇÃO) ========================== */
-    
-    /* 1. Quando NÃO estamos imprimindo (sem a classe), esconde tudo */
-    /* (Esta regra é um fallback, mas a regra 2b é a principal) */
-    body:not(.printing-now) > * {
+    /*
+        A regra original era: body > *:not(.printable-area)
+        Mudamos para: body > *:not(.printable-area-active)
+        
+        Isso garante que APENAS o modal *atualmente aberto* (que o JS marcou
+        com 'printable-area-active') seja visível para a impressora.
+        Modais antigos fechados (que ainda têm 'printable-area')
+        serão escondidos por esta regra.
+    */
+    /* Esconde tudo que não está na área de impressão ATIVA */
+    body > *:not(.printable-area-active) {
         display: none !important;
     }
-
-    /* 2. Quando estamos imprimindo (body.printing-now): */
     
-    /* 2a. Esconde todos os filhos diretos do body... */
-    body.printing-now > * {
-        display: none !important;
-        visibility: hidden !important; /* Segurança extra */
-    }
-    
-    /* 2b. ...EXCETO o modal ativo (e seus filhos) */
-    /* Esta é a regra principal. Ela força o modal ativo e TUDO DENTRO DELE */
-    /* a ficar visível e resetado para impressão. */
-    body.printing-now .printable-area-active,
-    body.printing-now .printable-area-active * {
+    /* Garante que a área de impressão ocupe toda a página */
+    /* (CORREÇÃO) As regras agora miram em .printable-area-active */
+    #notification-modal-backdrop,
+    #report-view-modal-backdrop,
+    #ficha-view-modal-backdrop,
+    .printable-area-active, 
+    .printable-area-active .modal-content {
         display: block !important;
-        visibility: visible !important;
         position: static !important;
         width: 100% !important;
         height: auto !important;
@@ -276,18 +268,46 @@ details[open] .process-content {
         page-break-before: avoid !important;
         break-before: avoid-page !important;
     }
-
-    /* 2c. Re-esconde os botões .no-print DENTRO do modal ativo */
-    body.printing-now .printable-area-active .no-print {
+    
+    /* Mostra todo o conteúdo que poderia estar com scroll */
+    /* (CORREÇÃO) Mira em .printable-area-active */
+    .printable-area-active .overflow-y-auto {
+        overflow: visible !important;
+        height: auto !important;
+    }
+    
+    /* Esconde elementos que não devem aparecer na impressão (botões, etc.) */
+    .no-print {
         display: none !important;
     }
 
-    /* 3. (MANTIDO) A regra do 'div:first-of-type' ainda é necessária
-       para o conteúdo DENTRO do modal (Ata de Ocorrência).
-       Agora com o contexto body.printing-now.
+    /*
+        Aumentamos a especificidade dos seletores (adicionando 'body .printable-area-active')
+        para garantir que estas regras de zerar o padding/margin ganhem
+        das classes de utilitário do Tailwind (como 'p-8') que estão no index.html.
     */
-    /* Zera o margin/padding do *primeiro <div> filho* visível */
-    body.printing-now .printable-area-active div:first-of-type {
+    /* Zera o padding/margin dos containers de conteúdo (os pais) */
+    body .printable-area-active#notification-modal-backdrop #notification-content,
+    body .printable-area-active#report-view-modal-backdrop #report-view-content,
+    body .printable-area-active#ficha-view-modal-backdrop #ficha-view-content {
+        padding: 0 !important;
+        margin: 0 !important;
+        page-break-before: avoid !important;
+        break-before: avoid-page !important;
+    }
+
+    /*
+        O seletor antigo `*:first-child` falhava quando o primeiro
+        elemento era uma tag <style> (como na "Ata de Ocorrência").
+        
+        Mudamos para `div:first-of-type` para mirar no *primeiro <div>*
+        dentro do contêiner, ignorando a tag <style>.
+        Isso zera a margem superior padrão do <div> e impede a página em branco.
+    */
+    /* Zera o margin/padding do *primeiro <div> filho* dentro do container */
+    body .printable-area-active #notification-content > div:first-of-type,
+    body .printable-area-active #report-view-content > div:first-of-type,
+    body .printable-area-active #ficha-view-content > div:first-of-type {
         margin: 0 !important; /* Reseta TODAS as margens */
         padding: 0 !important; /* Reseta TODOS os paddings */
         page-break-before: avoid !important; /* Evita quebra antes */
