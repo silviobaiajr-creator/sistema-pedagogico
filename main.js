@@ -249,14 +249,67 @@ async function handleDeleteConfirmation() {
 
 
 // ==============================================================================
-// --- (INÍCIO DA CORREÇÃO) ---
-// A função 'handlePrintClick' (que usava requestAnimationFrame) foi REMOVIDA.
-// A função 'setupModalCloseButtons' abaixo foi modificada para usar
-// 'window.print()' diretamente, conforme a versão funcional (3d911...).
+// --- (INÍCIO DA CORREÇÃO - IMPRESSÃO INTERMITENTE) ---
+// Função de Impressão Robusta
 // ==============================================================================
 
-// --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
+/**
+ * Prepara ativamente a página para impressão, isolando o conteúdo do relatório.
+ * Isso evita o problema de "modais fantasma" de relatórios anteriores
+ * aparecerem na impressão.
+ */
+function handleRobustPrint() {
+    // 1. Encontra o modal de relatório que está ATIVO
+    // (Usa a classe 'printable-area-active' que o 'utils.js' adiciona)
+    const activeModal = document.querySelector('.printable-area-active');
+    if (!activeModal) {
+        showToast("Nenhum relatório ativo encontrado para imprimir.");
+        return;
+    }
 
+    // 2. Encontra o CONTEÚDO específico dentro desse modal
+    const reportContent = activeModal.querySelector('#notification-content, #report-view-content, #ficha-view-content');
+    if (!reportContent) {
+        showToast("Conteúdo do relatório não encontrado.");
+        return;
+    }
+
+    // 3. Cria um container de impressão temporário
+    const printContainer = document.createElement('div');
+    printContainer.id = 'print-container-temp'; // Damos um ID para o CSS
+    printContainer.innerHTML = reportContent.innerHTML; // Copia o HTML
+    document.body.appendChild(printContainer);
+
+    // 4. Define o que fazer DEPOIS que a impressão (ou cancelamento) terminar
+    const afterPrint = () => {
+        // Remove o container temporário
+        const tempContainer = document.getElementById('print-container-temp');
+        if (tempContainer) {
+            document.body.removeChild(tempContainer);
+        }
+        // Limpa este listener para não disparar em impressões normais
+        window.removeEventListener('afterprint', afterPrint);
+    };
+
+    // 5. Adiciona o listener para limpar a página
+    window.addEventListener('afterprint', afterPrint);
+
+    // 6. Chama a impressão do navegador
+    window.print();
+
+    // 7. (Fallback) Se 'afterprint' não disparar (ex: pop-up bloqueado),
+    // remove o container mesmo assim após um tempo.
+    setTimeout(() => {
+        // Chama a função de limpeza por segurança
+        afterPrint();
+    }, 2000); // 2 segundos de fallback
+}
+
+
+/**
+ * Anexa listeners aos botões de fechar/cancelar modais.
+ * (MODIFICADO - Correção de Impressão)
+ */
 function setupModalCloseButtons() {
     // (Esta função permanece inalterada, pois lida com TODOS os modais)
     const modalMap = {
@@ -303,10 +356,10 @@ function setupModalCloseButtons() {
     // (CORRIGIDO O ID QUE CAUSAVA O ERRO DA IMAGEM)
     document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
 
-    // Botões de Impressão (CORRIGIDO: Voltando ao window.print() simples)
-    document.getElementById('print-btn').addEventListener('click', () => window.print());
-    document.getElementById('report-print-btn').addEventListener('click', () => window.print());
-    document.getElementById('ficha-print-btn').addEventListener('click', () => window.print());
+    // Botões de Impressão (CORRIGIDO: Chamando a função robusta)
+    document.getElementById('print-btn').addEventListener('click', handleRobustPrint);
+    document.getElementById('report-print-btn').addEventListener('click', handleRobustPrint);
+    document.getElementById('ficha-print-btn').addEventListener('click', handleRobustPrint);
 }
 // ==============================================================================
 // --- (FIM DA CORREÇÃO) ---
