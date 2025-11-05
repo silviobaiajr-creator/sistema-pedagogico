@@ -34,12 +34,48 @@ export const showToast = (message) => {
     setTimeout(() => document.getElementById('toast-notification').classList.remove('show'), 3000);
 };
 
+// ==============================================================================
+// --- (INÍCIO DA CORREÇÃO - LÓGICA DE IMPRESSÃO INTERMITENTE) ---
+// ==============================================================================
+
+// Lista dos IDs dos modais que podem ser impressos.
+// Precisamos disto para "limpar" os outros modais antes de abrir um novo.
+const printableModalIds = [
+    'notification-modal-backdrop',
+    'report-view-modal-backdrop',
+    'ficha-view-modal-backdrop'
+];
+
 export const openModal = (modalElement) => {
      // Garante que modalElement não seja nulo
      if (!modalElement) {
          console.error("Tentativa de abrir um modal nulo.");
          return;
      }
+     
+     // --- NOVO: Lógica de Limpeza de Impressão ---
+     // Verifica se o modal que estamos abrindo é um modal de impressão
+     // (Verifica pela classe base 'printable-area')
+     const isPrintable = modalElement.classList.contains('printable-area');
+     
+     if (isPrintable) {
+         // É um modal de impressão.
+         // Remove a classe 'printable-area-active' de TODOS os outros modais
+         // para evitar que apareçam na impressão por engano.
+         printableModalIds.forEach(id => {
+             // Não mexer no modal atual, mesmo que esteja na lista
+             if (modalElement.id === id) return; 
+             
+             const otherModal = document.getElementById(id);
+             if (otherModal) {
+                 otherModal.classList.remove('printable-area-active'); 
+             }
+         });
+         // Adiciona a classe ativa *apenas* neste modal
+         modalElement.classList.add('printable-area-active');
+     }
+     // --- FIM DA LÓGICA DE IMPRESSÃO ---
+
     modalElement.classList.remove('hidden');
     setTimeout(() => {
         modalElement.classList.remove('opacity-0');
@@ -52,6 +88,15 @@ export const openModal = (modalElement) => {
 
 export const closeModal = (modalElement) => {
     if (!modalElement) return;
+
+     // --- NOVO: Lógica de Limpeza de Impressão ---
+     // Ao fechar, remove a classe ativa para que não seja impresso
+     // da próxima vez por acidente.
+    if (modalElement.classList.contains('printable-area')) {
+         modalElement.classList.remove('printable-area-active');
+    }
+     // --- FIM DA LÓGICA DE IMPRESSÃO ---
+    
     modalElement.classList.add('opacity-0');
     // Garante que firstElementChild existe
     if (modalElement.firstElementChild) {
@@ -59,6 +104,11 @@ export const closeModal = (modalElement) => {
     }
     setTimeout(() => modalElement.classList.add('hidden'), 300);
 };
+
+// ==============================================================================
+// --- (FIM DA CORREÇÃO) ---
+// ==============================================================================
+
 
 /**
  * Retorna o HTML para um selo (badge) de status.
