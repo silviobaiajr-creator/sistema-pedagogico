@@ -217,21 +217,20 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* (INÍCIO DA CORREÇÃO) SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO INTERMITENTE)    */
-/* Esta é a versão final que corrige o problema dos "modais fantasma".           */
+/* (INÍCIO DA CORREÇÃO) SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO CELULAR)     */
+/* Esta versão usa uma classe 'printing-now' no <body> para isolar o modal    */
+/* ativo, evitando a criação de divs temporários que falham no celular.      */
 /* ============================================================================== */
 
-/* --- NOVO (CORREÇÃO IMPRESSÃO) --- */
+/* (REMOVIDA) A regra #print-container-temp não é mais necessária */
 /*
-  Esta é a nova regra para o "container temporário"
-  que o 'main.js' agora cria.
-*/
 #print-container-temp {
-    display: none; /* Escondido por padrão */
+    display: none; 
 }
+*/
 
 @media print {
-    /* (CORREÇÃO) Reseta a página (html, body) para remover margens */
+    /* (MANTIDO) Reseta a página (html, body) para remover margens */
     html, body {
         margin: 0 !important;
         padding: 0 !important;
@@ -242,25 +241,28 @@ details[open] .process-content {
 
     /* ========================================================================== */
     /* ======================== (INÍCIO DA CORREÇÃO) ========================== */
-    /*
-        A regra original era: body > *:not(.printable-area-active)
-        Mudamos para: body > *:not(#print-container-temp)
-        
-        Isso garante que APENAS o container temporário que criamos
-        seja visível para a impressora.
-        
-        TODOS os outros elementos (incluindo TODOS os modais,
-        sejam ativos ou fantasma) serão escondidos.
-    */
-    /* Esconde tudo que não está no container de impressão ATIVO */
-    body > *:not(#print-container-temp) {
+    
+    /* 1. Quando NÃO estamos imprimindo (sem a classe), esconde tudo */
+    /* (Esta regra é um fallback, mas a regra 2b é a principal) */
+    body:not(.printing-now) > * {
         display: none !important;
     }
+
+    /* 2. Quando estamos imprimindo (body.printing-now): */
     
-    /* Garante que a área de impressão ocupe toda a página */
-    /* (CORREÇÃO) As regras agora miram em #print-container-temp */
-    #print-container-temp {
+    /* 2a. Esconde todos os filhos diretos do body... */
+    body.printing-now > * {
+        display: none !important;
+        visibility: hidden !important; /* Segurança extra */
+    }
+    
+    /* 2b. ...EXCETO o modal ativo (e seus filhos) */
+    /* Esta é a regra principal. Ela força o modal ativo e TUDO DENTRO DELE */
+    /* a ficar visível e resetado para impressão. */
+    body.printing-now .printable-area-active,
+    body.printing-now .printable-area-active * {
         display: block !important;
+        visibility: visible !important;
         position: static !important;
         width: 100% !important;
         height: auto !important;
@@ -274,37 +276,18 @@ details[open] .process-content {
         page-break-before: avoid !important;
         break-before: avoid-page !important;
     }
-    
-    /* (REMOVIDO) Não precisamos mais das regras complexas para .printable-area-active */
-    /* .printable-area-active, .printable-area-active .modal-content ... */
-    
-    /* (REMOVIDO) Não precisamos mais desta regra, pois o container não tem scroll */
-    /*
-    .printable-area-active .overflow-y-auto {
-        overflow: visible !important;
-        height: auto !important;
-    }
-    */
-    
-    /* Esconde elementos que não devem aparecer na impressão (botões, etc.) */
-    .no-print {
+
+    /* 2c. Re-esconde os botões .no-print DENTRO do modal ativo */
+    body.printing-now .printable-area-active .no-print {
         display: none !important;
     }
 
-    /*
-        (REMOVIDO) Não precisamos mais das regras complexas
-        de especificidade para os #notification-content, etc.
+    /* 3. (MANTIDO) A regra do 'div:first-of-type' ainda é necessária
+       para o conteúdo DENTRO do modal (Ata de Ocorrência).
+       Agora com o contexto body.printing-now.
     */
-    /* body .printable-area-active#notification-modal-backdrop #notification-content ... */
-
-    /*
-        A regra do 'div:first-of-type' é MANTIDA, mas agora
-        aplicada ao nosso container temporário, pois ela
-        ainda é necessária para remover a margem superior
-        do primeiro <div> do relatório (como na Ata de Ocorrência).
-    */
-    /* Zera o margin/padding do *primeiro <div> filho* dentro do container */
-    #print-container-temp > div:first-of-type {
+    /* Zera o margin/padding do *primeiro <div> filho* visível */
+    body.printing-now .printable-area-active div:first-of-type {
         margin: 0 !important; /* Reseta TODAS as margens */
         padding: 0 !important; /* Reseta TODOS os paddings */
         page-break-before: avoid !important; /* Evita quebra antes */
