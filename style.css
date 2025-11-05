@@ -221,6 +221,15 @@ details[open] .process-content {
 /* Esta é a versão final que corrige o problema dos "modais fantasma".           */
 /* ============================================================================== */
 
+/* --- NOVO (CORREÇÃO IMPRESSÃO) --- */
+/*
+  Esta é a nova regra para o "container temporário"
+  que o 'main.js' agora cria.
+*/
+#print-container-temp {
+    display: none; /* Escondido por padrão */
+}
+
 @media print {
     /* (CORREÇÃO) Reseta a página (html, body) para remover margens */
     html, body {
@@ -234,26 +243,23 @@ details[open] .process-content {
     /* ========================================================================== */
     /* ======================== (INÍCIO DA CORREÇÃO) ========================== */
     /*
-        A regra original era: body > *:not(.printable-area)
-        Mudamos para: body > *:not(.printable-area-active)
+        A regra original era: body > *:not(.printable-area-active)
+        Mudamos para: body > *:not(#print-container-temp)
         
-        Isso garante que APENAS o modal *atualmente aberto* (que o JS marcou
-        com 'printable-area-active') seja visível para a impressora.
-        Modais antigos fechados (que ainda têm 'printable-area')
-        serão escondidos por esta regra.
+        Isso garante que APENAS o container temporário que criamos
+        seja visível para a impressora.
+        
+        TODOS os outros elementos (incluindo TODOS os modais,
+        sejam ativos ou fantasma) serão escondidos.
     */
-    /* Esconde tudo que não está na área de impressão ATIVA */
-    body > *:not(.printable-area-active) {
+    /* Esconde tudo que não está no container de impressão ATIVO */
+    body > *:not(#print-container-temp) {
         display: none !important;
     }
     
     /* Garante que a área de impressão ocupe toda a página */
-    /* (CORREÇÃO) As regras agora miram em .printable-area-active */
-    #notification-modal-backdrop,
-    #report-view-modal-backdrop,
-    #ficha-view-modal-backdrop,
-    .printable-area-active, 
-    .printable-area-active .modal-content {
+    /* (CORREÇÃO) As regras agora miram em #print-container-temp */
+    #print-container-temp {
         display: block !important;
         position: static !important;
         width: 100% !important;
@@ -269,12 +275,16 @@ details[open] .process-content {
         break-before: avoid-page !important;
     }
     
-    /* Mostra todo o conteúdo que poderia estar com scroll */
-    /* (CORREÇÃO) Mira em .printable-area-active */
+    /* (REMOVIDO) Não precisamos mais das regras complexas para .printable-area-active */
+    /* .printable-area-active, .printable-area-active .modal-content ... */
+    
+    /* (REMOVIDO) Não precisamos mais desta regra, pois o container não tem scroll */
+    /*
     .printable-area-active .overflow-y-auto {
         overflow: visible !important;
         height: auto !important;
     }
+    */
     
     /* Esconde elementos que não devem aparecer na impressão (botões, etc.) */
     .no-print {
@@ -282,32 +292,19 @@ details[open] .process-content {
     }
 
     /*
-        Aumentamos a especificidade dos seletores (adicionando 'body .printable-area-active')
-        para garantir que estas regras de zerar o padding/margin ganhem
-        das classes de utilitário do Tailwind (como 'p-8') que estão no index.html.
+        (REMOVIDO) Não precisamos mais das regras complexas
+        de especificidade para os #notification-content, etc.
     */
-    /* Zera o padding/margin dos containers de conteúdo (os pais) */
-    body .printable-area-active#notification-modal-backdrop #notification-content,
-    body .printable-area-active#report-view-modal-backdrop #report-view-content,
-    body .printable-area-active#ficha-view-modal-backdrop #ficha-view-content {
-        padding: 0 !important;
-        margin: 0 !important;
-        page-break-before: avoid !important;
-        break-before: avoid-page !important;
-    }
+    /* body .printable-area-active#notification-modal-backdrop #notification-content ... */
 
     /*
-        O seletor antigo `*:first-child` falhava quando o primeiro
-        elemento era uma tag <style> (como na "Ata de Ocorrência").
-        
-        Mudamos para `div:first-of-type` para mirar no *primeiro <div>*
-        dentro do contêiner, ignorando a tag <style>.
-        Isso zera a margem superior padrão do <div> e impede a página em branco.
+        A regra do 'div:first-of-type' é MANTIDA, mas agora
+        aplicada ao nosso container temporário, pois ela
+        ainda é necessária para remover a margem superior
+        do primeiro <div> do relatório (como na Ata de Ocorrência).
     */
     /* Zera o margin/padding do *primeiro <div> filho* dentro do container */
-    body .printable-area-active #notification-content > div:first-of-type,
-    body .printable-area-active #report-view-content > div:first-of-type,
-    body .printable-area-active #ficha-view-content > div:first-of-type {
+    #print-container-temp > div:first-of-type {
         margin: 0 !important; /* Reseta TODAS as margens */
         padding: 0 !important; /* Reseta TODOS os paddings */
         page-break-before: avoid !important; /* Evita quebra antes */
