@@ -37,7 +37,7 @@ export const getReportHeaderHTML = () => {
         // Adiciona onerror para fallback caso a URL da imagem falhe
         return `
             <div class="text-center mb-4">
-                <img src="${logoUrl}" alt="Logo da Escola" class="max-w-full max-h-40 mx-auto" onerror="this.onerror=null; this.src='https://placehold.co/150x50/indigo/white?text=Logo'; this.alt='Logo Placeholder';">
+                <img src="${logoUrl}" alt="Logo da Escola" class="max-w-full max-h-24 mx-auto" onerror="this.onerror=null; this.src='https://placehold.co/150x50/indigo/white?text=Logo'; this.alt='Logo Placeholder';">
                 <h2 class="text-xl font-bold uppercase mt-2">${schoolName}</h2>
                 <p class="text-sm text-gray-600">${city}</p>
             </div>`;
