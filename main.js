@@ -43,37 +43,63 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.loginScreen.classList.add('hidden');
             dom.mainContent.classList.remove('hidden');
             dom.userProfile.classList.remove('hidden');
+
+            // ==============================================================================
+            // --- (CORREÇÃO ROBUSTEZ) Lógica de Admin Prioritária ---
+            // A verificação de Admin agora acontece ANTES de carregar dados pesados.
+            // Isso garante que o botão "Gerir Alunos" apareça mesmo se a lista de alunos falhar.
+            // ==============================================================================
+            
+            // 1. Define Admin IMEDIATAMENTE com base na lista fixa (Super Admin)
+            state.isAdmin = SUPER_ADMIN_EMAILS.includes(user.email);
+
+            // 2. Tenta carregar configurações (para pegar admins secundários e nome da escola)
             try {
-                await loadSchoolConfig(); // Carrega state.config (incluindo state.config.adminEmails)
-                await loadStudents();
-                dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
-                
-                // (MODIFICADO - Híbrida Admin) Lógica de verificação de Admin
-                const dbAdminList = state.config.adminEmails || []; // Lista de admins da base de dados
-                state.isAdmin = SUPER_ADMIN_EMAILS.includes(user.email) || dbAdminList.includes(user.email);
-                
-                setupFirestoreListeners();
-                render(); // Chama o render principal
-                
-                // (ADICIONADO - Lógica de visibilidade dos botões de Admin)
-                if (state.isAdmin) {
-                    if(dom.settingsBtn) dom.settingsBtn.classList.remove('hidden');
-                    if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.remove('hidden');
-                } else {
-                    if(dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
-                    if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
+                await loadSchoolConfig(); 
+                const dbAdminList = state.config.adminEmails || [];
+                // Se não for super admin, verifica se está na lista do banco
+                if (!state.isAdmin) {
+                    state.isAdmin = dbAdminList.includes(user.email);
                 }
-                
-            } catch (error) {
-                showToast(error.message);
+                dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
+            } catch (configError) {
+                console.warn("Aviso: Não foi possível carregar configurações.", configError);
+                // Não bloqueia o fluxo. O Super Admin já está garantido no passo 1.
             }
+
+            // 3. Atualiza a UI dos botões de Admin AGORA (Sem esperar pelos alunos)
+            if (state.isAdmin) {
+                if(dom.settingsBtn) dom.settingsBtn.classList.remove('hidden');
+                if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.remove('hidden');
+            } else {
+                if(dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
+                if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
+            }
+
+            // 4. Só agora tenta carregar os dados pesados (Alunos, etc.)
+            try {
+                await loadStudents();
+                setupFirestoreListeners();
+            } catch (error) {
+                console.error("Erro no carregamento de dados:", error);
+                // Mostra aviso amigável, mas mantém a interface funcional para o Admin corrigir
+                if (state.isAdmin) {
+                    showToast("Aviso: Lista de alunos vazia ou inacessível. Use 'Gerir Alunos' para importar.");
+                } else {
+                    showToast("Erro ao carregar dados. Tente recarregar a página.");
+                }
+            }
+            
+            render(); // Chama o render principal
+
         } else {
+            // Logout
             state.userId = null; state.userEmail = null; state.students = []; state.occurrences = []; state.absences = [];
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
             
-            // (ADICIONADO - Híbrida Admin) Garante que os botões de admin fiquem escondidos
+            // Garante que os botões de admin fiquem escondidos ao sair
             if(dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
             if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
             
