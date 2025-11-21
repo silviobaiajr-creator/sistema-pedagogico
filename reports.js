@@ -4,7 +4,8 @@
 
 import { state, dom } from './state.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
-import { roleIcons, defaultRole, getFilteredOccurrences } from './occurrence.js';
+// (CORREÇÃO FINAL) Importa de logic.js (onde a função vive agora)
+import { roleIcons, defaultRole, getFilteredOccurrences } from './logic.js';
 import { getIncidentByGroupId as fetchIncidentById } from './firestore.js';
 
 
@@ -238,14 +239,12 @@ export const openOccurrenceRecordModal = async (groupId) => {
                 }
                 
                 // Ação 3 (Loop V4 - 3 Tentativas)
-                let hasAnyAttempt = false;
                 for (let i = 1; i <= 3; i++) {
                     const succeeded = rec[`contactSucceeded_${i}`];
                     const date = rec[`contactDate_${i}`];
                     const providencias = rec[`providenciasFamilia_${i}`];
                     
                     if (succeeded != null) {
-                        hasAnyAttempt = true;
                         const diaContato = date ? ` em ${formatDate(date)}` : '';
                         if (succeeded === 'yes') {
                             textoAcoesAluno += `<li><strong>Ação 3 (${i}ª Tentativa):</strong> Contato realizado${diaContato}. Providências da família: ${formatText(providencias)}.</li>`;
@@ -782,6 +781,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
  * (MODIFICADO V4 - ATUALIZADO PARA 3 TENTATIVAS NA LISTAGEM)
  */
 export const generateAndShowGeneralReport = async () => { 
+     // (CORREÇÃO) Usa a função importada de logic.js
      const filteredIncidentsMap = getFilteredOccurrences(); 
      const filteredIncidents = [...filteredIncidentsMap.values()]; 
 

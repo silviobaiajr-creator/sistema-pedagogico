@@ -5,8 +5,15 @@
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
 import { getCollectionRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord, getIncidentByGroupId as fetchIncidentById } from './firestore.js'; 
-// Importa novas lógicas de 3 tentativas e reset
-import { determineNextOccurrenceStep, determineCurrentActionFromStatus, occurrenceStepLogic } from './logic.js';
+// (CORREÇÃO) Importa tudo do logic.js para evitar ciclo e duplicidade
+import { 
+    determineNextOccurrenceStep, 
+    determineCurrentActionFromStatus, 
+    occurrenceStepLogic,
+    roleIcons,          // Importado
+    defaultRole,        // Importado
+    getFilteredOccurrences // Importado
+} from './logic.js';
 import {
     openOccurrenceRecordModal,
     openHistoryModal,
@@ -18,7 +25,7 @@ import { writeBatch, doc, collection, query, where, getDocs, runTransaction } fr
 import { db } from './firebase.js';
 
 // =================================================================================
-// CONFIGURAÇÕES E CONSTANTES
+// CONFIGURAÇÕES
 // =================================================================================
 
 // Títulos atualizados para as novas ações (Mapeamento para UI)
@@ -32,16 +39,7 @@ export const occurrenceActionTitles = {
     'parecer_final': 'Ação 6: Dar Parecer Final'
 };
 
-// Ícones para os papéis dos alunos
-export const roleIcons = {
-    'Vítima': 'fas fa-user-shield text-blue-600',
-    'Agente': 'fas fa-gavel text-red-600', 
-    'Testemunha': 'fas fa-eye text-green-600',
-    'Envolvido': 'fas fa-user text-gray-500'
-};
-export const defaultRole = 'Envolvido'; 
-
-// Variáveis de estado local para UI (Controle de seleção de alunos e papéis)
+// Variáveis de estado local para UI
 let studentPendingRoleSelection = null;
 let editingRoleId = null; 
 
@@ -49,10 +47,6 @@ let editingRoleId = null;
 // FUNÇÕES DE INTERFACE (UI) - TAGS E SELEÇÃO
 // =================================================================================
 
-/**
- * Renderiza as tags dos alunos selecionados no modal de criação/edição.
- * Permite remover alunos ou editar o seu papel (Vítima, Agente, etc.).
- */
 const renderTags = () => {
     const tagsContainerElement = document.getElementById('student-tags-container');
     tagsContainerElement.innerHTML = '';
@@ -78,13 +72,11 @@ const renderTags = () => {
             <button type="button" class="remove-tag-btn ms-1 text-sky-600 hover:text-sky-800">&times;</button>
         `;
 
-        // Listener para remover a tag
         tag.querySelector('.remove-tag-btn').addEventListener('click', () => {
             state.selectedStudents.delete(studentId);
             renderTags();
         });
 
-        // Listener para editar o papel (abre dropdown)
         tag.querySelector('.edit-role-btn').addEventListener('click', (e) => {
             e.stopPropagation(); 
             openRoleEditDropdown(e.currentTarget, studentId);
@@ -94,20 +86,15 @@ const renderTags = () => {
     });
 };
 
-/**
- * Abre o dropdown flutuante para editar o papel de um aluno já adicionado.
- */
 const openRoleEditDropdown = (buttonElement, studentId) => {
     const dropdown = document.getElementById('role-edit-dropdown');
     editingRoleId = studentId; 
 
-    // Posicionamento do dropdown
     const rect = buttonElement.getBoundingClientRect();
     dropdown.style.top = `${rect.bottom + window.scrollY}px`;
     dropdown.style.left = `${rect.left + window.scrollX}px`;
     dropdown.classList.remove('hidden');
 
-    // Listener para fechar ao clicar fora
     const closeListener = (e) => {
         if (!dropdown.contains(e.target) && e.target !== buttonElement) {
             dropdown.classList.add('hidden');
@@ -118,9 +105,6 @@ const openRoleEditDropdown = (buttonElement, studentId) => {
     setTimeout(() => document.addEventListener('click', closeListener), 0);
 };
 
-/**
- * Configura a lógica de input de alunos, sugestões e seleção de papéis.
- */
 export const setupStudentTagInput = (inputElement, suggestionsElement, tagsContainerElement) => {
     const roleSelectionPanel = document.getElementById('role-selection-panel');
     const roleSelectionStudentName = document.getElementById('role-selection-student-name');
@@ -128,12 +112,10 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
     const roleEditDropdown = document.getElementById('role-edit-dropdown');
     const roleEditOptions = roleEditDropdown.querySelectorAll('.role-edit-option');
 
-    // Limpa estado inicial
     studentPendingRoleSelection = null;
     roleSelectionPanel.classList.add('hidden');
     roleEditDropdown.classList.add('hidden');
 
-    // Lógica de Autocomplete
     inputElement.addEventListener('input', () => {
         const value = inputElement.value.toLowerCase();
         suggestionsElement.innerHTML = '';
@@ -144,7 +126,6 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             suggestionsElement.classList.add('hidden');
             return;
         }
-        // Filtra alunos que ainda não foram selecionados
         const filteredStudents = state.students
             .filter(s => !state.selectedStudents.has(s.matricula) && s.name.toLowerCase().includes(value))
             .slice(0, 5);
@@ -156,7 +137,6 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
                 item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50'; 
                 item.textContent = student.name;
                 item.addEventListener('click', () => {
-                    // Ao clicar, abre o painel de seleção de papel
                     studentPendingRoleSelection = student;
                     roleSelectionStudentName.textContent = student.name;
                     roleSelectionPanel.classList.remove('hidden');
@@ -171,7 +151,6 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
         }
     });
 
-    // Lógica dos Botões de Seleção de Papel (Vítima, Agente, etc.)
     roleSelectButtons.forEach(button => {
         button.addEventListener('click', () => {
             if (studentPendingRoleSelection) {
@@ -187,7 +166,6 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
         });
     });
 
-    // Lógica das Opções do Dropdown de Edição de Papel
     roleEditOptions.forEach(option => {
         option.addEventListener('click', () => {
             if (editingRoleId && state.selectedStudents.has(editingRoleId)) {
@@ -202,7 +180,6 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
         });
     });
 
-    // Listeners globais para fechar painéis
     document.addEventListener('click', (e) => {
         if (!suggestionsElement.contains(e.target) && e.target !== inputElement) {
             suggestionsElement.classList.add('hidden');
@@ -217,83 +194,12 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 };
 
 // =================================================================================
-// FUNÇÕES DE DADOS E FILTRAGEM
+// RENDERIZAÇÃO (Agora usa a lógica importada)
 // =================================================================================
 
-/**
- * Processa os dados brutos das ocorrências, agrupa por incidente e aplica filtros.
- * Retorna um Map onde a chave é o ID do Grupo e o valor é o objeto do incidente.
- */
-export const getFilteredOccurrences = () => {
-    const groupedByIncident = state.occurrences.reduce((acc, occ) => {
-        if (!occ || !occ.studentId) return acc;
-
-        const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
-        if (!acc.has(groupId)) {
-            acc.set(groupId, {
-                id: groupId,
-                records: [],
-                participantsInvolved: new Map(),
-                overallStatus: 'Aguardando Convocação'
-            });
-        }
-        const incident = acc.get(groupId);
-        incident.records.push(occ);
-
-        // Tenta recuperar o papel salvo no registo ou usa o padrão
-        const participantData = occ.participants?.find(p => p.studentId === occ.studentId);
-        const student = state.students.find(s => s.matricula === occ.studentId);
-
-        if (student && !incident.participantsInvolved.has(student.matricula)) {
-             incident.participantsInvolved.set(student.matricula, {
-                 student: student,
-                 role: participantData?.role || defaultRole 
-             });
-        }
-        return acc;
-    }, new Map());
-
-    // Aplica os filtros de UI (Data, Tipo, Status, Busca por Nome)
-    const filteredIncidents = new Map();
-    for (const [groupId, incident] of groupedByIncident.entries()) {
-        const mainRecord = incident.records && incident.records.length > 0 ? incident.records[0] : null;
-        if (!mainRecord) continue;
-
-        const { startDate, endDate, status, type } = state.filtersOccurrences;
-        const studentSearch = state.filterOccurrences.toLowerCase();
-
-        // Recalcula status geral: Se todos os individuais estiverem 'Resolvido', o geral é 'Finalizada'
-        const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
-        incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
-
-        if (startDate && mainRecord.date < startDate) continue;
-        if (endDate && mainRecord.date > endDate) continue;
-        if (status !== 'all' && incident.overallStatus !== status) continue;
-        if (type !== 'all' && mainRecord.occurrenceType !== type) continue;
-
-        // Filtro de texto (busca por nome de qualquer aluno envolvido)
-        if (studentSearch) {
-            const hasMatchingStudent = [...incident.participantsInvolved.values()].some(p =>
-                p.student.name.toLowerCase().includes(studentSearch)
-            );
-            if (!hasMatchingStudent) continue;
-        }
-        filteredIncidents.set(groupId, incident);
-    }
-    return filteredIncidents;
-};
-
-
-// =================================================================================
-// RENDERIZAÇÃO PRINCIPAL (LISTA DE OCORRÊNCIAS)
-// =================================================================================
-
-/**
- * Renderiza a lista de ocorrências no ecrã, utilizando o sistema de acordeão.
- * Suporta múltiplas tentativas de contacto e exibição detalhada do histórico.
- */
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
+    // (CORREÇÃO) Usa a função importada de logic.js
     const filteredIncidents = getFilteredOccurrences();
     dom.occurrencesTitle.textContent = `Exibindo ${filteredIncidents.size} Incidente(s)`;
 
@@ -316,10 +222,8 @@ export const renderOccurrences = () => {
         const studentSearch = state.filterOccurrences.toLowerCase();
         const isFinalizada = incident.overallStatus === 'Finalizada';
 
-        // Renderiza o acordeão para cada aluno envolvido
         const studentAccordionsHTML = [...incident.participantsInvolved.values()]
             .filter(participant => {
-                // Filtro de privacidade visual: mostra apenas o aluno pesquisado, se houver pesquisa
                 if (studentSearch && !participant.student.name.toLowerCase().includes(studentSearch)) {
                     return false;
                 }
@@ -336,15 +240,11 @@ export const renderOccurrences = () => {
                 const iconClass = roleIcons[role] || roleIcons[defaultRole];
                 const isIndividualResolvido = record?.statusIndividual === 'Resolvido';
 
-                // --- CONSTRUÇÃO DO HISTÓRICO INDIVIDUAL (V4) ---
                 let historyHtml = '';
-                
-                // Ação 2: Convocação
                 if (record?.meetingDate) {
                     historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 2 (Convocação):</strong> Agendada para ${formatDate(record.meetingDate)} às ${formatTime(record.meetingTime)}.</p>`;
                 }
                 
-                // Ação 3: Tentativas de Contato (Loop pelas 3 tentativas)
                 for (let i = 1; i <= 3; i++) {
                     const succeeded = record[`contactSucceeded_${i}`];
                     const date = record[`contactDate_${i}`];
@@ -358,24 +258,19 @@ export const renderOccurrences = () => {
                     }
                 }
 
-                // Ação 4: Encaminhamento ao CT
                 if (record?.oficioNumber) {
                      historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 4 (Enc. CT):</strong> Enviado Ofício Nº ${record.oficioNumber}/${record.oficioYear}.</p>`;
                 }
-                // Ação 5: Devolutiva
                 if (record?.ctFeedback) {
                      historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 5 (Devolutiva):</strong> Devolutiva recebida.</p>`;
                 }
-                // Ação 6: Parecer Final
                 if (record?.parecerFinal) {
                      historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 6 (Parecer Final):</strong> Processo finalizado.</p>`;
                 }
-                
                 if (historyHtml === '') {
                      historyHtml = `<p class="text-xs text-gray-400 italic">Nenhuma ação de acompanhamento registrada.</p>`;
                 }
                 
-                // --- BOTÕES DE AÇÃO INDIVIDUAL ---
                 const avancarBtn = `
                     <button type="button"
                             class="avancar-etapa-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100 ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
@@ -434,7 +329,6 @@ export const renderOccurrences = () => {
                 
                 return `
                     <div class="bg-gray-50 rounded-lg border border-gray-200">
-                        <!-- Cabeçalho do Acordeão Individual -->
                         <div class="occurrence-summary p-3 cursor-pointer hover:bg-sky-50 flex justify-between items-center"
                              data-content-id="${contentId}">
                             
@@ -447,7 +341,6 @@ export const renderOccurrences = () => {
                             <i class="fas fa-chevron-down transition-transform duration-300 text-gray-400"></i>
                         </div>
                         
-                        <!-- Conteúdo Expandível -->
                         <div id="${contentId}" class="process-content" style="max-height: 0px; overflow: hidden;">
                             <div class="p-3 border-t border-gray-200">
                                 <h5 class="text-xs font-bold uppercase text-gray-500 mb-2">Histórico Individual</h5>
@@ -468,7 +361,6 @@ export const renderOccurrences = () => {
                 `;
             }).join('');
 
-        // HTML do Card Principal (Incidente)
         return `
             <div class="border rounded-lg bg-white shadow-sm">
                 <div class="p-4 flex flex-col sm:flex-row justify-between items-start gap-3">
@@ -484,7 +376,6 @@ export const renderOccurrences = () => {
                         <p class="text-xs text-gray-400 mt-2">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
                     </div>
                     <div class="flex-shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-stretch sm:self-center">
-                        <!-- Botões de Ação do Incidente -->
                         <button class="kebab-action-btn text-gray-600 hover:text-gray-900 text-xs font-semibold py-2 px-3 rounded-md bg-gray-50 hover:bg-gray-100 border border-gray-300 text-center ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}"
                                 data-action="edit" data-group-id="${incident.id}" title="Editar Fato (Ação 1)" ${isFinalizada ? 'disabled' : ''}>
                            <i class="fas fa-pencil-alt mr-1"></i> Editar Fato
@@ -523,10 +414,11 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     dom.occurrenceForm.reset();
     state.selectedStudents.clear(); 
 
-    // Define data máxima como hoje
+    // (CORREÇÃO FUSO HORÁRIO) Define data máxima como hoje local
     const occurrenceDateInput = document.getElementById('occurrence-date');
-    const today = new Date().toISOString().split('T')[0];
-    occurrenceDateInput.max = today;
+    // Usa en-CA para obter formato YYYY-MM-DD
+    const todayLocal = new Date().toLocaleDateString('en-CA');
+    occurrenceDateInput.max = todayLocal;
 
     if (incidentToEdit) {
         const mainRecord = incidentToEdit.records[0];
@@ -544,10 +436,10 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     } else {
         document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
         document.getElementById('occurrence-group-id').value = '';
-        occurrenceDateInput.valueAsDate = new Date(); 
+        // (CORREÇÃO) Define a data padrão como hoje LOCAL
+        occurrenceDateInput.value = todayLocal;
     }
 
-    // Configura seleção de alunos
     const studentInput = document.getElementById('student-search-input');
     const suggestionsDiv = document.getElementById('student-suggestions');
     const tagsContainer = document.getElementById('student-tags-container');
@@ -560,9 +452,6 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
 // MODAIS - AÇÕES 2-6 (ACOMPANHAMENTO INDIVIDUAL)
 // =================================================================================
 
-/**
- * Alterna a visibilidade e obrigatoriedade dos campos de contato.
- */
 const toggleOccurrenceContactFields = (enable) => {
     const fieldsContainer = document.getElementById('group-contato-fields');
     if (!fieldsContainer) return;
@@ -576,9 +465,6 @@ const toggleOccurrenceContactFields = (enable) => {
     });
 };
 
-/**
- * Alterna a visibilidade dos fieldsets de Ação 4 e 6 com base na escolha.
- */
 const toggleDesfechoFields = (choice) => {
     const groupCt = document.getElementById('group-encaminhamento-ct');
     const groupParecer = document.getElementById('group-parecer-final');
@@ -598,10 +484,6 @@ const toggleDesfechoFields = (choice) => {
 };
 
 
-/**
- * Abre o modal de ACOMPANHAMENTO e exibe APENAS a etapa atual.
- * (MODIFICADO V4) Suporte para 3 tentativas de contato.
- */
 export const openOccurrenceStepModal = (student, record, actionType) => {
     const followUpForm = document.getElementById('follow-up-form');
     followUpForm.reset();
@@ -614,17 +496,14 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
     const statusDisplay = document.getElementById('follow-up-status-display');
     const modalTitle = document.getElementById('follow-up-modal-title');
     
-    // Usa o mapa de títulos atualizado para mostrar "1ª Tentativa", etc.
     modalTitle.textContent = occurrenceActionTitles[actionType] || 'Acompanhamento Individual';
     statusDisplay.innerHTML = `<strong>Status:</strong> ${getStatusBadge(record.statusIndividual || 'Aguardando Convocação')}`;
 
-    // Limpa atributos 'min' antigos
     ['follow-up-meeting-date', 'follow-up-contact-date', 'follow-up-ct-sent-date'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.removeAttribute('min');
     });
 
-    // Esconde todos os grupos dinâmicos e desabilita campos
     document.querySelectorAll('.dynamic-occurrence-step').forEach(group => {
         group.classList.add('hidden');
         group.querySelectorAll('input, select, textarea, button').forEach(el => {
@@ -638,11 +517,10 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
     let requiredFieldsValid = true;
     let currentGroup = null;
 
-    // Se o actionType for qualquer uma das 3 tentativas, o grupo é o mesmo ('group-contato')
     const isContactAction = actionType.startsWith('contato_familia_');
     const attemptNumber = isContactAction ? parseInt(actionType.split('_')[2]) : 0;
 
-    if (actionType === 'convocacao') { // Ação 2
+    if (actionType === 'convocacao') { 
         currentGroup = document.getElementById('group-convocacao');
         if (currentGroup) {
             currentGroup.classList.remove('hidden');
@@ -655,17 +533,14 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
             if (record.date) dateInput.min = record.date;
         }
 
-    } else if (isContactAction) { // Ação 3 (Tentativas 1, 2, 3)
+    } else if (isContactAction) { 
         
-        // Verifica Convocação antes da 1ª Tentativa
         if (attemptNumber === 1 && (!record.meetingDate || !record.meetingTime)) {
             showToast('Erro: Preencha a Ação 2 (Convocação) primeiro.');
             requiredFieldsValid = false;
         } 
-        // Verifica se a tentativa anterior falhou antes de abrir a próxima
         else if (attemptNumber > 1) {
             const prevAttempt = attemptNumber - 1;
-            // Se a anterior não existe ou foi sucesso, algo está errado no fluxo
             if (record[`contactSucceeded_${prevAttempt}`] !== 'no') {
                 showToast(`Erro: A tentativa ${prevAttempt} precisa ter sido registrada como "Não" para abrir a ${attemptNumber}ª.`);
                 requiredFieldsValid = false;
@@ -677,14 +552,12 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
             if (currentGroup) {
                 currentGroup.classList.remove('hidden');
                 
-                // (NOVO) Atualiza a legenda dinamicamente para indicar a tentativa
                 const legend = document.getElementById('legend-contato');
                 if (legend) legend.textContent = `Ação 3: ${attemptNumber}ª Tentativa de Contato`;
 
                 const radios = currentGroup.querySelectorAll('input[name="follow-up-contact-succeeded"]');
                 radios.forEach(r => { r.disabled = false; r.required = true; });
 
-                // Carrega os dados específicos desta tentativa (_1, _2 ou _3)
                 const currentSucceededValue = record[`contactSucceeded_${attemptNumber}`]; 
                 const radioChecked = document.querySelector(`input[name="follow-up-contact-succeeded"][value="${currentSucceededValue}"]`);
                 if (radioChecked) radioChecked.checked = true;
@@ -696,7 +569,6 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
                 const contactDateInput = document.getElementById('follow-up-contact-date');
                 contactDateInput.value = record[`contactDate_${attemptNumber}`] || '';
                 
-                // Data mínima: Se for a 1ª, data da convocação. Se for 2ª/3ª, data da tentativa anterior.
                 if (attemptNumber === 1 && record.meetingDate) {
                     contactDateInput.min = record.meetingDate;
                 } else if (attemptNumber > 1 && record[`contactDate_${attemptNumber-1}`]) {
@@ -707,8 +579,7 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
             }
         }
 
-    } else if (actionType === 'desfecho_ou_ct') { // Ação 4 ou 6 (Decisão)
-         // Verifica se pelo menos UMA tentativa foi feita
+    } else if (actionType === 'desfecho_ou_ct') { 
          const hasAnyAttempt = record.contactSucceeded_1 != null;
          
          if (!hasAnyAttempt) { 
@@ -739,13 +610,12 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
             if(parecerInput) parecerInput.value = record.parecerFinal || '';
             
             if (dateCtInput) {
-                // Pega a data da última tentativa registrada para usar como min
                 let lastContactDate = record.contactDate_3 || record.contactDate_2 || record.contactDate_1 || record.meetingDate;
                 if (lastContactDate) dateCtInput.min = lastContactDate;
             }
         }
 
-    } else if (actionType === 'devolutiva_ct') { // Ação 5
+    } else if (actionType === 'devolutiva_ct') { 
         if (!record.oficioNumber || !record.ctSentDate) {
             showToast('Erro: Preencha a Ação 4 (Encaminhamento ao CT) primeiro.');
             requiredFieldsValid = false;
@@ -759,7 +629,7 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
             }
         }
 
-    } else if (actionType === 'parecer_final') { // Ação 6
+    } else if (actionType === 'parecer_final') { 
         if (record.oficioNumber && record.ctFeedback == null) {
             showToast('Erro: Preencha a Ação 5 (Devolutiva do CT) primeiro.');
             requiredFieldsValid = false;
@@ -790,9 +660,6 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
 // HANDLERS DE SUBMISSÃO (SALVAR)
 // =================================================================================
 
-/**
- * Lida com a submissão do formulário de ocorrências (Ação 1: Fato Coletivo).
- */
 async function handleOccurrenceSubmit(e) {
     e.preventDefault();
     const form = e.target;
@@ -831,7 +698,6 @@ async function handleOccurrenceSubmit(e) {
 
     try {
         if (groupId) {
-            // EDIÇÃO
             const originalIncident = await fetchIncidentById(groupId);
             if (!originalIncident) throw new Error("Incidente original não encontrado para edição.");
 
@@ -847,7 +713,6 @@ async function handleOccurrenceSubmit(e) {
                     const recordRef = doc(getCollectionRef('occurrence'), existingRecord.id);
                     batch.update(recordRef, collectiveData);
                 } else {
-                    // Novo aluno adicionado na edição
                     const newRecordRef = doc(collection(db, getCollectionRef('occurrence').path));
                     const newRecordData = {
                         ...collectiveData,
@@ -855,7 +720,6 @@ async function handleOccurrenceSubmit(e) {
                         occurrenceGroupId: groupId,
                         statusIndividual: 'Aguardando Convocação',
                         meetingDate: null, meetingTime: null, 
-                        // Campos V4 inicializados explicitamente
                         contactSucceeded_1: null, contactType_1: null, contactDate_1: null, providenciasFamilia_1: null,
                         contactSucceeded_2: null, contactType_2: null, contactDate_2: null, providenciasFamilia_2: null,
                         contactSucceeded_3: null, contactType_3: null, contactDate_3: null, providenciasFamilia_3: null,
@@ -894,7 +758,6 @@ async function handleOccurrenceSubmit(e) {
             showToast('Fato da ocorrência atualizado com sucesso!');
 
         } else {
-            // CRIAÇÃO
             const counterRef = getCounterDocRef('occurrences');
             const newGroupId = await runTransaction(db, async (transaction) => {
                 const counterDoc = await transaction.get(counterRef);
@@ -914,7 +777,6 @@ async function handleOccurrenceSubmit(e) {
                     occurrenceGroupId: newGroupId,
                     statusIndividual: 'Aguardando Convocação',
                     meetingDate: null, meetingTime: null,
-                    // Inicialização completa para V4
                     contactSucceeded_1: null, contactType_1: null, contactDate_1: null, providenciasFamilia_1: null,
                     contactSucceeded_2: null, contactType_2: null, contactDate_2: null, providenciasFamilia_2: null,
                     contactSucceeded_3: null, contactType_3: null, contactDate_3: null, providenciasFamilia_3: null,
@@ -934,10 +796,6 @@ async function handleOccurrenceSubmit(e) {
 }
 
 
-/**
- * Lida com a submissão do formulário de ACOMPANHAMENTO (Ações 2-6).
- * (MODIFICADO V4) Lógica de 3 tentativas.
- */
 async function handleOccurrenceStepSubmit(e) {
     e.preventDefault();
     const form = e.target;
@@ -970,14 +828,12 @@ async function handleOccurrenceStepSubmit(e) {
             nextStatus = 'Aguardando Contato 1'; 
 
         } else if (actionType.startsWith('contato_familia_')) {
-            // Pega o número da tentativa (1, 2 ou 3)
             const attemptNumber = parseInt(actionType.split('_')[2]);
             const contactSucceededRadio = document.querySelector('input[name="follow-up-contact-succeeded"]:checked');
             const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
 
             if (!contactSucceeded) return showToast('Selecione se conseguiu contato.');
 
-            // Monta os nomes dos campos dinâmicos com o sufixo _n
             const fields = {
                 succeeded: `contactSucceeded_${attemptNumber}`,
                 type: `contactType_${attemptNumber}`,
@@ -996,8 +852,7 @@ async function handleOccurrenceStepSubmit(e) {
                      return showToast('Preencha Tipo, Data e Providências.');
                 }
                 
-                // Validação de Data: Não pode ser anterior à etapa anterior
-                let minDate = record.meetingDate; // Base
+                let minDate = record.meetingDate; 
                 if (attemptNumber > 1) minDate = record[`contactDate_${attemptNumber-1}`];
                 
                 if (minDate && dataToUpdate[fields.date] < minDate) {
@@ -1005,19 +860,18 @@ async function handleOccurrenceStepSubmit(e) {
                 }
 
                 historyAction = `Ação 3 (${attemptNumber}ª Tentativa) registrada com sucesso.`;
-                nextStatus = 'Aguardando Desfecho'; // Sucesso -> Desfecho
+                nextStatus = 'Aguardando Desfecho'; 
 
-            } else { // contactSucceeded === 'no'
+            } else { 
                 dataToUpdate = {
                     [fields.succeeded]: 'no',
-                    [fields.type]: null, [fields.date]: null, [fields.providencias]: null, // Limpa se mudou de sim para não
+                    [fields.type]: null, [fields.date]: null, [fields.providencias]: null, 
                 };
                 historyAction = `Ação 3 (${attemptNumber}ª Tentativa) sem sucesso.`;
                 
-                // Lógica de falha: Avança para próxima tentativa ou desfecho
                 if (attemptNumber === 1) nextStatus = 'Aguardando Contato 2';
                 else if (attemptNumber === 2) nextStatus = 'Aguardando Contato 3';
-                else nextStatus = 'Aguardando Desfecho'; // Esgotou em 3
+                else nextStatus = 'Aguardando Desfecho'; 
             }
 
         } else if (actionType === 'desfecho_ou_ct') {
@@ -1042,7 +896,6 @@ async function handleOccurrenceStepSubmit(e) {
                 historyAction = `Ação 4 (Encaminhamento ao CT) registrada. Ofício: ${oficioNumber}/${dataToUpdate.oficioYear}.`;
                 nextStatus = 'Aguardando Devolutiva CT';
 
-                // Gera ofício automaticamente
                 const student = state.students.find(s => s.matricula === form.dataset.studentId);
                 if (student) {
                      generateAndShowOccurrenceOficio({ ...record, ...dataToUpdate }, student, dataToUpdate.oficioNumber, dataToUpdate.oficioYear);
@@ -1090,7 +943,6 @@ async function handleOccurrenceStepSubmit(e) {
         await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
         showToast("Etapa salva com sucesso!");
 
-        // Gera notificação se foi Convocação
         if (actionType === 'convocacao') {
             const studentId = form.dataset.studentId;
             const student = state.students.find(s => s.matricula === studentId);
@@ -1117,10 +969,6 @@ async function handleOccurrenceStepSubmit(e) {
 }
 
 
-// =================================================================================
-// AÇÕES ADICIONAIS (EDITAR, EXCLUIR, RESETAR, ENVIAR CT)
-// =================================================================================
-
 async function handleEditOccurrence(groupId) {
     const incident = await fetchIncidentById(groupId);
     if (incident) {
@@ -1130,9 +978,6 @@ async function handleEditOccurrence(groupId) {
     }
 }
 
-/**
- * (MODIFICADO V4) Suporte a 3 tentativas na edição.
- */
 async function handleEditOccurrenceAction(studentId, groupId, recordId) {
     const incident = await fetchIncidentById(groupId);
     if (!incident) return showToast('Erro: Incidente não encontrado.');
@@ -1146,7 +991,6 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
 
     let actionToEdit = determineCurrentActionFromStatus(record.statusIndividual);
 
-    // Refinamento para "Resolvido" ou "Aguardando Desfecho"
     if (record.statusIndividual === 'Resolvido') {
         if (record.desfechoChoice) {
             actionToEdit = 'desfecho_ou_ct';
@@ -1155,11 +999,10 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
         }
     } 
     else if (record.statusIndividual === 'Aguardando Desfecho' || actionToEdit === 'contato_familia_x') {
-        // Descobre qual foi a última tentativa feita
         if (record.contactSucceeded_3 != null) actionToEdit = 'contato_familia_3';
         else if (record.contactSucceeded_2 != null) actionToEdit = 'contato_familia_2';
         else if (record.contactSucceeded_1 != null) actionToEdit = 'contato_familia_1';
-        else actionToEdit = 'convocacao'; // Fallback
+        else actionToEdit = 'convocacao'; 
     }
 
     if (actionToEdit === null) {
@@ -1170,9 +1013,6 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
     openOccurrenceStepModal(student, record, actionToEdit);
 }
 
-/**
- * (MODIFICADO V4) Suporte a 3 tentativas no reset.
- */
 async function handleResetActionConfirmation(studentId, groupId, recordId) {
     const incident = await fetchIncidentById(groupId);
     if (!incident) return showToast('Erro: Incidente não encontrado.');
@@ -1218,7 +1058,6 @@ function handleDelete(type, id) {
     openModal(dom.deleteConfirmModal);
 }
 
-// --- FLUXO DO BOTÃO AVANÇAR ---
 async function handleNewOccurrenceAction(studentId, groupId, recordId) {
     const incident = await fetchIncidentById(groupId); 
     if (!incident) return showToast('Erro: Incidente não encontrado.');
@@ -1239,7 +1078,6 @@ async function handleNewOccurrenceAction(studentId, groupId, recordId) {
     openOccurrenceStepModal(student, record, nextAction);
 }
 
-// --- FLUXO DO BOTÃO NOTIFICAÇÃO ---
 async function handleGenerateNotification(recordId, studentId, groupId) {
     const incident = await fetchIncidentById(groupId); 
      if (!incident) return showToast('Erro: Incidente não encontrado.');
@@ -1251,7 +1089,6 @@ async function handleGenerateNotification(recordId, studentId, groupId) {
     openIndividualNotificationModal(incident, student);
 }
 
-// --- FLUXO DO BOTÃO VER OFÍCIO (LISTA) ---
 async function handleViewOccurrenceOficio(recordId) {
     if (!recordId) return;
     let targetRecord = null; let targetIncident = null;
@@ -1276,13 +1113,6 @@ async function handleViewOccurrenceOficio(recordId) {
     generateAndShowOccurrenceOficio(targetRecord, student, targetRecord.oficioNumber, targetRecord.oficioYear);
 }
 
-// =================================================================================
-// FUNÇÕES "LEGADO" RESTAURADAS (FLUXO BOTÃO 'ENVIAR AO CT' DEDICADO)
-// =================================================================================
-
-/**
- * Abre o modal dedicado para enviar ao CT (via botão principal, se usado).
- */
 async function openSendOccurrenceCtModal(groupId) {
     const incident = await fetchIncidentById(groupId); 
     if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
@@ -1339,10 +1169,6 @@ async function openSendOccurrenceCtModal(groupId) {
     openModal(modal);
 }
 
-/**
- * Lida com a submissão do modal "Enviar ao CT" (via botão principal).
- * (Atualizado para setar 'desfechoChoice' = 'ct')
- */
 async function handleSendOccurrenceCtSubmit(e) {
     e.preventDefault();
     const form = e.target;
@@ -1357,9 +1183,7 @@ async function handleSendOccurrenceCtSubmit(e) {
     const record = state.occurrences.find(r => r.id === recordId);
     if (!record) return showToast("Erro: Registro não encontrado.");
     
-    // Validação flexível: Permite se estiver aguardando desfecho OU se for a próxima etapa lógica
     if (record.statusIndividual !== 'Aguardando Desfecho' && record.statusIndividual !== 'Aguardando Contato') {
-        // Aviso opcional, mas permite continuar
         console.warn(`Status não ideal para envio ao CT: ${record.statusIndividual}`);
     }
 
@@ -1375,7 +1199,6 @@ async function handleSendOccurrenceCtSubmit(e) {
         oficioNumber, oficioYear, ctSentDate,
         statusIndividual: 'Aguardando Devolutiva CT', 
         desfechoChoice: 'ct',
-        // Limpa parecer se existir
         parecerFinal: null
     };
     const historyAction = `Ação 4 (Encaminhamento ao CT) registrada via botão dedicado. Ofício: ${oficioNumber}/${oficioYear}.`;
@@ -1405,28 +1228,22 @@ async function handleSendOccurrenceCtSubmit(e) {
 // =================================================================================
 
 export const initOccurrenceListeners = () => {
-    // Botão Adicionar Nova Ocorrência
     document.getElementById('add-occurrence-btn').addEventListener('click', () => openOccurrenceModal());
 
-    // Filtros
     dom.searchOccurrences.addEventListener('input', (e) => { state.filterOccurrences = e.target.value; renderOccurrences(); });
     dom.occurrenceStartDate.addEventListener('change', (e) => { state.filtersOccurrences.startDate = e.target.value; renderOccurrences(); });
     dom.occurrenceEndDate.addEventListener('change', (e) => { state.filtersOccurrences.endDate = e.target.value; renderOccurrences(); });
     document.getElementById('occurrence-filter-type').addEventListener('change', (e) => { state.filtersOccurrences.type = e.target.value; renderOccurrences(); });
     document.getElementById('occurrence-filter-status').addEventListener('change', (e) => { state.filtersOccurrences.status = e.target.value; renderOccurrences(); });
 
-    // Botão Relatório Geral
     dom.generalReportBtn.addEventListener('click', generateAndShowGeneralReport);
 
-    // Submissão de Formulários
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.followUpForm.addEventListener('submit', handleOccurrenceStepSubmit);
     
-    // Formulário do Modal Dedicado de Envio ao CT
     const sendCtForm = document.getElementById('send-occurrence-ct-form');
     if (sendCtForm) sendCtForm.addEventListener('submit', handleSendOccurrenceCtSubmit);
 
-    // Listener Centralizado para a Lista de Ocorrências (Delegação de Eventos)
     dom.occurrencesListDiv.addEventListener('click', (e) => {
         const button = e.target.closest('button');
         if (button) {
@@ -1436,7 +1253,6 @@ export const initOccurrenceListeners = () => {
             const groupIdBtn = button.dataset.groupId;
             const recordIdBtn = button.dataset.recordId;
 
-            // Ações DENTRO do Acordeão
             if (button.closest('.process-content')) {
                 if (button.classList.contains('avancar-etapa-btn') && !button.disabled) {
                     handleNewOccurrenceAction(studentIdBtn, groupIdBtn, recordIdBtn);
@@ -1460,7 +1276,6 @@ export const initOccurrenceListeners = () => {
                 }
             }
             
-            // Ações do Menu Kebab
             if (button.classList.contains('kebab-menu-btn')) {
                 const dropdown = button.nextElementSibling;
                 if (dropdown) {
@@ -1470,7 +1285,6 @@ export const initOccurrenceListeners = () => {
                 return;
             }
             
-            // Ações do Card Principal
             const groupId = button.dataset.groupId;
             if (!groupId) return; 
 
@@ -1489,7 +1303,6 @@ export const initOccurrenceListeners = () => {
             }
         } 
         
-        // Toggle do Acordeão
         const summary = e.target.closest('div.occurrence-summary');
         if (summary) {
             const contentId = summary.dataset.contentId;
@@ -1517,7 +1330,6 @@ export const initOccurrenceListeners = () => {
         }
     });
 
-    // Listeners para Rádios Dinâmicos
     document.querySelectorAll('input[name="follow-up-contact-succeeded"]').forEach(radio =>
         radio.addEventListener('change', (e) => {
             toggleOccurrenceContactFields(e.target.value === 'yes');
@@ -1530,14 +1342,12 @@ export const initOccurrenceListeners = () => {
         })
     );
 
-    // Fechar modais ao clicar fora ou botões de fechar
     const closeSendCtBtn = document.getElementById('close-send-ct-modal-btn');
     const cancelSendCtBtn = document.getElementById('cancel-send-ct-modal-btn');
     const sendCtModal = document.getElementById('send-occurrence-ct-modal');
     if (closeSendCtBtn && sendCtModal) closeSendCtBtn.onclick = () => closeModal(sendCtModal);
     if (cancelSendCtBtn && sendCtModal) cancelSendCtBtn.onclick = () => closeModal(sendCtModal);
 
-    // Fechar dropdown de papéis ao clicar fora
     document.addEventListener('click', (e) => {
         const dropdown = document.getElementById('role-edit-dropdown');
         const isEditButton = e.target.closest('.edit-role-btn');

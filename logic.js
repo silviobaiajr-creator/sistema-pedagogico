@@ -1,8 +1,94 @@
+// =================================================================================
 // ARQUIVO: logic.js
+// =================================================================================
 
 import { state } from './state.js';
+// (NOVO) Importa getStatusBadge para uso na filtragem (quebra de ciclo)
+import { getStatusBadge } from './utils.js';
 
-// --- Lógica da Busca Ativa ---
+// --- CONSTANTES COMPARTILHADAS (Movidas de occurrence.js para corrigir dependência circular) ---
+
+export const roleIcons = {
+    'Vítima': 'fas fa-user-shield text-blue-600',
+    'Agente': 'fas fa-gavel text-red-600', 
+    'Testemunha': 'fas fa-eye text-green-600',
+    'Envolvido': 'fas fa-user text-gray-500'
+};
+
+export const defaultRole = 'Envolvido'; 
+
+// --- (NOVO) FUNÇÃO DE PROCESSAMENTO DE OCORRÊNCIAS ---
+// Movida de occurrence.js para o "cérebro" (logic.js) para estar disponível globalmente
+// sem causar erros de importação no reports.js
+// ------------------------------------------------------------------------------
+
+/**
+ * Processa os dados brutos das ocorrências, agrupa por incidente e aplica filtros.
+ * Retorna um Map onde a chave é o ID do Grupo e o valor é o objeto do incidente.
+ */
+export const getFilteredOccurrences = () => {
+    // 1. Agrupamento
+    const groupedByIncident = state.occurrences.reduce((acc, occ) => {
+        if (!occ || !occ.studentId) return acc;
+
+        const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
+        if (!acc.has(groupId)) {
+            acc.set(groupId, {
+                id: groupId,
+                records: [],
+                participantsInvolved: new Map(),
+                overallStatus: 'Aguardando Convocação'
+            });
+        }
+        const incident = acc.get(groupId);
+        incident.records.push(occ);
+
+        // Tenta recuperar o papel salvo no registo ou usa o padrão
+        const participantData = occ.participants?.find(p => p.studentId === occ.studentId);
+        const student = state.students.find(s => s.matricula === occ.studentId);
+
+        if (student && !incident.participantsInvolved.has(student.matricula)) {
+             incident.participantsInvolved.set(student.matricula, {
+                 student: student,
+                 role: participantData?.role || defaultRole 
+             });
+        }
+        return acc;
+    }, new Map());
+
+    // 2. Filtragem
+    const filteredIncidents = new Map();
+    for (const [groupId, incident] of groupedByIncident.entries()) {
+        const mainRecord = incident.records && incident.records.length > 0 ? incident.records[0] : null;
+        if (!mainRecord) continue;
+
+        const { startDate, endDate, status, type } = state.filtersOccurrences;
+        const studentSearch = state.filterOccurrences.toLowerCase();
+
+        // Recalcula status geral
+        const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
+        incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
+
+        // Filtros de Data, Tipo e Status
+        if (startDate && mainRecord.date < startDate) continue;
+        if (endDate && mainRecord.date > endDate) continue;
+        if (status !== 'all' && incident.overallStatus !== status) continue;
+        if (type !== 'all' && mainRecord.occurrenceType !== type) continue;
+
+        // Filtro de Texto (Busca por nome do aluno)
+        if (studentSearch) {
+            const hasMatchingStudent = [...incident.participantsInvolved.values()].some(p =>
+                p.student.name.toLowerCase().includes(studentSearch)
+            );
+            if (!hasMatchingStudent) continue;
+        }
+        filteredIncidents.set(groupId, incident);
+    }
+    return filteredIncidents;
+};
+
+
+// --- Lógica da Busca Ativa (Mantida) ---
 
 export const getStudentProcessInfo = (studentId) => {
     const studentActions = state.absences
@@ -67,107 +153,61 @@ export const determineNextActionForStudent = (studentId) => {
 
 
 // ==============================================================================
-// --- (NOVO V4) Lógica das Ocorrências (3 Tentativas) ---
+// --- Lógica das Ocorrências (3 Tentativas) ---
 // ==============================================================================
 
-// Mapeia o STATUS ATUAL para a PRÓXIMA AÇÃO (Botão "Avançar")
 const occurrenceNextActionMap = {
-    'Aguardando Convocação': 'convocacao', // Inicia Ação 2
-    'Aguardando Contato 1': 'contato_familia_1', // Inicia Tentativa 1
-    'Aguardando Contato 2': 'contato_familia_2', // Inicia Tentativa 2 (se T1 falhou)
-    'Aguardando Contato 3': 'contato_familia_3', // Inicia Tentativa 3 (se T2 falhou)
-    'Aguardando Desfecho': 'desfecho_ou_ct', // Inicia Ação 4 ou 6
-    'Aguardando Devolutiva CT': 'devolutiva_ct', // Inicia Ação 5
-    'Aguardando Parecer Final': 'parecer_final', // Inicia Ação 6 (pós CT)
+    'Aguardando Convocação': 'convocacao', 
+    'Aguardando Contato 1': 'contato_familia_1', 
+    'Aguardando Contato 2': 'contato_familia_2', 
+    'Aguardando Contato 3': 'contato_familia_3', 
+    'Aguardando Desfecho': 'desfecho_ou_ct', 
+    'Aguardando Devolutiva CT': 'devolutiva_ct', 
+    'Aguardando Parecer Final': 'parecer_final', 
     'Resolvido': null
 };
 
-/**
- * Determina qual é a próxima ação de ocorrência com base no status.
- */
 export const determineNextOccurrenceStep = (currentStatus) => {
     if (!currentStatus) return 'convocacao'; 
     return occurrenceNextActionMap[currentStatus] || null;
 };
 
-// ==============================================================================
-// --- Lógica de Edição (Voltar para editar a última ação) ---
-// ==============================================================================
-
-// Mapeia o STATUS ATUAL para a AÇÃO ANTERIOR (Botão "Editar Ação")
 const occurrencePreviousActionMap = {
     'Aguardando Convocação': null, 
-    'Aguardando Contato 1': 'convocacao', // Se está esperando T1, a última coisa feita foi Convocação
-    'Aguardando Contato 2': 'contato_familia_1', // Se está esperando T2, a última foi T1 (falha)
-    'Aguardando Contato 3': 'contato_familia_2', // Se está esperando T3, a última foi T2 (falha)
-    'Aguardando Desfecho': 'contato_familia_x', // *Caso especial: pode ser T1, T2 ou T3. Ocorrência.js resolve.
+    'Aguardando Contato 1': 'convocacao', 
+    'Aguardando Contato 2': 'contato_familia_1', 
+    'Aguardando Contato 3': 'contato_familia_2', 
+    'Aguardando Desfecho': 'contato_familia_x', 
     'Aguardando Devolutiva CT': 'desfecho_ou_ct',
     'Aguardando Parecer Final': 'devolutiva_ct',
     'Resolvido': 'parecer_final'
 };
 
-/**
- * Determina qual ação deve ser aberta para EDIÇÃO.
- */
 export const determineCurrentActionFromStatus = (currentStatus) => {
     if (!currentStatus) return null;
-    
-    // Casos especiais
     if (currentStatus === 'Resolvido') return 'parecer_final';
-    if (currentStatus === 'Aguardando Desfecho') {
-        // Retorna um marcador genérico. O occurrence.js verificará qual contato existe (3, 2 ou 1)
-        return 'contato_familia_x'; 
-    }
-
+    if (currentStatus === 'Aguardando Desfecho') return 'contato_familia_x'; 
     return occurrencePreviousActionMap[currentStatus] || null;
 };
-
 
 // ==============================================================================
 // --- Lógica de Reset (Cascata de Exclusão) ---
 // ==============================================================================
 
-// Definição dos campos no banco de dados (Usaremos sufixos _1, _2, _3 no occurrence.js)
 const camposAcao6 = ['parecerFinal'];
 const camposAcao5 = ['ctFeedback', ...camposAcao6];
 const camposAcao4_6 = ['oficioNumber', 'oficioYear', 'ctSentDate', 'desfechoChoice', ...camposAcao5]; 
-
-// Tentativa 3 limpa o desfecho
 const camposAcao3_3 = ['contactSucceeded_3', 'contactType_3', 'contactDate_3', 'providenciasFamilia_3', ...camposAcao4_6];
-// Tentativa 2 limpa a 3 + desfecho
 const camposAcao3_2 = ['contactSucceeded_2', 'contactType_2', 'contactDate_2', 'providenciasFamilia_2', ...camposAcao3_3];
-// Tentativa 1 limpa a 2 + 3 + desfecho
 const camposAcao3_1 = ['contactSucceeded_1', 'contactType_1', 'contactDate_1', 'providenciasFamilia_1', ...camposAcao3_2];
-
 const camposAcao2 = ['meetingDate', 'meetingTime', ...camposAcao3_1];
 
 export const occurrenceStepLogic = {
-    'convocacao': {
-        fieldsToClear: camposAcao2,
-        statusAfterReset: 'Aguardando Convocação'
-    },
-    'contato_familia_1': {
-        fieldsToClear: camposAcao3_1,
-        statusAfterReset: 'Aguardando Contato 1' // Volta para o status definido pela Convocação
-    },
-    'contato_familia_2': {
-        fieldsToClear: camposAcao3_2,
-        statusAfterReset: 'Aguardando Contato 2' // Volta para o status definido pela falha da T1
-    },
-    'contato_familia_3': {
-        fieldsToClear: camposAcao3_3,
-        statusAfterReset: 'Aguardando Contato 3' // Volta para o status definido pela falha da T2
-    },
-    'desfecho_ou_ct': {
-        fieldsToClear: camposAcao4_6,
-        statusAfterReset: 'Aguardando Desfecho'
-    },
-    'devolutiva_ct': {
-        fieldsToClear: camposAcao5,
-        statusAfterReset: 'Aguardando Devolutiva CT'
-    },
-    'parecer_final': {
-        fieldsToClear: camposAcao6,
-        statusAfterReset: 'Aguardando Parecer Final'
-    }
+    'convocacao': { fieldsToClear: camposAcao2, statusAfterReset: 'Aguardando Convocação' },
+    'contato_familia_1': { fieldsToClear: camposAcao3_1, statusAfterReset: 'Aguardando Contato 1' },
+    'contato_familia_2': { fieldsToClear: camposAcao3_2, statusAfterReset: 'Aguardando Contato 2' },
+    'contato_familia_3': { fieldsToClear: camposAcao3_3, statusAfterReset: 'Aguardando Contato 3' },
+    'desfecho_ou_ct': { fieldsToClear: camposAcao4_6, statusAfterReset: 'Aguardando Desfecho' },
+    'devolutiva_ct': { fieldsToClear: camposAcao5, statusAfterReset: 'Aguardando Devolutiva CT' },
+    'parecer_final': { fieldsToClear: camposAcao6, statusAfterReset: 'Aguardando Parecer Final' }
 };
