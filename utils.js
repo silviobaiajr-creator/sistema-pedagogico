@@ -35,7 +35,7 @@ export const showToast = (message) => {
 };
 
 // ==============================================================================
-// --- (INÍCIO DA CORREÇÃO - LÓGICA DE IMPRESSÃO INTERMITENTE) ---
+// --- (INÍCIO DA CORREÇÃO - LÓGICA DE IMPRESSÃO ROBUSTA) ---
 // ==============================================================================
 
 // Lista dos IDs dos modais que podem ser impressos.
@@ -55,22 +55,19 @@ export const openModal = (modalElement) => {
      
      // --- NOVO: Lógica de Limpeza de Impressão ---
      // Verifica se o modal que estamos abrindo é um modal de impressão
-     // (Verifica pela classe base 'printable-area')
      const isPrintable = modalElement.classList.contains('printable-area');
      
      if (isPrintable) {
          // É um modal de impressão.
-         // Remove a classe 'printable-area-active' de TODOS os outros modais
-         // para evitar que apareçam na impressão por engano.
+         // Remove a classe 'printable-area-active' de TODOS os modais listados
+         // Isso garante que começamos do zero e evita conflitos de estado anterior.
          printableModalIds.forEach(id => {
-             // Não mexer no modal atual, mesmo que esteja na lista
-             if (modalElement.id === id) return; 
-             
-             const otherModal = document.getElementById(id);
-             if (otherModal) {
-                 otherModal.classList.remove('printable-area-active'); 
+             const m = document.getElementById(id);
+             if (m) {
+                 m.classList.remove('printable-area-active'); 
              }
          });
+         
          // Adiciona a classe ativa *apenas* neste modal
          modalElement.classList.add('printable-area-active');
      }

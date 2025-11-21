@@ -61,17 +61,11 @@ tbody tr:nth-child(even) {
 /* ============================================================================== */
 
 /* --- TAGS DE SELEÇÃO DE ALUNOS --- */
-/* Estilos principais agora via Tailwind no JS (renderTags), mas ajustes podem ser feitos aqui */
 .student-tag {
-    /* display: inline-flex; */ /* Já aplicado via Tailwind */
-    /* align-items: center; */ /* Já aplicado via Tailwind */
-    /* padding: 0.25rem 0.75rem; */ /* Ajustado no Tailwind */
-    /* ... outros estilos base ... */
     white-space: nowrap; /* Garante que a tag não quebre linha internamente */
 }
 
 .student-tag i.fa-fw {
-    /* Garante alinhamento e largura fixa para os ícones de papel */
     text-align: center;
 }
 
@@ -83,13 +77,10 @@ tbody tr:nth-child(even) {
     line-height: 1;
     padding: 0 2px; /* Pequeno espaçamento para clique */
 }
-/* Estilos hover já aplicados via Tailwind */
 
 
 /* (NOVO - Papéis) Painel Inline de Seleção de Papel */
 #role-selection-panel {
-    /* Estilos base já aplicados via Tailwind no HTML */
-    /* Podemos adicionar transições se desejado */
     transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 }
 #role-selection-panel.hidden {
@@ -98,27 +89,17 @@ tbody tr:nth-child(even) {
     pointer-events: none;
 }
 .role-select-btn {
-     /* Estilos base já aplicados via Tailwind no HTML */
      transition: background-color 0.15s ease-in-out;
 }
 
 /* (NOVO - Papéis) Dropdown de Edição de Papel */
 #role-edit-dropdown {
-     /* Estilos base já aplicados via Tailwind no HTML */
-     /* Posicionamento é feito via JS */
      transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 }
 #role-edit-dropdown.hidden {
     opacity: 0;
     transform: scale(0.95);
     pointer-events: none;
-}
-/* Reutiliza estilo .menu-item para as opções do dropdown */
-.role-edit-option {
-    /* display: flex; */ /* Vem de .menu-item */
-    /* align-items: center; */ /* Vem de .menu-item */
-    /* padding: 0.5rem 1rem; */ /* Vem de .menu-item */
-    /* ... outros estilos de .menu-item ... */
 }
 
 
@@ -131,30 +112,12 @@ tbody tr:nth-child(even) {
 
 /* ============================================================================== */
 /* --- (NOVO - V4 Acordeão Ocorrências) --- */
-/* Estilos para o novo layout de acordeão de alunos em Ocorrências. */
-/* A classe .process-content acima já se aplica ao conteúdo. */
-
 .occurrence-summary {
     list-style: none; /* Remove o marcador padrão do <summary> */
-    /* O cursor-pointer e hover:bg-indigo-50 são aplicados via Tailwind no JS */
 }
 .occurrence-summary::-webkit-details-marker {
     display: none; /* Remove o marcador padrão (Safari) */
 }
-/* A transição do ícone de seta já é aplicada via Tailwind (transition-transform duration-300) */
-/* .occurrence-summary .fa-chevron-down { */
-    /* transition: transform 0.3s ease-in-out; */
-/* } */
-
-/* Garante que o conteúdo de dropdowns dentro do acordeão (ex: Kebab) não seja cortado */
-/* Esta regra é aplicada via JS (style.overflow = 'visible') quando o acordeão é aberto */
-/*
-details[open] .process-content {
-    overflow: visible;
-}
-*/
-/* --- FIM NOVO (V4) --- */
-/* ============================================================================== */
 
 
 /* --- BOTÕES DE AÇÃO E NOVO MENU KEBAB (Item 10) --- */
@@ -187,10 +150,9 @@ details[open] .process-content {
 }
 
 .kebab-menu-dropdown {
-    /* A visibilidade é controlada por JS/Tailwind, mas definimos a base aqui */
     transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 }
-#kebab-menu-dropdown.hidden { /* Adicionado para garantir a transição de fechamento */
+#kebab-menu-dropdown.hidden {
     opacity: 0;
     transform: scale(0.95);
     pointer-events: none;
@@ -217,12 +179,11 @@ details[open] .process-content {
 }
 
 /* ============================================================================== */
-/* (INÍCIO DA CORREÇÃO) SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO INTERMITENTE)    */
-/* Esta é a versão final que corrige o problema dos "modais fantasma".           */
+/* (INÍCIO DA CORREÇÃO) SEÇÃO 2: ESTILOS PARA IMPRESSÃO (CORREÇÃO FINAL)           */
 /* ============================================================================== */
 
 @media print {
-    /* (CORREÇÃO) Reseta a página (html, body) para remover margens */
+    /* Reseta a página (html, body) para remover margens */
     html, body {
         margin: 0 !important;
         padding: 0 !important;
@@ -231,24 +192,12 @@ details[open] .process-content {
         background: #fff !important; /* Garante fundo branco */
     }
 
-    /* ========================================================================== */
-    /* ======================== (INÍCIO DA CORREÇÃO) ========================== */
-    /*
-        A regra original era: body > *:not(.printable-area)
-        Mudamos para: body > *:not(.printable-area-active)
-        
-        Isso garante que APENAS o modal *atualmente aberto* (que o JS marcou
-        com 'printable-area-active') seja visível para a impressora.
-        Modais antigos fechados (que ainda têm 'printable-area')
-        serão escondidos por esta regra.
-    */
     /* Esconde tudo que não está na área de impressão ATIVA */
     body > *:not(.printable-area-active) {
         display: none !important;
     }
     
-    /* Garante que a área de impressão ocupe toda a página */
-    /* (CORREÇÃO) As regras agora miram em .printable-area-active */
+    /* Garante que a área de impressão ocupe toda a página e ESTEJA VISÍVEL */
     #notification-modal-backdrop,
     #report-view-modal-backdrop,
     #ficha-view-modal-backdrop,
@@ -267,10 +216,12 @@ details[open] .process-content {
         margin: 0 !important;
         page-break-before: avoid !important;
         break-before: avoid-page !important;
+        /* (CORREÇÃO CRÍTICA) Força visibilidade e opacidade total para evitar páginas em branco */
+        opacity: 1 !important;
+        visibility: visible !important;
     }
     
     /* Mostra todo o conteúdo que poderia estar com scroll */
-    /* (CORREÇÃO) Mira em .printable-area-active */
     .printable-area-active .overflow-y-auto {
         overflow: visible !important;
         height: auto !important;
@@ -281,11 +232,6 @@ details[open] .process-content {
         display: none !important;
     }
 
-    /*
-        Aumentamos a especificidade dos seletores (adicionando 'body .printable-area-active')
-        para garantir que estas regras de zerar o padding/margin ganhem
-        das classes de utilitário do Tailwind (como 'p-8') que estão no index.html.
-    */
     /* Zera o padding/margin dos containers de conteúdo (os pais) */
     body .printable-area-active#notification-modal-backdrop #notification-content,
     body .printable-area-active#report-view-modal-backdrop #report-view-content,
@@ -296,14 +242,6 @@ details[open] .process-content {
         break-before: avoid-page !important;
     }
 
-    /*
-        O seletor antigo `*:first-child` falhava quando o primeiro
-        elemento era uma tag <style> (como na "Ata de Ocorrência").
-        
-        Mudamos para `div:first-of-type` para mirar no *primeiro <div>*
-        dentro do contêiner, ignorando a tag <style>.
-        Isso zera a margem superior padrão do <div> e impede a página em branco.
-    */
     /* Zera o margin/padding do *primeiro <div> filho* dentro do container */
     body .printable-area-active #notification-content > div:first-of-type,
     body .printable-area-active #report-view-content > div:first-of-type,
@@ -313,13 +251,6 @@ details[open] .process-content {
         page-break-before: avoid !important; /* Evita quebra antes */
         break-before: avoid-page !important; /* Evita quebra antes (moderno) */
     }
-    /* ========================= (FIM DA CORREÇÃO) ========================== */
-    /* ========================================================================== */
-
-
-    /* O bloco que definia 'padding: 1cm !important;' foi REMOVIDO daqui. */
-    /* A regra @page abaixo é a única que deve */
-    /* controlar as margens da impressão. */
 
     /* --- ESTILOS ESPECÍFICOS PARA A ATA E NOTIFICAÇÃO --- */
     
