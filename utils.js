@@ -4,19 +4,10 @@
 export const formatDate = (dateString) => dateString ? new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '';
 export const formatTime = (timeString) => timeString || '';
 
-// CORRIGIDO: Garante que 'text' seja tratado como string
 export const formatText = (text) => {
-    // Verifica se text é null ou undefined primeiro
-    if (text == null) { // Usar == null cobre undefined também
-        return 'Não informado';
-    }
-    // Converte explicitamente para string ANTES de usar replace
+    if (text == null) return 'Não informado';
     const textAsString = String(text);
-    // Remove espaços em branco extras antes de verificar se está vazio
-    if (textAsString.trim() === '') {
-        return 'Não informado';
-    }
-    // Agora é seguro usar replace
+    if (textAsString.trim() === '') return 'Não informado';
     return textAsString.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 };
 
@@ -35,48 +26,26 @@ export const showToast = (message) => {
 };
 
 // ==============================================================================
-// --- (INÍCIO DA CORREÇÃO - LÓGICA DE IMPRESSÃO ROBUSTA) ---
+// --- LÓGICA DE MODAIS E IMPRESSÃO ROBUSTA ---
 // ==============================================================================
 
-// Lista dos IDs dos modais que podem ser impressos.
-// Precisamos disto para "limpar" os outros modais antes de abrir um novo.
-const printableModalIds = [
-    'notification-modal-backdrop',
-    'report-view-modal-backdrop',
-    'ficha-view-modal-backdrop'
-];
-
 export const openModal = (modalElement) => {
-     // Garante que modalElement não seja nulo
-     if (!modalElement) {
-         console.error("Tentativa de abrir um modal nulo.");
-         return;
-     }
+     if (!modalElement) return console.error("Tentativa de abrir um modal nulo.");
      
-     // --- NOVO: Lógica de Limpeza de Impressão ---
-     // Verifica se o modal que estamos abrindo é um modal de impressão
-     const isPrintable = modalElement.classList.contains('printable-area');
+     // Limpeza agressiva: Remove a classe ativa de TODOS os modais antes de abrir um novo
+     // Isso previne que dois modais fiquem marcados como 'imprimível' ao mesmo tempo
+     document.querySelectorAll('.printable-area-active').forEach(el => {
+         el.classList.remove('printable-area-active');
+     });
      
-     if (isPrintable) {
-         // É um modal de impressão.
-         // Remove a classe 'printable-area-active' de TODOS os modais listados
-         // Isso garante que começamos do zero e evita conflitos de estado anterior.
-         printableModalIds.forEach(id => {
-             const m = document.getElementById(id);
-             if (m) {
-                 m.classList.remove('printable-area-active'); 
-             }
-         });
-         
-         // Adiciona a classe ativa *apenas* neste modal
+     // Se o modal atual for de impressão, marca ele
+     if (modalElement.classList.contains('printable-area')) {
          modalElement.classList.add('printable-area-active');
      }
-     // --- FIM DA LÓGICA DE IMPRESSÃO ---
 
     modalElement.classList.remove('hidden');
     setTimeout(() => {
         modalElement.classList.remove('opacity-0');
-        // Garante que firstElementChild existe
         if (modalElement.firstElementChild) {
             modalElement.firstElementChild.classList.remove('scale-95', 'opacity-0');
         }
@@ -86,32 +55,44 @@ export const openModal = (modalElement) => {
 export const closeModal = (modalElement) => {
     if (!modalElement) return;
 
-     // --- NOVO: Lógica de Limpeza de Impressão ---
-     // Ao fechar, remove a classe ativa para que não seja impresso
-     // da próxima vez por acidente.
+    // Ao fechar, remove imediatamente a marcação de impressão
     if (modalElement.classList.contains('printable-area')) {
          modalElement.classList.remove('printable-area-active');
     }
-     // --- FIM DA LÓGICA DE IMPRESSÃO ---
     
     modalElement.classList.add('opacity-0');
-    // Garante que firstElementChild existe
     if (modalElement.firstElementChild) {
         modalElement.firstElementChild.classList.add('scale-95', 'opacity-0');
     }
     setTimeout(() => modalElement.classList.add('hidden'), 300);
 };
 
+
 // ==============================================================================
-// --- (FIM DA CORREÇÃO) ---
+// --- O FISCAL DE IMPRESSÃO (CORREÇÃO NUCLEAR) ---
+// ==============================================================================
+// Este código roda automaticamente no momento em que você clica em "Imprimir" (Ctrl+P)
+// Ele garante que o que você vê na tela é EXATAMENTE o que vai para a impressora,
+// corrigindo qualquer desincronia que tenha ocorrido antes.
+
+window.onbeforeprint = () => {
+    // 1. Encontra todos os modais de impressão
+    const allPrintables = document.querySelectorAll('.printable-area');
+    
+    // 2. Remove a classe ativa de todos (Zera o estado)
+    allPrintables.forEach(el => el.classList.remove('printable-area-active'));
+    
+    // 3. Encontra qual modal está VISÍVEL na tela agora (não tem a classe 'hidden')
+    // e marca APENAS ELE como ativo para impressão.
+    allPrintables.forEach(el => {
+        if (!el.classList.contains('hidden')) {
+            el.classList.add('printable-area-active');
+        }
+    });
+};
 // ==============================================================================
 
 
-/**
- * Retorna o HTML para um selo (badge) de status.
- * @param {string} status - O status ('Pendente', 'Finalizada', 'Aguardando Contato', etc.)
- * @returns {string} HTML do selo de status.
- */
 export const getStatusBadge = (status) => {
     const statusMap = {
         'Pendente': 'bg-yellow-100 text-yellow-800',
@@ -124,9 +105,7 @@ export const getStatusBadge = (status) => {
     return `<span class="text-xs font-medium px-2.5 py-0.5 rounded-full ${colorClasses}">${status || 'N/A'}</span>`;
 };
 
-
 export const enhanceTextForSharing = (title, text) => {
-    // ... (função inalterada)
     let enhancedText = text;
     if (title.toLowerCase().includes('ocorrência')) enhancedText = `*📢 NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR 📢*\n\n${text}`;
     else if (title.toLowerCase().includes('relatório')) enhancedText = `*📋 RELATÓRIO DE OCORRÊNCIAS 📋*\n\n${text}`;
@@ -144,7 +123,6 @@ export const enhanceTextForSharing = (title, text) => {
 };
 
 export const shareContent = async (title, text) => {
-    // ... (função inalterada)
     const enhancedText = enhanceTextForSharing(title, text);
     if (navigator.share) {
         try {
@@ -160,7 +138,6 @@ export const shareContent = async (title, text) => {
 };
 
 export const loadScript = (url) => {
-  // ... (função inalterada)
   return new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${url}"]`)) {
       return resolve();
