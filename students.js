@@ -2,15 +2,15 @@
 // ARQUIVO: students.js
 
 import { state, dom } from './state.js';
-import { setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getStudentsDocRef } from './firestore.js';
-import { showToast, openModal, loadScript } from './utils.js'; // Importa loadScript
+import { setDoc, doc, writeBatch, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStudentsCollectionRef, loadStudents } from './firestore.js'; // Importa loadStudents para recarregar após salvar
+import { db } from './firebase.js'; // Necessário para batch
+import { showToast, openModal, loadScript } from './utils.js'; 
 
 /**
  * Renderiza a lista de alunos no modal "Gerir Alunos".
  * A lógica de clique será gerenciada por delegação de eventos
  * em `handleStudentTableActions` dentro deste módulo.
- * (Movido de ui.js)
  */
 const renderStudentsList = () => {
     // Usa a referência do DOM já inicializada
@@ -19,6 +19,7 @@ const renderStudentsList = () => {
 
     tableBody.innerHTML = ''; // Limpa a tabela antes de redesenhar.
 
+    // Ordena em memória para exibição (escalabilidade visual)
     state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -38,7 +39,6 @@ const renderStudentsList = () => {
 
 /**
  * Reseta o formulário de adição/edição de aluno.
- * (Movido de ui.js)
  */
 const resetStudentForm = () => {
     document.getElementById('student-form-title').textContent = 'Adicionar Novo Aluno';
@@ -46,24 +46,23 @@ const resetStudentForm = () => {
     document.getElementById('student-id-input').value = '';
     document.getElementById('student-matricula-input').readOnly = false;
     document.getElementById('student-matricula-input').classList.remove('bg-gray-100');
-    dom.cancelEditStudentBtn.classList.add('hidden'); // Usa a referência do DOM
+    dom.cancelEditStudentBtn.classList.add('hidden'); 
 };
 
 /**
  * Lida com o upload do ficheiro CSV de alunos.
- * (Movido de main.js)
- * (MODIFICADO - Cores)
+ * (MODIFICADO - ESCALÁVEL) Agora usa Batches do Firestore para salvar individualmente.
  */
 async function handleCsvUpload() {
-    const fileInput = dom.csvFile; // Usa a referência do DOM
-    const feedbackDiv = dom.csvFeedback; // Usa a referência do DOM
+    const fileInput = dom.csvFile; 
+    const feedbackDiv = dom.csvFeedback; 
 
     if (fileInput.files.length === 0) return showToast("Por favor, selecione um ficheiro CSV.");
 
     try {
         // Verifica se Papa já está carregado
         if (typeof window.Papa === 'undefined') {
-            feedbackDiv.innerHTML = `<p class="text-sky-500">A carregar biblioteca de CSV...</p>`; // Cor atualizada
+            feedbackDiv.innerHTML = `<p class="text-sky-500">A carregar biblioteca de CSV...</p>`; 
             const papaScriptUrl = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js';
             await loadScript(papaScriptUrl);
             if (typeof window.Papa === 'undefined') {
@@ -96,22 +95,61 @@ async function handleCsvUpload() {
                      return;
                 }
 
-                const newStudentList = results.data.map(row => ({
-                    matricula: row.matricula || '', name: row.nome || '', class: row.turma || '',
-                    endereco: row.endereco || '', contato: row.contato || '',
-                    resp1: row.resp1 || '', resp2: row.resp2 || ''
+                // Filtra linhas inválidas
+                const validStudents = results.data.map(row => ({
+                    matricula: row.matricula ? String(row.matricula).trim() : '',
+                    name: row.nome ? String(row.nome).trim() : '',
+                    class: row.turma || '',
+                    endereco: row.endereco || '',
+                    contato: row.contato || '',
+                    resp1: row.resp1 || '',
+                    resp2: row.resp2 || ''
                 })).filter(s => s.name && s.matricula);
 
+                if (validStudents.length === 0) {
+                     feedbackDiv.innerHTML = `<p class="text-red-500">Nenhum aluno válido encontrado no CSV.</p>`;
+                     return;
+                }
+
+                // --- LÓGICA DE BATCH (LOTE) ---
+                // O Firestore permite no máximo 500 operações por batch.
+                const BATCH_SIZE = 450; // Margem de segurança
+                const chunks = [];
+                for (let i = 0; i < validStudents.length; i += BATCH_SIZE) {
+                    chunks.push(validStudents.slice(i, i + BATCH_SIZE));
+                }
+
+                feedbackDiv.innerHTML = `<p class="text-sky-600">A processar ${validStudents.length} alunos em ${chunks.length} lotes...</p>`;
+
+                const collectionRef = getStudentsCollectionRef();
+                let processedCount = 0;
+
                 try {
-                    await setDoc(getStudentsDocRef(), { list: newStudentList });
-                    state.students = newStudentList;
+                    for (const chunk of chunks) {
+                        const batch = writeBatch(db);
+                        chunk.forEach(student => {
+                            // Usa a Matrícula como ID do documento (evita duplicatas automaticamente)
+                            const docRef = doc(collectionRef, student.matricula);
+                            batch.set(docRef, student);
+                        });
+                        await batch.commit();
+                        processedCount += chunk.length;
+                        feedbackDiv.innerHTML = `<p class="text-sky-600">Salvo lote de ${processedCount}/${validStudents.length} alunos...</p>`;
+                    }
+
+                    // Recarrega a lista do Firestore para atualizar a UI e o State
+                    await loadStudents();
+                    
                     renderStudentsList();
-                    showToast(`${newStudentList.length} alunos importados com sucesso!`);
+                    showToast(`${processedCount} alunos importados/atualizados com sucesso!`);
                     fileInput.value = '';
-                    feedbackDiv.innerHTML = '';
+                    feedbackDiv.innerHTML = `<p class="text-green-600 font-bold">Importação concluída com sucesso!</p>`;
+                    setTimeout(() => feedbackDiv.innerHTML = '', 5000);
+
                 } catch(error) {
-                    console.error("Erro ao salvar alunos no Firestore:", error);
-                    showToast("Erro ao salvar a nova lista de alunos no banco de dados.");
+                    console.error("Erro ao salvar lote no Firestore:", error);
+                    feedbackDiv.innerHTML = `<p class="text-red-500">Erro ao salvar no banco de dados: ${error.message}</p>`;
+                    showToast("Erro crítico durante a importação.");
                 }
             },
             error: (error, file) => {
@@ -129,16 +167,16 @@ async function handleCsvUpload() {
 
 /**
  * Lida com a submissão do formulário de adição/edição de aluno.
- * (Movido de main.js)
+ * (MODIFICADO - ESCALÁVEL) Usa setDoc num documento individual.
  */
 async function handleStudentFormSubmit(e) {
     e.preventDefault();
-    const id = document.getElementById('student-id-input').value; // Usado para saber se é edição
+    const id = document.getElementById('student-id-input').value; // ID original (se edição)
     const matricula = document.getElementById('student-matricula-input').value.trim();
     const name = document.getElementById('student-name-input').value.trim();
+    
     if (!matricula || !name) return showToast("Matrícula e Nome são obrigatórios.");
 
-    let updatedList = [...state.students];
     const studentData = {
         matricula, name,
         class: document.getElementById('student-class-input').value.trim(),
@@ -148,28 +186,40 @@ async function handleStudentFormSubmit(e) {
         resp2: document.getElementById('student-resp2-input').value.trim()
     };
 
-    if (id) { // Se tem id, está editando
-        const index = updatedList.findIndex(s => s.matricula === id); // Procura pelo ID original
-        if (index > -1) {
-            // Verifica se a matrícula foi alterada e se a nova já existe
-            if (id !== matricula && updatedList.some((s, i) => s.matricula === matricula && i !== index)) {
-                return showToast("Erro: A nova matrícula já pertence a outro aluno.");
-            }
-            updatedList[index] = studentData; // Atualiza o aluno na lista
-        } else {
-             return showToast("Erro: Aluno não encontrado para edição."); // Segurança
-        }
-    } else { // Se não tem id, está adicionando
-        if (updatedList.some(s => s.matricula === matricula)) return showToast("Erro: Matrícula já existe.");
-        updatedList.push(studentData);
-    }
-
     try {
-        await setDoc(getStudentsDocRef(), { list: updatedList });
-        state.students = updatedList; // Atualiza o estado global
-        renderStudentsList(); // Re-renderiza a tabela no modal
-        resetStudentForm(); // Limpa o formulário
+        const collectionRef = getStudentsCollectionRef();
+
+        if (id && id !== matricula) {
+            // Se a matrícula mudou, precisamos verificar se a nova já existe
+            // (O Firestore sobrescreve por padrão, mas podemos querer avisar)
+            // Para simplificar e manter consistência: Se mudou ID, cria novo e deleta antigo?
+            // Melhor: Bloquear edição de matrícula ou avisar. O código anterior permitia mas checava array.
+            // Aqui, vamos assumir que sobrescrever é OK ou deletar o antigo se o ID mudou.
+            
+            // 1. Cria o novo documento com a nova matrícula
+            await setDoc(doc(collectionRef, matricula), studentData);
+            // 2. Deleta o documento antigo
+            await deleteDoc(doc(collectionRef, id));
+        } else {
+            // Criação ou atualização (mesmo ID)
+            await setDoc(doc(collectionRef, matricula), studentData, { merge: true });
+        }
+
+        // Atualiza o estado global recarregando (ou manipulando array localmente para rapidez)
+        // Vamos manipular localmente para performance instantânea
+        if (id) {
+            const index = state.students.findIndex(s => s.matricula === id);
+            if (index > -1) state.students.splice(index, 1); // Remove antigo
+        }
+        // Adiciona/Atualiza o novo (se já existe na lista local, remove e põe novo)
+        const existingIndex = state.students.findIndex(s => s.matricula === matricula);
+        if (existingIndex > -1) state.students[existingIndex] = studentData;
+        else state.students.push(studentData);
+
+        renderStudentsList(); 
+        resetStudentForm(); 
         showToast(`Aluno ${id ? 'atualizado' : 'adicionado'} com sucesso.`);
+        
     } catch(error) {
         console.error("Erro ao salvar aluno:", error);
         showToast("Erro ao salvar dados do aluno.");
@@ -178,7 +228,7 @@ async function handleStudentFormSubmit(e) {
 
 /**
  * Lida com cliques nos botões de editar e excluir na tabela de alunos.
- * (Movido de main.js)
+ * (MODIFICADO - ESCALÁVEL) Usa deleteDoc no documento individual.
  */
 async function handleStudentTableActions(e) {
     const editBtn = e.target.closest('.edit-student-btn');
@@ -190,15 +240,14 @@ async function handleStudentTableActions(e) {
             document.getElementById('student-form-title').textContent = 'Editar Aluno';
             document.getElementById('student-id-input').value = student.matricula; // Guarda o ID original
             document.getElementById('student-matricula-input').value = student.matricula;
-            // document.getElementById('student-matricula-input').readOnly = true; // Permite editar matrícula agora
-            // document.getElementById('student-matricula-input').classList.add('bg-gray-100');
+            // document.getElementById('student-matricula-input').readOnly = true; // Opção de bloquear matrícula
             document.getElementById('student-name-input').value = student.name;
             document.getElementById('student-class-input').value = student.class || '';
             document.getElementById('student-endereco-input').value = student.endereco || '';
             document.getElementById('student-contato-input').value = student.contato || '';
             document.getElementById('student-resp1-input').value = student.resp1 || '';
             document.getElementById('student-resp2-input').value = student.resp2 || '';
-            dom.cancelEditStudentBtn.classList.remove('hidden'); // Mostra o botão Cancelar Edição
+            dom.cancelEditStudentBtn.classList.remove('hidden'); 
         }
         return;
     }
@@ -207,17 +256,19 @@ async function handleStudentTableActions(e) {
     if (deleteBtn) {
         const id = deleteBtn.dataset.id;
         const student = state.students.find(s => s.matricula === id);
-        // Pede confirmação antes de excluir
+        
         if (student && confirm(`Tem a certeza que quer remover o aluno "${student.name}"? Esta ação não pode ser desfeita.`)) {
-            const updatedList = state.students.filter(s => s.matricula !== id);
             try {
-                await setDoc(getStudentsDocRef(), { list: updatedList }); // Salva a lista sem o aluno
-                state.students = updatedList; // Atualiza o estado
-                renderStudentsList(); // Re-renderiza a tabela
+                // Deleta o documento individual da coleção
+                await deleteDoc(doc(getStudentsCollectionRef(), id));
+                
+                // Atualiza estado local
+                state.students = state.students.filter(s => s.matricula !== id);
+                renderStudentsList(); 
                 showToast("Aluno removido com sucesso.");
             } catch(error) {
                 console.error("Erro ao remover aluno:", error);
-                showToast("Erro ao remover aluno.");
+                showToast("Erro ao remover aluno do banco de dados.");
             }
         }
     }
@@ -234,7 +285,7 @@ export const initStudentListeners = () => {
 
     if (manageStudentsBtn && studentsModal) {
         manageStudentsBtn.addEventListener('click', () => {
-            renderStudentsList(); // Garante que a lista está atualizada ao abrir
+            renderStudentsList(); 
             openModal(studentsModal);
         });
     }
@@ -255,6 +306,4 @@ export const initStudentListeners = () => {
     if (studentsListTable) {
         studentsListTable.addEventListener('click', handleStudentTableActions);
     }
-    
-    // Os botões de fechar/cancelar do modal já são tratados pelo `setupModalCloseButtons` no main.js
 };

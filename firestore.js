@@ -11,12 +11,22 @@ import { state } from './state.js';
 // --- FUNÇÕES DE REFERÊNCIA (Caminhos para os dados) ---
 
 /**
- * Retorna a referência para o documento que armazena a lista de todos os alunos.
- * @returns {DocumentReference}
+ * (LEGADO) Retorna a referência para o documento antigo de lista.
+ * Mantido apenas para referência, não usado na nova lógica de escrita.
  */
-export const getStudentsDocRef = () => {
+export const getLegacyStudentsDocRef = () => {
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     return doc(db, `/artifacts/${appId}/public/data/school-data`, 'students');
+};
+
+/**
+ * (NOVO - ESCALÁVEL) Retorna a referência para a COLEÇÃO de alunos.
+ * Agora cada aluno será um documento dentro desta pasta.
+ * @returns {CollectionReference}
+ */
+export const getStudentsCollectionRef = () => {
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    return collection(db, `/artifacts/${appId}/public/data/students`);
 };
 
 /**
@@ -122,21 +132,33 @@ export const deleteRecord = (type, id) => deleteDoc(doc(getCollectionRef(type), 
 // --- FUNÇÕES DE CARREGAMENTO E SALVAMENTO DE DADOS ---
 
 /**
- * Carrega a lista de alunos do Firestore e a armazena no estado global.
+ * (REESCRITO - ESCALÁVEL) Carrega a lista de alunos da COLEÇÃO.
+ * Agora itera sobre os documentos da coleção 'students' em vez de ler um array gigante.
  * @returns {Promise<void>}
  */
 export const loadStudents = async () => {
     try {
-        const docSnap = await getDoc(getStudentsDocRef());
-        if (docSnap.exists() && docSnap.data().list) {
-            state.students = docSnap.data().list;
-        } else {
-            console.log("Nenhuma lista de alunos encontrada no Firestore.");
-            state.students = [];
-        }
+        const studentsRef = getStudentsCollectionRef();
+        // (Melhoria futura: Adicionar limit(100) ou paginação aqui quando tiver muitos alunos)
+        const querySnapshot = await getDocs(query(studentsRef));
+        
+        const studentsList = [];
+        querySnapshot.forEach((doc) => {
+            // O ID do documento é a matrícula (definido na criação), mas garantimos que está nos dados
+            const studentData = doc.data();
+            // Garante que a matrícula está presente (fallback para o ID do documento)
+            if (!studentData.matricula) studentData.matricula = doc.id;
+            studentsList.push(studentData);
+        });
+
+        state.students = studentsList;
+        console.log(`${studentsList.length} alunos carregados da nova estrutura.`);
+        
     } catch (error) {
-        console.error("Erro ao carregar lista de alunos:", error);
-        throw new Error("Erro ao carregar a lista de alunos.");
+        console.error("Erro ao carregar lista de alunos (Coleção):", error);
+        // Fallback silencioso para array vazio para não quebrar a UI
+        state.students = [];
+        throw new Error("Erro ao carregar a lista de alunos da nova base de dados.");
     }
 };
 

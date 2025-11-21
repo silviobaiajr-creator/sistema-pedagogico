@@ -23,17 +23,19 @@ service cloud.firestore {
     
     match /artifacts/{appId}/public/data {
 
-      // 1. Lista de Alunos (Documento único com array)
-      match /school-data/students {
-        allow read, write: if isSignedIn();
-      }
-
-      // 2. Configurações da Escola
+      // 1. Configurações da Escola
       match /school-data/config {
         // Todos logados podem LER (para ver o logo e nome da escola)
         allow read: if isSignedIn();
         // Apenas o e-mail específico pode EDITAR
         allow write: if isSuperAdmin();
+      }
+
+      // 2. Coleção de Alunos (NOVA ESTRUTURA - ESCALÁVEL)
+      // Antes era um documento único em school-data/students. 
+      // Agora é uma coleção separada.
+      match /students/{studentId} {
+        allow read, write: if isSignedIn();
       }
 
       // 3. Coleção de Ocorrências
@@ -48,6 +50,12 @@ service cloud.firestore {
 
       // 5. Contadores (Crucial para gerar IDs sequenciais)
       match /counters/{document=**} {
+        allow read, write: if isSignedIn();
+      }
+      
+      // (LEGADO) Mantemos esta regra temporariamente para não quebrar leituras antigas,
+      // mas o sistema novo usará a coleção acima (item 2).
+      match /school-data/students {
         allow read, write: if isSignedIn();
       }
     }
