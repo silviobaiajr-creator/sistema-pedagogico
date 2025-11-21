@@ -67,115 +67,107 @@ export const determineNextActionForStudent = (studentId) => {
 
 
 // ==============================================================================
-// --- (NOVO V3) Lógica das Ocorrências ---
+// --- (NOVO V4) Lógica das Ocorrências (3 Tentativas) ---
 // ==============================================================================
 
-// Mapeia o STATUS ATUAL para a PRÓXIMA AÇÃO (Ação 2-6)
-// Esta lógica será usada pela nova função abaixo.
+// Mapeia o STATUS ATUAL para a PRÓXIMA AÇÃO (Botão "Avançar")
 const occurrenceNextActionMap = {
-    'Aguardando Convocação': 'convocacao', // Ação 2
-    'Aguardando Contato': 'contato_familia', // Ação 3
-    'Aguardando Desfecho': 'desfecho_ou_ct', // Ação 4 ou 6 (caso especial)
-    'Aguardando Devolutiva CT': 'devolutiva_ct', // Ação 5
-    'Aguardando Parecer Final': 'parecer_final', // Ação 6
-    'Resolvido': null // Processo finalizado
+    'Aguardando Convocação': 'convocacao', // Inicia Ação 2
+    'Aguardando Contato 1': 'contato_familia_1', // Inicia Tentativa 1
+    'Aguardando Contato 2': 'contato_familia_2', // Inicia Tentativa 2 (se T1 falhou)
+    'Aguardando Contato 3': 'contato_familia_3', // Inicia Tentativa 3 (se T2 falhou)
+    'Aguardando Desfecho': 'desfecho_ou_ct', // Inicia Ação 4 ou 6
+    'Aguardando Devolutiva CT': 'devolutiva_ct', // Inicia Ação 5
+    'Aguardando Parecer Final': 'parecer_final', // Inicia Ação 6 (pós CT)
+    'Resolvido': null
 };
 
 /**
- * (NOVO V3) Determina qual é a próxima ação de ocorrência com base
- * no status individual do aluno.
- * @param {string} currentStatus - O status atual (ex: 'Aguardando Convocação').
- * @returns {string|null} O tipo da próxima ação (ex: 'convocacao') ou null se finalizado.
+ * Determina qual é a próxima ação de ocorrência com base no status.
  */
 export const determineNextOccurrenceStep = (currentStatus) => {
-    if (!currentStatus) {
-        // Se o status for nulo ou indefinido, assume que é o início do processo
-        return 'convocacao'; 
-    }
-    
-    // Retorna a próxima ação com base no mapa, ou null se não houver (ex: 'Resolvido')
+    if (!currentStatus) return 'convocacao'; 
     return occurrenceNextActionMap[currentStatus] || null;
 };
 
-// --- (NOVO - Edição de Ação 01/11/2025) ---
-// Esta seção implementa a lógica para PERMITIR A EDIÇÃO
-// da última ação individual que o usuário salvou.
+// ==============================================================================
+// --- Lógica de Edição (Voltar para editar a última ação) ---
 // ==============================================================================
 
-// Mapeia o STATUS ATUAL para a AÇÃO ANTERIOR (a que acabou de ser salva)
-// Isso permite ao sistema saber qual tela abrir para edição.
+// Mapeia o STATUS ATUAL para a AÇÃO ANTERIOR (Botão "Editar Ação")
 const occurrencePreviousActionMap = {
-    'Aguardando Convocação': null, // Não há ação anterior para editar (use "Editar Fato")
-    'Aguardando Contato': 'convocacao', // Ação 2 (convocacao) foi a última salva
-    'Aguardando Desfecho': 'contato_familia', // Ação 3 (contato_familia) foi a última salva
-    'Aguardando Devolutiva CT': 'desfecho_ou_ct', // Ação 4 (CT) foi a última salva
-    'Aguardando Parecer Final': 'devolutiva_ct', // Ação 5 (devolutiva_ct) foi a última salva
-    'Resolvido': 'parecer_final' // Ação 6 (parecer_final) foi a última salva
+    'Aguardando Convocação': null, 
+    'Aguardando Contato 1': 'convocacao', // Se está esperando T1, a última coisa feita foi Convocação
+    'Aguardando Contato 2': 'contato_familia_1', // Se está esperando T2, a última foi T1 (falha)
+    'Aguardando Contato 3': 'contato_familia_2', // Se está esperando T3, a última foi T2 (falha)
+    'Aguardando Desfecho': 'contato_familia_x', // *Caso especial: pode ser T1, T2 ou T3. Ocorrência.js resolve.
+    'Aguardando Devolutiva CT': 'desfecho_ou_ct',
+    'Aguardando Parecer Final': 'devolutiva_ct',
+    'Resolvido': 'parecer_final'
 };
 
 /**
- * (NOVO - Edição) Determina qual ação deve ser aberta para EDIÇÃO
- * com base no status individual atual.
- * @param {string} currentStatus - O status atual (ex: 'Aguardando Contato').
- * @returns {string|null} O tipo da ação para editar (ex: 'convocacao') ou null.
+ * Determina qual ação deve ser aberta para EDIÇÃO.
  */
 export const determineCurrentActionFromStatus = (currentStatus) => {
-    if (!currentStatus) {
-        return null;
+    if (!currentStatus) return null;
+    
+    // Casos especiais
+    if (currentStatus === 'Resolvido') return 'parecer_final';
+    if (currentStatus === 'Aguardando Desfecho') {
+        // Retorna um marcador genérico. O occurrence.js verificará qual contato existe (3, 2 ou 1)
+        return 'contato_familia_x'; 
     }
-    // Casos especiais para "Resolvido"
-    if (currentStatus === 'Resolvido') {
-        // Se o status for "Resolvido", a última ação foi o "parecer_final".
-        // O arquivo 'occurrence.js' irá refinar isso para saber se
-        // deve abrir a Ação 6 ou a Ação 4/6 (desfecho_ou_ct).
-        return 'parecer_final';
-    }
-    // Para todos os outros status, consulta o mapa.
-    // Ex: Se o status é 'Aguardando Contato', o mapa retorna 'convocacao',
-    // indicando que a Ação 2 (convocacao) é a que deve ser editada.
+
     return occurrencePreviousActionMap[currentStatus] || null;
 };
 
 
-// --- (NOVO - Reset de Ação 01/11/2025) ---
-// Esta seção implementa a lógica para "Resetar" (Desfazer)
-// uma etapa, limpando os dados e revertendo o status em cascata.
+// ==============================================================================
+// --- Lógica de Reset (Cascata de Exclusão) ---
 // ==============================================================================
 
-// Define quais campos do banco de dados devem ser limpos (setados para null)
-// e para qual status o processo deve reverter ao resetar uma etapa.
-// A lógica é CASCATA: resetar a Ação 3 também limpa os campos da 4, 5 e 6.
+// Definição dos campos no banco de dados (Usaremos sufixos _1, _2, _3 no occurrence.js)
 const camposAcao6 = ['parecerFinal'];
 const camposAcao5 = ['ctFeedback', ...camposAcao6];
-const camposAcao4_6 = ['oficioNumber', 'oficioYear', 'ctSentDate', 'desfechoChoice', ...camposAcao5]; // 'parecerFinal' já está em camposAcao5
-const camposAcao3 = ['contactSucceeded', 'contactType', 'contactDate', 'providenciasFamilia', ...camposAcao4_6];
-const camposAcao2 = ['meetingDate', 'meetingTime', ...camposAcao3];
+const camposAcao4_6 = ['oficioNumber', 'oficioYear', 'ctSentDate', 'desfechoChoice', ...camposAcao5]; 
+
+// Tentativa 3 limpa o desfecho
+const camposAcao3_3 = ['contactSucceeded_3', 'contactType_3', 'contactDate_3', 'providenciasFamilia_3', ...camposAcao4_6];
+// Tentativa 2 limpa a 3 + desfecho
+const camposAcao3_2 = ['contactSucceeded_2', 'contactType_2', 'contactDate_2', 'providenciasFamilia_2', ...camposAcao3_3];
+// Tentativa 1 limpa a 2 + 3 + desfecho
+const camposAcao3_1 = ['contactSucceeded_1', 'contactType_1', 'contactDate_1', 'providenciasFamilia_1', ...camposAcao3_2];
+
+const camposAcao2 = ['meetingDate', 'meetingTime', ...camposAcao3_1];
 
 export const occurrenceStepLogic = {
-    // Ação 2: Convocação
     'convocacao': {
         fieldsToClear: camposAcao2,
-        statusAfterReset: 'Aguardando Convocação' // Reverte para o status inicial
+        statusAfterReset: 'Aguardando Convocação'
     },
-    // Ação 3: Contato com Família
-    'contato_familia': {
-        fieldsToClear: camposAcao3,
-        statusAfterReset: 'Aguardando Contato' // Reverte para o status da Ação 2
+    'contato_familia_1': {
+        fieldsToClear: camposAcao3_1,
+        statusAfterReset: 'Aguardando Contato 1' // Volta para o status definido pela Convocação
     },
-    // Ação 4/6: Desfecho (CT ou Parecer)
+    'contato_familia_2': {
+        fieldsToClear: camposAcao3_2,
+        statusAfterReset: 'Aguardando Contato 2' // Volta para o status definido pela falha da T1
+    },
+    'contato_familia_3': {
+        fieldsToClear: camposAcao3_3,
+        statusAfterReset: 'Aguardando Contato 3' // Volta para o status definido pela falha da T2
+    },
     'desfecho_ou_ct': {
         fieldsToClear: camposAcao4_6,
-        statusAfterReset: 'Aguardando Desfecho' // Reverte para o status da Ação 3
+        statusAfterReset: 'Aguardando Desfecho'
     },
-    // Ação 5: Devolutiva do CT
     'devolutiva_ct': {
         fieldsToClear: camposAcao5,
-        statusAfterReset: 'Aguardando Devolutiva CT' // Reverte para o status da Ação 4
+        statusAfterReset: 'Aguardando Devolutiva CT'
     },
-    // Ação 6: Parecer Final (Pós-CT)
     'parecer_final': {
         fieldsToClear: camposAcao6,
-        statusAfterReset: 'Aguardando Parecer Final' // Reverte para o status da Ação 5
+        statusAfterReset: 'Aguardando Parecer Final'
     }
 };
-
