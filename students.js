@@ -148,8 +148,13 @@ async function handleCsvUpload() {
 
                 } catch(error) {
                     console.error("Erro ao salvar lote no Firestore:", error);
-                    feedbackDiv.innerHTML = `<p class="text-red-500">Erro ao salvar no banco de dados: ${error.message}</p>`;
-                    showToast("Erro crítico durante a importação.");
+                    // --- MELHORIA DE ERRO ---
+                    let msg = error.message;
+                    if (error.code === 'permission-denied' || msg.includes("Missing or insufficient permissions")) {
+                        msg = "Permissão negada! Verifique se as Regras de Segurança (firestore.rules) foram publicadas no Console do Firebase.";
+                    }
+                    feedbackDiv.innerHTML = `<p class="text-red-500 font-bold">${msg}</p>`;
+                    showToast("Erro de permissão ao salvar dados.");
                 }
             },
             error: (error, file) => {
@@ -190,12 +195,7 @@ async function handleStudentFormSubmit(e) {
         const collectionRef = getStudentsCollectionRef();
 
         if (id && id !== matricula) {
-            // Se a matrícula mudou, precisamos verificar se a nova já existe
-            // (O Firestore sobrescreve por padrão, mas podemos querer avisar)
-            // Para simplificar e manter consistência: Se mudou ID, cria novo e deleta antigo?
-            // Melhor: Bloquear edição de matrícula ou avisar. O código anterior permitia mas checava array.
-            // Aqui, vamos assumir que sobrescrever é OK ou deletar o antigo se o ID mudou.
-            
+            // Se a matrícula mudou:
             // 1. Cria o novo documento com a nova matrícula
             await setDoc(doc(collectionRef, matricula), studentData);
             // 2. Deleta o documento antigo
@@ -205,13 +205,11 @@ async function handleStudentFormSubmit(e) {
             await setDoc(doc(collectionRef, matricula), studentData, { merge: true });
         }
 
-        // Atualiza o estado global recarregando (ou manipulando array localmente para rapidez)
-        // Vamos manipular localmente para performance instantânea
+        // Atualiza o estado global localmente para performance
         if (id) {
             const index = state.students.findIndex(s => s.matricula === id);
             if (index > -1) state.students.splice(index, 1); // Remove antigo
         }
-        // Adiciona/Atualiza o novo (se já existe na lista local, remove e põe novo)
         const existingIndex = state.students.findIndex(s => s.matricula === matricula);
         if (existingIndex > -1) state.students[existingIndex] = studentData;
         else state.students.push(studentData);
@@ -222,7 +220,12 @@ async function handleStudentFormSubmit(e) {
         
     } catch(error) {
         console.error("Erro ao salvar aluno:", error);
-        showToast("Erro ao salvar dados do aluno.");
+        // --- MELHORIA DE ERRO ---
+        if (error.code === 'permission-denied') {
+             showToast("Erro de Permissão: Atualize as regras no Firebase Console.");
+        } else {
+             showToast("Erro ao salvar dados do aluno.");
+        }
     }
 }
 
@@ -240,7 +243,6 @@ async function handleStudentTableActions(e) {
             document.getElementById('student-form-title').textContent = 'Editar Aluno';
             document.getElementById('student-id-input').value = student.matricula; // Guarda o ID original
             document.getElementById('student-matricula-input').value = student.matricula;
-            // document.getElementById('student-matricula-input').readOnly = true; // Opção de bloquear matrícula
             document.getElementById('student-name-input').value = student.name;
             document.getElementById('student-class-input').value = student.class || '';
             document.getElementById('student-endereco-input').value = student.endereco || '';
@@ -268,7 +270,12 @@ async function handleStudentTableActions(e) {
                 showToast("Aluno removido com sucesso.");
             } catch(error) {
                 console.error("Erro ao remover aluno:", error);
-                showToast("Erro ao remover aluno do banco de dados.");
+                // --- MELHORIA DE ERRO ---
+                if (error.code === 'permission-denied') {
+                     showToast("Erro de Permissão: Atualize as regras no Firebase Console.");
+                } else {
+                     showToast("Erro ao remover aluno.");
+                }
             }
         }
     }

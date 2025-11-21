@@ -3,7 +3,7 @@
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
-    query, where, getDocs // <-- ADICIONADO
+    query, where, getDocs 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 import { state } from './state.js';
@@ -156,8 +156,15 @@ export const loadStudents = async () => {
         
     } catch (error) {
         console.error("Erro ao carregar lista de alunos (Coleção):", error);
-        // Fallback silencioso para array vazio para não quebrar a UI
-        state.students = [];
+        state.students = []; // Fallback para array vazio
+        
+        // --- MELHORIA DE ERRO ---
+        if (error.code === 'permission-denied') {
+            console.warn("PERMISSÃO NEGADA: As regras de segurança do Firestore (firestore.rules) bloqueiam o acesso à coleção 'students'. É necessário atualizar as regras no Firebase Console.");
+            // Lança um erro com mensagem clara para o main.js pegar
+            throw new Error("Permissão negada. Atualize o firestore.rules no Firebase Console.");
+        }
+        
         throw new Error("Erro ao carregar a lista de alunos da nova base de dados.");
     }
 };
