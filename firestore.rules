@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================================
+    // FUNÇÕES AUXILIARES
+    // ==========================================================
+    
+    // Verifica se o usuário está logado no sistema
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Verifica se o email do usuário é o do administrador
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.email == 'silviobaiajr@gmail.com';
+    }
+
+    // ==========================================================
+    // REGRAS DA APLICAÇÃO
+    // O caminho base usado no firestore.js é: /artifacts/{appId}/public/data/...
+    // ==========================================================
+    
+    match /artifacts/{appId}/public/data {
+
+      // 1. Lista de Alunos (Documento único com array)
+      match /school-data/students {
+        allow read, write: if isSignedIn();
+      }
+
+      // 2. Configurações da Escola
+      match /school-data/config {
+        // Todos logados podem LER (para ver o logo e nome da escola)
+        allow read: if isSignedIn();
+        // Apenas o e-mail específico pode EDITAR
+        allow write: if isSuperAdmin();
+      }
+
+      // 3. Coleção de Ocorrências
+      match /occurrences/{document=**} {
+        allow read, write: if isSignedIn();
+      }
+
+      // 4. Coleção de Busca Ativa (Absences)
+      match /absences/{document=**} {
+        allow read, write: if isSignedIn();
+      }
+
+      // 5. Contadores (Crucial para gerar IDs sequenciais)
+      match /counters/{document=**} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // ==========================================================
+    // BLOQUEIO PADRÃO
+    // Qualquer coisa fora dos caminhos acima será bloqueada
+    // ==========================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
