@@ -3,12 +3,12 @@
 // --- MÓDULOS IMPORTADOS ---
 
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { onSnapshot, query, writeBatch, doc, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { onSnapshot, query, writeBatch, doc, where, getDocs, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, shareContent, openModal, loadScript } from './utils.js';
 // (NOVO - Reset) Importa updateRecordWithHistory
-import { loadStudents, loadSchoolConfig, getCollectionRef, deleteRecord, updateRecordWithHistory } from './firestore.js';
+import { loadStudents, loadSchoolConfig, getCollectionRef, deleteRecord, updateRecordWithHistory, getStudentsCollectionRef } from './firestore.js';
 
 // Módulos de Funcionalidade
 import { initAuthListeners } from './auth.js';
@@ -334,6 +334,75 @@ function setupModalCloseButtons() {
     document.getElementById('report-print-btn').addEventListener('click', () => window.print());
     document.getElementById('ficha-print-btn').addEventListener('click', () => window.print());
 }
+
 // ==============================================================================
-// --- (FIM DA CORREÇÃO) ---
+// --- TESTE DE CARGA (STRESS TEST) ---
+// Ferramenta secreta para o Gestor de Produto testar escalabilidade.
+// Uso: Abra a consola e digite: runStressTest(500)
 // ==============================================================================
+
+window.runStressTest = async (count = 100) => {
+    if (!confirm(`⚠️ ATENÇÃO: Isso vai gerar ${count} alunos falsos no banco de dados!\n\nIsso pode consumir sua quota do Firebase e deixar o app lento se não houver paginação.\n\nDeseja continuar?`)) return;
+
+    console.log(`🚀 Iniciando Stress Test: Gerando ${count} alunos...`);
+    showToast(`Gerando ${count} alunos... (Veja a consola)`);
+
+    const batchSize = 400; // Limite do Firestore é 500
+    const batches = [];
+    let currentBatch = writeBatch(db);
+    let operationCount = 0;
+
+    const firstNames = ["João", "Maria", "Ana", "Pedro", "Lucas", "Julia", "Beatriz", "Carlos", "Mariana", "Gabriel"];
+    const lastNames = ["Silva", "Santos", "Oliveira", "Souza", "Rodrigues", "Ferreira", "Alves", "Pereira", "Lima", "Gomes"];
+    const turmas = ["1A", "1B", "2A", "3C", "4B", "5A", "6D", "9A"];
+
+    for (let i = 0; i < count; i++) {
+        const randomName = `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]} ${Math.floor(Math.random() * 1000)}`;
+        const matricula = `TEST-${Date.now()}-${i}`;
+        
+        const studentData = {
+            matricula: matricula,
+            name: randomName,
+            class: turmas[Math.floor(Math.random() * turmas.length)],
+            endereco: "Rua Teste de Carga, 123",
+            contato: "99999-9999",
+            resp1: "Responsável Teste 1",
+            resp2: "Responsável Teste 2",
+            isTest: true // Flag para identificar dados de teste
+        };
+
+        // Referência ao documento na coleção 'students'
+        const docRef = doc(getStudentsCollectionRef(), matricula);
+        currentBatch.set(docRef, studentData);
+        operationCount++;
+
+        if (operationCount >= batchSize) {
+            batches.push(currentBatch);
+            currentBatch = writeBatch(db);
+            operationCount = 0;
+        }
+    }
+
+    if (operationCount > 0) {
+        batches.push(currentBatch);
+    }
+
+    try {
+        console.log(`💾 Salvando em ${batches.length} lotes...`);
+        for (let i = 0; i < batches.length; i++) {
+            await batches[i].commit();
+            console.log(`✅ Lote ${i + 1}/${batches.length} salvo.`);
+            showToast(`Salvando lote ${i + 1}/${batches.length}...`);
+        }
+        
+        console.log("🎉 Stress Test Concluído! Recarregue a página.");
+        showToast("Concluído! Recarregue a página para ver o impacto.");
+        
+        // Força recarregamento para ver o "peso"
+        // window.location.reload(); 
+
+    } catch (error) {
+        console.error("❌ Erro no Stress Test:", error);
+        showToast("Erro ao gerar dados de teste.");
+    }
+};
