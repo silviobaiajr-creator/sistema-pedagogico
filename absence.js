@@ -1,13 +1,15 @@
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 2.6 (Correção do Listener de Notificação)
+// VERSÃO: 2.9 (Correção: Busca Automática ao Avançar Etapa)
+// =================================================================================
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js';
 import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js'; 
 // (ATENÇÃO) Importa openFichaViewModal corretamente
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
-import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName } from './firestore.js'; 
+// (CORREÇÃO) Adicionado getStudentById para buscar aluno se não estiver na memória
+import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName, getStudentById } from './firestore.js'; 
 import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 
@@ -945,19 +947,29 @@ function handleViewOficio(id) {
 
 
 /**
- * Lida com o clique no nome do aluno (iniciar nova ação).
+ * Lida com o clique no nome do aluno (iniciar nova ação) ou botão Avançar.
+ * (CORREÇÃO) Torna a função assíncrona para buscar aluno se necessário.
  */
-function handleNewAbsenceFromHistory(studentId) {
-    // Tenta buscar na memória
+async function handleNewAbsenceFromHistory(studentId) {
+    // 1. Tenta buscar na memória (rápido)
     let student = state.students.find(s => s.matricula === studentId);
     
+    // 2. Se não achar, tenta buscar no servidor (Firestore)
+    if (!student) {
+        showToast("A carregar dados do aluno...");
+        try {
+            student = await getStudentById(studentId);
+        } catch (error) {
+            console.error("Erro ao buscar aluno:", error);
+        }
+    }
+
+    // 3. Se encontrar (em memória ou servidor), abre o modal
     if (student) {
         handleNewAbsenceAction(student); 
     } else {
-        // (CORREÇÃO) Fallback para alunos não carregados
-        // Se não estiver na memória, não conseguimos abrir o modal com os dados completos (endereço, etc)
-        // Idealmente, buscaríamos no servidor aqui. Por enquanto, exibimos alerta.
-        showToast("Carregue o aluno na aba 'Gerir Alunos' ou use a busca para continuar.");
+        // 4. Só se realmente falhar (aluno apagado?) exibe o erro
+        showToast("Erro: Aluno não encontrado no sistema.");
     }
 }
 
@@ -1109,6 +1121,7 @@ export const initAbsenceListeners = () => {
                 }
                 
                 if (button.classList.contains('avancar-etapa-btn') && !button.disabled) {
+                    // (ATUALIZADO) Chama a nova função assíncrona
                     handleNewAbsenceFromHistory(button.dataset.studentId);
                     return;
                 }
