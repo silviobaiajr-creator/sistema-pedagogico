@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 2.4 (Inclusão de Dados Completos nas Notificações)
+// VERSÃO: 2.5 (Prioridade Absoluta para Dados do Registo - Anti-Cache)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -19,34 +19,30 @@ export const actionDisplayTitles = {
     analise: "Análise"
 };
 
-// --- HELPER DE RESILIÊNCIA ---
-// Tenta encontrar o aluno na memória ou usa os dados desnormalizados do registro
+// --- HELPER DE RESILIÊNCIA (BLINDADO) ---
+// Prioriza DADOS DO REGISTRO (snapshot) sobre a memória volátil.
 const getStudentDataSafe = (studentId, recordSource = null) => {
+    // 1. Tenta pegar o aluno da memória local (para dados ricos como endereço completo se não salvo)
     const memoryStudent = state.students.find(s => s.matricula === studentId);
-    if (memoryStudent) return memoryStudent;
 
-    // Se não estiver na memória, tenta reconstruir usando dados salvos no registro
-    if (recordSource) {
-        return {
-            matricula: studentId,
-            name: recordSource.studentName || `Aluno (${studentId})`,
-            class: recordSource.studentClass || 'N/A',
-            // Campos que podem não existir na desnormalização (fallbacks)
-            endereco: 'Endereço não disponível (aluno fora da memória)',
-            resp1: 'Responsável não disponível',
-            resp2: '',
-            contato: 'Contato não disponível'
-        };
-    }
-
+    // 2. Prepara os dados base vindos do registo (Snapshot no tempo)
+    // Se recordSource existir, usa os dados dele. Se não, usa vazios.
+    const recordName = recordSource?.studentName;
+    const recordClass = recordSource?.studentClass;
+    
+    // Decisão de Dados:
+    // Nome: Registo > Memória > ID
+    // Turma: Registo > Memória > N/A
+    // Endereço/Contato/Resps: Memória > Registo (se salvarmos no futuro) > Vazio
+    
     return {
         matricula: studentId,
-        name: `Aluno (${studentId})`,
-        class: 'N/A',
-        endereco: '',
-        resp1: '',
-        resp2: '',
-        contato: ''
+        name: recordName || memoryStudent?.name || `Aluno (${studentId})`,
+        class: recordClass || memoryStudent?.class || 'N/A',
+        endereco: memoryStudent?.endereco || '', // Se não estiver na memória, fica vazio (não mostra erro)
+        contato: memoryStudent?.contato || '',
+        resp1: memoryStudent?.resp1 || '',
+        resp2: memoryStudent?.resp2 || ''
     };
 };
 
@@ -88,6 +84,7 @@ export const openStudentSelectionModal = async (groupId) => {
     const participants = [...incident.participantsInvolved.values()];
 
     if (participants.length === 1) {
+        // Passa o objeto student completo (que já pode ser um híbrido do logic.js)
         openIndividualNotificationModal(incident, participants[0].student);
         return;
     }
@@ -120,6 +117,7 @@ export const openStudentSelectionModal = async (groupId) => {
  * Gera e exibe a notificação formal (Ocorrências).
  */
 export const openIndividualNotificationModal = (incident, studentObj) => {
+    // Busca o registro individual específico para este aluno
     const data = incident.records.find(r => r.studentId === studentObj.matricula);
 
     if (!data) {
@@ -127,7 +125,9 @@ export const openIndividualNotificationModal = (incident, studentObj) => {
         return;
     }
 
-    // Garante dados do aluno (se o objeto passado for simples, tenta enriquecer)
+    // CONSTRÓI DADOS SEGUROS
+    // Usa 'data' (o registro) como fonte primária de verdade para nome/turma
+    // studentObj é usado como fallback ou para dados ricos (endereço) se vier da memória
     const student = getStudentDataSafe(studentObj.matricula, data.studentName ? data : studentObj);
 
     if (!data.meetingDate || !data.meetingTime) {
@@ -138,14 +138,16 @@ export const openIndividualNotificationModal = (incident, studentObj) => {
     const responsibleNames = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    // (MODIFICAÇÃO) Bloco de Identificação do Aluno
-    const studentIdentificationBlock = `
-        <div class="bg-gray-50 border rounded-md p-3 mb-4 text-sm" style="font-family: 'Inter', sans-serif;">
-            <p><strong>Aluno(a):</strong> ${formatText(student.name)}</p>
-            <p><strong>Turma:</strong> ${formatText(student.class)}</p>
-            <p><strong>Responsável(is):</strong> ${formatText(responsibleNames)}</p>
-            <p><strong>Endereço:</strong> ${formatText(student.endereco)}</p>
-            <p><strong>Contato:</strong> ${formatText(student.contato)}</p>
+    // Bloco de Identificação
+    const identificationBlock = `
+        <div class="border border-gray-300 rounded p-3 mb-4 bg-gray-50 text-xs sm:text-sm" style="font-family: 'Inter', sans-serif;">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div><strong>Aluno(a):</strong> ${formatText(student.name)}</div>
+                <div><strong>Turma:</strong> ${formatText(student.class)}</div>
+                <div class="sm:col-span-2"><strong>Endereço:</strong> ${formatText(student.endereco)}</div>
+                <div><strong>Contato:</strong> ${formatText(student.contato)}</div>
+                <div><strong>Responsáveis:</strong> ${formatText(responsibleNames)}</div>
+            </div>
         </div>
     `;
 
@@ -158,13 +160,9 @@ export const openIndividualNotificationModal = (incident, studentObj) => {
 
             <h3 class="text-lg font-semibold mt-4 text-center">NOTIFICAÇÃO DE OCORRÊNCIA ESCOLAR</h3>
 
-            ${studentIdentificationBlock}
+            ${identificationBlock}
             
-            <div class="pt-2">
-                <p class="mb-2"><strong>Aos Responsáveis:</strong> ${formatText(responsibleNames)}</p>
-            </div>
-            
-            <p class="text-justify mt-2">
+            <p class="text-justify mt-4">
                 Prezados(as), vimos por meio desta notificá-los sobre um registro referente ao(à) aluno(a) acima identificado(a),
                 referente a um incidente classificado como <strong>"${formatText(data.occurrenceType)}"</strong>, ocorrido em ${formatDate(data.date)}.
             </p>
@@ -234,6 +232,8 @@ export const openOccurrenceRecordModal = async (groupId) => {
 
     // 2. Fatos e Envolvidos (Resiliente)
     const participantsDetails = [...incident.participantsInvolved.values()].map(p => {
+        // Usa getStudentDataSafe implicitamente ou dados diretos do participant
+        // Aqui preferimos os dados diretos do objeto participant pois já foram processados no fetch
         const studentName = p.student.name;
         const studentClass = p.student.class;
         return `
@@ -277,15 +277,19 @@ export const openOccurrenceRecordModal = async (groupId) => {
         </p>
         <div class="space-y-3 mt-2">
             ${incident.records.map(rec => {
+                // Tenta pegar do mapa de participantes (que tem o objeto student)
                 const participant = incident.participantsInvolved.get(rec.studentId);
+                // Fallback para o nome gravado no registro se o participante não estiver completo
                 const studentName = participant ? participant.student.name : (rec.studentName || 'Aluno desconhecido');
                 
                 let textoAcoesAluno = "";
                 
+                // Ação 2
                 if (rec.meetingDate) {
                     textoAcoesAluno += `<li><strong>Ação 2 (Convocação):</strong> Agendada reunião para ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}.</li>`;
                 }
                 
+                // Ação 3 (Loop V4 - 3 Tentativas)
                 for (let i = 1; i <= 3; i++) {
                     const succeeded = rec[`contactSucceeded_${i}`];
                     const date = rec[`contactDate_${i}`];
@@ -301,12 +305,15 @@ export const openOccurrenceRecordModal = async (groupId) => {
                     }
                 }
                 
+                // Ação 4
                 if (rec.oficioNumber) {
                     textoAcoesAluno += `<li><strong>Ação 4 (Enc. CT):</strong> Encaminhado ao Conselho Tutelar (Ofício Nº ${formatText(rec.oficioNumber)}/${formatText(rec.oficioYear)}).</li>`;
                 }
+                // Ação 5
                 if (rec.ctFeedback) {
                     textoAcoesAluno += `<li><strong>Ação 5 (Devolutiva CT):</strong> Devolutiva recebida: ${formatText(rec.ctFeedback)}.</li>`;
                 }
+                // Ação 6
                 if (rec.parecerFinal) {
                     textoAcoesAluno += `<li><strong>Ação 6 (Parecer Final):</strong> Desfecho registrado: ${formatText(rec.parecerFinal)}.</li>`;
                 }
@@ -504,26 +511,26 @@ export const openFichaViewModal = (id) => {
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    // (MODIFICAÇÃO) Bloco de Identificação do Aluno na Ficha de Busca Ativa
-    const studentIdentificationBlock = `
-        <div class="bg-gray-50 border rounded-md p-3 mb-4 text-sm" style="font-family: 'Inter', sans-serif;">
-            <p><strong>Aluno(a):</strong> ${formatText(student.name)}</p>
-            <p><strong>Turma:</strong> ${formatText(student.class || 'N/A')}</p>
-            <p><strong>Responsável(is):</strong> ${formatText(responsaveis)}</p>
-            <p><strong>Endereço:</strong> ${formatText(student.endereco)}</p>
-            <p><strong>Contato:</strong> ${formatText(student.contato)}</p>
+    // (NOVO) Bloco de Identificação para Busca Ativa
+    const identificationBlock = `
+        <div class="border border-gray-300 rounded p-3 mb-4 bg-gray-50 text-xs sm:text-sm" style="font-family: 'Inter', sans-serif;">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div><strong>Aluno(a):</strong> ${formatText(student.name)}</div>
+                <div><strong>Turma:</strong> ${formatText(student.class)}</div>
+                <div class="sm:col-span-2"><strong>Endereço:</strong> ${formatText(student.endereco)}</div>
+                <div><strong>Contato:</strong> ${formatText(student.contato)}</div>
+                <div><strong>Responsáveis:</strong> ${formatText(responsibleNames)}</div>
+            </div>
         </div>
     `;
 
     switch (record.actionType) {
         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
             body = `
-                ${studentIdentificationBlock}
-                
-                <p class="mt-4 text-justify">Prezados(as) Responsáveis, <strong>${formatText(responsaveis)}</strong>,</p>
-                <p class="mt-2 text-justify">
+                ${identificationBlock}
+                <p class="mt-4 text-justify">Prezados(as) Responsáveis,</p>
+                <p class="mt-4 text-justify">
                     Vimos por meio desta notificar que o(a) estudante acima identificado(a),
-                    regularmente matriculado(a) nesta unidade de ensino,
                     acumulou <strong>${formatText(record.absenceCount)} faltas</strong> no período de ${formatDate(record.periodoFaltasStart)} a ${formatDate(record.periodoFaltasEnd)},
                     configurando baixa frequência escolar. Esta é a <strong>${attemptLabels[record.actionType]} tentativa de contato</strong> realizada pela escola.
                 </p>
@@ -547,9 +554,9 @@ export const openFichaViewModal = (id) => {
         case 'visita':
             title = actionDisplayTitles[record.actionType];
             body = `
-                ${studentIdentificationBlock}
-                <p class="mt-4 text-justify">Prezados(as) Responsáveis, <strong>${formatText(responsaveis)}</strong>,</p>
-                <p class="mt-2 text-justify">
+                ${identificationBlock}
+                <p class="mt-4 text-justify">Prezados(as) Responsáveis,</p>
+                <p class="mt-4 text-justify">
                     Notificamos que na data de <strong>${formatDate(record.visitDate)}</strong>, o agente escolar <strong>${formatText(record.visitAgent)}</strong> realizou uma visita domiciliar
                     referente ao acompanhamento de frequência do(a) aluno(a) acima identificado(a).
                 </p>
@@ -558,7 +565,9 @@ export const openFichaViewModal = (id) => {
             break;
         default:
             title = actionDisplayTitles[record.actionType] || 'Documento de Busca Ativa';
-            body = `${studentIdentificationBlock}<p class="mt-4">Registro de ação administrativa referente à busca ativa do(a) aluno(a) acima identificado(a).</p>`;
+            body = `
+                ${identificationBlock}
+                <p class="mt-4">Registro de ação administrativa referente à busca ativa do(a) aluno(a) <strong>${student.name}</strong>.</p>`;
             break;
     }
 
@@ -1242,7 +1251,7 @@ export const generateAndShowOccurrenceOficio = (record, studentObj, oficioNumber
             </div>
 
             <div class="mt-8">
-                <p class="font-bold text-base">OFÍCIO Nº ${String(oficioNumber).padStart(3, '0')}/${oficioYear}</p>
+                <p class="font-bold text-base">OFÍCIO Nº ${String(oficioNumber).padStart(3, '0')}/${finalOficioYear}</p>
             </div>
 
             <div class="mt-8">
