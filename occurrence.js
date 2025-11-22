@@ -4,16 +4,15 @@
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
-import { getCollectionRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord, getIncidentByGroupId as fetchIncidentById, searchStudentsByName } from './firestore.js'; // (NOVO) Adicionado searchStudentsByName
-// (CORREÇÃO) Importa tudo do logic.js para evitar ciclo e duplicidade
+import { getCollectionRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord, getIncidentByGroupId as fetchIncidentById, searchStudentsByName } from './firestore.js';
 import { 
     determineNextOccurrenceStep, 
     determineCurrentActionFromStatus, 
     occurrenceStepLogic,
-    roleIcons,          // Importado
-    defaultRole,        // Importado
-    getFilteredOccurrences, // Importado
-    validateOccurrenceChronology // (NOVO) Importado para validar datas
+    roleIcons,          
+    defaultRole,        
+    getFilteredOccurrences, 
+    validateOccurrenceChronology 
 } from './logic.js';
 import {
     openOccurrenceRecordModal,
@@ -29,7 +28,6 @@ import { db } from './firebase.js';
 // CONFIGURAÇÕES
 // =================================================================================
 
-// Títulos atualizados para as novas ações (Mapeamento para UI)
 export const occurrenceActionTitles = { 
     'convocacao': 'Ação 2: Agendar Convocação',
     'contato_familia_1': 'Ação 3: 1ª Tentativa de Contato',
@@ -40,10 +38,9 @@ export const occurrenceActionTitles = {
     'parecer_final': 'Ação 6: Dar Parecer Final'
 };
 
-// Variáveis de estado local para UI
 let studentPendingRoleSelection = null;
 let editingRoleId = null; 
-let searchDebounceTimeout = null; // (NOVO) Variável para debounce da pesquisa
+let searchDebounceTimeout = null;
 
 // =================================================================================
 // FUNÇÕES DE INTERFACE (UI) - TAGS E SELEÇÃO
@@ -107,10 +104,6 @@ const openRoleEditDropdown = (buttonElement, studentId) => {
     setTimeout(() => document.addEventListener('click', closeListener), 0);
 };
 
-/**
- * (MODIFICADO V3 - PAGINAÇÃO)
- * Agora usa busca assíncrona no servidor via searchStudentsByName em vez de filtro local.
- */
 export const setupStudentTagInput = (inputElement, suggestionsElement, tagsContainerElement) => {
     const roleSelectionPanel = document.getElementById('role-selection-panel');
     const roleSelectionStudentName = document.getElementById('role-selection-student-name');
@@ -123,11 +116,10 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
     roleEditDropdown.classList.add('hidden');
 
     inputElement.addEventListener('input', () => {
-        const value = inputElement.value; // Mantém case original para o input, mas a busca trata
+        const value = inputElement.value; 
         roleSelectionPanel.classList.add('hidden'); 
         studentPendingRoleSelection = null;
 
-        // Limpa timeout anterior (Debounce)
         if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
 
         if (!value || value.trim() === '') {
@@ -136,19 +128,14 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             return;
         }
 
-        // Define novo timeout para buscar apenas após parar de digitar (300ms)
         searchDebounceTimeout = setTimeout(async () => {
-            // Mostra estado de carregamento
             suggestionsElement.innerHTML = `<div class="p-2 text-sm text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>A pesquisar...</div>`;
             suggestionsElement.classList.remove('hidden');
 
             try {
-                // Busca no servidor
                 const studentsFound = await searchStudentsByName(value);
-                
-                suggestionsElement.innerHTML = ''; // Limpa carregamento
+                suggestionsElement.innerHTML = '';
 
-                // Filtra os que já estão selecionados localmente
                 const filteredStudents = studentsFound.filter(s => !state.selectedStudents.has(s.matricula));
 
                 if (filteredStudents.length > 0) {
@@ -219,12 +206,11 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 };
 
 // =================================================================================
-// RENDERIZAÇÃO (Agora usa a lógica importada)
+// RENDERIZAÇÃO (Agora usa a lógica importada e trata alunos não carregados)
 // =================================================================================
 
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
-    // (CORREÇÃO) Usa a função importada de logic.js
     const filteredIncidents = getFilteredOccurrences();
     dom.occurrencesTitle.textContent = `Exibindo ${filteredIncidents.size} Incidente(s)`;
 
@@ -256,7 +242,9 @@ export const renderOccurrences = () => {
             })
             .map(participant => {
                 const { student, role } = participant;
-                if (!student) return '';
+                // (CORREÇÃO) Garante que student existe, mesmo que seja um placeholder
+                if (!student) return '<div class="p-2 text-red-500">Erro ao carregar dados do aluno</div>';
+                
                 const record = incident.records.find(r => r && r.studentId === student.matricula);
                 const recordId = record?.id || '';
                 const status = record?.statusIndividual || 'Aguardando Convocação';
@@ -439,9 +427,7 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     dom.occurrenceForm.reset();
     state.selectedStudents.clear(); 
 
-    // (CORREÇÃO FUSO HORÁRIO) Define data máxima como hoje local
     const occurrenceDateInput = document.getElementById('occurrence-date');
-    // Usa en-CA para obter formato YYYY-MM-DD
     const todayLocal = new Date().toLocaleDateString('en-CA');
     occurrenceDateInput.max = todayLocal;
 
@@ -461,7 +447,6 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     } else {
         document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
         document.getElementById('occurrence-group-id').value = '';
-        // (CORREÇÃO) Define a data padrão como hoje LOCAL
         occurrenceDateInput.value = todayLocal;
     }
 
@@ -848,7 +833,6 @@ async function handleOccurrenceStepSubmit(e) {
             };
             if (!dataToUpdate.meetingDate || !dataToUpdate.meetingTime) return showToast('Data e Horário obrigatórios.');
             
-            // (NOVO) Validação Cronológica Centralizada
             const dateCheck = validateOccurrenceChronology(record, 'convocacao', dataToUpdate.meetingDate);
             if (!dateCheck.isValid) return showToast(dateCheck.message);
 
@@ -880,7 +864,6 @@ async function handleOccurrenceStepSubmit(e) {
                      return showToast('Preencha Tipo, Data e Providências.');
                 }
                 
-                // (NOVO) Validação Cronológica Centralizada
                 const dateCheck = validateOccurrenceChronology(record, actionType, dataToUpdate[fields.date]);
                 if (!dateCheck.isValid) return showToast(dateCheck.message);
 
@@ -911,7 +894,6 @@ async function handleOccurrenceStepSubmit(e) {
 
                 if (!oficioNumber || !ctSentDate) return showToast("Erro: Preencha o Ofício e Data.");
 
-                // (NOVO) Validação Cronológica Centralizada
                 const dateCheck = validateOccurrenceChronology(record, 'desfecho_ou_ct', ctSentDate);
                 if (!dateCheck.isValid) return showToast(dateCheck.message);
 
@@ -1013,7 +995,7 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
 
     const participantData = incident.participantsInvolved.get(studentId);
     const student = participantData?.student;
-    if (!student) return showToast('Erro: Aluno não encontrado.');
+    //if (!student) return showToast('Erro: Aluno não encontrado.'); // Remove check rígido
 
     const record = incident.records.find(r => r.id === recordId);
     if (!record) return showToast('Erro: Registro não encontrado.');
@@ -1039,7 +1021,9 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
         return;
     }
     
-    openOccurrenceStepModal(student, record, actionToEdit);
+    // Passa o estudante placeholder se o real não existir
+    const studentObj = student || { name: 'Aluno Desconhecido', matricula: studentId };
+    openOccurrenceStepModal(studentObj, record, actionToEdit);
 }
 
 async function handleResetActionConfirmation(studentId, groupId, recordId) {
@@ -1093,7 +1077,7 @@ async function handleNewOccurrenceAction(studentId, groupId, recordId) {
 
     const participantData = incident.participantsInvolved.get(studentId);
     const student = participantData?.student;
-    if (!student) return showToast('Erro: Aluno não encontrado.');
+    //if (!student) return showToast('Erro: Aluno não encontrado.');
 
     const record = incident.records.find(r => r.id === recordId);
     if (!record) return showToast('Erro: Registro não encontrado.');
@@ -1104,7 +1088,9 @@ async function handleNewOccurrenceAction(studentId, groupId, recordId) {
         showToast('Processo finalizado. Use "Editar Ação" ou "Limpar Ação".');
         return;
     }
-    openOccurrenceStepModal(student, record, nextAction);
+    
+    const studentObj = student || { name: 'Aluno Desconhecido', matricula: studentId };
+    openOccurrenceStepModal(studentObj, record, nextAction);
 }
 
 async function handleGenerateNotification(recordId, studentId, groupId) {
@@ -1113,7 +1099,7 @@ async function handleGenerateNotification(recordId, studentId, groupId) {
 
     const participantData = incident.participantsInvolved.get(studentId);
     const student = participantData?.student;
-    if (!student) return showToast('Erro: Aluno não encontrado.');
+    if (!student) return showToast('Erro: Aluno não encontrado para gerar notificação.');
 
     openIndividualNotificationModal(incident, student);
 }
@@ -1217,10 +1203,8 @@ async function handleSendOccurrenceCtSubmit(e) {
     }
 
     const oficioYear = new Date().getFullYear();
-    const ctSentDate = new Date().toISOString().split('T')[0]; // Data atual
+    const ctSentDate = new Date().toISOString().split('T')[0]; 
     
-    // (NOVO) Validação Cronológica Centralizada (Mesmo para o botão dedicado)
-    // Usamos a data atual (ctSentDate) para validar
     const dateCheck = validateOccurrenceChronology(record, 'desfecho_ou_ct', ctSentDate);
     if (!dateCheck.isValid) return showToast(dateCheck.message);
 

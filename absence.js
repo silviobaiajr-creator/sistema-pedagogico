@@ -6,71 +6,49 @@ import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js';
 import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js';
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
-import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName } from './firestore.js'; // (NOVO) Importado searchStudentsByName
+import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName } from './firestore.js'; 
 import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 
-// Variável para debounce da pesquisa
 let searchDebounceTimeout = null;
 
-// --- Funções Auxiliares (Mantidas para uso local na UI/Ordenação) ---
+// --- Funções Auxiliares ---
 
-/**
- * Obtém a data principal de uma ação para fins de comparação cronológica local.
- * @param {object} action - O objeto da ação.
- * @returns {string|null} A data no formato YYYY-MM-DD ou null.
- */
 const getActionMainDate = (action) => {
     if (!action) return null;
     switch (action.actionType) {
         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
             return action.contactDate || action.meetingDate;
-        case 'visita':
-            return action.visitDate;
-        case 'encaminhamento_ct':
-            return action.ctSentDate;
-        case 'analise':
-             return action.createdAt?.toDate ? action.createdAt.toDate().toISOString().split('T')[0] : null;
-        default:
-            return null;
+        case 'visita': return action.visitDate;
+        case 'encaminhamento_ct': return action.ctSentDate;
+        case 'analise': return action.createdAt?.toDate ? action.createdAt.toDate().toISOString().split('T')[0] : null;
+        default: return null;
     }
 };
 
-/**
- * Obtém o elemento de input de data relevante para o tipo de ação no modal.
- */
 const getDateInputForActionType = (actionType) => {
     switch (actionType) {
         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
              return document.getElementById('contact-date') || document.getElementById('meeting-date');
-        case 'visita':
-            return document.getElementById('visit-date');
-        case 'encaminhamento_ct':
-            return document.getElementById('ct-sent-date');
-        default:
-            return null;
+        case 'visita': return document.getElementById('visit-date');
+        case 'encaminhamento_ct': return document.getElementById('ct-sent-date');
+        default: return null;
     }
 };
 
 
 // --- Funções de UI ---
 
-/**
- * (MODIFICADO V3 - PAGINAÇÃO)
- * Configura o autocomplete para a barra de busca da Busca Ativa usando pesquisa no servidor.
- */
 const setupAbsenceAutocomplete = () => {
     const input = dom.searchAbsences; 
     const suggestionsContainer = document.getElementById('absence-student-suggestions');
     
     input.addEventListener('input', () => {
-        const value = input.value; // Valor bruto
+        const value = input.value; 
         
-        // Limpa timeout anterior
         if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
 
         // 1. Filtragem Local na Tabela (se já houver dados carregados)
-        // Isso mantém a funcionalidade de filtrar o que já está visível
         state.filterAbsences = value.toLowerCase();
         renderAbsences();
         
@@ -93,14 +71,13 @@ const setupAbsenceAutocomplete = () => {
                     studentsFound.forEach(student => {
                         const item = document.createElement('div');
                         item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50 border-b border-gray-100 last:border-0';
-                        // Mostra nome e turma para facilitar identificação
                         item.innerHTML = `<span class="font-semibold text-gray-700">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
                         
                         item.addEventListener('click', () => {
-                            handleNewAbsenceAction(student); // Inicia ação para este aluno
-                            input.value = ''; // Limpa a busca
-                            state.filterAbsences = ''; // Limpa filtro local
-                            renderAbsences(); // Restaura lista
+                            handleNewAbsenceAction(student); 
+                            input.value = ''; 
+                            state.filterAbsences = ''; 
+                            renderAbsences(); 
                             suggestionsContainer.classList.add('hidden');
                         });
                         suggestionsContainer.appendChild(item);
@@ -112,7 +89,7 @@ const setupAbsenceAutocomplete = () => {
                 console.error("Erro na busca:", error);
                 suggestionsContainer.innerHTML = `<div class="p-2 text-sm text-red-500">Erro ao pesquisar.</div>`;
             }
-        }, 300); // Delay de 300ms
+        }, 300); 
     });
 
     document.addEventListener('click', (e) => {
@@ -130,17 +107,16 @@ const setupAbsenceAutocomplete = () => {
 export const renderAbsences = () => {
     dom.loadingAbsences.classList.add('hidden');
     const searchFiltered = state.absences.filter(a => {
-        // Tenta encontrar o aluno no state.students (que agora pode ser parcial)
-        // Se não encontrar, tenta usar um placeholder ou ignora se for filtro estrito
         const student = state.students.find(s => s.matricula === a.studentId);
-        // Se tivermos filtro de texto e o aluno não estiver carregado, não podemos filtrar pelo nome dele facilmente.
-        // Numa versão V4 ideal, o backend enviaria o nome do aluno junto com a ocorrência.
-        // Por agora, filtramos apenas se tivermos os dados do aluno ou se não houver filtro de texto.
-        if (state.filterAbsences && student) {
+        
+        // (CORREÇÃO) Se não houver filtro de texto, mostra tudo (mesmo sem aluno carregado)
+        if (!state.filterAbsences) return true;
+
+        // Se houver filtro de texto, só mostra se o aluno estiver carregado E corresponder
+        if (student) {
             return student.name.toLowerCase().startsWith(state.filterAbsences);
         }
-        // Se não houver filtro de texto, mostra tudo que temos
-        return true;
+        return false; 
     });
 
     const groupedByProcess = searchFiltered.reduce((acc, action) => {
@@ -167,7 +143,6 @@ export const renderAbsences = () => {
             return (timeA || 0) - (timeB || 0); 
         });
 
-        // Lógica do Filtro de Data
         const { startDate, endDate } = state.filtersAbsences;
         const firstAction = actions[0];
         const processStartDateRaw = getActionMainDate(firstAction) || firstAction.createdAt;
@@ -191,7 +166,6 @@ export const renderAbsences = () => {
             if (processStartDate > filterEndDate) return false;
         }
 
-        // Outros filtros
         const { processStatus, pendingAction, returnStatus } = state.filtersAbsences;
         const isConcluded = actions.some(a => a.actionType === 'analise');
         if (processStatus === 'in_progress' && isConcluded) return false;
@@ -277,11 +251,10 @@ export const renderAbsences = () => {
 
             const firstAction = actions[0];
             const lastProcessAction = actions[actions.length - 1]; 
-            // Fallback seguro se o aluno não estiver no state (ainda não implementamos busca individual aqui)
-            const student = state.students.find(s => s.matricula === firstAction.studentId) || { name: 'Aluno não carregado', class: '?', matricula: firstAction.studentId };
             
-            // if (!student) continue; // Removido para permitir ver ações mesmo sem aluno carregado (v4)
-
+            // (CORREÇÃO) Fallback robusto se o aluno não estiver carregado na memória
+            const student = state.students.find(s => s.matricula === firstAction.studentId) || { name: `Aluno não carregado (${firstAction.studentId})`, class: '?', matricula: firstAction.studentId };
+            
             const isConcluded = actions.some(a => a.actionType === 'analise');
             
             let historyHtml = '';
@@ -679,11 +652,13 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
         }
     }
 
+    // --- Preenchimento dos Dados (se Editando) ---
     if (isEditing) {
         switch (data.actionType) {
             case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
                 document.getElementById('meeting-date').value = data.meetingDate || '';
                 document.getElementById('meeting-time').value = data.meetingTime || '';
+                // Lida com radio 'contactSucceeded'
                 const contactSucceededRadio = document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`);
                 if (contactSucceededRadio) {
                     contactSucceededRadio.checked = true;
@@ -692,10 +667,12 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                      document.querySelectorAll(`input[name="contact-succeeded"]`).forEach(r => r.checked = false);
                      toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
                 }
+                // Preenche campos de detalhe do contato (se 'yes')
                 document.getElementById('absence-contact-type').value = data.contactType || '';
                 document.getElementById('contact-date').value = data.contactDate || '';
                 document.getElementById('contact-person').value = data.contactPerson || '';
                 document.getElementById('contact-reason').value = data.contactReason || '';
+                // Lida com radio 'contactReturned'
                 const contactReturnedRadio = document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`);
                 if(contactReturnedRadio) contactReturnedRadio.checked = true;
                 else document.querySelectorAll(`input[name="contact-returned"]`).forEach(r => r.checked = false);
@@ -703,6 +680,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
             case 'visita':
                 document.getElementById('visit-agent').value = data.visitAgent || '';
                 document.getElementById('visit-date').value = data.visitDate || '';
+                // Lida com radio 'visitSucceeded'
                 const visitSucceededRadio = document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`);
                 if(visitSucceededRadio) {
                     visitSucceededRadio.checked = true;
@@ -711,23 +689,28 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                      document.querySelectorAll(`input[name="visit-succeeded"]`).forEach(r => r.checked = false);
                      toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
                 }
+                // Preenche campos de detalhe da visita (se 'yes')
                 document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
                 document.getElementById('visit-reason').value = data.visitReason || '';
                 document.getElementById('visit-obs').value = data.visitObs || '';
+                // Lida com radio 'visitReturned'
                  const visitReturnedRadio = document.querySelector(`input[name="visit-returned"][value="${data.visitReturned}"]`);
                 if (visitReturnedRadio) visitReturnedRadio.checked = true;
                 else document.querySelectorAll(`input[name="visit-returned"]`).forEach(r => r.checked = false);
                 break;
             case 'encaminhamento_ct':
+                // (Melhoria 1) Preenche os novos campos
                 document.getElementById('ct-sent-date').value = data.ctSentDate || '';
                 document.getElementById('oficio-number').value = data.oficioNumber || '';
                 document.getElementById('oficio-year').value = data.oficioYear || '';
                 
-                document.getElementById('ct-feedback').value = data.ctFeedback || ''; 
+                document.getElementById('ct-feedback').value = data.ctFeedback || ''; // Permite editar feedback
+                // Lida com radio 'ctReturned' (permite editar)
                 const ctReturnedRadio = document.querySelector(`input[name="ct-returned"][value="${data.ctReturned}"]`);
                 if (ctReturnedRadio) ctReturnedRadio.checked = true;
                 else document.querySelectorAll(`input[name="ct-returned"]`).forEach(r => r.checked = false);
-                 if(data.ctSentDate) { 
+                 // Campos de devolutiva e retorno tornam-se obrigatórios ao editar CT se já preenchidos
+                 if(data.ctSentDate) { // Só exige feedback se o envio já foi feito
                     document.getElementById('ct-feedback').required = true;
                     document.querySelectorAll('input[name="ct-returned"]').forEach(r => r.required = true);
                  }
@@ -736,9 +719,11 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 document.getElementById('ct-parecer').value = data.ctParecer || '';
                 break;
         }
-    } else { 
+    } else { // Se Criando
+        // Garante que os campos dinâmicos comecem escondidos ao criar
         toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
         toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
+         // Garante que rádios comecem desmarcados
         document.querySelectorAll('input[name="contact-succeeded"], input[name="visit-succeeded"], input[name="contact-returned"], input[name="visit-returned"], input[name="ct-returned"]').forEach(r => r.checked = false);
     }
 
@@ -754,16 +739,19 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 async function handleAbsenceSubmit(e) {
     e.preventDefault();
     const form = e.target;
+    // Força validação de campos required dinâmicos
     let firstInvalidField = null;
     form.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled])').forEach(el => {
         if (el.required && !el.value && el.type !== 'radio') {
              if (!firstInvalidField) firstInvalidField = el;
         }
+         // Validação específica para grupos de radio required
          if (el.type === 'radio' && el.required) {
              const groupName = el.name;
              const group = form.querySelectorAll(`input[name="${groupName}"]:not([disabled])`);
              const isGroupChecked = Array.from(group).some(radio => radio.checked);
              if (!isGroupChecked && !firstInvalidField) {
+                  // Encontra o primeiro radio do grupo para focar
                   firstInvalidField = group[0];
              }
          }
@@ -772,6 +760,7 @@ async function handleAbsenceSubmit(e) {
     if (firstInvalidField) {
          showToast(`Por favor, preencha o campo obrigatório: ${firstInvalidField.labels?.[0]?.textContent || firstInvalidField.name}`);
          firstInvalidField.focus();
+         // Simula a validação nativa visualmente, se possível
          if (typeof firstInvalidField.reportValidity === 'function') {
              firstInvalidField.reportValidity();
          }
@@ -780,13 +769,19 @@ async function handleAbsenceSubmit(e) {
 
 
     const data = getAbsenceFormData();
-    if (!data) return; 
+    if (!data) return; // getAbsenceFormData já pode mostrar toast se aluno for inválido
 
-    const id = data.id; 
+    const id = data.id; // Guarda o ID original (se existir)
     
+    // --- (Melhoria 2) Merge de dados em Edição ---
     if (id) {
+        // Se estamos editando, devemos mesclar dados antigos de campos
+        // que estavam escondidos (ex: salvar "Contato" não pode apagar "Convocação")
         const existingAction = state.absences.find(a => a.id === id);
         if (existingAction) {
+            // Itera sobre os dados lidos do form (data)
+            // Se um campo lido for 'null' (porque estava escondido),
+            // mas existia um valor antigo, preserva o valor antigo.
             for (const key in data) {
                 if (data[key] === null && existingAction[key] != null) {
                     data[key] = existingAction[key];
@@ -794,6 +789,8 @@ async function handleAbsenceSubmit(e) {
             }
         }
     }
+    // --- Fim da Melhoria 2 ---
+
 
     // --- Validação Cronológica (Centralizada) ---
     const { currentCycleActions } = getStudentProcessInfo(data.studentId);
@@ -805,14 +802,19 @@ async function handleAbsenceSubmit(e) {
     // --- Fim da Validação ---
 
 
+    // --- Lógica de salvar ---
     try {
         const historyAction = id ? "Dados da ação atualizados." : `Ação de Busca Ativa registada (${actionDisplayTitles[data.actionType]}).`;
 
         if (id) {
+            // Se está editando, usa o ID para atualizar o documento correto
+            // Remove o ID do objeto de dados para não tentar salvar o ID como um campo
             const updateData = { ...data };
             delete updateData.id;
             await updateRecordWithHistory('absence', id, updateData, historyAction, state.userEmail);
         } else {
+            // Se está adicionando, não passa ID
+            // Remove o ID (que estaria vazio) do objeto de dados
              const addData = { ...data };
              delete addData.id;
             await addRecordWithHistory('absence', addData, historyAction, state.userEmail);
@@ -821,22 +823,29 @@ async function handleAbsenceSubmit(e) {
         showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
         closeModal(dom.absenceModal);
 
-        if (data.actionType === 'encaminhamento_ct' && data.oficioNumber && !id) { 
+        // --- (Melhoria 1) Gerar Ofício ao salvar etapa CT ---
+        if (data.actionType === 'encaminhamento_ct' && data.oficioNumber && !id) { // Só gera ao *criar*
              const student = state.students.find(s => s.matricula === data.studentId);
              if (student) {
+                // A 'data' já contém tudo o que precisamos (oficioNumber, oficioYear, etc)
                 generateAndShowOficio(data, data.oficioNumber);
              }
         }
 
+        // --- Lógica pós-salvamento (sugerir 'analise') ---
         const studentReturned = (data.contactReturned === 'yes' || data.visitReturned === 'yes' || data.ctReturned === 'yes');
+        // A lógica de sugerir 'analise' só faz sentido se a ação salva NÃO for 'analise'
         if (studentReturned && data.actionType !== 'analise') {
             const student = state.students.find(s => s.matricula === data.studentId);
+             // Usar delay para dar tempo ao listener onSnapshot de atualizar o state
              setTimeout(() => {
-                 const { currentCycleActions: updatedActions } = getStudentProcessInfo(data.studentId); 
+                 // Re-busca as informações do processo APÓS o state ter sido atualizado pelo listener
+                 const { currentCycleActions: updatedActions } = getStudentProcessInfo(data.studentId); // Usa studentId de `data`
+                 // Verifica se o aluno existe E se ainda não há uma ação de análise no ciclo atualizado
                  if (student && !updatedActions.some(a => a.actionType === 'analise')) {
-                    openAbsenceModalForStudent(student, 'analise'); 
+                    openAbsenceModalForStudent(student, 'analise'); // Sugere a próxima etapa
                  }
-             }, 400); 
+             }, 400); // Aumentado um pouco
         }
     } catch (error) {
         console.error("Erro ao salvar ação de BA:", error);
@@ -847,6 +856,7 @@ async function handleAbsenceSubmit(e) {
 
 /**
  * Coleta os dados do formulário de Busca Ativa.
+ * (MODIFICADO - Melhoria 1): Lê os campos de ofício.
  */
 function getAbsenceFormData() {
     const studentName = document.getElementById('absence-student-name').value.trim();
@@ -857,19 +867,22 @@ function getAbsenceFormData() {
     }
 
     const data = {
-        id: document.getElementById('absence-id').value, 
+        id: document.getElementById('absence-id').value, // ID é crucial
         studentId: student.matricula,
         actionType: document.getElementById('action-type').value,
         processId: document.getElementById('absence-process-id').value,
+        // Dados de Faltas (podem ser null se readOnly)
         periodoFaltasStart: document.getElementById('absence-start-date').value || null,
         periodoFaltasEnd: document.getElementById('absence-end-date').value || null,
         absenceCount: document.getElementById('absence-count').value || null,
+         // Inicializa todos os campos específicos como null
         meetingDate: null, meetingTime: null, contactSucceeded: null, contactType: null, contactDate: null, contactPerson: null, contactReason: null, contactReturned: null,
         visitAgent: null, visitDate: null, visitSucceeded: null, visitContactPerson: null, visitReason: null, visitObs: null, visitReturned: null,
         ctSentDate: null, ctFeedback: null, ctReturned: null, oficioNumber: null, oficioYear: null,
         ctParecer: null
     };
 
+    // Preenche os dados específicos da ação atual
     if (data.actionType.startsWith('tentativa')) {
         const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
         data.meetingDate = document.getElementById('meeting-date').value || null;
@@ -897,10 +910,11 @@ function getAbsenceFormData() {
         data.visitReturned = visitReturnedRadio ? visitReturnedRadio.value : null;
     } else if (data.actionType === 'encaminhamento_ct') {
         data.ctSentDate = document.getElementById('ct-sent-date').value || null;
-        data.ctFeedback = document.getElementById('ct-feedback').value.trim() || null; 
+        data.ctFeedback = document.getElementById('ct-feedback').value.trim() || null; // Coleta feedback aqui
         const ctReturnedRadio = document.querySelector('input[name="ct-returned"]:checked');
-        data.ctReturned = ctReturnedRadio ? ctReturnedRadio.value : null; 
+        data.ctReturned = ctReturnedRadio ? ctReturnedRadio.value : null; // Coleta retorno aqui
          
+         // (Melhoria 1) Coleta dados do ofício
          data.oficioNumber = document.getElementById('oficio-number').value.trim() || null;
          data.oficioYear = document.getElementById('oficio-year').value.trim() || null;
 
@@ -922,12 +936,19 @@ function handleActionTypeChange(action) {
 }
 
 /**
+ * Lida com o clique de "Enviar ao CT".
+ * (MODIFICADO - Melhoria 1): Esta função foi removida pois o fluxo agora é automático.
+ */
+// async function handleSendToCT(id) { ... } // FUNÇÃO REMOVIDA
+
+
+/**
  * Lida com o clique de "Ver Ofício".
  */
 function handleViewOficio(id) {
     const ctAction = state.absences.find(a => a.id === id);
     if (ctAction && ctAction.oficioNumber) {
-        generateAndShowOficio(ctAction, ctAction.oficioNumber); 
+        generateAndShowOficio(ctAction, ctAction.oficioNumber); // Passa a ação e o número
     } else {
         showToast("Registro de encaminhamento ou número do ofício não encontrado.");
     }
@@ -936,10 +957,11 @@ function handleViewOficio(id) {
 
 /**
  * Lida com o clique no nome do aluno (iniciar nova ação).
+ * (MODIFICADO V4) - Agora chamado pelo botão "Avançar Etapa".
  */
 function handleNewAbsenceFromHistory(studentId) {
     const student = state.students.find(s => s.matricula === studentId);
-    if (student) handleNewAbsenceAction(student); 
+    if (student) handleNewAbsenceAction(student); // Reutiliza a lógica principal
 }
 
 
@@ -947,12 +969,15 @@ function handleNewAbsenceFromHistory(studentId) {
  * Lida com a edição de uma ação (chamado pelo listener).
  */
 function handleEditAbsence(id) {
+    // A função já contém a lógica de verificação se pode editar (ser a última ação)
+    // Busca a ação para editar
     const data = state.absences.find(a => a.id === id);
     if (!data) return showToast("Ação não encontrada.");
 
+    // Busca as ações do processo para verificar se é a última
     const processActions = state.absences
         .filter(a => a.processId === data.processId)
-        .sort((a, b) => { 
+        .sort((a, b) => { // Ordena para garantir
             const dateA = getActionMainDate(a) || a.createdAt?.seconds || 0;
             const dateB = getActionMainDate(b) || b.createdAt?.seconds || 0;
             const timeA = typeof dateA === 'string' ? new Date(dateA+'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
@@ -968,13 +993,15 @@ function handleEditAbsence(id) {
     const lastProcessAction = processActions[processActions.length - 1];
     const isConcluded = processActions.some(a => a.actionType === 'analise');
 
-    if (isConcluded || data.id !== lastProcessAction?.id) { 
+    // Verifica se pode editar
+    if (isConcluded || data.id !== lastProcessAction?.id) { // Adiciona ?.id por segurança
         return showToast(isConcluded ? "Processo concluído, não pode editar." : "Apenas a última ação pode ser editada.");
     }
 
+    // Se pode editar, abre o modal
     const student = state.students.find(s => s.matricula === data.studentId);
     if (student) {
-        openAbsenceModalForStudent(student, data.actionType, data); 
+        openAbsenceModalForStudent(student, data.actionType, data); // Abre para editar
     } else {
         showToast("Aluno associado não encontrado.");
     }
@@ -983,14 +1010,17 @@ function handleEditAbsence(id) {
 
 /**
  * Lida com a exclusão de uma ação (chamado pelo listener).
+ * (MODIFICADO V4) - Agora chamado pelo botão "Limpar Ação".
+ * A lógica de "Limpar" na Busca Ativa é excluir a última ação (documento).
  */
 function handleDeleteAbsence(id) {
     const actionToDelete = state.absences.find(a => a.id === id);
     if (!actionToDelete) return;
 
+    // --- Verificação de Consistência ---
     const processActions = state.absences
         .filter(a => a.processId === actionToDelete.processId)
-        .sort((a, b) => { 
+        .sort((a, b) => { // Ordena igual ao render/edit
             const dateA = getActionMainDate(a) || a.createdAt?.seconds || 0;
             const dateB = getActionMainDate(b) || b.createdAt?.seconds || 0;
             const timeA = typeof dateA === 'string' ? new Date(dateA+'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
@@ -1006,10 +1036,13 @@ function handleDeleteAbsence(id) {
     const lastProcessAction = processActions.length > 0 ? processActions[processActions.length - 1] : null;
     const isConcluded = processActions.some(a => a.actionType === 'analise');
 
+    // Impede a exclusão se o processo estiver concluído OU se não for a última ação
     if (isConcluded || !lastProcessAction || actionToDelete.id !== lastProcessAction.id) {
         return showToast(isConcluded ? "Processo concluído, não pode excluir." : "Apenas a última ação pode ser excluída.");
     }
+    // --- Fim da Verificação ---
 
+    // Define a mensagem e o registro a ser excluído (lógica simplificada, sem cascata por enquanto)
     document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja Limpar esta ação? Esta ação não pode ser desfeita.';
     state.recordToDelete = { type: 'absence', id: id };
     openModal(dom.deleteConfirmModal);
@@ -1018,21 +1051,36 @@ function handleDeleteAbsence(id) {
 
 // --- Função Principal de Inicialização ---
 
+// =================================================================================
+// --- INÍCIO DA REESCRITA (initAbsenceListeners) ---
+// Função reescrita para controlar o acordeão e os novos botões (V4).
+// (MODIFICADO - Melhoria 1 & 3): Remove listener 'send-ct-btn' e atualiza
+// 'notification-btn' e 'view-oficio-btn' para as novas classes '...-hist'.
+// (MODIFICADO - Sug. 3): Adicionado listener para 'add-absence-btn'.
+// =================================================================================
+/**
+ * Anexa todos os listeners de eventos relacionados a Busca Ativa.
+ */
 export const initAbsenceListeners = () => {
+    // Relatório Geral
+    // --- CORREÇÃO: Usar dom.generalBaReportBtn em vez de document.getElementById ---
     if (dom.generalBaReportBtn) {
         dom.generalBaReportBtn.addEventListener('click', generateAndShowBuscaAtivaReport);
     }
     
+    // (ADICIONADO - Sug. 3) Botão Nova Ação
     if (dom.addAbsenceBtn) {
         dom.addAbsenceBtn.addEventListener('click', () => {
-            if(dom.searchAbsences) dom.searchAbsences.focus(); 
+            if(dom.searchAbsences) dom.searchAbsences.focus(); // Foca na barra de busca
             showToast("Digite o nome do aluno na busca para iniciar ou continuar uma ação.");
         });
     }
 
+    // Filtros
     document.getElementById('filter-process-status').addEventListener('change', (e) => { state.filtersAbsences.processStatus = e.target.value; renderAbsences(); });
     document.getElementById('filter-pending-action').addEventListener('change', (e) => { state.filtersAbsences.pendingAction = e.target.value; renderAbsences(); });
     document.getElementById('filter-return-status').addEventListener('change', (e) => { state.filtersAbsences.returnStatus = e.target.value; renderAbsences(); });
+    // Listeners dos Filtros de Data
     document.getElementById('absence-start-date-filter').addEventListener('change', (e) => {
         state.filtersAbsences.startDate = e.target.value;
         renderAbsences();
@@ -1042,50 +1090,68 @@ export const initAbsenceListeners = () => {
         renderAbsences();
     });
 
+    // Autocomplete da Busca
     setupAbsenceAutocomplete();
 
+    // Formulário
     dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
     
+    // Rádios de contato (no modal) - para mostrar/esconder campos
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
 
+    // Listener de clique para a lista (delegação de eventos)
     dom.absencesListDiv.addEventListener('click', (e) => {
         
+        // Prioridade 1: Clique em um Botão (dentro ou fora do acordeão)
         const button = e.target.closest('button');
         if (button) {
-            e.stopPropagation(); 
+            e.stopPropagation(); // Impede que o clique no botão ative o acordeão
             
+            // Ações DENTRO do Acordeão
             if (button.closest('.process-content')) {
-                const id = button.dataset.id; 
+                const id = button.dataset.id; // ID da Ação
                 
+                // Botão Avançar Etapa
                 if (button.classList.contains('avancar-etapa-btn') && !button.disabled) {
                     handleNewAbsenceFromHistory(button.dataset.studentId);
                     return;
                 }
+                // Botão Editar Ação
                 if (button.classList.contains('edit-absence-action-btn') && !button.disabled) {
                     handleEditAbsence(id);
                     return;
                 }
+                // Botão Limpar Ação
                 if (button.classList.contains('reset-absence-action-btn') && !button.disabled) {
-                    handleDeleteAbsence(id); 
+                    handleDeleteAbsence(id); // "Limpar" na BA é excluir a última ação
                     return;
                 }
                 
+                // --- (Melhoria 3) Botões "Ver" movidos para o histórico ---
                 if (button.classList.contains('view-notification-btn-hist') && id) { openFichaViewModal(id); return; }
                 if (button.classList.contains('view-oficio-btn-hist') && id) { handleViewOficio(id); return; }
+                // --- Fim Melhoria 3 ---
 
             }
             
+            // Ações FORA do Acordeão (Cabeçalho do Processo)
+            
+            // Botão Gerar Ficha Consolidada
             if (button.classList.contains('generate-ficha-btn-row')) {
                  generateAndShowConsolidatedFicha(button.dataset.studentId, button.dataset.processId);
                  return;
             }
 
-            return; 
-        } 
+            // (Não há Kebab no cabeçalho da BA, diferente das Ocorrências)
+            
+            return; // Outro botão (talvez Kebab antigo?)
+        } // Fim do if(button)
 
+        // Prioridade 2: Clique no cabeçalho para ACORDEÃO
         const header = e.target.closest('.process-header');
         if (header) {
+            // Não precisa de stopPropagation aqui
             const contentId = header.dataset.contentId;
             const content = document.getElementById(contentId);
             const icon = header.querySelector('i.fa-chevron-down');
@@ -1100,8 +1166,11 @@ export const initAbsenceListeners = () => {
                 }
                 icon?.classList.toggle('rotate-180', isHidden);
             }
-            return; 
+            return; // Clique no cabeçalho tratado
         }
         
-    }); 
+    }); // Fim do listener absencesListDiv
 };
+// =================================================================================
+// --- FIM DA REESCRITA (initAbsenceListeners) ---
+// =================================================================================
