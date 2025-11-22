@@ -15,6 +15,13 @@ export const state = {
         adminEmails: [] // (ADICIONADO - Híbrida Admin)
     },
 
+    // (NOVO - V2.1) Controle de Paginação de Alunos
+    pagination: {
+        lastVisible: null, // O cursor do Firestore para a próxima página
+        hasMore: true,     // Se falso, esconde o botão "Carregar Mais"
+        isLoading: false   // Bloqueia múltiplos cliques
+    },
+
     // Filtros para a aba de Ocorrências
     filterOccurrences: '', // Filtro de busca por nome de aluno
     filtersOccurrences: {
@@ -134,4 +141,3 @@ export const initializeDOMReferences = () => {
     dom.csvFeedback = document.getElementById('csv-feedback');
     // --- Fim da Correção ---
 };
-

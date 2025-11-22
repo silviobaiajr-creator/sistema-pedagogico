@@ -1,9 +1,10 @@
 // =================================================================================
 // ARQUIVO: firestore.js
+// VERSÃO: 2.1 (Com Paginação e Busca Server-Side)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
-    query, where, getDocs 
+    query, where, getDocs, limit, startAfter, orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 import { state } from './state.js';
@@ -11,17 +12,7 @@ import { state } from './state.js';
 // --- FUNÇÕES DE REFERÊNCIA (Caminhos para os dados) ---
 
 /**
- * (LEGADO) Retorna a referência para o documento antigo de lista.
- * Mantido apenas para referência, não usado na nova lógica de escrita.
- */
-export const getLegacyStudentsDocRef = () => {
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    return doc(db, `/artifacts/${appId}/public/data/school-data`, 'students');
-};
-
-/**
- * (NOVO - ESCALÁVEL) Retorna a referência para a COLEÇÃO de alunos.
- * Agora cada aluno será um documento dentro desta pasta.
+ * Retorna a referência para a COLEÇÃO de alunos.
  * @returns {CollectionReference}
  */
 export const getStudentsCollectionRef = () => {
@@ -51,7 +42,6 @@ export const getCollectionRef = (type) => {
 
 /**
  * Retorna a referência para um documento de contador.
- * Usado para gerar IDs sequenciais.
  * @param {string} counterName - O nome do contador (ex: 'occurrences').
  * @returns {DocumentReference}
  */
@@ -61,16 +51,8 @@ export const getCounterDocRef = (counterName) => {
 };
 
 
-// --- FUNÇÕES CRUD COM HISTÓRICO (Criar, Ler, Atualizar, Excluir) ---
+// --- FUNÇÕES CRUD COM HISTÓRICO ---
 
-/**
- * Adiciona um novo registo à base de dados com uma entrada inicial de histórico.
- * @param {string} type - O tipo de coleção ('occurrence' ou 'absence').
- * @param {object} data - Os dados do registo a serem salvos.
- * @param {string} historyAction - A descrição da ação para o histórico (ex: "Registro criado").
- * @param {string} userEmail - O email do utilizador que está a criar o registo.
- * @returns {Promise<DocumentReference>} A referência do documento criado.
- */
 export const addRecordWithHistory = (type, data, historyAction, userEmail = 'sistema') => {
     const newHistoryEntry = {
         action: historyAction,
@@ -82,21 +64,12 @@ export const addRecordWithHistory = (type, data, historyAction, userEmail = 'sis
         ...data, 
         createdAt: new Date(),
         createdBy: userEmail,
-        history: [newHistoryEntry] // O histórico já começa com a criação
+        history: [newHistoryEntry]
     };
     
     return addDoc(getCollectionRef(type), finalData);
 };
 
-/**
- * Atualiza um registo, adicionando uma nova entrada ao histórico.
- * @param {string} type - O tipo de coleção.
- * @param {string} id - O ID do documento.
- * @param {object} dataToUpdate - Os campos a serem atualizados.
- * @param {string} historyAction - A descrição da ação para o histórico (ex: "Status alterado para Concluído").
- * @param {string} userEmail - O email do utilizador que está a realizar a ação.
- * @returns {Promise<void>}
- */
 export const updateRecordWithHistory = (type, id, dataToUpdate, historyAction, userEmail = 'sistema') => {
     const recordRef = doc(getCollectionRef(type), id);
     
@@ -110,77 +83,157 @@ export const updateRecordWithHistory = (type, id, dataToUpdate, historyAction, u
         ...dataToUpdate,
         updatedAt: new Date(),
         updatedBy: userEmail,
-        history: arrayUnion(newHistoryEntry) // Adiciona ao array sem sobrescrever
+        history: arrayUnion(newHistoryEntry)
     };
 
     return setDoc(recordRef, finalUpdateData, { merge: true });
 };
 
-
-/**
- * Exclui um registo da base de dados.
- * ATENÇÃO: Esta é uma exclusão permanente (hard delete). A lógica de negócio
- * no `main.js` pode optar por usar `updateRecordWithHistory` para um "soft delete"
- * (marcando como excluído) em vez de chamar esta função diretamente.
- * @param {string} type - O tipo de coleção.
- * @param {string} id - O ID do documento a ser excluído.
- * @returns {Promise<void>}
- */
 export const deleteRecord = (type, id) => deleteDoc(doc(getCollectionRef(type), id));
 
 
-// --- FUNÇÕES DE CARREGAMENTO E SALVAMENTO DE DADOS ---
+// --- FUNÇÕES DE LEITURA OTIMIZADAS (PAGINAÇÃO E BUSCA) ---
 
 /**
- * (REESCRITO - ESCALÁVEL) Carrega a lista de alunos da COLEÇÃO.
- * Agora itera sobre os documentos da coleção 'students' em vez de ler um array gigante.
- * @returns {Promise<void>}
+ * (OTIMIZADO) Carrega alunos de forma paginada.
+ * @param {object|null} lastVisibleDoc - O último documento carregado (cursor) ou null para o início.
+ * @param {number} pageSize - Quantidade de registos por página (Padrão: 50).
+ * @returns {Promise<object>} - { students: Array, lastVisible: DocSnapshot }
  */
-export const loadStudents = async () => {
+export const loadStudentsPaginated = async (lastVisibleDoc = null, pageSize = 50) => {
     try {
         const studentsRef = getStudentsCollectionRef();
-        // (Melhoria futura: Adicionar limit(100) ou paginação aqui quando tiver muitos alunos)
-        const querySnapshot = await getDocs(query(studentsRef));
+        
+        // Consulta base ordenada por nome
+        let q = query(studentsRef, orderBy('name'), limit(pageSize));
+
+        // Se tiver cursor, começa depois dele
+        if (lastVisibleDoc) {
+            q = query(studentsRef, orderBy('name'), startAfter(lastVisibleDoc), limit(pageSize));
+        }
+
+        const querySnapshot = await getDocs(q);
         
         const studentsList = [];
         querySnapshot.forEach((doc) => {
-            // O ID do documento é a matrícula (definido na criação), mas garantimos que está nos dados
-            const studentData = doc.data();
-            // Garante que a matrícula está presente (fallback para o ID do documento)
-            if (!studentData.matricula) studentData.matricula = doc.id;
-            studentsList.push(studentData);
+            const data = doc.data();
+            if (!data.matricula) data.matricula = doc.id;
+            studentsList.push(data);
         });
 
-        state.students = studentsList;
-        console.log(`${studentsList.length} alunos carregados da nova estrutura.`);
+        const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
         
+        return { students: studentsList, lastVisible };
+
     } catch (error) {
-        console.error("Erro ao carregar lista de alunos (Coleção):", error);
-        state.students = []; // Fallback para array vazio
-        
-        // --- MELHORIA DE ERRO ---
-        if (error.code === 'permission-denied') {
-            console.warn("PERMISSÃO NEGADA: As regras de segurança do Firestore (firestore.rules) bloqueiam o acesso à coleção 'students'. É necessário atualizar as regras no Firebase Console.");
-            // Lança um erro com mensagem clara para o main.js pegar
-            throw new Error("Permissão negada. Atualize o firestore.rules no Firebase Console.");
-        }
-        
-        throw new Error("Erro ao carregar a lista de alunos da nova base de dados.");
+        console.error("Erro na paginação de alunos:", error);
+        throw error;
     }
 };
 
 /**
- * Carrega as configurações da escola (nome, logo, etc.) do Firestore.
- * @returns {Promise<void>}
+ * (NOVO) Busca alunos pelo nome no servidor (Firestore).
+ * Essencial quando se tem milhares de alunos e não se pode filtrar no cliente.
+ * Nota: O Firestore é case-sensitive por padrão. Para busca perfeita, precisaríamos de um campo 'name_lowercase'.
+ * Aqui usamos uma busca de prefixo simples.
  */
+export const searchStudentsByName = async (searchText) => {
+    if (!searchText) return [];
+    
+    // Normaliza para evitar buscas vazias
+    const term = searchText.trim();
+    // O caractere \uf8ff é um truque do Firestore para simular "começa com"
+    const endTerm = term + '\uf8ff';
+
+    try {
+        const studentsRef = getStudentsCollectionRef();
+        const q = query(
+            studentsRef, 
+            orderBy('name'), 
+            where('name', '>=', term),
+            where('name', '<=', endTerm),
+            limit(20) // Limita resultados da busca para não travar
+        );
+
+        const querySnapshot = await getDocs(q);
+        const results = [];
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            if (!data.matricula) data.matricula = doc.id;
+            results.push(data);
+        });
+        return results;
+
+    } catch (error) {
+        console.error("Erro na busca de alunos:", error);
+        return [];
+    }
+};
+
+/**
+ * (LEGADO/COMPATIBILIDADE) Função antiga adaptada.
+ * Agora carrega apenas a PRIMEIRA página para popular o estado inicial,
+ * evitando o crash de "Download da Morte".
+ */
+export const loadStudents = async () => {
+    try {
+        // Carrega apenas os primeiros 50 para a interface inicial
+        const { students, lastVisible } = await loadStudentsPaginated(null, 50);
+        
+        state.students = students;
+        
+        // Salva o cursor no estado (precisaremos adicionar isso ao state.js depois)
+        state.pagination = {
+            lastVisible: lastVisible,
+            hasMore: students.length === 50,
+            isLoading: false
+        };
+
+        console.log(`Inicialização: ${students.length} alunos carregados.`);
+    } catch (error) {
+        console.error("Erro ao carregar lista inicial:", error);
+        if (error.code === 'permission-denied') {
+            throw new Error("Permissão negada. Atualize o firestore.rules.");
+        }
+        throw new Error("Erro ao carregar alunos.");
+    }
+};
+
+/**
+ * (NOVO) Busca um aluno específico pelo ID.
+ * Útil quando uma ocorrência cita um aluno que não está na lista paginada atual.
+ */
+export const getStudentById = async (studentId) => {
+    // Primeiro verifica se já está na memória
+    const cachedStudent = state.students.find(s => s.matricula === studentId);
+    if (cachedStudent) return cachedStudent;
+
+    try {
+        const docRef = doc(getStudentsCollectionRef(), studentId);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (!data.matricula) data.matricula = docSnap.id;
+            // Opcional: Adicionar ao state.students para cache futuro? 
+            // Não por enquanto, para não poluir a lista visual da tabela.
+            return data;
+        }
+        return null;
+    } catch (error) {
+        console.error(`Erro ao buscar aluno ${studentId}:`, error);
+        return null;
+    }
+};
+
+// --- CONFIGURAÇÕES E INCIDENTES (Inalterados) ---
+
 export const loadSchoolConfig = async () => {
     try {
         const docSnap = await getDoc(getSchoolConfigDocRef());
         if (docSnap.exists()) {
             state.config = docSnap.data();
         } else {
-            console.log("Nenhum documento de configuração encontrado. Usando valores padrão.");
-            // Define valores padrão se nada for encontrado
             state.config = {
                 schoolName: "EMEF. DILMA DOS SANTOS CARVALHO",
                 city: "Cidade (Exemplo)",
@@ -188,72 +241,60 @@ export const loadSchoolConfig = async () => {
             };
         }
     } catch (error) {
-        console.error("Erro ao carregar configurações da escola:", error);
-        throw new Error("Erro ao carregar as configurações da escola.");
+        console.error("Erro ao carregar configurações:", error);
+        throw new Error("Erro ao carregar as configurações.");
     }
 };
 
-/**
- * NOVO (Problema 3): Salva as configurações da escola no Firestore.
- * @param {object} data - O objeto com os dados da configuração (schoolName, city, schoolLogoUrl).
- * @returns {Promise<void>}
- */
 export const saveSchoolConfig = (data) => {
     const configRef = getSchoolConfigDocRef();
-    // Usa setDoc com 'merge: true' para não sobrescrever outros campos que possam existir no futuro.
     return setDoc(configRef, data, { merge: true });
 };
 
-/**
- * NOVO (CORREÇÃO LOGIN): Função em falta que estava a ser importada.
- * Busca todos os registos de ocorrência para um 'groupId' específico
- * e agrupa-os num único objeto de "Incidente".
- * Esta função é necessária para 'occurrence.js' e 'reports.js'.
- * @param {string} groupId - O ID do grupo (ex: "OCC-2025-001").
- * @returns {Promise<object|null>} Um objeto de incidente ou null se não for encontrado.
- */
 export const getIncidentByGroupId = async (groupId) => {
     const incidentQuery = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', groupId));
     
     try {
         const querySnapshot = await getDocs(incidentQuery);
-        if (querySnapshot.empty) {
-            console.warn(`Nenhum registo encontrado para o groupId: ${groupId}`);
-            return null;
-        }
+        if (querySnapshot.empty) return null;
 
         const incident = {
             id: groupId,
             records: [],
-            participantsInvolved: new Map(), // Será preenchido
+            participantsInvolved: new Map(),
         };
 
         querySnapshot.forEach(doc => {
             incident.records.push({ id: doc.id, ...doc.data() });
         });
 
-        // Pega os dados do primeiro registo (dados coletivos)
-        // Garante que records[0] existe
-        if (incident.records.length === 0) {
-             console.warn(`Registos encontrados mas array 'records' está vazio para groupId: ${groupId}`);
-             return null;
-        }
+        if (incident.records.length === 0) return null;
         
         const mainRecord = incident.records[0];
-        const participantsList = mainRecord.participants || []; // Lista de { studentId, role }
+        const participantsList = mainRecord.participants || [];
 
-        // Preenche o Map 'participantsInvolved' com os dados completos dos alunos
-        participantsList.forEach(participant => {
-            const student = state.students.find(s => s.matricula === participant.studentId);
-            if (student && !incident.participantsInvolved.has(participant.studentId)) {
-                incident.participantsInvolved.set(participant.studentId, {
-                    student: student,
-                    role: participant.role || 'Envolvido' // Usa 'Envolvido' como fallback
-                });
+        // Otimização: Busca paralela de alunos faltantes
+        const studentPromises = participantsList.map(async (participant) => {
+            // Tenta buscar na memória ou no banco individualmente
+            const student = await getStudentById(participant.studentId);
+            if (student) {
+                return {
+                    id: participant.studentId,
+                    data: {
+                        student: student,
+                        role: participant.role || 'Envolvido'
+                    }
+                };
             }
+            return null;
         });
 
-        // Recalcula o status geral (lógica de getFilteredOccurrences)
+        const resolvedStudents = await Promise.all(studentPromises);
+        
+        resolvedStudents.forEach(item => {
+            if (item) incident.participantsInvolved.set(item.id, item.data);
+        });
+
         const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
         incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
 

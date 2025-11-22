@@ -1,31 +1,29 @@
 // =================================================================================
 // ARQUIVO: main.js
-// --- MÓDULOS IMPORTADOS ---
+// VERSÃO: 2.1 (Listeners Otimizados e Inicialização Segura)
 
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { onSnapshot, query, writeBatch, doc, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { onSnapshot, query, writeBatch, doc, where, getDocs, limit, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, shareContent, openModal, loadScript } from './utils.js';
-// (NOVO - Reset) Importa updateRecordWithHistory
+// Importa updateRecordWithHistory para o reset e funções de firestore
 import { loadStudents, loadSchoolConfig, getCollectionRef, deleteRecord, updateRecordWithHistory } from './firestore.js';
 
 // Módulos de Funcionalidade
 import { initAuthListeners } from './auth.js';
 import { initSettingsListeners } from './settings.js';
 import { initStudentListeners } from './students.js';
-import { initOccurrenceListeners, renderOccurrences } from './occurrence.js'; // Novo
-import { initAbsenceListeners, renderAbsences } from './absence.js';     // Novo
+import { initOccurrenceListeners, renderOccurrences } from './occurrence.js'; 
+import { initAbsenceListeners, renderAbsences } from './absence.js';     
 
-// Módulos de UI e Lógica (agora menores)
+// Módulos de UI e Lógica
 import { render } from './ui.js';
-// (NOVO - Reset) Importa a lógica de reset
 import { occurrenceStepLogic } from './logic.js';
 
-// (ADICIONADO - Híbrida Admin) Lista de Super Administradores (Chave-Mestra)
-// Estes emails TÊM SEMPRE acesso de admin, independentemente do que está na base de dados.
+// Lista de Super Administradores (Chave-Mestra)
 const SUPER_ADMIN_EMAILS = [
-    'silviobaiajr@gmail.com' // Email do dono da aplicação
+    'silviobaiajr@gmail.com' 
 ];
 
 // --- INICIALIZAÇÃO DA APLICAÇÃO ---
@@ -44,30 +42,22 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.mainContent.classList.remove('hidden');
             dom.userProfile.classList.remove('hidden');
 
-            // ==============================================================================
-            // --- (CORREÇÃO ROBUSTEZ) Lógica de Admin Prioritária ---
-            // A verificação de Admin agora acontece ANTES de carregar dados pesados.
-            // Isso garante que o botão "Gerir Alunos" apareça mesmo se a lista de alunos falhar.
-            // ==============================================================================
-            
-            // 1. Define Admin IMEDIATAMENTE com base na lista fixa (Super Admin)
+            // 1. Define Admin IMEDIATAMENTE (Super Admin)
             state.isAdmin = SUPER_ADMIN_EMAILS.includes(user.email);
 
-            // 2. Tenta carregar configurações (para pegar admins secundários e nome da escola)
+            // 2. Tenta carregar configurações
             try {
                 await loadSchoolConfig(); 
                 const dbAdminList = state.config.adminEmails || [];
-                // Se não for super admin, verifica se está na lista do banco
                 if (!state.isAdmin) {
                     state.isAdmin = dbAdminList.includes(user.email);
                 }
                 dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
             } catch (configError) {
                 console.warn("Aviso: Não foi possível carregar configurações.", configError);
-                // Não bloqueia o fluxo. O Super Admin já está garantido no passo 1.
             }
 
-            // 3. Atualiza a UI dos botões de Admin AGORA (Sem esperar pelos alunos)
+            // 3. Atualiza a UI dos botões de Admin
             if (state.isAdmin) {
                 if(dom.settingsBtn) dom.settingsBtn.classList.remove('hidden');
                 if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.remove('hidden');
@@ -76,13 +66,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
             }
 
-            // 4. Só agora tenta carregar os dados pesados (Alunos, etc.)
+            // 4. Carrega dados iniciais (Agora PAGINADOS e SEGUROS)
             try {
-                await loadStudents();
-                setupFirestoreListeners();
+                await loadStudents(); // Carrega apenas os primeiros 50 alunos
+                setupFirestoreListeners(); // Inicia listeners limitados aos últimos 100 registos
             } catch (error) {
                 console.error("Erro no carregamento de dados:", error);
-                // Mostra aviso amigável, mas mantém a interface funcional para o Admin corrigir
                 if (state.isAdmin) {
                     showToast("Aviso: Lista de alunos vazia ou inacessível. Use 'Gerir Alunos' para importar.");
                 } else {
@@ -90,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            render(); // Chama o render principal
+            render(); 
 
         } else {
             // Logout
@@ -99,7 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
             
-            // Garante que os botões de admin fiquem escondidos ao sair
             if(dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
             if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
             
@@ -115,18 +103,29 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupFirestoreListeners() {
     if (!state.userId) return;
 
-    // Listener de Ocorrências (agora chama renderOccurrences)
-    const occurrencesQuery = query(getCollectionRef('occurrence'));
+    // (SEGURANÇA DE ESCALA) Limitamos a 100 registos mais recentes para evitar crash.
+    // Ocorrências
+    const occurrencesQuery = query(
+        getCollectionRef('occurrence'), 
+        orderBy('createdAt', 'desc'), // Ordena por criação (mais recente primeiro)
+        limit(100)                    // Traz apenas os últimos 100
+    );
+    
     state.unsubscribeOccurrences = onSnapshot(occurrencesQuery, (snapshot) => {
         state.occurrences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        if (state.activeTab === 'occurrences') renderOccurrences(); // Chama o render específico
+        if (state.activeTab === 'occurrences') renderOccurrences(); 
     }, (error) => console.error("Erro ao buscar ocorrências:", error));
 
-    // Listener de Busca Ativa (agora chama renderAbsences)
-    const absencesQuery = query(getCollectionRef('absence'));
+    // Busca Ativa
+    const absencesQuery = query(
+        getCollectionRef('absence'), 
+        orderBy('createdAt', 'desc'), // Ordena por criação
+        limit(100)                    // Traz apenas os últimos 100
+    );
+
     state.unsubscribeAbsences = onSnapshot(absencesQuery, (snapshot) => {
         state.absences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        if (state.activeTab === 'absences') renderAbsences(); // Chama o render específico
+        if (state.activeTab === 'absences') renderAbsences(); 
     }, (error) => console.error("Erro ao buscar ações:", error));
 };
 
@@ -140,27 +139,21 @@ function detachFirestoreListeners() {
 // --- CONFIGURAÇÃO CENTRAL DE EVENTOS DA UI ---
 
 function setupEventListeners() {
-    // Autenticação
     initAuthListeners();
     dom.logoutBtn.addEventListener('click', () => signOut(auth));
 
-    // Navegação por Abas
     dom.tabOccurrences.addEventListener('click', () => switchTab('occurrences'));
     dom.tabAbsences.addEventListener('click', () => switchTab('absences'));
 
-    // Fechar Modais (Genérico)
     setupModalCloseButtons();
 
-    // --- INICIALIZAÇÃO DOS MÓDULOS DE FUNCIONALIDADE ---
     initSettingsListeners();
     initStudentListeners();
-    initOccurrenceListeners(); // NOVO
-    initAbsenceListeners();    // NOVO
+    initOccurrenceListeners(); 
+    initAbsenceListeners();    
 
-    // Ações em Modais Genéricos (que permanecem aqui)
     document.getElementById('confirm-delete-btn').addEventListener('click', handleDeleteConfirmation);
 
-    // Listener para fechar menus kebab
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.kebab-menu-container')) {
             document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
@@ -173,25 +166,12 @@ function setupEventListeners() {
     });
 }
 
-// --- HANDLERS E FUNÇÕES AUXILIARES (Genéricos) ---
+// --- HANDLERS E FUNÇÕES AUXILIARES ---
 
-function getFirestoreErrorMessage(code) {
-    switch (code) {
-        case 'permission-denied': return "Permissão negada. Verifique as suas credenciais.";
-        case 'not-found': return "Documento não encontrado.";
-        default: return "Ocorreu um erro na operação com a base de dados.";
-    }
-}
-
-/**
- * Troca a aba ativa e chama o render principal do ui.js
- * (MODIFICADO - Correção Bug)
- */
 function switchTab(tabName) {
     state.activeTab = tabName;
     const isOccurrences = tabName === 'occurrences';
     
-    // (MODIFICADO - Lógica explícita para evitar bugs de 'toggle')
     if (isOccurrences) {
         dom.tabOccurrences.classList.add('tab-active');
         dom.tabAbsences.classList.remove('tab-active');
@@ -204,54 +184,37 @@ function switchTab(tabName) {
         dom.tabContentAbsences.classList.remove('hidden');
     }
     
-    render(); // O render do ui.js vai decidir qual função específica chamar
+    render(); 
 }
 
-/**
- * Lida com a confirmação de exclusão (genérico).
- * Esta função é chamada pelos listeners em occurrence.js e absence.js
- * --- (NOVO - Reset) Esta função agora também lida com o RESET de etapas. ---
- */
 async function handleDeleteConfirmation() {
     if (!state.recordToDelete) return;
     
-    // (NOVO - Reset) Desestruturação expandida para o reset
     const { type, id, recordId, actionToReset, historyAction } = state.recordToDelete;
     
     try {
         if (type === 'occurrence') {
-            // Lógica original de exclusão de incidente (inalterada)
             const q = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', id));
             const querySnapshot = await getDocs(q);
             const batch = writeBatch(db);
             querySnapshot.forEach(doc => batch.delete(doc.ref));
             await batch.commit();
-            showToast('Incidente e todos os registros associados foram excluídos.');
+            showToast('Incidente excluído.');
 
-        // --- (NOVO - Reset) Lógica para resetar uma etapa da ocorrência ---
         } else if (type === 'occurrence-reset') {
             const logic = occurrenceStepLogic[actionToReset];
-            if (!logic) {
-                throw new Error(`Lógica de reset não encontrada para a ação: ${actionToReset}`);
-            }
+            if (!logic) throw new Error(`Lógica não encontrada: ${actionToReset}`);
 
-            // 1. Prepara o objeto de atualização (limpa os campos)
             const dataToUpdate = {};
             for (const field of logic.fieldsToClear) {
-                dataToUpdate[field] = null; // Seta o campo para null
+                dataToUpdate[field] = null; 
             }
-            
-            // 2. Define o status para o qual deve reverter
             dataToUpdate.statusIndividual = logic.statusAfterReset;
 
-            // 3. Executa a atualização (usando a função importada)
-            // Usa o 'recordId' do state.recordToDelete
             await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
             showToast('Etapa resetada com sucesso.');
-        // --- FIM DA NOVIDADE ---
             
         } else if (type === 'absence-cascade') {
-            // Lógica original de exclusão em cascata (inalterada)
             const { ctId, analiseId } = state.recordToDelete;
             const batch = writeBatch(db);
             batch.delete(doc(getCollectionRef('absence'), ctId));
@@ -259,32 +222,19 @@ async function handleDeleteConfirmation() {
             await batch.commit();
             showToast('Encaminhamento e Análise excluídos.');
         } else {
-            // Lógica original de exclusão simples (inalterada)
             await deleteRecord(type, id);
             showToast('Registro excluído com sucesso.');
         }
     } catch (error) { 
-        // (NOVO - Reset) Mensagem de erro genérica
-        showToast(type === 'occurrence-reset' ? 'Erro ao resetar a etapa.' : 'Erro ao excluir.'); 
-        console.error("Erro na confirmação:", error); 
+        showToast('Erro ao processar exclusão/reset.'); 
+        console.error("Erro:", error); 
     } finally { 
         state.recordToDelete = null; 
         closeModal(dom.deleteConfirmModal); 
     }
 }
 
-
-// ==============================================================================
-// --- (INÍCIO DA CORREÇÃO) ---
-// A função 'handlePrintClick' (que usava requestAnimationFrame) foi REMOVIDA.
-// A função 'setupModalCloseButtons' abaixo foi modificada para usar
-// 'window.print()' diretamente, conforme a versão funcional (3d911...).
-// ==============================================================================
-
-// --- CONFIGURAÇÃO DE LISTENERS DINÂMICOS ---
-
 function setupModalCloseButtons() {
-    // (Esta função permanece inalterada, pois lida com TODOS os modais)
     const modalMap = {
         'close-modal-btn': dom.occurrenceModal, 'cancel-btn': dom.occurrenceModal,
         'close-absence-modal-btn': dom.absenceModal, 'cancel-absence-btn': dom.absenceModal,
@@ -300,7 +250,6 @@ function setupModalCloseButtons() {
         'cancel-settings-btn': dom.settingsModal,
         'close-follow-up-modal-btn': dom.followUpModal,
         'cancel-follow-up-btn': dom.followUpModal,
-        // (NOVO) Modais do fluxo Enviar ao CT
         'close-send-ct-modal-btn': dom.sendOccurrenceCtModal,
         'cancel-send-ct-modal-btn': dom.sendOccurrenceCtModal,
     };
@@ -308,32 +257,22 @@ function setupModalCloseButtons() {
     for (const [id, modal] of Object.entries(modalMap)) {
         const button = document.getElementById(id);
         if (button && modal) {
-            // Remove listener antigo para evitar duplicatas
             const oldListener = button.__clickListener;
             if (oldListener) button.removeEventListener('click', oldListener);
             
-            // Adiciona novo listener
             const newListener = () => closeModal(modal);
             button.addEventListener('click', newListener);
-            button.__clickListener = newListener; // Armazena referência para remoção futura
+            button.__clickListener = newListener;
             
             if (button.hasAttribute('onclick')) button.removeAttribute('onclick');
         }
     }
     
-    // --- ATUALIZAÇÃO DOS BOTÕES DE SHARE E PRINT ---
-    
-    // Botões de Share (Partilhar)
     document.getElementById('share-btn').addEventListener('click', () => shareContent(document.getElementById('notification-title').textContent, document.getElementById('notification-content').innerText));
     document.getElementById('report-share-btn').addEventListener('click', () => shareContent(document.getElementById('report-view-title').textContent, document.getElementById('report-view-content').innerText));
-    // (CORRIGIDO O ID QUE CAUSAVA O ERRO DA IMAGEM)
     document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
 
-    // Botões de Impressão (CORRIGIDO: Voltando ao window.print() simples)
     document.getElementById('print-btn').addEventListener('click', () => window.print());
     document.getElementById('report-print-btn').addEventListener('click', () => window.print());
     document.getElementById('ficha-print-btn').addEventListener('click', () => window.print());
 }
-// ==============================================================================
-// --- (FIM DA CORREÇÃO) ---
-// ==============================================================================
