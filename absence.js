@@ -48,7 +48,7 @@ const setupAbsenceAutocomplete = () => {
         
         if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
 
-        // 1. Filtragem Local na Tabela (se já houver dados carregados)
+        // 1. Filtragem Local na Tabela (apenas visual, sobre o que já está carregado)
         state.filterAbsences = value.toLowerCase();
         renderAbsences();
         
@@ -64,6 +64,7 @@ const setupAbsenceAutocomplete = () => {
             suggestionsContainer.classList.remove('hidden');
 
             try {
+                // (CORREÇÃO VITAL) Usa a busca otimizada do firestore.js
                 const studentsFound = await searchStudentsByName(value);
                 suggestionsContainer.innerHTML = '';
 
@@ -114,7 +115,7 @@ export const renderAbsences = () => {
 
         // Se houver filtro de texto, só mostra se o aluno estiver carregado E corresponder
         if (student) {
-            return student.name.toLowerCase().startsWith(state.filterAbsences);
+            return student.name.toLowerCase().includes(state.filterAbsences); // includes em vez de startsWith para ser mais flexível
         }
         return false; 
     });

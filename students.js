@@ -2,8 +2,9 @@
 // ARQUIVO: students.js
 
 import { state, dom } from './state.js';
-import { setDoc, doc, writeBatch, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getStudentsCollectionRef, loadStudents, searchStudentsByName } from './firestore.js'; // (NOVO) Importa searchStudentsByName
+// (CORREÇÃO) Adicionado 'getDoc' que estava em falta e é necessário para o fallback de edição
+import { setDoc, doc, writeBatch, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStudentsCollectionRef, loadStudents, searchStudentsByName } from './firestore.js'; 
 import { db } from './firebase.js'; 
 import { showToast, openModal, loadScript } from './utils.js'; 
 
@@ -79,6 +80,7 @@ const handleStudentSearch = (e) => {
         
         try {
             // Busca no servidor usando a função otimizada do firestore.js
+            // Agora esta função já trata a primeira letra maiúscula automaticamente!
             const results = await searchStudentsByName(searchTerm);
             renderStudentsList(results);
         } catch (error) {
@@ -271,6 +273,7 @@ async function handleStudentTableActions(e) {
         if (!student) {
              // Fallback: busca no Firestore (rápido, 1 doc)
              try {
+                 // (CORREÇÃO) Esta chamada exige que 'getDoc' tenha sido importado
                  const docSnap = await getDoc(doc(getStudentsCollectionRef(), id));
                  if(docSnap.exists()) student = { matricula: docSnap.id, ...docSnap.data() };
              } catch(e) { console.error(e); }

@@ -133,6 +133,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             suggestionsElement.classList.remove('hidden');
 
             try {
+                // (CORREÇÃO VITAL) Usa a busca otimizada que corrige Maiúsculas/Minúsculas
                 const studentsFound = await searchStudentsByName(value);
                 suggestionsElement.innerHTML = '';
 

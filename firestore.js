@@ -170,25 +170,27 @@ export const loadStudents = async () => {
 };
 
 /**
- * (NOVO) Busca alunos no servidor pelo nome.
- * Essencial para os autocompletes funcionarem com paginação.
+ * (CORRIGIDO) Busca alunos no servidor pelo nome de forma mais inteligente.
  * @param {string} searchName - O nome (ou parte dele) a pesquisar.
  * @returns {Promise<Array>} Lista de alunos encontrados.
  */
 export const searchStudentsByName = async (searchName) => {
     if (!searchName || searchName.trim() === '') return [];
 
-    const searchTerm = searchName.trim(); // Mantém o casing original para a query se necessário, ou normaliza
-    // Nota: Firestore é case-sensitive por padrão. Para busca perfeita, precisaríamos de um campo 'nameLower'.
-    // Por agora, usamos o método startAt/endAt que funciona bem se o usuário digitar as iniciais corretas.
-    
-    // Estratégia "prefixo": Busca nomes que começam com 'searchTerm'
+    // CORREÇÃO DE PESQUISA:
+    // O Firestore é case-sensitive. Se salvarmos "Maria" e buscarmos "maria", falha.
+    // Tentativa de correção: Forçamos a primeira letra a ser maiúscula.
+    let term = searchName.trim();
+    if (term.length > 0) {
+        term = term.charAt(0).toUpperCase() + term.slice(1);
+    }
+
     const studentsRef = getStudentsCollectionRef();
     const q = query(
         studentsRef, 
         orderBy('name'), 
-        startAt(searchTerm), 
-        endAt(searchTerm + '\uf8ff'),
+        startAt(term), 
+        endAt(term + '\uf8ff'),
         limit(5) // Retorna no máximo 5 sugestões
     );
 
