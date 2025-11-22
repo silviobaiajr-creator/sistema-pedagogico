@@ -85,6 +85,8 @@ export const initializeDOMReferences = () => {
     // Modais
     dom.occurrenceModal = document.getElementById('occurrence-modal');
     dom.absenceModal = document.getElementById('absence-modal');
+    // (NOVO - REQUISIÇÃO 2) Referência para o modal de fluxo de busca ativa
+    dom.absenceSearchFlowModal = document.getElementById('absence-search-flow-modal'); 
     dom.studentsModal = document.getElementById('students-modal');
     dom.settingsModal = document.getElementById('settings-modal'); 
     dom.notificationModalBackdrop = document.getElementById('notification-modal-backdrop');
@@ -93,12 +95,10 @@ export const initializeDOMReferences = () => {
     dom.reportViewModalBackdrop = document.getElementById('report-view-modal-backdrop');
     dom.fichaViewModalBackdrop = document.getElementById('ficha-view-modal-backdrop');
     dom.followUpModal = document.getElementById('follow-up-modal');
-    // --- NOVO (V2): Referências para o novo modal "Enviar ao CT" ---
     dom.sendOccurrenceCtModal = document.getElementById('send-occurrence-ct-modal'); 
     dom.sendOccurrenceCtForm = document.getElementById('send-occurrence-ct-form');
     dom.sendCtStudentSelect = document.getElementById('send-ct-student-select');
     dom.sendCtOficioNumberInput = document.getElementById('send-ct-oficio-number');
-    // --- FIM NOVO ---
     
     // Listas e estados de carregamento
     dom.occurrencesListDiv = document.getElementById('occurrences-list');
@@ -128,10 +128,10 @@ export const initializeDOMReferences = () => {
 
     // Botões de Ação Principais
     dom.settingsBtn = document.getElementById('settings-btn');
-    dom.manageStudentsBtn = document.getElementById('manage-students-btn'); // (ADICIONADO)
+    dom.manageStudentsBtn = document.getElementById('manage-students-btn'); 
     dom.generalReportBtn = document.getElementById('general-report-btn');
     dom.generalBaReportBtn = document.getElementById('general-ba-report-btn');
-    dom.addAbsenceBtn = document.getElementById('add-absence-btn'); // (ADICIONADO - Sug. 3)
+    dom.addAbsenceBtn = document.getElementById('add-absence-btn'); 
 
     // --- CORREÇÃO CSV: Adicionando referências do modal de alunos ---
     dom.studentForm = document.getElementById('student-form');

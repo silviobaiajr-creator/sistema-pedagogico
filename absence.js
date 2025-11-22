@@ -1,14 +1,12 @@
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 2.9 (Correção: Busca Automática ao Avançar Etapa)
+// VERSÃO: 3.0 (Padronização de Fluxo e Modais)
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js';
 import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js'; 
-// (ATENÇÃO) Importa openFichaViewModal corretamente
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
-// (CORREÇÃO) Adicionado getStudentById para buscar aluno se não estiver na memória
 import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName, getStudentById } from './firestore.js'; 
 import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
@@ -51,25 +49,48 @@ const getDateInputForActionType = (actionType) => {
 };
 
 
-// --- Funções de UI (Busca e Autocomplete) ---
+// =================================================================================
+// FUNÇÕES DE FLUXO DE BUSCA (REQUISIÇÃO 2)
+// =================================================================================
 
 let absenceSearchTimeout = null;
 
-const setupAbsenceAutocomplete = () => {
-    const input = dom.searchAbsences; 
-    const suggestionsContainer = document.getElementById('absence-student-suggestions');
+/**
+ * Abre o modal para iniciar/continuar o fluxo de Busca Ativa.
+ */
+export const openAbsenceSearchFlowModal = () => {
+    const input = document.getElementById('absence-search-flow-input');
+    const suggestionsContainer = document.getElementById('absence-search-flow-suggestions');
+    const resultsContainer = document.getElementById('absence-search-flow-results');
+
+    input.value = '';
+    suggestionsContainer.innerHTML = '';
+    suggestionsContainer.classList.add('hidden');
+    resultsContainer.innerHTML = '<p class="text-sm text-gray-400 text-center">Comece a digitar o nome do aluno acima.</p>';
+
+    setupAbsenceSearchFlowAutocomplete(input, suggestionsContainer);
+    
+    // Anexa listeners de fecho ao modal de fluxo
+    const closeBtn = document.getElementById('close-absence-search-flow-modal-btn');
+    const cancelBtn = document.getElementById('cancel-absence-search-flow-btn');
+    if (closeBtn) closeBtn.onclick = () => closeModal(dom.absenceSearchFlowModal);
+    if (cancelBtn) cancelBtn.onclick = () => closeModal(dom.absenceSearchFlowModal);
+
+    openModal(dom.absenceSearchFlowModal);
+};
+
+/**
+ * Configura a lógica de busca de aluno dentro do modal de fluxo.
+ */
+const setupAbsenceSearchFlowAutocomplete = (input, suggestionsContainer) => {
     
     input.addEventListener('input', () => {
         const rawValue = input.value;
-        const normalizedValue = normalizeText(rawValue);
-        
-        state.filterAbsences = normalizedValue;
-        renderAbsences(); 
+        suggestionsContainer.innerHTML = '';
         
         if (absenceSearchTimeout) clearTimeout(absenceSearchTimeout);
         
-        suggestionsContainer.innerHTML = '';
-        if (!normalizedValue) {
+        if (!rawValue.trim()) {
             suggestionsContainer.classList.add('hidden');
             return;
         }
@@ -79,24 +100,31 @@ const setupAbsenceAutocomplete = () => {
             suggestionsContainer.innerHTML = '<div class="p-2 text-gray-500 text-xs"><i class="fas fa-spinner fa-spin"></i> Buscando alunos...</div>';
 
             try {
+                // (ATENÇÃO) Usa searchStudentsByName, que busca no servidor
                 const results = await searchStudentsByName(rawValue);
                 
-                suggestionsContainer.innerHTML = ''; // Limpa spinner
+                suggestionsContainer.innerHTML = ''; 
                 
                 if (results.length > 0) {
                     results.forEach(student => {
                         const item = document.createElement('div');
-                        item.className = 'suggestion-item p-2 cursor-pointer hover:bg-gray-100 border-b border-gray-100';
+                        item.className = 'suggestion-item p-2 cursor-pointer hover:bg-emerald-50 border-b border-gray-100';
                         item.innerHTML = `<span class="font-semibold text-gray-800">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
                         
                         item.addEventListener('click', () => {
-                            // Cache Imediato: Adiciona à memória se não existir
+                            // 1. Cache Imediato
                             if (!state.students.find(s => s.matricula === student.matricula)) {
                                 state.students.push(student);
                             }
 
+                            // 2. Inicia/Continua Ação
                             handleNewAbsenceAction(student); 
-                            input.value = '';
+                            
+                            // 3. Fecha o modal de busca
+                            closeModal(dom.absenceSearchFlowModal); 
+                            
+                            // 4. Limpa a busca de filtro principal
+                            dom.searchAbsences.value = ''; 
                             state.filterAbsences = '';
                             renderAbsences();
                             suggestionsContainer.classList.add('hidden');
@@ -120,6 +148,11 @@ const setupAbsenceAutocomplete = () => {
     });
 };
 
+/**
+ * (REMOVIDO) A função setupAbsenceAutocomplete anterior foi substituída 
+ * pela lógica de filtro na barra principal e a função setupAbsenceSearchFlowAutocomplete
+ * no novo modal. A barra principal agora é APENAS filtro.
+ */
 
 // =================================================================================
 // RENDERIZAÇÃO (Render Absences)
@@ -129,6 +162,7 @@ export const renderAbsences = () => {
     dom.loadingAbsences.classList.add('hidden');
     const filterTerm = normalizeText(state.filterAbsences);
 
+    // ... (restante da função renderAbsences permanece inalterado) ...
     const searchFiltered = state.absences.filter(a => {
         if (!filterTerm) return true;
         // Tenta buscar nome no registo (novo) ou na memória (antigo)
@@ -168,7 +202,7 @@ export const renderAbsences = () => {
             return (timeA || 0) - (timeB || 0); 
         });
 
-        const { startDate, endDate } = state.filtersAbsences;
+        const { startDate, endDate, processStatus, pendingAction, returnStatus } = state.filtersAbsences;
         const firstAction = actions[0];
         const processStartDateRaw = getActionMainDate(firstAction) || firstAction.createdAt;
         let processStartDate;
@@ -191,7 +225,6 @@ export const renderAbsences = () => {
             if (processStartDate > filterEndDate) return false;
         }
 
-        const { processStatus, pendingAction, returnStatus } = state.filtersAbsences;
         const isConcluded = actions.some(a => a.actionType === 'analise');
         if (processStatus === 'in_progress' && isConcluded) return false;
         if (processStatus === 'concluded' && !isConcluded) return false;
@@ -248,7 +281,7 @@ export const renderAbsences = () => {
         } else {
             dom.emptyStateAbsences.classList.remove('hidden');
             dom.emptyStateAbsences.querySelector('h3').textContent = 'Nenhuma ação registada';
-            dom.emptyStateAbsences.querySelector('p').textContent = 'Use a busca acima para registar uma nova ação.';
+            dom.emptyStateAbsences.querySelector('p').textContent = 'Use o botão "Nova Ação" para começar.'; // (MODIFICADO)
         }
         dom.absencesListDiv.innerHTML = ''; 
     } else {
@@ -445,14 +478,18 @@ export const handleNewAbsenceAction = (student) => {
         let pendingActionMessage = "Complete a etapa anterior para poder prosseguir.";
 
         if (lastAction.actionType.startsWith('tentativa')) {
+            // Verifica a convocação (Ação 1/2)
             if (lastAction.meetingDate == null) {
                 isPending = true;
-                pendingActionMessage = "Registre a Data/Hora da Convocação para esta tentativa.";
+                pendingActionMessage = "Registre a Data/Hora da Convocação para esta tentativa (Ação 1/2).";
             }
+            // Verifica o contato (Ação 3)
             else if (lastAction.contactSucceeded == null) { 
                 isPending = true;
-                pendingActionMessage = "Registre se houve sucesso no contato da última tentativa.";
-            } else if (lastAction.contactReturned == null) { 
+                pendingActionMessage = "Registre se houve sucesso no contato da última tentativa (Ação 3).";
+            } 
+            // Verifica o retorno
+            else if (lastAction.contactReturned == null && lastAction.contactSucceeded === 'yes') { 
                 isPending = true;
                 pendingActionMessage = "Registre se o aluno retornou após o contato.";
             }
@@ -500,15 +537,22 @@ export const toggleFamilyContactFields = (enable, fieldsContainer) => {
     if (!fieldsContainer) return;
     fieldsContainer.classList.toggle('hidden', !enable);
     const detailFields = fieldsContainer.querySelectorAll('input[type="date"], input[type="text"], textarea, select');
+    // Adiciona/remove 'required' apenas se a seção estiver visível/habilitada
+    const returnedRadioGroup = document.querySelectorAll('input[name="contact-returned"]');
+
     detailFields.forEach(input => {
         input.disabled = !enable;
         input.required = enable; 
         if (!enable) {
             input.classList.add('bg-gray-200', 'cursor-not-allowed');
+            input.value = ''; // Limpa se desabilitado
         } else {
             input.classList.remove('bg-gray-200', 'cursor-not-allowed');
         }
     });
+    
+    // Aluno retornou só é obrigatório se conseguiu contato
+    returnedRadioGroup.forEach(radio => radio.required = enable);
 };
 
 /**
@@ -518,19 +562,25 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
      if (!fieldsContainer) return;
      fieldsContainer.classList.toggle('hidden', !enable);
      const detailFields = fieldsContainer.querySelectorAll('input[type="text"], textarea');
+     const returnedRadioGroup = document.querySelectorAll('input[name="visit-returned"]');
+     
      detailFields.forEach(input => {
         input.disabled = !enable;
         input.required = enable; 
         if (!enable) {
             input.classList.add('bg-gray-200', 'cursor-not-allowed');
+            input.value = ''; // Limpa se desabilitado
         } else {
             input.classList.remove('bg-gray-200', 'cursor-not-allowed');
         }
     });
+    // Aluno retornou só é obrigatório se conseguiu contato
+    returnedRadioGroup.forEach(radio => radio.required = enable);
 };
 
 /**
  * Abre e popula o modal de registro/edição de uma ação de Busca Ativa.
+ * (REQUISIÇÃO 1: Padronização de Modais e Ocultação de Campos Antigos)
  */
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
     dom.absenceForm.reset();
@@ -538,17 +588,23 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
         const input = document.getElementById(id);
         if (input) input.removeAttribute('min');
     });
+    // Desativa todos os campos 'required' e reativa apenas os da etapa atual
     dom.absenceForm.querySelectorAll('[required]').forEach(el => el.required = false);
-    dom.absenceForm.querySelectorAll('fieldset').forEach(fs => fs.classList.remove('hidden'));
-
+    
+    // Esconde todos os grupos dinâmicos e fieldsets de dados de aluno/faltas
+    document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
+    
+    const absenceStudentInfo = document.getElementById('absence-student-info');
+    const absencePeriodData = document.getElementById('absence-period-data');
 
     const isEditing = !!data;
-    document.getElementById('absence-modal-title').innerText = isEditing ? 'Editar Ação de Busca Ativa' : 'Registar Ação de Busca Ativa';
+    document.getElementById('absence-modal-title').innerText = isEditing ? 'Editar Ação de Busca Ativa' : 'Registar Nova Ação';
     document.getElementById('absence-id').value = isEditing ? data.id : '';
 
     // (CORREÇÃO) Armazena o ID do aluno selecionado no dataset do formulário para validação segura
     dom.absenceForm.dataset.selectedStudentId = student.matricula;
 
+    // 1. Popula dados imutáveis do aluno
     document.getElementById('absence-student-name').value = student.name || '';
     document.getElementById('absence-student-class').value = student.class || '';
     document.getElementById('absence-student-endereco').value = student.endereco || '';
@@ -573,51 +629,76 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     const finalActionType = forceActionType || (isEditing ? data.actionType : determineNextActionForStudent(student.matricula));
     document.getElementById('action-type').value = finalActionType;
     document.getElementById('action-type-display').value = actionDisplayTitles[finalActionType] || '';
-    handleActionTypeChange(finalActionType); 
-
-    const absenceDataContainer = dom.absenceForm.querySelector('#absence-form > .bg-gray-50'); 
-    const absenceInputs = absenceDataContainer.querySelectorAll('input');
+    
+    // 2. Configura a visibilidade e editabilidade dos dados de Faltas
     const firstAbsenceRecordInCycle = currentCycleActions.find(a => a.periodoFaltasStart);
-    const isAbsenceDataEditable = finalActionType === 'tentativa_1'; 
+    const isAbsenceDataEditable = finalActionType === 'tentativa_1' && !firstAbsenceRecordInCycle; 
+    
+    // Mostra SEMPRE as informações do aluno e dados de faltas, mas define editabilidade
+    absenceStudentInfo.classList.remove('hidden');
+    absencePeriodData.classList.remove('hidden');
 
+    const absenceInputs = absencePeriodData.querySelectorAll('input');
+    
     document.getElementById('absence-start-date').required = isAbsenceDataEditable;
     document.getElementById('absence-end-date').required = isAbsenceDataEditable;
     document.getElementById('absence-count').required = isAbsenceDataEditable;
 
-    if (firstAbsenceRecordInCycle && !isAbsenceDataEditable) {
-        document.getElementById('absence-start-date').value = firstAbsenceRecordInCycle.periodoFaltasStart || '';
-        document.getElementById('absence-end-date').value = firstAbsenceRecordInCycle.periodoFaltasEnd || '';
-        document.getElementById('absence-count').value = firstAbsenceRecordInCycle.absenceCount || '';
-        absenceInputs.forEach(input => { input.readOnly = true; input.classList.add('bg-gray-100'); });
-    } else if (isEditing && data.actionType === 'tentativa_1') {
-         document.getElementById('absence-start-date').value = data.periodoFaltasStart || '';
-         document.getElementById('absence-end-date').value = data.periodoFaltasEnd || '';
-         document.getElementById('absence-count').value = data.absenceCount || '';
-         absenceInputs.forEach(input => { input.readOnly = false; input.classList.remove('bg-gray-100'); });
-    } else if (!isEditing && finalActionType === 'tentativa_1') {
+    if (isAbsenceDataEditable) {
+        // Se é a primeira tentativa (nova) OU estamos editando a primeira tentativa
         absenceInputs.forEach(input => { input.readOnly = false; input.classList.remove('bg-gray-100'); });
     } else {
+        // Se não é a primeira tentativa, preenche com os dados existentes e torna só leitura
+        const sourceData = isEditing && data.actionType === 'tentativa_1' ? data : firstAbsenceRecordInCycle;
+
+        document.getElementById('absence-start-date').value = sourceData?.periodoFaltasStart || '';
+        document.getElementById('absence-end-date').value = sourceData?.periodoFaltasEnd || '';
+        document.getElementById('absence-count').value = sourceData?.absenceCount || '';
+        
         absenceInputs.forEach(input => { input.readOnly = true; input.classList.add('bg-gray-100'); });
     }
 
+    // 3. Configura a seção específica da Ação
+    const groupElement = document.getElementById(finalActionType.startsWith('tentativa') ? 'group-tentativas' : `group-${finalActionType}`);
+    if (groupElement) groupElement.classList.remove('hidden');
 
+    // Configuração de campos obrigatórios e estado
     switch (finalActionType) {
         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
             const convocationSection = document.getElementById('convocation-section');
             const familyContactSection = document.getElementById('family-contact-section');
             
+            // Regra: Se não há data/hora de convocação, forçamos a Ação 1/2
             const hasConvocation = !!(data?.meetingDate);
+            const isContactStep = isEditing && hasConvocation && data.contactSucceeded == null;
 
-            if (!isEditing || !hasConvocation) {
-                convocationSection.classList.remove('hidden');
-                familyContactSection.classList.add('hidden');
-                document.getElementById('meeting-date').required = true;
-                document.getElementById('meeting-time').required = true;
-            } else {
+            if (isEditing && isContactStep) {
+                 // Edição de contato (Ação 3)
                 convocationSection.classList.add('hidden');
                 familyContactSection.classList.remove('hidden');
                 document.querySelectorAll('input[name="contact-succeeded"]').forEach(r => r.required = true);
                 document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = true);
+
+            } else if (isEditing && hasConvocation) {
+                 // Edição de uma ação já completa (Ação 3 ou Analise)
+                 convocationSection.classList.add('hidden');
+                 familyContactSection.classList.remove('hidden');
+                 document.querySelectorAll('input[name="contact-succeeded"]').forEach(r => r.required = true);
+                 document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = true);
+
+            } else if (hasConvocation && !isEditing) {
+                // Nova Ação (Avançar Etapa) -> Ir direto para o Contato
+                 convocationSection.classList.add('hidden');
+                 familyContactSection.classList.remove('hidden');
+                 document.querySelectorAll('input[name="contact-succeeded"]').forEach(r => r.required = true);
+                 document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = true);
+
+            } else {
+                 // Nova Ação (Primeira Etapa) OU Edição de Convocação (Ação 1/2)
+                convocationSection.classList.remove('hidden');
+                familyContactSection.classList.add('hidden');
+                document.getElementById('meeting-date').required = true;
+                document.getElementById('meeting-time').required = true;
             }
             break;
         case 'visita':
@@ -633,6 +714,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
             const hasSentCT = !!(data?.ctSentDate);
 
             if (!isEditing || !hasSentCT) {
+                // Nova Ação OU Edição de Envio
                 ctSendSection.classList.remove('hidden');
                 ctFeedbackSection.classList.add('hidden');
                 document.getElementById('ct-sent-date').required = true;
@@ -641,11 +723,20 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 if(!isEditing) { 
                     document.getElementById('oficio-year').value = new Date().getFullYear();
                 }
+                
+                document.getElementById('ct-feedback').required = false;
+                document.querySelectorAll('input[name="ct-returned"]').forEach(r => r.required = false);
+
             } else {
+                // Edição de Devolutiva (após o envio)
                 ctSendSection.classList.add('hidden');
                 ctFeedbackSection.classList.remove('hidden');
                 document.getElementById('ct-feedback').required = true;
                 document.querySelectorAll('input[name="ct-returned"]').forEach(r => r.required = true);
+                
+                document.getElementById('ct-sent-date').required = false;
+                document.getElementById('oficio-number').required = false;
+                document.getElementById('oficio-year').required = false;
             }
             break;
         case 'analise':
@@ -653,7 +744,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
             break;
     }
 
-    // --- Define a Data Mínima (CONSISTÊNCIA 2) ---
+    // --- Define a Data Mínima (CONSISTÊNCIA) ---
     let previousAction = null;
     if (isEditing) {
         const currentIndex = currentCycleActions.findIndex(a => a.id === data.id);
@@ -683,6 +774,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
         }
     }
 
+    // 4. Popula dados de edição
     if (isEditing) {
         switch (data.actionType) {
             case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
@@ -731,16 +823,22 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 const ctReturnedRadio = document.querySelector(`input[name="ct-returned"][value="${data.ctReturned}"]`);
                 if (ctReturnedRadio) ctReturnedRadio.checked = true;
                 else document.querySelectorAll(`input[name="ct-returned"]`).forEach(r => r.checked = false);
-                 if(data.ctSentDate) { 
-                    document.getElementById('ct-feedback').required = true;
-                    document.querySelectorAll('input[name="ct-returned"]').forEach(r => r.required = true);
-                 }
+                
+                // Re-executa as toggles para garantir a visibilidade
+                if(data.ctSentDate) { // Se já enviou, mostra o feedback
+                    ctSendSection.classList.add('hidden');
+                    ctFeedbackSection.classList.remove('hidden');
+                } else { // Se não enviou, volta para a seção de envio
+                    ctSendSection.classList.remove('hidden');
+                    ctFeedbackSection.classList.add('hidden');
+                }
                 break;
             case 'analise':
                 document.getElementById('ct-parecer').value = data.ctParecer || '';
                 break;
         }
     } else { 
+        // Nova ação: garante que os campos de sub-detalhe estão escondidos
         toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
         toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
         document.querySelectorAll('input[name="contact-succeeded"], input[name="visit-succeeded"], input[name="contact-returned"], input[name="visit-returned"], input[name="ct-returned"]').forEach(r => r.checked = false);
@@ -759,6 +857,8 @@ async function handleAbsenceSubmit(e) {
     e.preventDefault();
     const form = e.target;
     let firstInvalidField = null;
+    
+    // (Melhoria) Validação de todos os campos visíveis e não desabilitados
     form.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled])').forEach(el => {
         if (el.required && !el.value && el.type !== 'radio') {
              if (!firstInvalidField) firstInvalidField = el;
@@ -774,7 +874,7 @@ async function handleAbsenceSubmit(e) {
     });
 
     if (firstInvalidField) {
-         showToast(`Por favor, preencha o campo obrigatório: ${firstInvalidField.labels?.[0]?.textContent || firstInvalidField.name}`);
+         showToast(`Por favor, preencha o campo obrigatório: ${firstInvalidField.labels?.[0]?.textContent || firstInvalidField.name || firstInvalidField.placeholder || 'Campo Requerido'}`);
          firstInvalidField.focus();
          if (typeof firstInvalidField.reportValidity === 'function') {
              firstInvalidField.reportValidity();
@@ -791,7 +891,10 @@ async function handleAbsenceSubmit(e) {
     if (id) {
         const existingAction = state.absences.find(a => a.id === id);
         if (existingAction) {
+            // Se estiver editando e um campo que não faz parte da etapa atual vier vazio,
+            // garantimos que o valor original (que não é null) seja mantido para evitar o reset acidental de dados antigos.
             for (const key in data) {
+                // Se o novo valor é null E o valor existente não era null, usamos o valor existente
                 if (data[key] === null && existingAction[key] != null) {
                     data[key] = existingAction[key];
                 }
@@ -827,18 +930,19 @@ async function handleAbsenceSubmit(e) {
 
         if (data.actionType === 'encaminhamento_ct' && data.oficioNumber && !id) { 
              const student = state.students.find(s => s.matricula === data.studentId);
-             // Se o aluno não estiver na memória, não conseguimos gerar o ofício imediatamente (UX limitation, but safe)
              if (student) {
                 generateAndShowOficio(data, data.oficioNumber);
              }
         }
 
         const studentReturned = (data.contactReturned === 'yes' || data.visitReturned === 'yes' || data.ctReturned === 'yes');
+        // Se o aluno retornou e não estamos na etapa de análise, move para a análise
         if (studentReturned && data.actionType !== 'analise') {
             const student = state.students.find(s => s.matricula === data.studentId);
              setTimeout(() => {
                  const { currentCycleActions: updatedActions } = getStudentProcessInfo(data.studentId); 
                  if (student && !updatedActions.some(a => a.actionType === 'analise')) {
+                    // Abrir diretamente a modal de análise
                     openAbsenceModalForStudent(student, 'analise'); 
                  }
              }, 400); 
@@ -854,7 +958,6 @@ async function handleAbsenceSubmit(e) {
  * Coleta os dados do formulário de Busca Ativa.
  */
 function getAbsenceFormData() {
-    // (CORREÇÃO) Pega o ID do dataset, que foi salvo ao abrir o modal
     const studentId = dom.absenceForm.dataset.selectedStudentId;
     
     if (!studentId) {
@@ -862,44 +965,60 @@ function getAbsenceFormData() {
         return null;
     }
 
-    // (CORREÇÃO 3) DESNORMALIZAÇÃO: Salva Nome e Turma no registo para garantir leitura futura
     const studentName = document.getElementById('absence-student-name').value;
     const studentClass = document.getElementById('absence-student-class').value;
 
     const data = {
         id: document.getElementById('absence-id').value, 
-        studentId: studentId, // Usa o ID direto, sem buscar nome
-        studentName: studentName, // Salva o nome para o futuro
-        studentClass: studentClass, // Salva a turma para o futuro
+        studentId: studentId, 
+        studentName: studentName, 
+        studentClass: studentClass, 
         actionType: document.getElementById('action-type').value,
         processId: document.getElementById('absence-process-id').value,
-        periodoFaltasStart: document.getElementById('absence-start-date').value || null,
-        periodoFaltasEnd: document.getElementById('absence-end-date').value || null,
-        absenceCount: document.getElementById('absence-count').value || null,
+        
+        // Dados de faltas (só serão preenchidos se o campo for editável - primeira etapa)
+        periodoFaltasStart: document.getElementById('absence-start-date').readOnly ? null : document.getElementById('absence-start-date').value || null,
+        periodoFaltasEnd: document.getElementById('absence-end-date').readOnly ? null : document.getElementById('absence-end-date').value || null,
+        absenceCount: document.getElementById('absence-count').readOnly ? null : document.getElementById('absence-count').value || null,
+        
+        // Reset para campos não pertencentes à etapa atual
         meetingDate: null, meetingTime: null, contactSucceeded: null, contactType: null, contactDate: null, contactPerson: null, contactReason: null, contactReturned: null,
         visitAgent: null, visitDate: null, visitSucceeded: null, visitContactPerson: null, visitReason: null, visitObs: null, visitReturned: null,
         ctSentDate: null, ctFeedback: null, ctReturned: null, oficioNumber: null, oficioYear: null,
         ctParecer: null
     };
+    
+    const actionType = data.actionType;
 
-    if (data.actionType.startsWith('tentativa')) {
-        const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
-        data.meetingDate = document.getElementById('meeting-date').value || null;
-        data.meetingTime = document.getElementById('meeting-time').value || null;
-        data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
-        if (data.contactSucceeded === 'yes') {
-            data.contactType = document.getElementById('absence-contact-type').value || null;
-            data.contactDate = document.getElementById('contact-date').value || null;
-            data.contactPerson = document.getElementById('contact-person').value.trim() || null;
-            data.contactReason = document.getElementById('contact-reason').value.trim() || null;
+    if (actionType.startsWith('tentativa')) {
+        // Ação 1/2 (Convocação)
+        if (!document.getElementById('convocation-section').classList.contains('hidden')) {
+            data.meetingDate = document.getElementById('meeting-date').value || null;
+            data.meetingTime = document.getElementById('meeting-time').value || null;
         }
-        const contactReturnedRadio = document.querySelector('input[name="contact-returned"]:checked');
-        data.contactReturned = contactReturnedRadio ? contactReturnedRadio.value : null;
-    } else if (data.actionType === 'visita') {
-        const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
+
+        // Ação 3 (Contato)
+        if (!document.getElementById('family-contact-section').classList.contains('hidden')) {
+            const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
+            data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
+            
+            if (data.contactSucceeded === 'yes') {
+                data.contactType = document.getElementById('absence-contact-type').value || null;
+                data.contactDate = document.getElementById('contact-date').value || null;
+                data.contactPerson = document.getElementById('contact-person').value.trim() || null;
+                data.contactReason = document.getElementById('contact-reason').value.trim() || null;
+            }
+            const contactReturnedRadio = document.querySelector('input[name="contact-returned"]:checked');
+            data.contactReturned = contactReturnedRadio ? contactReturnedRadio.value : null;
+        }
+
+    } else if (actionType === 'visita') {
         data.visitAgent = document.getElementById('visit-agent').value.trim() || null;
         data.visitDate = document.getElementById('visit-date').value || null;
+
+        const visitSucceededRadio = document.querySelector('input[name="visit-succeeded"]:checked');
         data.visitSucceeded = visitSucceededRadio ? visitSucceededRadio.value : null;
+        
         if (data.visitSucceeded === 'yes') {
             data.visitContactPerson = document.getElementById('visit-contact-person').value.trim() || null;
             data.visitReason = document.getElementById('visit-reason').value.trim() || null;
@@ -907,16 +1026,26 @@ function getAbsenceFormData() {
         }
         const visitReturnedRadio = document.querySelector('input[name="visit-returned"]:checked');
         data.visitReturned = visitReturnedRadio ? visitReturnedRadio.value : null;
-    } else if (data.actionType === 'encaminhamento_ct') {
-        data.ctSentDate = document.getElementById('ct-sent-date').value || null;
-        data.ctFeedback = document.getElementById('ct-feedback').value.trim() || null; 
-        const ctReturnedRadio = document.querySelector('input[name="ct-returned"]:checked');
-        data.ctReturned = ctReturnedRadio ? ctReturnedRadio.value : null; 
-         
-         data.oficioNumber = document.getElementById('oficio-number').value.trim() || null;
-         data.oficioYear = document.getElementById('oficio-year').value.trim() || null;
 
-    } else if (data.actionType === 'analise') {
+    } else if (actionType === 'encaminhamento_ct') {
+        const hasCtSentData = document.getElementById('ct-sent-date').required;
+        const hasCtFeedbackData = document.getElementById('ct-feedback').required;
+        
+        if (hasCtSentData) {
+            // Seção de Envio
+            data.ctSentDate = document.getElementById('ct-sent-date').value || null;
+            data.oficioNumber = document.getElementById('oficio-number').value.trim() || null;
+            data.oficioYear = document.getElementById('oficio-year').value.trim() || null;
+        }
+
+        if (hasCtFeedbackData) {
+            // Seção de Devolutiva
+            data.ctFeedback = document.getElementById('ct-feedback').value.trim() || null; 
+            const ctReturnedRadio = document.querySelector('input[name="ct-returned"]:checked');
+            data.ctReturned = ctReturnedRadio ? ctReturnedRadio.value : null; 
+        }
+
+    } else if (actionType === 'analise') {
         data.ctParecer = document.getElementById('ct-parecer').value.trim() || null;
     }
     return data;
@@ -927,6 +1056,9 @@ function getAbsenceFormData() {
  * Mostra/esconde campos dinâmicos no modal de Busca Ativa.
  */
 function handleActionTypeChange(action) {
+    // (Função removida, pois a lógica de visibilidade é agora tratada
+    // de forma mais robusta em openAbsenceModalForStudent)
+    // Manter apenas para evitar quebra de código se chamado de outro lugar:
     document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
     const groupToShow = action.startsWith('tentativa') ? 'group-tentativas' : `group-${action}`;
     const groupElement = document.getElementById(groupToShow);
@@ -948,13 +1080,10 @@ function handleViewOficio(id) {
 
 /**
  * Lida com o clique no nome do aluno (iniciar nova ação) ou botão Avançar.
- * (CORREÇÃO) Torna a função assíncrona para buscar aluno se necessário.
  */
 async function handleNewAbsenceFromHistory(studentId) {
-    // 1. Tenta buscar na memória (rápido)
     let student = state.students.find(s => s.matricula === studentId);
     
-    // 2. Se não achar, tenta buscar no servidor (Firestore)
     if (!student) {
         showToast("A carregar dados do aluno...");
         try {
@@ -964,11 +1093,9 @@ async function handleNewAbsenceFromHistory(studentId) {
         }
     }
 
-    // 3. Se encontrar (em memória ou servidor), abre o modal
     if (student) {
         handleNewAbsenceAction(student); 
     } else {
-        // 4. Só se realmente falhar (aluno apagado?) exibe o erro
         showToast("Erro: Aluno não encontrado no sistema.");
     }
 }
@@ -1003,10 +1130,10 @@ function handleEditAbsence(id) {
         return showToast(isConcluded ? "Processo concluído, não pode editar." : "Apenas a última ação pode ser editada.");
     }
 
-    // (CORREÇÃO 4) Edição Segura: Usa os dados do próprio registo se o aluno não estiver na memória
     let student = state.students.find(s => s.matricula === data.studentId);
     
     if (!student) {
+        // Fallback robusto se o aluno não estiver na memória
         student = {
             matricula: data.studentId,
             name: data.studentName || `Aluno (${data.studentId})`, // Usa nome salvo ou ID
@@ -1060,17 +1187,27 @@ function handleDeleteAbsence(id) {
 // --- Função Principal de Inicialização ---
 
 export const initAbsenceListeners = () => {
+    
+    // REQUISIÇÃO 2: Botão "Nova Ação" abre o modal de busca de fluxo
+    if (dom.addAbsenceBtn) {
+        dom.addAbsenceBtn.addEventListener('click', openAbsenceSearchFlowModal);
+    }
+    
+    // REQUISIÇÃO 2: Barra de pesquisa principal agora é APENAS filtro.
+    if (dom.searchAbsences) {
+        dom.searchAbsences.removeEventListener('input', setupAbsenceAutocomplete); // Remove listener antigo
+        dom.searchAbsences.addEventListener('input', (e) => {
+            state.filterAbsences = e.target.value; 
+            // Garante que o container de sugestões esteja escondido, pois agora é apenas filtro
+            document.getElementById('absence-student-suggestions').classList.add('hidden');
+            renderAbsences();
+        });
+    }
+
     if (dom.generalBaReportBtn) {
         dom.generalBaReportBtn.addEventListener('click', generateAndShowBuscaAtivaReport);
     }
     
-    if (dom.addAbsenceBtn) {
-        dom.addAbsenceBtn.addEventListener('click', () => {
-            if(dom.searchAbsences) dom.searchAbsences.focus(); 
-            showToast("Digite o nome do aluno na busca para iniciar ou continuar uma ação.");
-        });
-    }
-
     document.getElementById('filter-process-status').addEventListener('change', (e) => { state.filtersAbsences.processStatus = e.target.value; renderAbsences(); });
     document.getElementById('filter-pending-action').addEventListener('change', (e) => { state.filtersAbsences.pendingAction = e.target.value; renderAbsences(); });
     document.getElementById('filter-return-status').addEventListener('change', (e) => { state.filtersAbsences.returnStatus = e.target.value; renderAbsences(); });
@@ -1083,7 +1220,7 @@ export const initAbsenceListeners = () => {
         renderAbsences();
     });
 
-    setupAbsenceAutocomplete();
+    // (REMOVIDO: setupAbsenceAutocomplete() foi removido)
 
     dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
     
@@ -1099,8 +1236,6 @@ export const initAbsenceListeners = () => {
             if (button.closest('.process-content')) {
                 const id = button.dataset.id; 
                 
-                // (CORREÇÃO DE LISTENER DE NOTIFICAÇÃO)
-                // Verifica especificamente o botão de notificação primeiro
                 if (button.classList.contains('view-notification-btn-hist')) {
                     if (id) {
                          try {
@@ -1121,7 +1256,6 @@ export const initAbsenceListeners = () => {
                 }
                 
                 if (button.classList.contains('avancar-etapa-btn') && !button.disabled) {
-                    // (ATUALIZADO) Chama a nova função assíncrona
                     handleNewAbsenceFromHistory(button.dataset.studentId);
                     return;
                 }

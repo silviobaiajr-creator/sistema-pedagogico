@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 2.4 (Persistência de Dados de Aluno em Ocorrências)
+// VERSÃO: 3.0 (Padronização de Modais de Acompanhamento)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
@@ -295,6 +295,7 @@ export const renderOccurrences = () => {
                 for (let i = 1; i <= 3; i++) {
                     const succeeded = record[`contactSucceeded_${i}`];
                     const date = record[`contactDate_${i}`];
+                    const providencias = record[`providenciasFamilia_${i}`];
                     
                     if (succeeded != null) {
                         if (succeeded === 'yes') {
@@ -510,6 +511,10 @@ const toggleOccurrenceContactFields = (enable) => {
 };
 
 const toggleDesfechoFields = (choice) => {
+    // Esconde todos os fieldsets opcionais
+    document.getElementById('group-encaminhamento-ct')?.classList.add('hidden');
+    document.getElementById('group-parecer-final')?.classList.add('hidden');
+
     const groupCt = document.getElementById('group-encaminhamento-ct');
     const groupParecer = document.getElementById('group-parecer-final');
     const oficioInput = document.getElementById('follow-up-oficio-number');
@@ -519,11 +524,17 @@ const toggleDesfechoFields = (choice) => {
     const showCt = choice === 'ct';
     const showParecer = choice === 'parecer';
 
+    // O campo Parecer Final do Ação 6 e o campo Ofício do Ação 4 são o mesmo campo no formulário HTML.
+    // É crucial que apenas um esteja required/disabled.
+
     if (groupCt) groupCt.classList.toggle('hidden', !showCt);
     if (groupParecer) groupParecer.classList.toggle('hidden', !showParecer);
 
+    // Regras de validação/estado para Encaminhamento ao CT (Ação 4)
     if (oficioInput) { oficioInput.disabled = !showCt; oficioInput.required = showCt; }
     if (dateCtInput) { dateCtInput.disabled = !showCt; dateCtInput.required = showCt; }
+    
+    // Regras de validação/estado para Parecer Final (Ação 6 - Desfecho Direto)
     if (parecerInput) { parecerInput.disabled = !showParecer; parecerInput.required = showParecer; }
 };
 
@@ -548,6 +559,7 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
         if (el) el.removeAttribute('min');
     });
 
+    // REQUISIÇÃO 1: Limpeza completa de todos os grupos dinâmicos antes de configurar
     document.querySelectorAll('.dynamic-occurrence-step').forEach(group => {
         group.classList.add('hidden');
         group.querySelectorAll('input, select, textarea, button').forEach(el => {
@@ -556,7 +568,10 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
         });
         group.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
     });
-    toggleDesfechoFields(null);
+    // Limpeza da seção de desfecho/CT, se ela já estiver sido preenchida
+    toggleDesfechoFields(null); 
+    // Garante que os campos de contato sub-detalhe estão escondidos/desabilitados
+    toggleOccurrenceContactFields(false);
 
     let requiredFieldsValid = true;
     let currentGroup = null;
@@ -634,7 +649,7 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
             if (choiceGroup) {
                 choiceGroup.classList.remove('hidden');
                 const choiceRadios = choiceGroup.querySelectorAll('input[name="follow-up-desfecho-choice"]');
-                choiceRadios.forEach(r => r.disabled = false); 
+                choiceRadios.forEach(r => { r.disabled = false; r.required = true; }); // Garante que a escolha é obrigatória
 
                 const currentChoice = record.desfechoChoice || null;
                 if (currentChoice) {
@@ -646,6 +661,7 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
                 }
             }
 
+            // Preenche os campos do Ação 4/6 se existirem dados de edição
             const oficioInput = document.getElementById('follow-up-oficio-number');
             const dateCtInput = document.getElementById('follow-up-ct-sent-date');
             const parecerInput = document.getElementById('follow-up-parecer-final');
@@ -695,6 +711,7 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
         followUpForm.classList.remove('hidden');
         openModal(dom.followUpModal);
     } else {
+        // Se a validação falhar, garantimos que o modal esteja fechado.
         closeModal(dom.followUpModal);
     }
 };
@@ -1050,22 +1067,44 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
 
     let actionToEdit = determineCurrentActionFromStatus(record.statusIndividual);
 
+    // Ajusta a ação de edição com base no estado mais recente
     if (record.statusIndividual === 'Resolvido') {
         if (record.desfechoChoice) {
-            actionToEdit = 'desfecho_ou_ct';
-        } else if (record.parecerFinal) {
-             actionToEdit = record.oficioNumber ? 'parecer_final' : 'desfecho_ou_ct';
+            actionToEdit = 'desfecho_ou_ct'; // Se escolheu Parecer Direto ou CT
+        } else if (record.oficioNumber && record.ctFeedback) {
+             actionToEdit = 'parecer_final'; // Se o fluxo passou por CT, edita o parecer final
+        } else if (record.oficioNumber) {
+             actionToEdit = 'devolutiva_ct'; // Se enviou CT mas não tem feedback
+        } else if (record.contactSucceeded_1 != null) {
+            actionToEdit = 'desfecho_ou_ct'; // Se parou em Ação 3
+        } else {
+             actionToEdit = 'convocacao'; // Deve ser a 1ª ação
         }
     } 
+    else if (record.statusIndividual === 'Aguardando Parecer Final') {
+        actionToEdit = 'devolutiva_ct';
+    }
+    else if (record.statusIndividual === 'Aguardando Devolutiva CT') {
+        actionToEdit = 'desfecho_ou_ct'; // Edita a ação que enviou ao CT (Ação 4)
+    }
     else if (record.statusIndividual === 'Aguardando Desfecho' || actionToEdit === 'contato_familia_x') {
+        // Encontra qual foi a última tentativa registrada
         if (record.contactSucceeded_3 != null) actionToEdit = 'contato_familia_3';
         else if (record.contactSucceeded_2 != null) actionToEdit = 'contato_familia_2';
         else if (record.contactSucceeded_1 != null) actionToEdit = 'contato_familia_1';
         else actionToEdit = 'convocacao'; 
+    } else if (record.statusIndividual === 'Aguardando Contato 3') {
+         actionToEdit = 'contato_familia_2'; 
+    } else if (record.statusIndividual === 'Aguardando Contato 2') {
+         actionToEdit = 'contato_familia_1';
+    } else if (record.statusIndividual === 'Aguardando Contato 1') {
+         actionToEdit = 'convocacao';
+    } else if (record.statusIndividual === 'Aguardando Convocação') {
+         actionToEdit = 'convocacao'; 
     }
 
-    if (actionToEdit === null) {
-        showToast('Use "Editar Fato" para alterar a Ação 1.');
+    if (actionToEdit === null || actionToEdit === 'convocacao') {
+        showToast('Use "Editar Fato" para alterar a Ação 1 ou "Avançar Etapa" se a Convocação ainda não foi registrada.');
         return;
     }
     
@@ -1078,18 +1117,40 @@ async function handleResetActionConfirmation(studentId, groupId, recordId) {
     const record = incident.records.find(r => r.id === recordId);
     if (!record) return showToast('Erro: Registro não encontrado.');
     
+    // Determina a última ação COMPLETA registrada para resetar A PARTIR dela
     let actionToReset = determineCurrentActionFromStatus(record.statusIndividual);
 
      if (record.statusIndividual === 'Resolvido') {
-        if (record.desfechoChoice) actionToReset = 'desfecho_ou_ct';
-        else if (record.parecerFinal) actionToReset = record.oficioNumber ? 'parecer_final' : 'desfecho_ou_ct';
-        else actionToReset = 'parecer_final';
+        // Se está resolvido, a última ação é Parecer Final (Ação 6) ou Desfecho Direto
+        if (record.parecerFinal && record.oficioNumber) actionToReset = 'parecer_final';
+        else if (record.parecerFinal && record.desfechoChoice === 'parecer') actionToReset = 'desfecho_ou_ct';
+        else if (record.ctFeedback) actionToReset = 'devolutiva_ct';
+        else if (record.oficioNumber) actionToReset = 'desfecho_ou_ct';
+        else actionToReset = 'parecer_final'; // Fallback para Parecer Final (Ação 6)
     }
-    else if (record.statusIndividual === 'Aguardando Desfecho' || actionToReset === 'contato_familia_x') {
-        if (record.contactSucceeded_3 != null) actionToReset = 'contato_familia_3';
-        else if (record.contactSucceeded_2 != null) actionToReset = 'contato_familia_2';
-        else if (record.contactSucceeded_1 != null) actionToReset = 'contato_familia_1';
-        else actionToReset = 'convocacao';
+    else if (record.statusIndividual === 'Aguardando Parecer Final') {
+        actionToReset = 'devolutiva_ct';
+    }
+    else if (record.statusIndividual === 'Aguardando Devolutiva CT') {
+        actionToReset = 'desfecho_ou_ct';
+    }
+    else if (record.statusIndividual === 'Aguardando Desfecho') {
+        if (record.contactSucceeded_3) actionToReset = 'contato_familia_3';
+        else if (record.contactSucceeded_2) actionToReset = 'contato_familia_2';
+        else if (record.contactSucceeded_1) actionToReset = 'contato_familia_1';
+        else actionToReset = 'convocacao'; 
+    }
+    else if (record.statusIndividual === 'Aguardando Contato 3') {
+        actionToReset = 'contato_familia_2';
+    }
+    else if (record.statusIndividual === 'Aguardando Contato 2') {
+        actionToReset = 'contato_familia_1';
+    }
+    else if (record.statusIndividual === 'Aguardando Contato 1') {
+        actionToReset = 'convocacao';
+    }
+    else if (record.statusIndividual === 'Aguardando Convocação') {
+         actionToReset = 'convocacao';
     }
 
     if (actionToReset === null) {
@@ -1172,114 +1233,8 @@ async function handleViewOccurrenceOficio(recordId) {
     generateAndShowOccurrenceOficio(targetRecord, student, targetRecord.oficioNumber, targetRecord.oficioYear);
 }
 
-async function openSendOccurrenceCtModal(groupId) {
-    const incident = await fetchIncidentById(groupId); 
-    if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
-
-    const modal = document.getElementById('send-occurrence-ct-modal');
-    const form = document.getElementById('send-occurrence-ct-form');
-    const studentSelectSection = document.getElementById('send-ct-student-selection-section');
-    const studentSelect = document.getElementById('send-ct-student-select');
-    const selectedStudentDisplay = document.getElementById('send-ct-selected-student-display');
-    const studentNameDisplay = document.getElementById('send-ct-student-name-display');
-
-    form.reset();
-    document.getElementById('send-ct-group-id').value = groupId;
-
-    const mainRecord = incident.records[0];
-    document.getElementById('send-ct-incident-id-display').textContent = groupId;
-    document.getElementById('send-ct-incident-type-display').textContent = mainRecord.occurrenceType || 'N/A';
-
-    if (incident.participantsInvolved.size > 1) {
-        studentSelectSection.classList.remove('hidden');
-        selectedStudentDisplay.classList.add('hidden');
-        studentSelect.innerHTML = '<option value="">Selecione...</option>';
-        incident.participantsInvolved.forEach((data, studentId) => {
-            const record = incident.records.find(r => r.studentId === studentId);
-            if (record) {
-                const option = document.createElement('option');
-                option.value = record.id; option.textContent = data.student.name;
-                option.dataset.studentId = studentId; studentSelect.appendChild(option);
-            }
-        });
-        studentSelect.required = true;
-        studentSelect.onchange = () => {
-             document.getElementById('send-ct-record-id').value = studentSelect.value;
-             const selectedOption = studentSelect.options[studentSelect.selectedIndex];
-             document.getElementById('send-ct-student-id').value = selectedOption?.dataset?.studentId || '';
-        };
-        document.getElementById('send-ct-record-id').value = '';
-        document.getElementById('send-ct-student-id').value = '';
-
-    } else if (incident.participantsInvolved.size === 1) {
-        studentSelectSection.classList.add('hidden');
-        selectedStudentDisplay.classList.remove('hidden');
-        const [entry] = incident.participantsInvolved.entries(); 
-        const studentId = entry[0];
-        const student = entry[1].student;
-        const record = incident.records.find(r => r.studentId === studentId);
-        studentNameDisplay.textContent = student.name;
-        document.getElementById('send-ct-record-id').value = record?.id || '';
-        document.getElementById('send-ct-student-id').value = studentId;
-        studentSelect.required = false;
-    } else {
-        showToast('Incidente sem alunos associados.'); return;
-    }
-    openModal(modal);
-}
-
-async function handleSendOccurrenceCtSubmit(e) {
-    e.preventDefault();
-    const form = e.target;
-    if (!form.checkValidity()) { form.reportValidity(); return showToast('Por favor, preencha o número do ofício.'); }
-
-    const recordId = document.getElementById('send-ct-record-id').value;
-    const studentId = document.getElementById('send-ct-student-id').value;
-    const oficioNumber = document.getElementById('send-ct-oficio-number').value.trim();
-
-    if (!recordId || !studentId) { return showToast('Erro: Aluno ou registro inválido. Selecione um aluno.'); }
-
-    const record = state.occurrences.find(r => r.id === recordId);
-    if (!record) return showToast("Erro: Registro não encontrado.");
-    
-    if (record.statusIndividual !== 'Aguardando Desfecho' && record.statusIndividual !== 'Aguardando Contato') {
-        console.warn(`Status não ideal para envio ao CT: ${record.statusIndividual}`);
-    }
-
-    const oficioYear = new Date().getFullYear();
-    const ctSentDate = new Date().toISOString().split('T')[0]; // Data atual
-    
-    // (NOVO) Validação Cronológica Centralizada (Mesmo para o botão dedicado)
-    // Usamos a data atual (ctSentDate) para validar
-    const dateCheck = validateOccurrenceChronology(record, 'desfecho_ou_ct', ctSentDate);
-    if (!dateCheck.isValid) return showToast(dateCheck.message);
-
-    const dataToUpdate = {
-        oficioNumber, oficioYear, ctSentDate,
-        statusIndividual: 'Aguardando Devolutiva CT', 
-        desfechoChoice: 'ct',
-        parecerFinal: null
-    };
-    const historyAction = `Ação 4 (Encaminhamento ao CT) registrada via botão dedicado. Ofício: ${oficioNumber}/${oficioYear}.`;
-
-    try {
-        await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
-        showToast("Registro atualizado com sucesso!");
-        closeModal(document.getElementById('send-occurrence-ct-modal'));
-
-        const student = state.students.find(s => s.matricula === studentId);
-        const updatedRecordForOficio = { ...record, ...dataToUpdate };
-
-        if (updatedRecordForOficio && student) {
-            generateAndShowOccurrenceOficio(updatedRecordForOficio, student, oficioNumber, oficioYear);
-        } else {
-             showToast("Dados atualizados, mas erro ao recarregar para gerar ofício.");
-        }
-    } catch (error) {
-        console.error("Erro ao enviar ao CT:", error);
-        showToast('Erro ao salvar os dados do envio ao CT.');
-    }
-}
+// Funções sendOccurrenceCtModal e handleSendOccurrenceCtSubmit removidas (não utilizadas na UI atual)
+// e foco deve ser no fluxo individualizado de Ação 4 dentro do follow-up modal.
 
 
 // =================================================================================
@@ -1300,8 +1255,18 @@ export const initOccurrenceListeners = () => {
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.followUpForm.addEventListener('submit', handleOccurrenceStepSubmit);
     
+    // As funções sendOccurrenceCtSubmit e openSendOccurrenceCtModal foram removidas 
+    // pois o fluxo de envio ao CT é tratado agora dentro do follow-up modal (Ação 4).
+    // Se o código da UI não foi atualizado, vamos garantir que o listener não quebre:
     const sendCtForm = document.getElementById('send-occurrence-ct-form');
-    if (sendCtForm) sendCtForm.addEventListener('submit', handleSendOccurrenceCtSubmit);
+    if (sendCtForm) {
+        // sendCtForm.addEventListener('submit', handleSendOccurrenceCtSubmit);
+        const closeSendCtBtn = document.getElementById('close-send-ct-modal-btn');
+        const cancelSendCtBtn = document.getElementById('cancel-send-ct-modal-btn');
+        const sendCtModal = document.getElementById('send-occurrence-ct-modal');
+        if (closeSendCtBtn && sendCtModal) closeSendCtBtn.onclick = () => closeModal(sendCtModal);
+        if (cancelSendCtBtn && sendCtModal) cancelSendCtBtn.onclick = () => closeModal(sendCtModal);
+    }
 
     dom.occurrencesListDiv.addEventListener('click', (e) => {
         const button = e.target.closest('button');
@@ -1400,12 +1365,6 @@ export const initOccurrenceListeners = () => {
             toggleDesfechoFields(e.target.value);
         })
     );
-
-    const closeSendCtBtn = document.getElementById('close-send-ct-modal-btn');
-    const cancelSendCtBtn = document.getElementById('cancel-send-ct-modal-btn');
-    const sendCtModal = document.getElementById('send-occurrence-ct-modal');
-    if (closeSendCtBtn && sendCtModal) closeSendCtBtn.onclick = () => closeModal(sendCtModal);
-    if (cancelSendCtBtn && sendCtModal) cancelSendCtBtn.onclick = () => closeModal(sendCtModal);
 
     document.addEventListener('click', (e) => {
         const dropdown = document.getElementById('role-edit-dropdown');
