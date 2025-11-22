@@ -1,10 +1,11 @@
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 2.4 (Correção Definitiva de Paginação e Desnormalização)
+// VERSÃO: 2.5 (Correção do Botão de Notificação e Integração Assíncrona)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js';
 import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js'; 
+// (ATENÇÃO) Importa openFichaViewModal corretamente
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
 import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName } from './firestore.js'; 
 import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -87,8 +88,7 @@ const setupAbsenceAutocomplete = () => {
                         item.innerHTML = `<span class="font-semibold text-gray-800">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
                         
                         item.addEventListener('click', () => {
-                            // (CORREÇÃO 1) Cache Imediato: Adiciona à memória se não existir
-                            // Isso garante que o renderAbsences encontre o aluno imediatamente após salvar
+                            // Cache Imediato: Adiciona à memória se não existir
                             if (!state.students.find(s => s.matricula === student.matricula)) {
                                 state.students.push(student);
                             }
@@ -276,10 +276,7 @@ export const renderAbsences = () => {
             const lastProcessAction = actions[actions.length - 1]; 
             const student = state.students.find(s => s.matricula === firstAction.studentId);
             
-            // (CORREÇÃO 2) Fallback Robusto:
-            // 1. Tenta o nome salvo no próprio registo (novo padrão)
-            // 2. Tenta o nome da memória (state.students)
-            // 3. Fallback final para ID
+            // (CORREÇÃO 2) Fallback Robusto
             const studentName = firstAction.studentName || (student ? student.name : `Aluno (${firstAction.studentId})`);
             const studentClass = firstAction.studentClass || (student ? student.class : 'N/A');
 
@@ -323,14 +320,15 @@ export const renderAbsences = () => {
 
                 let viewButtonHtml = '';
                 if (abs.actionType.startsWith('tentativa') && abs.meetingDate && abs.meetingTime) {
+                    // (CORREÇÃO) Botão para abrir a notificação (Ficha View)
                     viewButtonHtml = `
-                        <button type"button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Notificação">
+                        <button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Notificação">
                             [<i class="fas fa-eye fa-fw"></i> Ver Notificação]
                         </button>`; 
                 }
                 if (abs.actionType === 'encaminhamento_ct' && abs.oficioNumber) {
                      viewButtonHtml = `
-                        <button type"button" class="view-oficio-btn-hist text-green-600 hover:text-green-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Ofício ${abs.oficioNumber}/${abs.oficioYear || ''}">
+                        <button type="button" class="view-oficio-btn-hist text-green-600 hover:text-green-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Ofício ${abs.oficioNumber}/${abs.oficioYear || ''}">
                             [<i class="fas fa-eye fa-fw"></i> Ver Ofício]
                         </button>`;
                 }
