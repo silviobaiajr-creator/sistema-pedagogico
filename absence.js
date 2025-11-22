@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 2.5 (Correção do Botão de Notificação e Integração Assíncrona)
+// VERSÃO: 2.6 (Correção do Listener de Notificação)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js';
@@ -319,16 +319,16 @@ export const renderAbsences = () => {
                 }
 
                 let viewButtonHtml = '';
+                // (CORREÇÃO DE BOTÃO) Garante que o botão seja gerado com data-id correto
                 if (abs.actionType.startsWith('tentativa') && abs.meetingDate && abs.meetingTime) {
-                    // (CORREÇÃO) Botão para abrir a notificação (Ficha View)
                     viewButtonHtml = `
-                        <button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Notificação">
+                        <button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2 cursor-pointer" data-id="${abs.id}" title="Ver Notificação">
                             [<i class="fas fa-eye fa-fw"></i> Ver Notificação]
                         </button>`; 
                 }
                 if (abs.actionType === 'encaminhamento_ct' && abs.oficioNumber) {
                      viewButtonHtml = `
-                        <button type="button" class="view-oficio-btn-hist text-green-600 hover:text-green-900 text-xs font-semibold ml-2" data-id="${abs.id}" title="Ver Ofício ${abs.oficioNumber}/${abs.oficioYear || ''}">
+                        <button type="button" class="view-oficio-btn-hist text-green-600 hover:text-green-900 text-xs font-semibold ml-2 cursor-pointer" data-id="${abs.id}" title="Ver Ofício ${abs.oficioNumber}/${abs.oficioYear || ''}">
                             [<i class="fas fa-eye fa-fw"></i> Ver Ofício]
                         </button>`;
                 }
@@ -1087,6 +1087,27 @@ export const initAbsenceListeners = () => {
             if (button.closest('.process-content')) {
                 const id = button.dataset.id; 
                 
+                // (CORREÇÃO DE LISTENER DE NOTIFICAÇÃO)
+                // Verifica especificamente o botão de notificação primeiro
+                if (button.classList.contains('view-notification-btn-hist')) {
+                    if (id) {
+                         try {
+                             openFichaViewModal(id);
+                         } catch (error) {
+                             console.error("Erro ao abrir ficha:", error);
+                             showToast("Erro ao abrir a notificação.");
+                         }
+                    } else {
+                        showToast("ID da notificação não encontrado.");
+                    }
+                    return;
+                }
+
+                if (button.classList.contains('view-oficio-btn-hist')) {
+                    if (id) handleViewOficio(id);
+                    return; 
+                }
+                
                 if (button.classList.contains('avancar-etapa-btn') && !button.disabled) {
                     handleNewAbsenceFromHistory(button.dataset.studentId);
                     return;
@@ -1099,10 +1120,6 @@ export const initAbsenceListeners = () => {
                     handleDeleteAbsence(id); 
                     return;
                 }
-                
-                if (button.classList.contains('view-notification-btn-hist') && id) { openFichaViewModal(id); return; }
-                if (button.classList.contains('view-oficio-btn-hist') && id) { handleViewOficio(id); return; }
-
             }
             
             if (button.classList.contains('generate-ficha-btn-row')) {
