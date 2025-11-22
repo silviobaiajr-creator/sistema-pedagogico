@@ -1,10 +1,10 @@
 // =================================================================================
 // ARQUIVO: reports.js
+// VERSÃO: 2.3 (Correção de Relatórios com Dados Desnormalizados)
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
-// (CORREÇÃO FINAL) Importa de logic.js (onde a função vive agora)
 import { roleIcons, defaultRole, getFilteredOccurrences } from './logic.js';
 import { getIncidentByGroupId as fetchIncidentById } from './firestore.js';
 
@@ -18,6 +18,38 @@ export const actionDisplayTitles = {
     encaminhamento_ct: "Encaminhamento ao Conselho Tutelar",
     analise: "Análise"
 };
+
+// --- HELPER DE RESILIÊNCIA (NOVO) ---
+// Tenta encontrar o aluno na memória ou usa os dados desnormalizados do registro
+const getStudentDataSafe = (studentId, recordSource = null) => {
+    const memoryStudent = state.students.find(s => s.matricula === studentId);
+    if (memoryStudent) return memoryStudent;
+
+    // Se não estiver na memória, tenta reconstruir usando dados salvos no registro
+    if (recordSource) {
+        return {
+            matricula: studentId,
+            name: recordSource.studentName || `Aluno (${studentId})`,
+            class: recordSource.studentClass || 'N/A',
+            // Campos que podem não existir na desnormalização (fallbacks)
+            endereco: 'Endereço não disponível (aluno fora da memória)',
+            resp1: 'Responsável não disponível',
+            resp2: '',
+            contato: ''
+        };
+    }
+
+    return {
+        matricula: studentId,
+        name: `Aluno (${studentId})`,
+        class: 'N/A',
+        endereco: '',
+        resp1: '',
+        resp2: '',
+        contato: ''
+    };
+};
+
 
 /**
  * Helper para gerar o cabeçalho com logo.
@@ -87,20 +119,25 @@ export const openStudentSelectionModal = async (groupId) => {
 /**
  * Gera e exibe a notificação formal (Ocorrências).
  */
-export const openIndividualNotificationModal = (incident, student) => {
-    const data = incident.records.find(r => r.studentId === student.matricula);
+export const openIndividualNotificationModal = (incident, studentObj) => {
+    // O studentObj pode vir incompleto se for placeholder.
+    // Tentamos buscar o registro individual que pode conter dados desnormalizados extras se salvarmos no futuro.
+    const data = incident.records.find(r => r.studentId === studentObj.matricula);
 
     if (!data) {
-        showToast(`Erro: Registro individual não encontrado para ${student.name}.`);
+        showToast(`Erro: Registro individual não encontrado para ${studentObj.name}.`);
         return;
     }
+
+    // Garante dados do aluno (se o objeto passado for simples, tenta enriquecer)
+    const student = getStudentDataSafe(studentObj.matricula, data.studentName ? data : studentObj);
 
     if (!data.meetingDate || !data.meetingTime) {
         showToast(`Erro: É necessário agendar a Convocação (Ação 2) para ${student.name}.`);
         return;
     }
 
-    const responsibleNames = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+    const responsibleNames = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
     document.getElementById('notification-title').innerText = 'Notificação de Ocorrência';
@@ -185,12 +222,15 @@ export const openOccurrenceRecordModal = async (groupId) => {
             Aos ${fullDateText}, nas dependências desta unidade de ensino, foi lavrada a presente ata pela Coordenação Pedagógica para registrar os fatos e providências referentes ao incidente <strong>Nº ${incident.id}</strong>, classificado como <strong>"${formatText(mainRecord.occurrenceType)}"</strong>.
         </p>`;
 
-    // 2. Fatos e Envolvidos
+    // 2. Fatos e Envolvidos (Resiliente)
     const participantsDetails = [...incident.participantsInvolved.values()].map(p => {
+        // Usa getStudentDataSafe implicitamente porque o fetchIncidentById já tratou isso ou o logic.js tratou
+        const studentName = p.student.name;
+        const studentClass = p.student.class;
         return `
             <li>
-                <strong>${formatText(p.student.name)}</strong>
-                (Turma: ${formatText(p.student.class || 'N/A')}),
+                <strong>${formatText(studentName)}</strong>
+                (Turma: ${formatText(studentClass || 'N/A')}),
                 identificado(a) como <strong>[${formatText(p.role)}]</strong>.
             </li>`;
     }).join('');
@@ -229,7 +269,8 @@ export const openOccurrenceRecordModal = async (groupId) => {
         <div class="space-y-3 mt-2">
             ${incident.records.map(rec => {
                 const participant = incident.participantsInvolved.get(rec.studentId);
-                const studentName = participant ? participant.student.name : 'Aluno desconhecido';
+                // Resiliência de Nome
+                const studentName = participant ? participant.student.name : (rec.studentName || 'Aluno desconhecido');
                 
                 let textoAcoesAluno = "";
                 
@@ -281,7 +322,7 @@ export const openOccurrenceRecordModal = async (groupId) => {
             }).join('')}
         </div>`;
 
-    // 5. Fechamento
+    // 5. Fechamento e Assinaturas (Mantidos)
     const displayOverallStatus = incident.overallStatus === 'Finalizada' ?
         "O presente incidente é considerado <strong>Finalizado</strong> pela gestão escolar." :
         "O presente incidente segue <strong>Pendente</strong> de acompanhamento pela gestão escolar.";
@@ -297,7 +338,6 @@ export const openOccurrenceRecordModal = async (groupId) => {
             ${city}, ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.
         </p>`;
 
-    // 6. Assinaturas
     let assinaturasHTML = `
         <div class="signature-block mt-12 space-y-12">
             <div class="text-center w-2/3 mx-auto">
@@ -405,8 +445,9 @@ export const openAbsenceHistoryModal = (processId) => {
     if (processActions.length === 0) return showToast('Processo não encontrado.');
 
     const studentId = processActions[0].studentId;
-    const student = state.students.find(s => s.matricula === studentId);
-    const studentName = student ? formatText(student.name) : 'Aluno Desconhecido';
+    // (CORREÇÃO) Resiliência na busca do nome
+    const student = getStudentDataSafe(studentId, processActions[0]);
+    const studentName = formatText(student.name);
 
     const allHistory = processActions.flatMap(a => a.history || []);
 
@@ -449,13 +490,15 @@ export const openAbsenceHistoryModal = (processId) => {
 export const openFichaViewModal = (id) => {
     const record = state.absences.find(abs => abs.id === id);
     if (!record) return showToast('Registro não encontrado.');
-    const student = state.students.find(s => s.matricula === record.studentId) || {name: 'Aluno Removido', class: 'N/A', endereco: '', resp1: '', resp2: '', contato: ''};
+    
+    // (CORREÇÃO) Busca resiliente de aluno
+    const student = getStudentDataSafe(record.studentId, record);
 
     const attemptLabels = { tentativa_1: "primeira", tentativa_2: "segunda", tentativa_3: "terceira" };
     let title = "Notificação de Baixa Frequência";
 
     let body = '';
-    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
 
@@ -465,7 +508,7 @@ export const openFichaViewModal = (id) => {
                 <p class="mt-4 text-justify">Prezados(as) Responsáveis, <strong>${formatText(responsaveis)}</strong>,</p>
                 <p class="mt-4 text-justify">
                     Vimos por meio desta notificar que o(a) estudante <strong>${student.name}</strong>,
-                    regularmente matriculado(a) na turma <strong>${student.class || ''}</strong>,
+                    regularmente matriculado(a) na turma <strong>${student.class || 'N/A'}</strong>,
                     acumulou <strong>${formatText(record.absenceCount)} faltas</strong> no período de ${formatDate(record.periodoFaltasStart)} a ${formatDate(record.periodoFaltasEnd)},
                     configurando baixa frequência escolar. Esta é a <strong>${attemptLabels[record.actionType]} tentativa de contato</strong> realizada pela escola.
                 </p>
@@ -492,7 +535,7 @@ export const openFichaViewModal = (id) => {
                 <p class="mt-4 text-justify">Prezados(as) Responsáveis, <strong>${formatText(responsaveis)}</strong>,</p>
                 <p class="mt-4 text-justify">
                     Notificamos que na data de <strong>${formatDate(record.visitDate)}</strong>, o agente escolar <strong>${formatText(record.visitAgent)}</strong> realizou uma visita domiciliar
-                    referente ao acompanhamento de frequência do(a) aluno(a) <strong>${student.name}</strong> (Turma: <strong>${student.class || ''}</strong>).
+                    referente ao acompanhamento de frequência do(a) aluno(a) <strong>${student.name}</strong> (Turma: <strong>${student.class || 'N/A'}</strong>).
                 </p>
                 <p class="mt-2"><strong>Justificativa do responsável (se houver):</strong> ${formatText(record.visitReason)}</p>
             `;
@@ -548,9 +591,9 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
     studentActions.sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
 
     if (studentActions.length === 0) return showToast('Nenhuma ação para este aluno neste processo/ciclo.');
-    const studentData = state.students.find(s => s.matricula === studentId);
-    if (!studentData) return showToast('Dados do aluno não encontrados.');
-
+    
+    // (CORREÇÃO) Busca resiliente usando o primeiro registro disponível
+    const studentData = getStudentDataSafe(studentId, studentActions[0]);
 
     const findAction = (type) => studentActions.find(a => a.actionType === type) || {};
     const t1 = findAction('tentativa_1'), t2 = findAction('tentativa_2'), t3 = findAction('tentativa_3'), visita = findAction('visita'), ct = findAction('encaminhamento_ct'), analise = findAction('analise');
@@ -570,7 +613,7 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
                 <p><strong>Ano/Ciclo:</strong> ${studentData.class || ''}</p>
                 <p><strong>Endereço:</strong> ${formatText(studentData.endereco)}</p>
                 <p><strong>Contato:</strong> ${formatText(studentData.contato)}</p>
-                <p><strong>Responsáveis:</strong> ${[studentData.resp1, studentData.resp2].filter(Boolean).join(' / ')}</p>
+                <p><strong>Responsáveis:</strong> ${[studentData.resp1, studentData.resp2].filter(Boolean).join(' / ') || 'Não informado'}</p>
             </div>
 
             <div class="border rounded-md p-3" style="font-family: 'Inter', sans-serif;">
@@ -665,8 +708,8 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
 
     if (!finalOficioNumber) return showToast('Número do ofício não fornecido ou não encontrado para este registro.');
 
-    const student = state.students.find(s => s.matricula === action.studentId);
-    if (!student) return showToast('Aluno não encontrado.');
+    // (CORREÇÃO) Busca resiliente
+    const student = getStudentDataSafe(action.studentId, action);
 
     const processActions = state.absences
         .filter(a => a.processId === action.processId)
@@ -679,7 +722,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
     const contactAttempts = processActions.filter(a => a.actionType.startsWith('tentativa'));
 
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
 
     const schoolName = state.config?.schoolName || "Nome da Escola";
     const city = state.config?.city || "Cidade";
@@ -778,10 +821,8 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
 // --- GRÁFICOS (dependem de Chart.js) ---
 /**
  * Gera o relatório geral de ocorrências com gráficos.
- * (MODIFICADO V4 - ATUALIZADO PARA 3 TENTATIVAS NA LISTAGEM)
  */
 export const generateAndShowGeneralReport = async () => { 
-     // (CORREÇÃO) Usa a função importada de logic.js
      const filteredIncidentsMap = getFilteredOccurrences(); 
      const filteredIncidents = [...filteredIncidentsMap.values()]; 
 
@@ -888,9 +929,9 @@ export const generateAndShowGeneralReport = async () => {
                                 })
                                 .map(rec => {
                                 const participant = incident.participantsInvolved.get(rec.studentId);
-                                const studentName = participant ? participant.student.name : 'Aluno Removido';
+                                // Resiliência para detalhes
+                                const studentName = participant ? participant.student.name : (rec.studentName || 'Aluno Removido');
                                 
-                                // Loop para gerar HTML das 3 tentativas (NOVO V4)
                                 let attemptsHtml = '';
                                 for (let i = 1; i <= 3; i++) {
                                     const succeeded = rec[`contactSucceeded_${i}`];
@@ -994,9 +1035,10 @@ export const generateAndShowBuscaAtivaReport = () => {
         const lastAction = proc.actions[proc.actions.length - 1];
         if (!lastAction) return false;
 
-        const student = state.students.find(s => s.matricula === proc.studentId);
-
-        if (studentFilter && (!student || !student.name.toLowerCase().includes(studentFilter.toLowerCase()))) return false;
+        // (CORREÇÃO) Filtragem resiliente com dados desnormalizados
+        const studentData = getStudentDataSafe(proc.studentId, proc.actions[0]);
+        
+        if (studentFilter && !studentData.name.toLowerCase().includes(studentFilter.toLowerCase())) return false;
 
         const isConcluded = lastAction.actionType === 'analise';
         if (processStatus === 'in_progress' && isConcluded) return false;
@@ -1075,15 +1117,16 @@ export const generateAndShowBuscaAtivaReport = () => {
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Processos</h4>
                 <div class="space-y-4">
                 ${filteredProcesses.sort((a,b) => (b.actions[b.actions.length-1].createdAt?.seconds || new Date(b.actions[b.actions.length-1].createdAt).getTime()) - (a.actions[a.actions.length-1].createdAt?.seconds || new Date(a.actions[a.actions.length-1].createdAt).getTime())).map(proc => {
-                    const student = state.students.find(s => s.matricula === proc.studentId);
+                    // (CORREÇÃO) Exibição resiliente de detalhes
+                    const studentData = getStudentDataSafe(proc.studentId, proc.actions[0]);
                     const lastAction = proc.actions[proc.actions.length - 1];
                     const isConcluded = lastAction.actionType === 'analise';
                     return `
                     <div class="border rounded-lg overflow-hidden break-inside-avoid">
                         <div class="bg-gray-100 p-3 flex justify-between items-center">
                             <div>
-                                <p class="font-bold text-gray-800">${student ? formatText(student.name) : 'Aluno Removido'}</p>
-                                <p class="text-xs text-gray-600">Turma: ${student ? formatText(student.class) : 'N/A'} | ID: ${proc.id}</p>
+                                <p class="font-bold text-gray-800">${formatText(studentData.name)}</p>
+                                <p class="text-xs text-gray-600">Turma: ${formatText(studentData.class || 'N/A')} | ID: ${proc.id}</p>
                             </div>
                             ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : '<span class="text-xs font-bold text-white bg-yellow-600 px-2 py-1 rounded-full">EM ANDAMENTO</span>'}
                         </div>
@@ -1154,10 +1197,13 @@ export const generateAndShowBuscaAtivaReport = () => {
 /**
  * Gera o Ofício para o Conselho Tutelar (baseado em Ocorrência).
  */
-export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, oficioYear) => {
-    if (!record || !student || !oficioNumber || !oficioYear) {
+export const generateAndShowOccurrenceOficio = (record, studentObj, oficioNumber, oficioYear) => {
+    if (!record || !studentObj || !oficioNumber || !oficioYear) {
         return showToast('Dados insuficientes para gerar o ofício.');
     }
+
+    // (CORREÇÃO) Resiliência de dados
+    const student = getStudentDataSafe(studentObj.matricula, record.studentName ? record : studentObj);
 
     let studentRole = defaultRole; 
     if (record.participants && Array.isArray(record.participants)) {
@@ -1168,7 +1214,7 @@ export const generateAndShowOccurrenceOficio = (record, student, oficioNumber, o
     }
 
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ');
+    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
     const schoolName = state.config?.schoolName || "Nome da Escola";
     const city = state.config?.city || "Cidade";
 
