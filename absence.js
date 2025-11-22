@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 2.3 (Correção de Validação com Alunos Paginados e Busca Inteligente)
+// VERSÃO: 2.4 (Correção Definitiva de Paginação e Desnormalização)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js';
@@ -87,6 +87,12 @@ const setupAbsenceAutocomplete = () => {
                         item.innerHTML = `<span class="font-semibold text-gray-800">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
                         
                         item.addEventListener('click', () => {
+                            // (CORREÇÃO 1) Cache Imediato: Adiciona à memória se não existir
+                            // Isso garante que o renderAbsences encontre o aluno imediatamente após salvar
+                            if (!state.students.find(s => s.matricula === student.matricula)) {
+                                state.students.push(student);
+                            }
+
                             handleNewAbsenceAction(student); 
                             input.value = '';
                             state.filterAbsences = '';
@@ -123,10 +129,17 @@ export const renderAbsences = () => {
 
     const searchFiltered = state.absences.filter(a => {
         if (!filterTerm) return true;
+        // Tenta buscar nome no registo (novo) ou na memória (antigo)
+        const nameToCheck = a.studentName ? normalizeText(a.studentName) : '';
+        
+        // Se tiver nome salvo no registo, usa ele
+        if (nameToCheck && nameToCheck.includes(filterTerm)) return true;
+
+        // Fallback: Tenta buscar o aluno na memória
         const student = state.students.find(s => s.matricula === a.studentId);
-        // Se o aluno não estiver na memória (paginação), não conseguimos filtrar pelo nome.
-        if (!student) return false; 
-        return normalizeText(student.name).includes(filterTerm);
+        if (student && normalizeText(student.name).includes(filterTerm)) return true;
+
+        return false;
     });
 
     const groupedByProcess = searchFiltered.reduce((acc, action) => {
@@ -263,9 +276,12 @@ export const renderAbsences = () => {
             const lastProcessAction = actions[actions.length - 1]; 
             const student = state.students.find(s => s.matricula === firstAction.studentId);
             
-            // Fallback para alunos não carregados na memória
-            const studentName = student ? student.name : `Aluno (${firstAction.studentId})`;
-            const studentClass = student ? student.class : 'N/A';
+            // (CORREÇÃO 2) Fallback Robusto:
+            // 1. Tenta o nome salvo no próprio registo (novo padrão)
+            // 2. Tenta o nome da memória (state.students)
+            // 3. Fallback final para ID
+            const studentName = firstAction.studentName || (student ? student.name : `Aluno (${firstAction.studentId})`);
+            const studentClass = firstAction.studentClass || (student ? student.class : 'N/A');
 
             const isConcluded = actions.some(a => a.actionType === 'analise');
             
@@ -544,10 +560,10 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
         const dateB = getActionMainDate(b) || b.createdAt?.seconds || 0;
         const timeA = typeof dateA === 'string' ? new Date(dateA+'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
         const timeB = typeof dateB === 'string' ? new Date(dateB+'T00:00:00Z').getTime() : (dateB instanceof Date ? dateB.getTime() : (dateB || 0) * 1000);
-        if (timeA === timeB) {
-           const createA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
-           const createB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
-           return (createA || 0) - (createB || 0);
+         if (timeA === timeB) {
+            const createA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
+            const createB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
+            return (createA || 0) - (createB || 0);
         }
         return (timeA || 0) - (timeB || 0);
     });
@@ -846,9 +862,15 @@ function getAbsenceFormData() {
         return null;
     }
 
+    // (CORREÇÃO 3) DESNORMALIZAÇÃO: Salva Nome e Turma no registo para garantir leitura futura
+    const studentName = document.getElementById('absence-student-name').value;
+    const studentClass = document.getElementById('absence-student-class').value;
+
     const data = {
         id: document.getElementById('absence-id').value, 
         studentId: studentId, // Usa o ID direto, sem buscar nome
+        studentName: studentName, // Salva o nome para o futuro
+        studentClass: studentClass, // Salva a turma para o futuro
         actionType: document.getElementById('action-type').value,
         processId: document.getElementById('absence-process-id').value,
         periodoFaltasStart: document.getElementById('absence-start-date').value || null,
@@ -971,16 +993,15 @@ function handleEditAbsence(id) {
         return showToast(isConcluded ? "Processo concluído, não pode editar." : "Apenas a última ação pode ser editada.");
     }
 
-    // (CORREÇÃO) Busca de aluno resiliente
+    // (CORREÇÃO 4) Edição Segura: Usa os dados do próprio registo se o aluno não estiver na memória
     let student = state.students.find(s => s.matricula === data.studentId);
     
     if (!student) {
-        // Cria um objeto aluno mínimo para permitir a edição
         student = {
             matricula: data.studentId,
-            name: `Aluno (${data.studentId})`, // Nome placeholder
-            class: '',
-            endereco: '',
+            name: data.studentName || `Aluno (${data.studentId})`, // Usa nome salvo ou ID
+            class: data.studentClass || '', // Usa turma salva
+            endereco: '', // Info não disponível se não estiver na memória
             contato: ''
         };
     }
