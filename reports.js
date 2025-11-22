@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 2.6 (Busca Híbrida Sob Demanda - Correção Definitiva de Cache e Exports)
+// VERSÃO: 2.7 (Correção de Bug: Variável responsibleNames indefinida)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -435,6 +435,7 @@ export const openFichaViewModal = async (id) => {
     let title = "Notificação de Baixa Frequência";
 
     let body = '';
+    // (CORREÇÃO AQUI: responsibleNames estava indefinido, trocado por responsaveis)
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -446,7 +447,7 @@ export const openFichaViewModal = async (id) => {
                 <div><strong>Turma:</strong> ${formatText(student.class)}</div>
                 <div class="sm:col-span-2"><strong>Endereço:</strong> ${formatText(student.endereco)}</div>
                 <div><strong>Contato:</strong> ${formatText(student.contato)}</div>
-                <div><strong>Responsáveis:</strong> ${formatText(responsibleNames)}</div>
+                <div><strong>Responsáveis:</strong> ${formatText(responsaveis)}</div>
             </div>
         </div>
     `;
