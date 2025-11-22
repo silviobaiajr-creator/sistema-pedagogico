@@ -1,22 +1,29 @@
 // =================================================================================
 // ARQUIVO: absence.js 
-// =================================================================================
+// VERSÃO: 2.2 (Busca Insensível a Caixa/Acentos e Autocomplete Server-Side)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js';
-import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js'; // (NOVO) Importada a validação
+import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js'; 
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
-import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef } from './firestore.js';
+import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName } from './firestore.js'; // (NOVO) Importa busca server-side
 import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 
 
-// --- Funções Auxiliares (Mantidas para uso local na UI/Ordenação) ---
+// --- Funções Auxiliares ---
 
 /**
- * Obtém a data principal de uma ação para fins de comparação cronológica local.
- * @param {object} action - O objeto da ação.
- * @returns {string|null} A data no formato YYYY-MM-DD ou null.
+ * Normaliza strings para comparação (remove acentos e põe em minúsculas).
+ * Ex: "João" -> "joao", "Álvaro" -> "alvaro"
+ */
+const normalizeText = (text) => {
+    if (!text) return '';
+    return text.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+};
+
+/**
+ * Obtém a data principal de uma ação.
  */
 const getActionMainDate = (action) => {
     if (!action) return null;
@@ -34,9 +41,6 @@ const getActionMainDate = (action) => {
     }
 };
 
-/**
- * Obtém o elemento de input de data relevante para o tipo de ação no modal.
- */
 const getDateInputForActionType = (actionType) => {
     switch (actionType) {
         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
@@ -51,43 +55,68 @@ const getDateInputForActionType = (actionType) => {
 };
 
 
-// --- Funções de UI ---
+// --- Funções de UI (Busca e Autocomplete) ---
+
+// Variável para debounce da busca
+let absenceSearchTimeout = null;
 
 const setupAbsenceAutocomplete = () => {
     const input = dom.searchAbsences; 
     const suggestionsContainer = document.getElementById('absence-student-suggestions');
     
     input.addEventListener('input', () => {
-        const value = input.value.toLowerCase();
-        state.filterAbsences = value;
-        renderAbsences();
+        const rawValue = input.value;
+        const normalizedValue = normalizeText(rawValue);
+        
+        // 1. Atualiza o filtro visual da lista (local)
+        state.filterAbsences = normalizedValue;
+        renderAbsences(); // Filtra a lista de ações já carregadas
+        
+        // 2. Lógica de Autocomplete (Busca de Aluno para Nova Ação)
+        if (absenceSearchTimeout) clearTimeout(absenceSearchTimeout);
         
         suggestionsContainer.innerHTML = '';
-        if (!value) {
+        if (!normalizedValue) {
             suggestionsContainer.classList.add('hidden');
             return;
         }
-        
-        const filteredStudents = state.students.filter(s => s.name.toLowerCase().startsWith(value)).slice(0, 5);
-        
-        if (filteredStudents.length > 0) {
+
+        // Debounce para não sobrecarregar o servidor
+        absenceSearchTimeout = setTimeout(async () => {
+            // Mostra indicador de carregamento
             suggestionsContainer.classList.remove('hidden');
-            filteredStudents.forEach(student => {
-                const item = document.createElement('div');
-                item.className = 'suggestion-item';
-                item.textContent = student.name;
-                item.addEventListener('click', () => {
-                    handleNewAbsenceAction(student); 
-                    input.value = '';
-                    state.filterAbsences = '';
-                    renderAbsences();
-                    suggestionsContainer.classList.add('hidden');
-                });
-                suggestionsContainer.appendChild(item);
-            });
-        } else {
-            suggestionsContainer.classList.add('hidden');
-        }
+            suggestionsContainer.innerHTML = '<div class="p-2 text-gray-500 text-xs"><i class="fas fa-spinner fa-spin"></i> Buscando alunos...</div>';
+
+            try {
+                // (CORREÇÃO) Busca no servidor em vez de filtrar apenas os 50 locais
+                const results = await searchStudentsByName(rawValue);
+                
+                suggestionsContainer.innerHTML = ''; // Limpa spinner
+                
+                if (results.length > 0) {
+                    results.forEach(student => {
+                        const item = document.createElement('div');
+                        item.className = 'suggestion-item p-2 cursor-pointer hover:bg-gray-100 border-b border-gray-100';
+                        // Destaque visual do nome
+                        item.innerHTML = `<span class="font-semibold text-gray-800">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
+                        
+                        item.addEventListener('click', () => {
+                            handleNewAbsenceAction(student); 
+                            input.value = '';
+                            state.filterAbsences = '';
+                            renderAbsences();
+                            suggestionsContainer.classList.add('hidden');
+                        });
+                        suggestionsContainer.appendChild(item);
+                    });
+                } else {
+                    suggestionsContainer.innerHTML = '<div class="p-2 text-gray-500 text-xs">Nenhum aluno encontrado.</div>';
+                }
+            } catch (error) {
+                console.error("Erro no autocomplete:", error);
+                suggestionsContainer.innerHTML = '<div class="p-2 text-red-500 text-xs">Erro na busca.</div>';
+            }
+        }, 400); // 400ms delay
     });
 
     document.addEventListener('click', (e) => {
@@ -104,9 +133,22 @@ const setupAbsenceAutocomplete = () => {
 
 export const renderAbsences = () => {
     dom.loadingAbsences.classList.add('hidden');
+    
+    // (CORREÇÃO) Lógica de filtro robusta com includes e normalização
+    const filterTerm = normalizeText(state.filterAbsences);
+
     const searchFiltered = state.absences.filter(a => {
+        // Se não houver termo de busca, retorna tudo
+        if (!filterTerm) return true;
+
         const student = state.students.find(s => s.matricula === a.studentId);
-        return student && student.name.toLowerCase().startsWith(state.filterAbsences.toLowerCase());
+        
+        // Se o aluno não estiver na memória (paginação), infelizmente não podemos filtrar pelo nome dele aqui
+        // A menos que tenhamos cache. Por enquanto, mostramos apenas o que conseguimos resolver.
+        if (!student) return false; 
+
+        // Comparações normalizadas
+        return normalizeText(student.name).includes(filterTerm);
     });
 
     const groupedByProcess = searchFiltered.reduce((acc, action) => {
@@ -133,7 +175,6 @@ export const renderAbsences = () => {
             return (timeA || 0) - (timeB || 0); 
         });
 
-        // Lógica do Filtro de Data
         const { startDate, endDate } = state.filtersAbsences;
         const firstAction = actions[0];
         const processStartDateRaw = getActionMainDate(firstAction) || firstAction.createdAt;
@@ -157,7 +198,6 @@ export const renderAbsences = () => {
             if (processStartDate > filterEndDate) return false;
         }
 
-        // Outros filtros
         const { processStatus, pendingAction, returnStatus } = state.filtersAbsences;
         const isConcluded = actions.some(a => a.actionType === 'analise');
         if (processStatus === 'in_progress' && isConcluded) return false;
@@ -244,7 +284,10 @@ export const renderAbsences = () => {
             const firstAction = actions[0];
             const lastProcessAction = actions[actions.length - 1]; 
             const student = state.students.find(s => s.matricula === firstAction.studentId);
-            if (!student) continue;
+            
+            // Se o aluno não estiver na lista carregada, mostra placeholder
+            const studentName = student ? student.name : `Aluno ID: ${firstAction.studentId}`;
+            const studentClass = student ? student.class : 'N/A';
 
             const isConcluded = actions.some(a => a.actionType === 'analise');
             
@@ -319,7 +362,7 @@ export const renderAbsences = () => {
                         class="avancar-etapa-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100 ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}"
                         title="${isConcluded ? 'Processo concluído' : 'Avançar para a próxima etapa'}"
                         ${isConcluded ? 'disabled' : ''}
-                        data-student-id="${student.matricula}">
+                        data-student-id="${firstAction.studentId}">
                     <i class="fas fa-plus"></i> Avançar Etapa
                 </button>
             `; 
@@ -350,12 +393,12 @@ export const renderAbsences = () => {
                     <div class="process-header bg-gray-50 hover:bg-gray-100 cursor-pointer p-4 flex justify-between items-center"
                          data-content-id="${contentId}">
                         <div>
-                            <p class="font-semibold text-gray-800">${student.name}</p>
-                            <p class="text-sm text-gray-500">ID do Processo: ${processId} - Início: ${formatDate(firstAction.createdAt?.toDate())}</p>
+                            <p class="font-semibold text-gray-800">${studentName}</p>
+                            <p class="text-sm text-gray-500">Turma: ${studentClass} | Início: ${formatDate(firstAction.createdAt?.toDate())}</p>
                         </div>
                         <div class="flex items-center space-x-4">
                             ${isConcluded ? '<span class="text-xs font-bold text-white bg-green-600 px-2 py-1 rounded-full">CONCLUÍDO</span>' : '<span class="text-xs font-bold text-white bg-yellow-600 px-2 py-1 rounded-full">EM ANDAMENTO</span>'}
-                            <button class="generate-ficha-btn-row bg-teal-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-teal-700 text-xs no-print" data-student-id="${student.matricula}" data-process-id="${processId}">
+                            <button class="generate-ficha-btn-row bg-teal-600 text-white font-bold py-1 px-3 rounded-lg shadow-md hover:bg-teal-700 text-xs no-print" data-student-id="${firstAction.studentId}" data-process-id="${processId}">
                                 <i class="fas fa-file-invoice"></i> Ficha
                             </button>
                             <i class="fas fa-chevron-down transition-transform duration-300"></i>
@@ -613,7 +656,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
             break;
     }
 
-    // --- Define a Data Mínima (CONSISTÊNCIA 2) ---
+    // --- Define a Data Mínima ---
     let previousAction = null;
     if (isEditing) {
         const currentIndex = currentCycleActions.findIndex(a => a.id === data.id);

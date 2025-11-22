@@ -1,19 +1,26 @@
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// =================================================================================
+// VERSÃO: 2.2 (Busca de Alunos no Servidor e Filtros Insensíveis a Acentos)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
-import { getCollectionRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord, getIncidentByGroupId as fetchIncidentById } from './firestore.js'; 
-// (CORREÇÃO) Importa tudo do logic.js para evitar ciclo e duplicidade
+import { 
+    getCollectionRef, 
+    getCounterDocRef, 
+    updateRecordWithHistory, 
+    addRecordWithHistory, 
+    deleteRecord, 
+    getIncidentByGroupId as fetchIncidentById,
+    searchStudentsByName // (NOVO) Importado para busca no servidor
+} from './firestore.js'; 
 import { 
     determineNextOccurrenceStep, 
     determineCurrentActionFromStatus, 
     occurrenceStepLogic,
-    roleIcons,          // Importado
-    defaultRole,        // Importado
-    getFilteredOccurrences, // Importado
-    validateOccurrenceChronology // (NOVO) Importado para validar datas
+    roleIcons,          
+    defaultRole,        
+    getFilteredOccurrences,
+    validateOccurrenceChronology
 } from './logic.js';
 import {
     openOccurrenceRecordModal,
@@ -26,10 +33,9 @@ import { writeBatch, doc, collection, query, where, getDocs, runTransaction } fr
 import { db } from './firebase.js';
 
 // =================================================================================
-// CONFIGURAÇÕES
+// CONFIGURAÇÕES E UTILITÁRIOS LOCAIS
 // =================================================================================
 
-// Títulos atualizados para as novas ações (Mapeamento para UI)
 export const occurrenceActionTitles = { 
     'convocacao': 'Ação 2: Agendar Convocação',
     'contato_familia_1': 'Ação 3: 1ª Tentativa de Contato',
@@ -40,9 +46,18 @@ export const occurrenceActionTitles = {
     'parecer_final': 'Ação 6: Dar Parecer Final'
 };
 
-// Variáveis de estado local para UI
 let studentPendingRoleSelection = null;
 let editingRoleId = null; 
+let studentSearchTimeout = null; // (NOVO) Debounce para busca de alunos
+
+/**
+ * Normaliza strings para comparação (remove acentos e põe em minúsculas).
+ * Ex: "João" -> "joao"
+ */
+const normalizeText = (text) => {
+    if (!text) return '';
+    return text.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+};
 
 // =================================================================================
 // FUNÇÕES DE INTERFACE (UI) - TAGS E SELEÇÃO
@@ -117,39 +132,61 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
     roleSelectionPanel.classList.add('hidden');
     roleEditDropdown.classList.add('hidden');
 
+    // (MODIFICADO) Busca no Servidor com Debounce
     inputElement.addEventListener('input', () => {
-        const value = inputElement.value.toLowerCase();
+        const value = inputElement.value; // Pega valor bruto
+        const normalizedValue = normalizeText(value);
+        
         suggestionsElement.innerHTML = '';
         roleSelectionPanel.classList.add('hidden'); 
         studentPendingRoleSelection = null;
 
-        if (!value) {
+        if (!normalizedValue) {
             suggestionsElement.classList.add('hidden');
             return;
         }
-        const filteredStudents = state.students
-            .filter(s => !state.selectedStudents.has(s.matricula) && s.name.toLowerCase().includes(value))
-            .slice(0, 5);
 
-        if (filteredStudents.length > 0) {
+        // Limpa timeout anterior
+        if (studentSearchTimeout) clearTimeout(studentSearchTimeout);
+
+        // Inicia novo timeout (400ms)
+        studentSearchTimeout = setTimeout(async () => {
             suggestionsElement.classList.remove('hidden');
-            filteredStudents.forEach(student => {
-                const item = document.createElement('div');
-                item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50'; 
-                item.textContent = student.name;
-                item.addEventListener('click', () => {
-                    studentPendingRoleSelection = student;
-                    roleSelectionStudentName.textContent = student.name;
-                    roleSelectionPanel.classList.remove('hidden');
-                    suggestionsElement.classList.add('hidden'); 
-                    inputElement.value = ''; 
-                    inputElement.focus(); 
-                });
-                suggestionsElement.appendChild(item);
-            });
-        } else {
-            suggestionsElement.classList.add('hidden');
-        }
+            suggestionsElement.innerHTML = '<div class="p-2 text-gray-500 text-xs"><i class="fas fa-spinner fa-spin"></i> Buscando no servidor...</div>';
+
+            try {
+                // Busca no Firestore (Server-Side)
+                const results = await searchStudentsByName(value);
+                
+                suggestionsElement.innerHTML = '';
+                
+                // Filtra os que já foram selecionados
+                const filteredResults = results.filter(s => !state.selectedStudents.has(s.matricula));
+
+                if (filteredResults.length > 0) {
+                    filteredResults.forEach(student => {
+                        const item = document.createElement('div');
+                        item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50 border-b border-gray-100'; 
+                        item.innerHTML = `<span class="font-semibold text-gray-800">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
+                        
+                        item.addEventListener('click', () => {
+                            studentPendingRoleSelection = student;
+                            roleSelectionStudentName.textContent = student.name;
+                            roleSelectionPanel.classList.remove('hidden');
+                            suggestionsElement.classList.add('hidden'); 
+                            inputElement.value = ''; 
+                            inputElement.focus(); 
+                        });
+                        suggestionsElement.appendChild(item);
+                    });
+                } else {
+                    suggestionsElement.innerHTML = '<div class="p-2 text-gray-500 text-xs">Nenhum aluno encontrado.</div>';
+                }
+            } catch (error) {
+                console.error("Erro na busca de alunos:", error);
+                suggestionsElement.innerHTML = '<div class="p-2 text-red-500 text-xs">Erro na busca.</div>';
+            }
+        }, 400);
     });
 
     roleSelectButtons.forEach(button => {
@@ -195,12 +232,11 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 };
 
 // =================================================================================
-// RENDERIZAÇÃO (Agora usa a lógica importada)
+// RENDERIZAÇÃO 
 // =================================================================================
 
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
-    // (CORREÇÃO) Usa a função importada de logic.js
     const filteredIncidents = getFilteredOccurrences();
     dom.occurrencesTitle.textContent = `Exibindo ${filteredIncidents.size} Incidente(s)`;
 
@@ -220,12 +256,14 @@ export const renderOccurrences = () => {
         const mainRecord = incident.records && incident.records.length > 0 ? incident.records[0] : null;
         if (!mainRecord) return '';
 
-        const studentSearch = state.filterOccurrences.toLowerCase();
+        // (CORREÇÃO) Normaliza o termo de busca para filtro insensível a acentos/caixa
+        const studentSearch = normalizeText(state.filterOccurrences);
         const isFinalizada = incident.overallStatus === 'Finalizada';
 
         const studentAccordionsHTML = [...incident.participantsInvolved.values()]
             .filter(participant => {
-                if (studentSearch && !participant.student.name.toLowerCase().includes(studentSearch)) {
+                // (CORREÇÃO) Usa includes normalizado
+                if (studentSearch && !normalizeText(participant.student.name).includes(studentSearch)) {
                     return false;
                 }
                 return true; 
@@ -236,8 +274,11 @@ export const renderOccurrences = () => {
                 const record = incident.records.find(r => r && r.studentId === student.matricula);
                 const recordId = record?.id || '';
                 const status = record?.statusIndividual || 'Aguardando Convocação';
-                const isMatch = studentSearch && student.name.toLowerCase().includes(studentSearch);
-                const nameClass = isMatch ? 'font-bold text-yellow-800' : 'font-medium text-gray-700';
+                
+                // (CORREÇÃO) Destaque visual robusto
+                const isMatch = studentSearch && normalizeText(student.name).includes(studentSearch);
+                const nameClass = isMatch ? 'font-bold text-yellow-800 bg-yellow-100 px-1 rounded' : 'font-medium text-gray-700';
+                
                 const iconClass = roleIcons[role] || roleIcons[defaultRole];
                 const isIndividualResolvido = record?.statusIndividual === 'Resolvido';
 
@@ -415,9 +456,7 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     dom.occurrenceForm.reset();
     state.selectedStudents.clear(); 
 
-    // (CORREÇÃO FUSO HORÁRIO) Define data máxima como hoje local
     const occurrenceDateInput = document.getElementById('occurrence-date');
-    // Usa en-CA para obter formato YYYY-MM-DD
     const todayLocal = new Date().toLocaleDateString('en-CA');
     occurrenceDateInput.max = todayLocal;
 
@@ -437,7 +476,6 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     } else {
         document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
         document.getElementById('occurrence-group-id').value = '';
-        // (CORREÇÃO) Define a data padrão como hoje LOCAL
         occurrenceDateInput.value = todayLocal;
     }
 
