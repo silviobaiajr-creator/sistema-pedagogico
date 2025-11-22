@@ -12,7 +12,8 @@ import {
     occurrenceStepLogic,
     roleIcons,          // Importado
     defaultRole,        // Importado
-    getFilteredOccurrences // Importado
+    getFilteredOccurrences, // Importado
+    validateOccurrenceChronology // (NOVO) Importado para validar datas
 } from './logic.js';
 import {
     openOccurrenceRecordModal,
@@ -822,8 +823,11 @@ async function handleOccurrenceStepSubmit(e) {
                 meetingTime: document.getElementById('follow-up-meeting-time').value,
             };
             if (!dataToUpdate.meetingDate || !dataToUpdate.meetingTime) return showToast('Data e Horário obrigatórios.');
-            if (record.date && dataToUpdate.meetingDate < record.date) return showToast('Erro: Convocação anterior ao fato.');
             
+            // (NOVO) Validação Cronológica Centralizada
+            const dateCheck = validateOccurrenceChronology(record, 'convocacao', dataToUpdate.meetingDate);
+            if (!dateCheck.isValid) return showToast(dateCheck.message);
+
             historyAction = `Ação 2 (Convocação) agendada para ${formatDate(dataToUpdate.meetingDate)} às ${formatTime(dataToUpdate.meetingTime)}.`;
             nextStatus = 'Aguardando Contato 1'; 
 
@@ -852,12 +856,9 @@ async function handleOccurrenceStepSubmit(e) {
                      return showToast('Preencha Tipo, Data e Providências.');
                 }
                 
-                let minDate = record.meetingDate; 
-                if (attemptNumber > 1) minDate = record[`contactDate_${attemptNumber-1}`];
-                
-                if (minDate && dataToUpdate[fields.date] < minDate) {
-                    return showToast('Erro: Data do contato inválida cronologicamente.');
-                }
+                // (NOVO) Validação Cronológica Centralizada
+                const dateCheck = validateOccurrenceChronology(record, actionType, dataToUpdate[fields.date]);
+                if (!dateCheck.isValid) return showToast(dateCheck.message);
 
                 historyAction = `Ação 3 (${attemptNumber}ª Tentativa) registrada com sucesso.`;
                 nextStatus = 'Aguardando Desfecho'; 
@@ -885,6 +886,10 @@ async function handleOccurrenceStepSubmit(e) {
                 const ctSentDate = document.getElementById('follow-up-ct-sent-date').value;
 
                 if (!oficioNumber || !ctSentDate) return showToast("Erro: Preencha o Ofício e Data.");
+
+                // (NOVO) Validação Cronológica Centralizada
+                const dateCheck = validateOccurrenceChronology(record, 'desfecho_ou_ct', ctSentDate);
+                if (!dateCheck.isValid) return showToast(dateCheck.message);
 
                 dataToUpdate = {
                     oficioNumber, ctSentDate,
@@ -1190,10 +1195,10 @@ async function handleSendOccurrenceCtSubmit(e) {
     const oficioYear = new Date().getFullYear();
     const ctSentDate = new Date().toISOString().split('T')[0]; // Data atual
     
-    const minDateCt = record.contactDate_3 || record.contactDate_2 || record.contactDate_1 || record.meetingDate;
-    if (minDateCt && ctSentDate < minDateCt) {
-         return showToast('Erro: A data de envio não pode ser anterior às ações passadas.');
-    }
+    // (NOVO) Validação Cronológica Centralizada (Mesmo para o botão dedicado)
+    // Usamos a data atual (ctSentDate) para validar
+    const dateCheck = validateOccurrenceChronology(record, 'desfecho_ou_ct', ctSentDate);
+    if (!dateCheck.isValid) return showToast(dateCheck.message);
 
     const dataToUpdate = {
         oficioNumber, oficioYear, ctSentDate,

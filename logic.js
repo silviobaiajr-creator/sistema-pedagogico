@@ -3,10 +3,10 @@
 // =================================================================================
 
 import { state } from './state.js';
-// (NOVO) Importa getStatusBadge para uso na filtragem (quebra de ciclo)
+// Importa getStatusBadge para uso na filtragem
 import { getStatusBadge } from './utils.js';
 
-// --- CONSTANTES COMPARTILHADAS (Movidas de occurrence.js para corrigir dependência circular) ---
+// --- CONSTANTES COMPARTILHADAS ---
 
 export const roleIcons = {
     'Vítima': 'fas fa-user-shield text-blue-600',
@@ -17,69 +17,78 @@ export const roleIcons = {
 
 export const defaultRole = 'Envolvido'; 
 
-// --- (NOVO) FUNÇÃO DE PROCESSAMENTO DE OCORRÊNCIAS ---
-// Movida de occurrence.js para o "cérebro" (logic.js) para estar disponível globalmente
-// sem causar erros de importação no reports.js
-// ------------------------------------------------------------------------------
+// --- FUNÇÃO DE PROCESSAMENTO DE OCORRÊNCIAS (OTIMIZADA) ---
 
 /**
  * Processa os dados brutos das ocorrências, agrupa por incidente e aplica filtros.
  * Retorna um Map onde a chave é o ID do Grupo e o valor é o objeto do incidente.
  */
 export const getFilteredOccurrences = () => {
-    // 1. Agrupamento
-    const groupedByIncident = state.occurrences.reduce((acc, occ) => {
-        if (!occ || !occ.studentId) return acc;
+    // 1. Agrupamento Otimizado
+    const groupedByIncident = new Map();
+
+    // Loop simples é mais rápido que reduce para grandes arrays (20k+)
+    for (const occ of state.occurrences) {
+        if (!occ || !occ.studentId) continue;
 
         const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
-        if (!acc.has(groupId)) {
-            acc.set(groupId, {
+        
+        let incident = groupedByIncident.get(groupId);
+        if (!incident) {
+            incident = {
                 id: groupId,
                 records: [],
                 participantsInvolved: new Map(),
                 overallStatus: 'Aguardando Convocação'
-            });
+            };
+            groupedByIncident.set(groupId, incident);
         }
-        const incident = acc.get(groupId);
+        
         incident.records.push(occ);
 
         // Tenta recuperar o papel salvo no registo ou usa o padrão
-        const participantData = occ.participants?.find(p => p.studentId === occ.studentId);
-        const student = state.students.find(s => s.matricula === occ.studentId);
-
-        if (student && !incident.participantsInvolved.has(student.matricula)) {
-             incident.participantsInvolved.set(student.matricula, {
-                 student: student,
-                 role: participantData?.role || defaultRole 
-             });
+        // Otimização: Evita buscar no array de estudantes global repetidamente se não necessário
+        if (!incident.participantsInvolved.has(occ.studentId)) {
+            const student = state.students.find(s => s.matricula === occ.studentId);
+            if (student) {
+                const participantData = occ.participants?.find(p => p.studentId === occ.studentId);
+                incident.participantsInvolved.set(occ.studentId, {
+                    student: student,
+                    role: participantData?.role || defaultRole 
+                });
+            }
         }
-        return acc;
-    }, new Map());
+    }
 
-    // 2. Filtragem
+    // 2. Filtragem e Processamento
     const filteredIncidents = new Map();
+    const { startDate, endDate, status, type } = state.filtersOccurrences;
+    const studentSearch = state.filterOccurrences ? state.filterOccurrences.toLowerCase() : '';
+
     for (const [groupId, incident] of groupedByIncident.entries()) {
         const mainRecord = incident.records && incident.records.length > 0 ? incident.records[0] : null;
         if (!mainRecord) continue;
-
-        const { startDate, endDate, status, type } = state.filtersOccurrences;
-        const studentSearch = state.filterOccurrences.toLowerCase();
 
         // Recalcula status geral
         const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
         incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
 
-        // Filtros de Data, Tipo e Status
-        if (startDate && mainRecord.date < startDate) continue;
-        if (endDate && mainRecord.date > endDate) continue;
+        // Filtros Rápidos (Short-circuit)
         if (status !== 'all' && incident.overallStatus !== status) continue;
         if (type !== 'all' && mainRecord.occurrenceType !== type) continue;
+        if (startDate && mainRecord.date < startDate) continue;
+        if (endDate && mainRecord.date > endDate) continue;
 
         // Filtro de Texto (Busca por nome do aluno)
         if (studentSearch) {
-            const hasMatchingStudent = [...incident.participantsInvolved.values()].some(p =>
-                p.student.name.toLowerCase().includes(studentSearch)
-            );
+            let hasMatchingStudent = false;
+            // Itera sobre os valores do Map de participantes
+            for (const p of incident.participantsInvolved.values()) {
+                if (p.student.name.toLowerCase().includes(studentSearch)) {
+                    hasMatchingStudent = true;
+                    break;
+                }
+            }
             if (!hasMatchingStudent) continue;
         }
         filteredIncidents.set(groupId, incident);
@@ -88,9 +97,10 @@ export const getFilteredOccurrences = () => {
 };
 
 
-// --- Lógica da Busca Ativa (Mantida) ---
+// --- Lógica da Busca Ativa ---
 
 export const getStudentProcessInfo = (studentId) => {
+    // Filtra e ordena (Bubble sort nativo do JS é rápido o suficiente aqui)
     const studentActions = state.absences
         .filter(a => a.studentId === studentId)
         .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
@@ -111,7 +121,9 @@ export const getStudentProcessInfo = (studentId) => {
     if (existingProcessAction) {
         processId = existingProcessAction.processId;
     } else {
-        const allProcessIdsForStudent = state.absences.filter(a => a.studentId === studentId)
+        // Gera novo ID baseado no histórico
+        const allProcessIdsForStudent = state.absences
+            .filter(a => a.studentId === studentId)
             .map(a => a.processId)
             .filter(Boolean);
         
@@ -131,9 +143,11 @@ export const getStudentProcessInfo = (studentId) => {
 
 export const determineNextActionForStudent = (studentId) => {
     const { currentCycleActions } = getStudentProcessInfo(studentId);
+    // Sequência lógica rígida da Busca Ativa
     const sequence = ['tentativa_1', 'tentativa_2', 'tentativa_3', 'visita', 'encaminhamento_ct', 'analise'];
     const existingActionTypes = new Set(currentCycleActions.map(a => a.actionType));
 
+    // Se houve retorno em qualquer etapa, sugere Análise para fechar o ciclo
     const hasReturnedInCurrentCycle = currentCycleActions.some(
         a => a.contactReturned === 'yes' || a.visitReturned === 'yes' || a.ctReturned === 'yes'
     );
@@ -148,7 +162,7 @@ export const determineNextActionForStudent = (studentId) => {
         }
     }
     
-    return 'analise'; // Fallback
+    return 'analise'; // Fallback padrão
 };
 
 
@@ -189,6 +203,137 @@ export const determineCurrentActionFromStatus = (currentStatus) => {
     if (currentStatus === 'Aguardando Desfecho') return 'contato_familia_x'; 
     return occurrencePreviousActionMap[currentStatus] || null;
 };
+
+// ==============================================================================
+// --- (NOVO) VALIDAÇÃO ROBUSTA DE CRONOLOGIA ---
+// ==============================================================================
+
+// --- Helper para obter a data principal de uma ação ---
+const getActionMainDate = (action) => {
+    if (!action) return null;
+    switch (action.actionType) {
+        case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
+            // A data "real" de sequência é a data do contato (se houver), senão a data da convocação
+            return action.contactDate || action.meetingDate;
+        case 'visita': return action.visitDate;
+        case 'encaminhamento_ct': return action.ctSentDate;
+        // Análise não tem data relevante para bloquear as anteriores, usa criação como fallback
+        case 'analise': return action.createdAt?.toDate ? action.createdAt.toDate().toISOString().split('T')[0] : null;
+        default: return null;
+    }
+};
+
+/**
+ * Valida se a data da nova ação respeita a cronologia do registro de Ocorrência.
+ */
+export const validateOccurrenceChronology = (record, actionType, newDate) => {
+    if (!newDate) return { isValid: true, message: '' };
+
+    const dateToCheck = new Date(newDate + 'T00:00:00'); // Normaliza
+    const occurrenceDate = new Date(record.date + 'T00:00:00');
+
+    // Regra 0: Nada pode ser anterior ao fato
+    if (dateToCheck < occurrenceDate) {
+        return { isValid: false, message: `A data não pode ser anterior à data da Ocorrência (${record.date}).` };
+    }
+
+    if (actionType === 'contato_familia_1') {
+        if (record.meetingDate) {
+            const meetingDate = new Date(record.meetingDate + 'T00:00:00');
+            if (dateToCheck < meetingDate) return { isValid: false, message: `A 1ª Tentativa não pode ser anterior à Convocação (${record.meetingDate}).` };
+        }
+    }
+    if (actionType === 'contato_familia_2') {
+        const prevDateStr = record.contactDate_1 || record.meetingDate;
+        if (prevDateStr) {
+            const prevDate = new Date(prevDateStr + 'T00:00:00');
+            if (dateToCheck < prevDate) return { isValid: false, message: `A 2ª Tentativa não pode ser anterior à 1ª Tentativa ou Convocação (${prevDateStr}).` };
+        }
+    }
+    if (actionType === 'contato_familia_3') {
+        const prevDateStr = record.contactDate_2 || record.contactDate_1;
+        if (prevDateStr) {
+            const prevDate = new Date(prevDateStr + 'T00:00:00');
+            if (dateToCheck < prevDate) return { isValid: false, message: `A 3ª Tentativa não pode ser anterior à tentativa passada (${prevDateStr}).` };
+        }
+    }
+    if (actionType === 'desfecho_ou_ct' || actionType === 'devolutiva_ct') {
+        const lastContactDate = record.contactDate_3 || record.contactDate_2 || record.contactDate_1 || record.meetingDate;
+        if (lastContactDate) {
+            const prevDate = new Date(lastContactDate + 'T00:00:00');
+            if (dateToCheck < prevDate) return { isValid: false, message: `A data não pode ser anterior à última tentativa de contato (${lastContactDate}).` };
+        }
+    }
+
+    return { isValid: true };
+};
+
+/**
+ * (NOVO) Valida a cronologia da Busca Ativa.
+ * Analisa o ciclo atual para garantir consistência temporal.
+ * * @param {Array} currentCycleActions - Ações do ciclo atual (objetos completos).
+ * @param {Object} newActionData - Dados do formulário que está sendo salvo.
+ * @returns {Object} { isValid: boolean, message: string }
+ */
+export const validateAbsenceChronology = (currentCycleActions, newActionData) => {
+    const newMainDateStr = getActionMainDate(newActionData);
+    if (!newMainDateStr) return { isValid: true }; // Se não tem data principal (ex: Análise sem data), passa.
+
+    const newDateToCheck = new Date(newMainDateStr + 'T00:00:00');
+
+    // 1. Validação Interna (Consistência dentro da própria ação)
+    if (newActionData.actionType.startsWith('tentativa')) {
+        // Data do Contato vs Data da Convocação
+        if (newActionData.contactDate && newActionData.meetingDate) {
+            if (newActionData.contactDate < newActionData.meetingDate) {
+                return { isValid: false, message: `A data do contato (${formatDate(newActionData.contactDate)}) não pode ser anterior à data da convocação (${formatDate(newActionData.meetingDate)}).` };
+            }
+        }
+    }
+
+    // 2. Validação Sequencial (Comparar com ação anterior)
+    // Precisamos encontrar a ação imediatamente ANTERIOR no fluxo lógico
+    
+    // Remove a própria ação da lista se estivermos editando (para não comparar consigo mesma)
+    const previousActions = currentCycleActions.filter(a => a.id !== newActionData.id);
+    
+    // Ordena cronologicamente
+    previousActions.sort((a, b) => {
+        const dateA = getActionMainDate(a) || a.createdAt?.seconds || 0;
+        const dateB = getActionMainDate(b) || b.createdAt?.seconds || 0;
+        const timeA = typeof dateA === 'string' ? new Date(dateA+'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
+        const timeB = typeof dateB === 'string' ? new Date(dateB+'T00:00:00Z').getTime() : (dateB instanceof Date ? dateB.getTime() : (dateB || 0) * 1000);
+        return timeA - timeB;
+    });
+
+    if (previousActions.length > 0) {
+        const lastAction = previousActions[previousActions.length - 1];
+        const lastDateStr = getActionMainDate(lastAction);
+        
+        if (lastDateStr) {
+            const lastDate = new Date(lastDateStr + 'T00:00:00');
+            if (newDateToCheck < lastDate) {
+                return { 
+                    isValid: false, 
+                    message: `A data desta ação (${formatDate(newMainDateStr)}) não pode ser anterior à data da ação anterior: "${getActionTitle(lastAction.actionType)}" em ${formatDate(lastDateStr)}.`
+                };
+            }
+        }
+    }
+
+    return { isValid: true };
+};
+
+// Helper auxiliar local para formatar data em mensagens de erro (simples)
+const formatDate = (dateStr) => dateStr ? dateStr.split('-').reverse().join('/') : '';
+const getActionTitle = (type) => {
+    const titles = {
+        'tentativa_1': '1ª Tentativa', 'tentativa_2': '2ª Tentativa', 'tentativa_3': '3ª Tentativa',
+        'visita': 'Visita', 'encaminhamento_ct': 'Envio ao CT', 'analise': 'Análise'
+    };
+    return titles[type] || type;
+};
+
 
 // ==============================================================================
 // --- Lógica de Reset (Cascata de Exclusão) ---
