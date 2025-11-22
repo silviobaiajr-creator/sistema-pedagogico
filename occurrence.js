@@ -4,7 +4,7 @@
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
-import { getCollectionRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord, getIncidentByGroupId as fetchIncidentById } from './firestore.js'; 
+import { getCollectionRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord, getIncidentByGroupId as fetchIncidentById, searchStudentsByName } from './firestore.js'; // (NOVO) Adicionado searchStudentsByName
 // (CORREÇÃO) Importa tudo do logic.js para evitar ciclo e duplicidade
 import { 
     determineNextOccurrenceStep, 
@@ -43,6 +43,7 @@ export const occurrenceActionTitles = {
 // Variáveis de estado local para UI
 let studentPendingRoleSelection = null;
 let editingRoleId = null; 
+let searchDebounceTimeout = null; // (NOVO) Variável para debounce da pesquisa
 
 // =================================================================================
 // FUNÇÕES DE INTERFACE (UI) - TAGS E SELEÇÃO
@@ -106,6 +107,10 @@ const openRoleEditDropdown = (buttonElement, studentId) => {
     setTimeout(() => document.addEventListener('click', closeListener), 0);
 };
 
+/**
+ * (MODIFICADO V3 - PAGINAÇÃO)
+ * Agora usa busca assíncrona no servidor via searchStudentsByName em vez de filtro local.
+ */
 export const setupStudentTagInput = (inputElement, suggestionsElement, tagsContainerElement) => {
     const roleSelectionPanel = document.getElementById('role-selection-panel');
     const roleSelectionStudentName = document.getElementById('role-selection-student-name');
@@ -118,38 +123,57 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
     roleEditDropdown.classList.add('hidden');
 
     inputElement.addEventListener('input', () => {
-        const value = inputElement.value.toLowerCase();
-        suggestionsElement.innerHTML = '';
+        const value = inputElement.value; // Mantém case original para o input, mas a busca trata
         roleSelectionPanel.classList.add('hidden'); 
         studentPendingRoleSelection = null;
 
-        if (!value) {
+        // Limpa timeout anterior (Debounce)
+        if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
+
+        if (!value || value.trim() === '') {
+            suggestionsElement.innerHTML = '';
             suggestionsElement.classList.add('hidden');
             return;
         }
-        const filteredStudents = state.students
-            .filter(s => !state.selectedStudents.has(s.matricula) && s.name.toLowerCase().includes(value))
-            .slice(0, 5);
 
-        if (filteredStudents.length > 0) {
+        // Define novo timeout para buscar apenas após parar de digitar (300ms)
+        searchDebounceTimeout = setTimeout(async () => {
+            // Mostra estado de carregamento
+            suggestionsElement.innerHTML = `<div class="p-2 text-sm text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>A pesquisar...</div>`;
             suggestionsElement.classList.remove('hidden');
-            filteredStudents.forEach(student => {
-                const item = document.createElement('div');
-                item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50'; 
-                item.textContent = student.name;
-                item.addEventListener('click', () => {
-                    studentPendingRoleSelection = student;
-                    roleSelectionStudentName.textContent = student.name;
-                    roleSelectionPanel.classList.remove('hidden');
-                    suggestionsElement.classList.add('hidden'); 
-                    inputElement.value = ''; 
-                    inputElement.focus(); 
-                });
-                suggestionsElement.appendChild(item);
-            });
-        } else {
-            suggestionsElement.classList.add('hidden');
-        }
+
+            try {
+                // Busca no servidor
+                const studentsFound = await searchStudentsByName(value);
+                
+                suggestionsElement.innerHTML = ''; // Limpa carregamento
+
+                // Filtra os que já estão selecionados localmente
+                const filteredStudents = studentsFound.filter(s => !state.selectedStudents.has(s.matricula));
+
+                if (filteredStudents.length > 0) {
+                    filteredStudents.forEach(student => {
+                        const item = document.createElement('div');
+                        item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50'; 
+                        item.textContent = student.name;
+                        item.addEventListener('click', () => {
+                            studentPendingRoleSelection = student;
+                            roleSelectionStudentName.textContent = student.name;
+                            roleSelectionPanel.classList.remove('hidden');
+                            suggestionsElement.classList.add('hidden'); 
+                            inputElement.value = ''; 
+                            inputElement.focus(); 
+                        });
+                        suggestionsElement.appendChild(item);
+                    });
+                } else {
+                    suggestionsElement.innerHTML = `<div class="p-2 text-sm text-gray-500">Nenhum aluno encontrado.</div>`;
+                }
+            } catch (error) {
+                console.error("Erro na busca:", error);
+                suggestionsElement.innerHTML = `<div class="p-2 text-sm text-red-500">Erro ao pesquisar.</div>`;
+            }
+        }, 300);
     });
 
     roleSelectButtons.forEach(button => {

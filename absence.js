@@ -4,12 +4,14 @@
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js';
-import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js'; // (NOVO) Importada a validação
+import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js';
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
-import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef } from './firestore.js';
+import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName } from './firestore.js'; // (NOVO) Importado searchStudentsByName
 import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 
+// Variável para debounce da pesquisa
+let searchDebounceTimeout = null;
 
 // --- Funções Auxiliares (Mantidas para uso local na UI/Ordenação) ---
 
@@ -53,41 +55,64 @@ const getDateInputForActionType = (actionType) => {
 
 // --- Funções de UI ---
 
+/**
+ * (MODIFICADO V3 - PAGINAÇÃO)
+ * Configura o autocomplete para a barra de busca da Busca Ativa usando pesquisa no servidor.
+ */
 const setupAbsenceAutocomplete = () => {
     const input = dom.searchAbsences; 
     const suggestionsContainer = document.getElementById('absence-student-suggestions');
     
     input.addEventListener('input', () => {
-        const value = input.value.toLowerCase();
-        state.filterAbsences = value;
+        const value = input.value; // Valor bruto
+        
+        // Limpa timeout anterior
+        if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
+
+        // 1. Filtragem Local na Tabela (se já houver dados carregados)
+        // Isso mantém a funcionalidade de filtrar o que já está visível
+        state.filterAbsences = value.toLowerCase();
         renderAbsences();
         
-        suggestionsContainer.innerHTML = '';
-        if (!value) {
+        if (!value || value.trim() === '') {
+            suggestionsContainer.innerHTML = '';
             suggestionsContainer.classList.add('hidden');
             return;
         }
-        
-        const filteredStudents = state.students.filter(s => s.name.toLowerCase().startsWith(value)).slice(0, 5);
-        
-        if (filteredStudents.length > 0) {
+
+        // 2. Busca no Servidor para Nova Ação (Autocomplete)
+        searchDebounceTimeout = setTimeout(async () => {
+            suggestionsContainer.innerHTML = `<div class="p-2 text-sm text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>A pesquisar...</div>`;
             suggestionsContainer.classList.remove('hidden');
-            filteredStudents.forEach(student => {
-                const item = document.createElement('div');
-                item.className = 'suggestion-item';
-                item.textContent = student.name;
-                item.addEventListener('click', () => {
-                    handleNewAbsenceAction(student); 
-                    input.value = '';
-                    state.filterAbsences = '';
-                    renderAbsences();
-                    suggestionsContainer.classList.add('hidden');
-                });
-                suggestionsContainer.appendChild(item);
-            });
-        } else {
-            suggestionsContainer.classList.add('hidden');
-        }
+
+            try {
+                const studentsFound = await searchStudentsByName(value);
+                suggestionsContainer.innerHTML = '';
+
+                if (studentsFound.length > 0) {
+                    studentsFound.forEach(student => {
+                        const item = document.createElement('div');
+                        item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50 border-b border-gray-100 last:border-0';
+                        // Mostra nome e turma para facilitar identificação
+                        item.innerHTML = `<span class="font-semibold text-gray-700">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
+                        
+                        item.addEventListener('click', () => {
+                            handleNewAbsenceAction(student); // Inicia ação para este aluno
+                            input.value = ''; // Limpa a busca
+                            state.filterAbsences = ''; // Limpa filtro local
+                            renderAbsences(); // Restaura lista
+                            suggestionsContainer.classList.add('hidden');
+                        });
+                        suggestionsContainer.appendChild(item);
+                    });
+                } else {
+                    suggestionsContainer.innerHTML = `<div class="p-2 text-sm text-gray-500">Nenhum aluno encontrado.</div>`;
+                }
+            } catch (error) {
+                console.error("Erro na busca:", error);
+                suggestionsContainer.innerHTML = `<div class="p-2 text-sm text-red-500">Erro ao pesquisar.</div>`;
+            }
+        }, 300); // Delay de 300ms
     });
 
     document.addEventListener('click', (e) => {
@@ -105,8 +130,17 @@ const setupAbsenceAutocomplete = () => {
 export const renderAbsences = () => {
     dom.loadingAbsences.classList.add('hidden');
     const searchFiltered = state.absences.filter(a => {
+        // Tenta encontrar o aluno no state.students (que agora pode ser parcial)
+        // Se não encontrar, tenta usar um placeholder ou ignora se for filtro estrito
         const student = state.students.find(s => s.matricula === a.studentId);
-        return student && student.name.toLowerCase().startsWith(state.filterAbsences.toLowerCase());
+        // Se tivermos filtro de texto e o aluno não estiver carregado, não podemos filtrar pelo nome dele facilmente.
+        // Numa versão V4 ideal, o backend enviaria o nome do aluno junto com a ocorrência.
+        // Por agora, filtramos apenas se tivermos os dados do aluno ou se não houver filtro de texto.
+        if (state.filterAbsences && student) {
+            return student.name.toLowerCase().startsWith(state.filterAbsences);
+        }
+        // Se não houver filtro de texto, mostra tudo que temos
+        return true;
     });
 
     const groupedByProcess = searchFiltered.reduce((acc, action) => {
@@ -243,8 +277,10 @@ export const renderAbsences = () => {
 
             const firstAction = actions[0];
             const lastProcessAction = actions[actions.length - 1]; 
-            const student = state.students.find(s => s.matricula === firstAction.studentId);
-            if (!student) continue;
+            // Fallback seguro se o aluno não estiver no state (ainda não implementamos busca individual aqui)
+            const student = state.students.find(s => s.matricula === firstAction.studentId) || { name: 'Aluno não carregado', class: '?', matricula: firstAction.studentId };
+            
+            // if (!student) continue; // Removido para permitir ver ações mesmo sem aluno carregado (v4)
 
             const isConcluded = actions.some(a => a.actionType === 'analise');
             
