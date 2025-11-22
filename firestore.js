@@ -3,7 +3,7 @@
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
-    query, where, getDocs, limit, orderBy, startAt, endAt
+    query, where, getDocs 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 import { state } from './state.js';
@@ -132,80 +132,40 @@ export const deleteRecord = (type, id) => deleteDoc(doc(getCollectionRef(type), 
 // --- FUNÇÕES DE CARREGAMENTO E SALVAMENTO DE DADOS ---
 
 /**
- * (REESCRITO V3 - PAGINAÇÃO) Carrega a lista de alunos da COLEÇÃO com LIMITE.
- * Carrega apenas os primeiros 10 alunos (ordenados por nome) para evitar travar o navegador.
+ * (REESCRITO - ESCALÁVEL) Carrega a lista de alunos da COLEÇÃO.
+ * Agora itera sobre os documentos da coleção 'students' em vez de ler um array gigante.
  * @returns {Promise<void>}
  */
 export const loadStudents = async () => {
     try {
         const studentsRef = getStudentsCollectionRef();
-        
-        // --- PAGINAÇÃO: Limita a 10 alunos ---
-        // Ordena por nome para garantir consistência visual
-        const q = query(studentsRef, orderBy('name'), limit(10));
-        
-        const querySnapshot = await getDocs(q);
+        // (Melhoria futura: Adicionar limit(100) ou paginação aqui quando tiver muitos alunos)
+        const querySnapshot = await getDocs(query(studentsRef));
         
         const studentsList = [];
         querySnapshot.forEach((doc) => {
+            // O ID do documento é a matrícula (definido na criação), mas garantimos que está nos dados
             const studentData = doc.data();
+            // Garante que a matrícula está presente (fallback para o ID do documento)
             if (!studentData.matricula) studentData.matricula = doc.id;
             studentsList.push(studentData);
         });
 
         state.students = studentsList;
-        console.log(`${studentsList.length} alunos carregados (Limite aplicado: 10).`);
+        console.log(`${studentsList.length} alunos carregados da nova estrutura.`);
         
     } catch (error) {
         console.error("Erro ao carregar lista de alunos (Coleção):", error);
-        state.students = []; 
+        state.students = []; // Fallback para array vazio
         
+        // --- MELHORIA DE ERRO ---
         if (error.code === 'permission-denied') {
-            console.warn("PERMISSÃO NEGADA: Verifique firestore.rules.");
+            console.warn("PERMISSÃO NEGADA: As regras de segurança do Firestore (firestore.rules) bloqueiam o acesso à coleção 'students'. É necessário atualizar as regras no Firebase Console.");
+            // Lança um erro com mensagem clara para o main.js pegar
             throw new Error("Permissão negada. Atualize o firestore.rules no Firebase Console.");
         }
         
         throw new Error("Erro ao carregar a lista de alunos da nova base de dados.");
-    }
-};
-
-/**
- * (CORRIGIDO) Busca alunos no servidor pelo nome de forma mais inteligente.
- * @param {string} searchName - O nome (ou parte dele) a pesquisar.
- * @returns {Promise<Array>} Lista de alunos encontrados.
- */
-export const searchStudentsByName = async (searchName) => {
-    if (!searchName || searchName.trim() === '') return [];
-
-    // CORREÇÃO DE PESQUISA:
-    // O Firestore é case-sensitive. Se salvarmos "Maria" e buscarmos "maria", falha.
-    // Tentativa de correção: Forçamos a primeira letra a ser maiúscula.
-    let term = searchName.trim();
-    if (term.length > 0) {
-        term = term.charAt(0).toUpperCase() + term.slice(1);
-    }
-
-    const studentsRef = getStudentsCollectionRef();
-    const q = query(
-        studentsRef, 
-        orderBy('name'), 
-        startAt(term), 
-        endAt(term + '\uf8ff'),
-        limit(5) // Retorna no máximo 5 sugestões
-    );
-
-    try {
-        const querySnapshot = await getDocs(q);
-        const results = [];
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            if (!data.matricula) data.matricula = doc.id;
-            results.push(data);
-        });
-        return results;
-    } catch (error) {
-        console.error("Erro na busca de alunos:", error);
-        return [];
     }
 };
 
@@ -220,6 +180,7 @@ export const loadSchoolConfig = async () => {
             state.config = docSnap.data();
         } else {
             console.log("Nenhum documento de configuração encontrado. Usando valores padrão.");
+            // Define valores padrão se nada for encontrado
             state.config = {
                 schoolName: "EMEF. DILMA DOS SANTOS CARVALHO",
                 city: "Cidade (Exemplo)",
@@ -233,19 +194,23 @@ export const loadSchoolConfig = async () => {
 };
 
 /**
- * Salva as configurações da escola no Firestore.
- * @param {object} data - O objeto com os dados da configuração.
+ * NOVO (Problema 3): Salva as configurações da escola no Firestore.
+ * @param {object} data - O objeto com os dados da configuração (schoolName, city, schoolLogoUrl).
  * @returns {Promise<void>}
  */
 export const saveSchoolConfig = (data) => {
     const configRef = getSchoolConfigDocRef();
+    // Usa setDoc com 'merge: true' para não sobrescrever outros campos que possam existir no futuro.
     return setDoc(configRef, data, { merge: true });
 };
 
 /**
- * Busca todos os registos de ocorrência para um 'groupId' específico.
- * @param {string} groupId - O ID do grupo.
- * @returns {Promise<object|null>} Um objeto de incidente ou null.
+ * NOVO (CORREÇÃO LOGIN): Função em falta que estava a ser importada.
+ * Busca todos os registos de ocorrência para um 'groupId' específico
+ * e agrupa-os num único objeto de "Incidente".
+ * Esta função é necessária para 'occurrence.js' e 'reports.js'.
+ * @param {string} groupId - O ID do grupo (ex: "OCC-2025-001").
+ * @returns {Promise<object|null>} Um objeto de incidente ou null se não for encontrado.
  */
 export const getIncidentByGroupId = async (groupId) => {
     const incidentQuery = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', groupId));
@@ -253,50 +218,42 @@ export const getIncidentByGroupId = async (groupId) => {
     try {
         const querySnapshot = await getDocs(incidentQuery);
         if (querySnapshot.empty) {
+            console.warn(`Nenhum registo encontrado para o groupId: ${groupId}`);
             return null;
         }
 
         const incident = {
             id: groupId,
             records: [],
-            participantsInvolved: new Map(),
+            participantsInvolved: new Map(), // Será preenchido
         };
 
         querySnapshot.forEach(doc => {
             incident.records.push({ id: doc.id, ...doc.data() });
         });
 
-        if (incident.records.length === 0) return null;
+        // Pega os dados do primeiro registo (dados coletivos)
+        // Garante que records[0] existe
+        if (incident.records.length === 0) {
+             console.warn(`Registos encontrados mas array 'records' está vazio para groupId: ${groupId}`);
+             return null;
+        }
         
         const mainRecord = incident.records[0];
-        const participantsList = mainRecord.participants || []; 
+        const participantsList = mainRecord.participants || []; // Lista de { studentId, role }
 
-        // (MODIFICADO V3) - Como state.students agora só tem 10 alunos,
-        // precisamos buscar os dados do aluno no servidor se não estiverem no state.
-        for (const participant of participantsList) {
-            let student = state.students.find(s => s.matricula === participant.studentId);
-            
-            if (!student) {
-                // Fallback: Tenta buscar o aluno individualmente no servidor
-                try {
-                    const studentDocRef = doc(getStudentsCollectionRef(), participant.studentId);
-                    const studentSnap = await getDoc(studentDocRef);
-                    if (studentSnap.exists()) {
-                        student = { matricula: studentSnap.id, ...studentSnap.data() };
-                    }
-                } catch (e) {
-                    console.error(`Erro ao buscar aluno ${participant.studentId}:`, e);
-                }
-            }
-
+        // Preenche o Map 'participantsInvolved' com os dados completos dos alunos
+        participantsList.forEach(participant => {
+            const student = state.students.find(s => s.matricula === participant.studentId);
             if (student && !incident.participantsInvolved.has(participant.studentId)) {
                 incident.participantsInvolved.set(participant.studentId, {
                     student: student,
-                    role: participant.role || 'Envolvido'
+                    role: participant.role || 'Envolvido' // Usa 'Envolvido' como fallback
                 });
             }
-        }
+        });
 
+        // Recalcula o status geral (lógica de getFilteredOccurrences)
         const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
         incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
 

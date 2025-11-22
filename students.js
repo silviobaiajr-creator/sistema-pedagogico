@@ -2,35 +2,25 @@
 // ARQUIVO: students.js
 
 import { state, dom } from './state.js';
-// (CORREÇÃO) Adicionado 'getDoc' que estava em falta e é necessário para o fallback de edição
-import { setDoc, doc, writeBatch, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getStudentsCollectionRef, loadStudents, searchStudentsByName } from './firestore.js'; 
-import { db } from './firebase.js'; 
+import { setDoc, doc, writeBatch, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStudentsCollectionRef, loadStudents } from './firestore.js'; // Importa loadStudents para recarregar após salvar
+import { db } from './firebase.js'; // Necessário para batch
 import { showToast, openModal, loadScript } from './utils.js'; 
-
-// Variável para controlar o debounce da pesquisa
-let searchTimeout = null;
 
 /**
  * Renderiza a lista de alunos no modal "Gerir Alunos".
- * (MODIFICADO - V3) Aceita uma lista opcional de alunos para exibir.
- * Se não for passada lista, usa os 'state.students' (que agora são só 10).
+ * A lógica de clique será gerenciada por delegação de eventos
+ * em `handleStudentTableActions` dentro deste módulo.
  */
-const renderStudentsList = (studentsToList = null) => {
+const renderStudentsList = () => {
+    // Usa a referência do DOM já inicializada
     const tableBody = dom.studentsListTable;
-    if (!tableBody) return; 
+    if (!tableBody) return; // Guarda de segurança
 
-    tableBody.innerHTML = ''; 
+    tableBody.innerHTML = ''; // Limpa a tabela antes de redesenhar.
 
-    const sourceData = studentsToList || state.students;
-
-    if (sourceData.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-gray-500">Nenhum aluno encontrado ou carregado.</td></tr>`;
-        return;
-    }
-
-    // Ordena visualmente (opcional, pois o servidor já ordena, mas bom para buscas locais)
-    sourceData.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
+    // Ordena em memória para exibição (escalabilidade visual)
+    state.students.sort((a,b) => a.name.localeCompare(b.name)).forEach(student => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td class="px-4 py-2 text-sm text-gray-900">${student.name}</td>
@@ -52,7 +42,7 @@ const renderStudentsList = (studentsToList = null) => {
  */
 const resetStudentForm = () => {
     document.getElementById('student-form-title').textContent = 'Adicionar Novo Aluno';
-    dom.studentForm.reset(); 
+    dom.studentForm.reset(); // Usa a referência do DOM
     document.getElementById('student-id-input').value = '';
     document.getElementById('student-matricula-input').readOnly = false;
     document.getElementById('student-matricula-input').classList.remove('bg-gray-100');
@@ -60,41 +50,8 @@ const resetStudentForm = () => {
 };
 
 /**
- * (NOVO) Lida com a pesquisa de alunos no servidor com Debounce.
- */
-const handleStudentSearch = (e) => {
-    const searchTerm = e.target.value;
-    
-    // Limpa o timeout anterior
-    if (searchTimeout) clearTimeout(searchTimeout);
-
-    // Define um novo timeout para buscar apenas quando parar de digitar (300ms)
-    searchTimeout = setTimeout(async () => {
-        if (!searchTerm) {
-            // Se limpar a busca, volta a mostrar a lista inicial (10 alunos)
-            renderStudentsList();
-            return;
-        }
-
-        dom.studentsListTable.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-sky-600"><i class="fas fa-spinner fa-spin mr-2"></i>A pesquisar...</td></tr>`;
-        
-        try {
-            // Busca no servidor usando a função otimizada do firestore.js
-            // Agora esta função já trata a primeira letra maiúscula automaticamente!
-            const results = await searchStudentsByName(searchTerm);
-            renderStudentsList(results);
-        } catch (error) {
-            console.error("Erro na pesquisa:", error);
-            showToast("Erro ao pesquisar alunos.");
-            renderStudentsList(); // Restaura lista original em caso de erro
-        }
-    }, 300);
-};
-
-
-/**
  * Lida com o upload do ficheiro CSV de alunos.
- * (MODIFICADO) Adicionado limite de segurança no upload para não bloquear o browser.
+ * (MODIFICADO - ESCALÁVEL) Agora usa Batches do Firestore para salvar individualmente.
  */
 async function handleCsvUpload() {
     const fileInput = dom.csvFile; 
@@ -103,6 +60,7 @@ async function handleCsvUpload() {
     if (fileInput.files.length === 0) return showToast("Por favor, selecione um ficheiro CSV.");
 
     try {
+        // Verifica se Papa já está carregado
         if (typeof window.Papa === 'undefined') {
             feedbackDiv.innerHTML = `<p class="text-sky-500">A carregar biblioteca de CSV...</p>`; 
             const papaScriptUrl = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js';
@@ -120,6 +78,7 @@ async function handleCsvUpload() {
             complete: async (results) => {
                 if (!results.meta || !results.meta.fields) {
                     feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Não foi possível ler os cabeçalhos do ficheiro CSV.</p>`;
+                    console.error("Erro ao processar CSV: Metadados inválidos", results);
                     return;
                 }
 
@@ -128,6 +87,12 @@ async function handleCsvUpload() {
                 if (!hasAllHeaders) {
                     feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Faltam colunas. O ficheiro CSV deve conter: ${requiredHeaders.join(', ')}.</p>`;
                     return;
+                }
+
+                if (!Array.isArray(results.data)) {
+                     feedbackDiv.innerHTML = `<p class="text-red-500">Erro: Não foi possível ler os dados do ficheiro CSV.</p>`;
+                     console.error("Erro ao processar CSV: Dados inválidos", results);
+                     return;
                 }
 
                 // Filtra linhas inválidas
@@ -146,8 +111,9 @@ async function handleCsvUpload() {
                      return;
                 }
 
-                // LÓGICA DE BATCH (LOTE)
-                const BATCH_SIZE = 450; 
+                // --- LÓGICA DE BATCH (LOTE) ---
+                // O Firestore permite no máximo 500 operações por batch.
+                const BATCH_SIZE = 450; // Margem de segurança
                 const chunks = [];
                 for (let i = 0; i < validStudents.length; i += BATCH_SIZE) {
                     chunks.push(validStudents.slice(i, i + BATCH_SIZE));
@@ -162,6 +128,7 @@ async function handleCsvUpload() {
                     for (const chunk of chunks) {
                         const batch = writeBatch(db);
                         chunk.forEach(student => {
+                            // Usa a Matrícula como ID do documento (evita duplicatas automaticamente)
                             const docRef = doc(collectionRef, student.matricula);
                             batch.set(docRef, student);
                         });
@@ -170,7 +137,7 @@ async function handleCsvUpload() {
                         feedbackDiv.innerHTML = `<p class="text-sky-600">Salvo lote de ${processedCount}/${validStudents.length} alunos...</p>`;
                     }
 
-                    // Recarrega a lista inicial (10 alunos) para atualizar a UI
+                    // Recarrega a lista do Firestore para atualizar a UI e o State
                     await loadStudents();
                     
                     renderStudentsList();
@@ -181,9 +148,10 @@ async function handleCsvUpload() {
 
                 } catch(error) {
                     console.error("Erro ao salvar lote no Firestore:", error);
+                    // --- MELHORIA DE ERRO ---
                     let msg = error.message;
                     if (error.code === 'permission-denied' || msg.includes("Missing or insufficient permissions")) {
-                        msg = "Permissão negada! Verifique firestore.rules.";
+                        msg = "Permissão negada! Verifique se as Regras de Segurança (firestore.rules) foram publicadas no Console do Firebase.";
                     }
                     feedbackDiv.innerHTML = `<p class="text-red-500 font-bold">${msg}</p>`;
                     showToast("Erro de permissão ao salvar dados.");
@@ -197,17 +165,18 @@ async function handleCsvUpload() {
 
     } catch (error) {
         console.error("Erro ao carregar ou usar PapaParse:", error);
-        feedbackDiv.innerHTML = `<p class="text-red-500">Erro crítico ao carregar a biblioteca de CSV.</p>`;
+        feedbackDiv.innerHTML = `<p class="text-red-500">Erro crítico ao carregar a biblioteca de CSV. Tente novamente.</p>`;
         showToast("Erro ao carregar a biblioteca de leitura de CSV.");
     }
 }
 
 /**
  * Lida com a submissão do formulário de adição/edição de aluno.
+ * (MODIFICADO - ESCALÁVEL) Usa setDoc num documento individual.
  */
 async function handleStudentFormSubmit(e) {
     e.preventDefault();
-    const id = document.getElementById('student-id-input').value; 
+    const id = document.getElementById('student-id-input').value; // ID original (se edição)
     const matricula = document.getElementById('student-matricula-input').value.trim();
     const name = document.getElementById('student-name-input').value.trim();
     
@@ -226,22 +195,24 @@ async function handleStudentFormSubmit(e) {
         const collectionRef = getStudentsCollectionRef();
 
         if (id && id !== matricula) {
+            // Se a matrícula mudou:
+            // 1. Cria o novo documento com a nova matrícula
             await setDoc(doc(collectionRef, matricula), studentData);
+            // 2. Deleta o documento antigo
             await deleteDoc(doc(collectionRef, id));
         } else {
+            // Criação ou atualização (mesmo ID)
             await setDoc(doc(collectionRef, matricula), studentData, { merge: true });
         }
 
-        // Atualiza o estado local (apenas se o aluno estiver na lista visível de 10, ou adiciona no topo)
+        // Atualiza o estado global localmente para performance
         if (id) {
             const index = state.students.findIndex(s => s.matricula === id);
-            if (index > -1) state.students.splice(index, 1);
+            if (index > -1) state.students.splice(index, 1); // Remove antigo
         }
-        
-        // Adiciona ao topo da lista local para feedback imediato
-        state.students.unshift(studentData);
-        // Mantém apenas 10 na lista local para não crescer infinitamente
-        if (state.students.length > 10) state.students.pop();
+        const existingIndex = state.students.findIndex(s => s.matricula === matricula);
+        if (existingIndex > -1) state.students[existingIndex] = studentData;
+        else state.students.push(studentData);
 
         renderStudentsList(); 
         resetStudentForm(); 
@@ -249,39 +220,28 @@ async function handleStudentFormSubmit(e) {
         
     } catch(error) {
         console.error("Erro ao salvar aluno:", error);
-        showToast("Erro ao salvar dados do aluno.");
+        // --- MELHORIA DE ERRO ---
+        if (error.code === 'permission-denied') {
+             showToast("Erro de Permissão: Atualize as regras no Firebase Console.");
+        } else {
+             showToast("Erro ao salvar dados do aluno.");
+        }
     }
 }
 
 /**
  * Lida com cliques nos botões de editar e excluir na tabela de alunos.
+ * (MODIFICADO - ESCALÁVEL) Usa deleteDoc no documento individual.
  */
 async function handleStudentTableActions(e) {
     const editBtn = e.target.closest('.edit-student-btn');
     if (editBtn) {
         const id = editBtn.dataset.id;
-        // Procura na tabela renderizada atual (pode ser resultado de busca)
-        // Como não temos 'currentRenderedList' global, procuramos no state.students (que pode não ter o aluno se for busca)
-        // SOLUÇÃO: Busca no DOM ou tenta buscar no servidor se não achar na memória.
-        
-        // Melhor: Tenta achar no state.students primeiro.
-        let student = state.students.find(s => s.matricula === id);
-        
-        // Se não achou (porque veio de uma pesquisa e não está nos 10 iniciais), 
-        // precisamos dos dados. Como o botão está na tabela, os dados vieram de algum lugar.
-        // Para simplificar sem complicar a arquitetura: vamos buscar no servidor individualmente.
-        if (!student) {
-             // Fallback: busca no Firestore (rápido, 1 doc)
-             try {
-                 // (CORREÇÃO) Esta chamada exige que 'getDoc' tenha sido importado
-                 const docSnap = await getDoc(doc(getStudentsCollectionRef(), id));
-                 if(docSnap.exists()) student = { matricula: docSnap.id, ...docSnap.data() };
-             } catch(e) { console.error(e); }
-        }
-
+        const student = state.students.find(s => s.matricula === id);
         if (student) {
+            // Preenche o formulário para edição
             document.getElementById('student-form-title').textContent = 'Editar Aluno';
-            document.getElementById('student-id-input').value = student.matricula; 
+            document.getElementById('student-id-input').value = student.matricula; // Guarda o ID original
             document.getElementById('student-matricula-input').value = student.matricula;
             document.getElementById('student-name-input').value = student.name;
             document.getElementById('student-class-input').value = student.class || '';
@@ -297,29 +257,36 @@ async function handleStudentTableActions(e) {
     const deleteBtn = e.target.closest('.delete-student-btn');
     if (deleteBtn) {
         const id = deleteBtn.dataset.id;
-        // (Mesma lógica de busca do aluno para o nome)
-        let studentName = "este aluno";
         const student = state.students.find(s => s.matricula === id);
-        if (student) studentName = student.name;
         
-        if (confirm(`Tem a certeza que quer remover ${studentName}? Esta ação não pode ser desfeita.`)) {
+        if (student && confirm(`Tem a certeza que quer remover o aluno "${student.name}"? Esta ação não pode ser desfeita.`)) {
             try {
+                // Deleta o documento individual da coleção
                 await deleteDoc(doc(getStudentsCollectionRef(), id));
+                
+                // Atualiza estado local
                 state.students = state.students.filter(s => s.matricula !== id);
                 renderStudentsList(); 
                 showToast("Aluno removido com sucesso.");
             } catch(error) {
                 console.error("Erro ao remover aluno:", error);
-                showToast("Erro ao remover aluno.");
+                // --- MELHORIA DE ERRO ---
+                if (error.code === 'permission-denied') {
+                     showToast("Erro de Permissão: Atualize as regras no Firebase Console.");
+                } else {
+                     showToast("Erro ao remover aluno.");
+                }
             }
         }
     }
 }
 
 /**
- * Função principal do módulo: anexa os listeners de eventos.
+ * Função principal do módulo: anexa os listeners de eventos
+ * aos elementos do modal "Gerir Alunos".
  */
 export const initStudentListeners = () => {
+    // Referências do DOM
     const manageStudentsBtn = document.getElementById('manage-students-btn');
     const { studentsModal, uploadCsvBtn, studentForm, cancelEditStudentBtn, studentsListTable } = dom;
 
@@ -329,29 +296,6 @@ export const initStudentListeners = () => {
             openModal(studentsModal);
         });
     }
-
-    // (NOVO) Adiciona Listener para a Barra de Pesquisa dentro do Modal
-    // Vamos injetar dinamicamente o input de pesquisa se ele não existir no HTML
-    const modalHeader = studentsModal.querySelector('.bg-gray-100');
-    if (modalHeader && !document.getElementById('student-modal-search')) {
-        // Cria a barra de pesquisa no header do modal
-        const searchContainer = document.createElement('div');
-        searchContainer.className = "mt-3 w-full";
-        searchContainer.innerHTML = `
-            <div class="relative">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <i class="fas fa-search text-gray-400"></i>
-                </div>
-                <input type="text" id="student-modal-search" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-sky-500 focus:border-sky-500 sm:text-sm" placeholder="Pesquisar aluno na base de dados...">
-            </div>
-        `;
-        // Insere antes do botão de fechar ou no final do header
-        modalHeader.appendChild(searchContainer);
-        
-        // Adiciona o listener
-        document.getElementById('student-modal-search').addEventListener('input', handleStudentSearch);
-    }
-
 
     if (uploadCsvBtn) {
         uploadCsvBtn.addEventListener('click', handleCsvUpload);
@@ -365,6 +309,7 @@ export const initStudentListeners = () => {
         cancelEditStudentBtn.addEventListener('click', resetStudentForm);
     }
 
+    // Listener centralizado para a tabela (delegação de eventos)
     if (studentsListTable) {
         studentsListTable.addEventListener('click', handleStudentTableActions);
     }

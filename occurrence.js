@@ -4,15 +4,16 @@
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
-import { getCollectionRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord, getIncidentByGroupId as fetchIncidentById, searchStudentsByName } from './firestore.js';
+import { getCollectionRef, getCounterDocRef, updateRecordWithHistory, addRecordWithHistory, deleteRecord, getIncidentByGroupId as fetchIncidentById } from './firestore.js'; 
+// (CORREÇÃO) Importa tudo do logic.js para evitar ciclo e duplicidade
 import { 
     determineNextOccurrenceStep, 
     determineCurrentActionFromStatus, 
     occurrenceStepLogic,
-    roleIcons,          
-    defaultRole,        
-    getFilteredOccurrences, 
-    validateOccurrenceChronology 
+    roleIcons,          // Importado
+    defaultRole,        // Importado
+    getFilteredOccurrences, // Importado
+    validateOccurrenceChronology // (NOVO) Importado para validar datas
 } from './logic.js';
 import {
     openOccurrenceRecordModal,
@@ -28,6 +29,7 @@ import { db } from './firebase.js';
 // CONFIGURAÇÕES
 // =================================================================================
 
+// Títulos atualizados para as novas ações (Mapeamento para UI)
 export const occurrenceActionTitles = { 
     'convocacao': 'Ação 2: Agendar Convocação',
     'contato_familia_1': 'Ação 3: 1ª Tentativa de Contato',
@@ -38,9 +40,9 @@ export const occurrenceActionTitles = {
     'parecer_final': 'Ação 6: Dar Parecer Final'
 };
 
+// Variáveis de estado local para UI
 let studentPendingRoleSelection = null;
 let editingRoleId = null; 
-let searchDebounceTimeout = null;
 
 // =================================================================================
 // FUNÇÕES DE INTERFACE (UI) - TAGS E SELEÇÃO
@@ -116,52 +118,38 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
     roleEditDropdown.classList.add('hidden');
 
     inputElement.addEventListener('input', () => {
-        const value = inputElement.value; 
+        const value = inputElement.value.toLowerCase();
+        suggestionsElement.innerHTML = '';
         roleSelectionPanel.classList.add('hidden'); 
         studentPendingRoleSelection = null;
 
-        if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
-
-        if (!value || value.trim() === '') {
-            suggestionsElement.innerHTML = '';
+        if (!value) {
             suggestionsElement.classList.add('hidden');
             return;
         }
+        const filteredStudents = state.students
+            .filter(s => !state.selectedStudents.has(s.matricula) && s.name.toLowerCase().includes(value))
+            .slice(0, 5);
 
-        searchDebounceTimeout = setTimeout(async () => {
-            suggestionsElement.innerHTML = `<div class="p-2 text-sm text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>A pesquisar...</div>`;
+        if (filteredStudents.length > 0) {
             suggestionsElement.classList.remove('hidden');
-
-            try {
-                // (CORREÇÃO VITAL) Usa a busca otimizada que corrige Maiúsculas/Minúsculas
-                const studentsFound = await searchStudentsByName(value);
-                suggestionsElement.innerHTML = '';
-
-                const filteredStudents = studentsFound.filter(s => !state.selectedStudents.has(s.matricula));
-
-                if (filteredStudents.length > 0) {
-                    filteredStudents.forEach(student => {
-                        const item = document.createElement('div');
-                        item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50'; 
-                        item.textContent = student.name;
-                        item.addEventListener('click', () => {
-                            studentPendingRoleSelection = student;
-                            roleSelectionStudentName.textContent = student.name;
-                            roleSelectionPanel.classList.remove('hidden');
-                            suggestionsElement.classList.add('hidden'); 
-                            inputElement.value = ''; 
-                            inputElement.focus(); 
-                        });
-                        suggestionsElement.appendChild(item);
-                    });
-                } else {
-                    suggestionsElement.innerHTML = `<div class="p-2 text-sm text-gray-500">Nenhum aluno encontrado.</div>`;
-                }
-            } catch (error) {
-                console.error("Erro na busca:", error);
-                suggestionsElement.innerHTML = `<div class="p-2 text-sm text-red-500">Erro ao pesquisar.</div>`;
-            }
-        }, 300);
+            filteredStudents.forEach(student => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50'; 
+                item.textContent = student.name;
+                item.addEventListener('click', () => {
+                    studentPendingRoleSelection = student;
+                    roleSelectionStudentName.textContent = student.name;
+                    roleSelectionPanel.classList.remove('hidden');
+                    suggestionsElement.classList.add('hidden'); 
+                    inputElement.value = ''; 
+                    inputElement.focus(); 
+                });
+                suggestionsElement.appendChild(item);
+            });
+        } else {
+            suggestionsElement.classList.add('hidden');
+        }
     });
 
     roleSelectButtons.forEach(button => {
@@ -207,11 +195,12 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 };
 
 // =================================================================================
-// RENDERIZAÇÃO (Agora usa a lógica importada e trata alunos não carregados)
+// RENDERIZAÇÃO (Agora usa a lógica importada)
 // =================================================================================
 
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
+    // (CORREÇÃO) Usa a função importada de logic.js
     const filteredIncidents = getFilteredOccurrences();
     dom.occurrencesTitle.textContent = `Exibindo ${filteredIncidents.size} Incidente(s)`;
 
@@ -243,9 +232,7 @@ export const renderOccurrences = () => {
             })
             .map(participant => {
                 const { student, role } = participant;
-                // (CORREÇÃO) Garante que student existe, mesmo que seja um placeholder
-                if (!student) return '<div class="p-2 text-red-500">Erro ao carregar dados do aluno</div>';
-                
+                if (!student) return '';
                 const record = incident.records.find(r => r && r.studentId === student.matricula);
                 const recordId = record?.id || '';
                 const status = record?.statusIndividual || 'Aguardando Convocação';
@@ -428,7 +415,9 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     dom.occurrenceForm.reset();
     state.selectedStudents.clear(); 
 
+    // (CORREÇÃO FUSO HORÁRIO) Define data máxima como hoje local
     const occurrenceDateInput = document.getElementById('occurrence-date');
+    // Usa en-CA para obter formato YYYY-MM-DD
     const todayLocal = new Date().toLocaleDateString('en-CA');
     occurrenceDateInput.max = todayLocal;
 
@@ -448,6 +437,7 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     } else {
         document.getElementById('modal-title').innerText = 'Registar Nova Ocorrência';
         document.getElementById('occurrence-group-id').value = '';
+        // (CORREÇÃO) Define a data padrão como hoje LOCAL
         occurrenceDateInput.value = todayLocal;
     }
 
@@ -834,6 +824,7 @@ async function handleOccurrenceStepSubmit(e) {
             };
             if (!dataToUpdate.meetingDate || !dataToUpdate.meetingTime) return showToast('Data e Horário obrigatórios.');
             
+            // (NOVO) Validação Cronológica Centralizada
             const dateCheck = validateOccurrenceChronology(record, 'convocacao', dataToUpdate.meetingDate);
             if (!dateCheck.isValid) return showToast(dateCheck.message);
 
@@ -865,6 +856,7 @@ async function handleOccurrenceStepSubmit(e) {
                      return showToast('Preencha Tipo, Data e Providências.');
                 }
                 
+                // (NOVO) Validação Cronológica Centralizada
                 const dateCheck = validateOccurrenceChronology(record, actionType, dataToUpdate[fields.date]);
                 if (!dateCheck.isValid) return showToast(dateCheck.message);
 
@@ -895,6 +887,7 @@ async function handleOccurrenceStepSubmit(e) {
 
                 if (!oficioNumber || !ctSentDate) return showToast("Erro: Preencha o Ofício e Data.");
 
+                // (NOVO) Validação Cronológica Centralizada
                 const dateCheck = validateOccurrenceChronology(record, 'desfecho_ou_ct', ctSentDate);
                 if (!dateCheck.isValid) return showToast(dateCheck.message);
 
@@ -996,7 +989,7 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
 
     const participantData = incident.participantsInvolved.get(studentId);
     const student = participantData?.student;
-    //if (!student) return showToast('Erro: Aluno não encontrado.'); // Remove check rígido
+    if (!student) return showToast('Erro: Aluno não encontrado.');
 
     const record = incident.records.find(r => r.id === recordId);
     if (!record) return showToast('Erro: Registro não encontrado.');
@@ -1022,9 +1015,7 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
         return;
     }
     
-    // Passa o estudante placeholder se o real não existir
-    const studentObj = student || { name: 'Aluno Desconhecido', matricula: studentId };
-    openOccurrenceStepModal(studentObj, record, actionToEdit);
+    openOccurrenceStepModal(student, record, actionToEdit);
 }
 
 async function handleResetActionConfirmation(studentId, groupId, recordId) {
@@ -1078,7 +1069,7 @@ async function handleNewOccurrenceAction(studentId, groupId, recordId) {
 
     const participantData = incident.participantsInvolved.get(studentId);
     const student = participantData?.student;
-    //if (!student) return showToast('Erro: Aluno não encontrado.');
+    if (!student) return showToast('Erro: Aluno não encontrado.');
 
     const record = incident.records.find(r => r.id === recordId);
     if (!record) return showToast('Erro: Registro não encontrado.');
@@ -1089,9 +1080,7 @@ async function handleNewOccurrenceAction(studentId, groupId, recordId) {
         showToast('Processo finalizado. Use "Editar Ação" ou "Limpar Ação".');
         return;
     }
-    
-    const studentObj = student || { name: 'Aluno Desconhecido', matricula: studentId };
-    openOccurrenceStepModal(studentObj, record, nextAction);
+    openOccurrenceStepModal(student, record, nextAction);
 }
 
 async function handleGenerateNotification(recordId, studentId, groupId) {
@@ -1100,7 +1089,7 @@ async function handleGenerateNotification(recordId, studentId, groupId) {
 
     const participantData = incident.participantsInvolved.get(studentId);
     const student = participantData?.student;
-    if (!student) return showToast('Erro: Aluno não encontrado para gerar notificação.');
+    if (!student) return showToast('Erro: Aluno não encontrado.');
 
     openIndividualNotificationModal(incident, student);
 }
@@ -1204,8 +1193,10 @@ async function handleSendOccurrenceCtSubmit(e) {
     }
 
     const oficioYear = new Date().getFullYear();
-    const ctSentDate = new Date().toISOString().split('T')[0]; 
+    const ctSentDate = new Date().toISOString().split('T')[0]; // Data atual
     
+    // (NOVO) Validação Cronológica Centralizada (Mesmo para o botão dedicado)
+    // Usamos a data atual (ctSentDate) para validar
     const dateCheck = validateOccurrenceChronology(record, 'desfecho_ou_ct', ctSentDate);
     if (!dateCheck.isValid) return showToast(dateCheck.message);
 
