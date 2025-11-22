@@ -1,30 +1,23 @@
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 2.2 (Busca Insensível a Caixa/Acentos e Autocomplete Server-Side)
+// VERSÃO: 2.3 (Correção de Validação com Alunos Paginados e Busca Inteligente)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js';
 import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js'; 
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
-import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName } from './firestore.js'; // (NOVO) Importa busca server-side
+import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName } from './firestore.js'; 
 import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 
 
 // --- Funções Auxiliares ---
 
-/**
- * Normaliza strings para comparação (remove acentos e põe em minúsculas).
- * Ex: "João" -> "joao", "Álvaro" -> "alvaro"
- */
 const normalizeText = (text) => {
     if (!text) return '';
     return text.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 };
 
-/**
- * Obtém a data principal de uma ação.
- */
 const getActionMainDate = (action) => {
     if (!action) return null;
     switch (action.actionType) {
@@ -57,7 +50,6 @@ const getDateInputForActionType = (actionType) => {
 
 // --- Funções de UI (Busca e Autocomplete) ---
 
-// Variável para debounce da busca
 let absenceSearchTimeout = null;
 
 const setupAbsenceAutocomplete = () => {
@@ -68,11 +60,9 @@ const setupAbsenceAutocomplete = () => {
         const rawValue = input.value;
         const normalizedValue = normalizeText(rawValue);
         
-        // 1. Atualiza o filtro visual da lista (local)
         state.filterAbsences = normalizedValue;
-        renderAbsences(); // Filtra a lista de ações já carregadas
+        renderAbsences(); 
         
-        // 2. Lógica de Autocomplete (Busca de Aluno para Nova Ação)
         if (absenceSearchTimeout) clearTimeout(absenceSearchTimeout);
         
         suggestionsContainer.innerHTML = '';
@@ -81,14 +71,11 @@ const setupAbsenceAutocomplete = () => {
             return;
         }
 
-        // Debounce para não sobrecarregar o servidor
         absenceSearchTimeout = setTimeout(async () => {
-            // Mostra indicador de carregamento
             suggestionsContainer.classList.remove('hidden');
             suggestionsContainer.innerHTML = '<div class="p-2 text-gray-500 text-xs"><i class="fas fa-spinner fa-spin"></i> Buscando alunos...</div>';
 
             try {
-                // (CORREÇÃO) Busca no servidor em vez de filtrar apenas os 50 locais
                 const results = await searchStudentsByName(rawValue);
                 
                 suggestionsContainer.innerHTML = ''; // Limpa spinner
@@ -97,7 +84,6 @@ const setupAbsenceAutocomplete = () => {
                     results.forEach(student => {
                         const item = document.createElement('div');
                         item.className = 'suggestion-item p-2 cursor-pointer hover:bg-gray-100 border-b border-gray-100';
-                        // Destaque visual do nome
                         item.innerHTML = `<span class="font-semibold text-gray-800">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
                         
                         item.addEventListener('click', () => {
@@ -116,7 +102,7 @@ const setupAbsenceAutocomplete = () => {
                 console.error("Erro no autocomplete:", error);
                 suggestionsContainer.innerHTML = '<div class="p-2 text-red-500 text-xs">Erro na busca.</div>';
             }
-        }, 400); // 400ms delay
+        }, 400); 
     });
 
     document.addEventListener('click', (e) => {
@@ -133,21 +119,13 @@ const setupAbsenceAutocomplete = () => {
 
 export const renderAbsences = () => {
     dom.loadingAbsences.classList.add('hidden');
-    
-    // (CORREÇÃO) Lógica de filtro robusta com includes e normalização
     const filterTerm = normalizeText(state.filterAbsences);
 
     const searchFiltered = state.absences.filter(a => {
-        // Se não houver termo de busca, retorna tudo
         if (!filterTerm) return true;
-
         const student = state.students.find(s => s.matricula === a.studentId);
-        
-        // Se o aluno não estiver na memória (paginação), infelizmente não podemos filtrar pelo nome dele aqui
-        // A menos que tenhamos cache. Por enquanto, mostramos apenas o que conseguimos resolver.
+        // Se o aluno não estiver na memória (paginação), não conseguimos filtrar pelo nome.
         if (!student) return false; 
-
-        // Comparações normalizadas
         return normalizeText(student.name).includes(filterTerm);
     });
 
@@ -285,8 +263,8 @@ export const renderAbsences = () => {
             const lastProcessAction = actions[actions.length - 1]; 
             const student = state.students.find(s => s.matricula === firstAction.studentId);
             
-            // Se o aluno não estiver na lista carregada, mostra placeholder
-            const studentName = student ? student.name : `Aluno ID: ${firstAction.studentId}`;
+            // Fallback para alunos não carregados na memória
+            const studentName = student ? student.name : `Aluno (${firstAction.studentId})`;
             const studentClass = student ? student.class : 'N/A';
 
             const isConcluded = actions.some(a => a.actionType === 'analise');
@@ -552,6 +530,9 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     document.getElementById('absence-modal-title').innerText = isEditing ? 'Editar Ação de Busca Ativa' : 'Registar Ação de Busca Ativa';
     document.getElementById('absence-id').value = isEditing ? data.id : '';
 
+    // (CORREÇÃO) Armazena o ID do aluno selecionado no dataset do formulário para validação segura
+    dom.absenceForm.dataset.selectedStudentId = student.matricula;
+
     document.getElementById('absence-student-name').value = student.name || '';
     document.getElementById('absence-student-class').value = student.class || '';
     document.getElementById('absence-student-endereco').value = student.endereco || '';
@@ -656,7 +637,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
             break;
     }
 
-    // --- Define a Data Mínima ---
+    // --- Define a Data Mínima (CONSISTÊNCIA 2) ---
     let previousAction = null;
     if (isEditing) {
         const currentIndex = currentCycleActions.findIndex(a => a.id === data.id);
@@ -830,6 +811,7 @@ async function handleAbsenceSubmit(e) {
 
         if (data.actionType === 'encaminhamento_ct' && data.oficioNumber && !id) { 
              const student = state.students.find(s => s.matricula === data.studentId);
+             // Se o aluno não estiver na memória, não conseguimos gerar o ofício imediatamente (UX limitation, but safe)
              if (student) {
                 generateAndShowOficio(data, data.oficioNumber);
              }
@@ -856,16 +838,17 @@ async function handleAbsenceSubmit(e) {
  * Coleta os dados do formulário de Busca Ativa.
  */
 function getAbsenceFormData() {
-    const studentName = document.getElementById('absence-student-name').value.trim();
-    const student = state.students.find(s => s.name === studentName);
-    if (!student) {
-        showToast("Aluno inválido.");
+    // (CORREÇÃO) Pega o ID do dataset, que foi salvo ao abrir o modal
+    const studentId = dom.absenceForm.dataset.selectedStudentId;
+    
+    if (!studentId) {
+        showToast("Erro: Aluno não identificado.");
         return null;
     }
 
     const data = {
         id: document.getElementById('absence-id').value, 
-        studentId: student.matricula,
+        studentId: studentId, // Usa o ID direto, sem buscar nome
         actionType: document.getElementById('action-type').value,
         processId: document.getElementById('absence-process-id').value,
         periodoFaltasStart: document.getElementById('absence-start-date').value || null,
@@ -945,8 +928,17 @@ function handleViewOficio(id) {
  * Lida com o clique no nome do aluno (iniciar nova ação).
  */
 function handleNewAbsenceFromHistory(studentId) {
-    const student = state.students.find(s => s.matricula === studentId);
-    if (student) handleNewAbsenceAction(student); 
+    // Tenta buscar na memória
+    let student = state.students.find(s => s.matricula === studentId);
+    
+    if (student) {
+        handleNewAbsenceAction(student); 
+    } else {
+        // (CORREÇÃO) Fallback para alunos não carregados
+        // Se não estiver na memória, não conseguimos abrir o modal com os dados completos (endereço, etc)
+        // Idealmente, buscaríamos no servidor aqui. Por enquanto, exibimos alerta.
+        showToast("Carregue o aluno na aba 'Gerir Alunos' ou use a busca para continuar.");
+    }
 }
 
 
@@ -979,11 +971,22 @@ function handleEditAbsence(id) {
         return showToast(isConcluded ? "Processo concluído, não pode editar." : "Apenas a última ação pode ser editada.");
     }
 
-    const student = state.students.find(s => s.matricula === data.studentId);
+    // (CORREÇÃO) Busca de aluno resiliente
+    let student = state.students.find(s => s.matricula === data.studentId);
+    
+    if (!student) {
+        // Cria um objeto aluno mínimo para permitir a edição
+        student = {
+            matricula: data.studentId,
+            name: `Aluno (${data.studentId})`, // Nome placeholder
+            class: '',
+            endereco: '',
+            contato: ''
+        };
+    }
+
     if (student) {
         openAbsenceModalForStudent(student, data.actionType, data); 
-    } else {
-        showToast("Aluno associado não encontrado.");
     }
 }
 
