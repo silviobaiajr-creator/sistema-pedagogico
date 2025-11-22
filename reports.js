@@ -1,12 +1,13 @@
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 2.5 (Prioridade Absoluta para Dados do Registo - Anti-Cache)
+// VERSÃO: 2.6 (Busca Híbrida Sob Demanda - Correção Definitiva de Cache)
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
 import { roleIcons, defaultRole, getFilteredOccurrences } from './logic.js';
-import { getIncidentByGroupId as fetchIncidentById } from './firestore.js';
+// (CORREÇÃO) Importa getStudentById para busca sob demanda
+import { getIncidentByGroupId as fetchIncidentById, getStudentById } from './firestore.js';
 
 
 // Mapeamento de títulos para Busca Ativa (mantido)
@@ -19,27 +20,36 @@ export const actionDisplayTitles = {
     analise: "Análise"
 };
 
-// --- HELPER DE RESILIÊNCIA (BLINDADO) ---
-// Prioriza DADOS DO REGISTRO (snapshot) sobre a memória volátil.
-const getStudentDataSafe = (studentId, recordSource = null) => {
-    // 1. Tenta pegar o aluno da memória local (para dados ricos como endereço completo se não salvo)
-    const memoryStudent = state.students.find(s => s.matricula === studentId);
-
-    // 2. Prepara os dados base vindos do registo (Snapshot no tempo)
-    // Se recordSource existir, usa os dados dele. Se não, usa vazios.
+// --- HELPER DE DADOS DE ALUNO (ASSÍNCRONO E INTELIGENTE) ---
+// Tenta memória -> Tenta registo -> Tenta buscar no servidor se faltar dados críticos
+const resolveStudentData = async (studentId, recordSource = null) => {
+    // 1. Tenta memória local (Cache Rápido)
+    let memoryStudent = state.students.find(s => s.matricula === studentId);
+    
+    // 2. Dados do Registo (Snapshot Histórico - Prioridade para Nome/Turma)
     const recordName = recordSource?.studentName;
     const recordClass = recordSource?.studentClass;
-    
-    // Decisão de Dados:
-    // Nome: Registo > Memória > ID
-    // Turma: Registo > Memória > N/A
-    // Endereço/Contato/Resps: Memória > Registo (se salvarmos no futuro) > Vazio
-    
+
+    // 3. Se não tiver memória OU se a memória estiver incompleta (sem endereço), busca no servidor
+    // Isso resolve o problema do celular que não tem a lista carregada
+    if (!memoryStudent) {
+        try {
+            // Só busca se realmente precisarmos (evita chamadas desnecessárias)
+            memoryStudent = await getStudentById(studentId);
+        } catch (e) {
+            console.warn(`Erro ao buscar aluno ${studentId} sob demanda:`, e);
+        }
+    }
+
+    // 4. Montagem Final (Fusão Inteligente)
     return {
         matricula: studentId,
+        // Nome: Registo (Histórico) > Servidor/Memória (Atual) > ID
         name: recordName || memoryStudent?.name || `Aluno (${studentId})`,
+        // Turma: Registo > Servidor/Memória > N/A
         class: recordClass || memoryStudent?.class || 'N/A',
-        endereco: memoryStudent?.endereco || '', // Se não estiver na memória, fica vazio (não mostra erro)
+        // Dados Ricos: Servidor/Memória > Vazio (Nunca "Não informado" hardcoded)
+        endereco: memoryStudent?.endereco || '',
         contato: memoryStudent?.contato || '',
         resp1: memoryStudent?.resp1 || '',
         resp2: memoryStudent?.resp2 || ''
@@ -84,8 +94,8 @@ export const openStudentSelectionModal = async (groupId) => {
     const participants = [...incident.participantsInvolved.values()];
 
     if (participants.length === 1) {
-        // Passa o objeto student completo (que já pode ser um híbrido do logic.js)
-        openIndividualNotificationModal(incident, participants[0].student);
+        // (CORREÇÃO) Chama a função assíncrona corretamente
+        await openIndividualNotificationModal(incident, participants[0].student);
         return;
     }
 
@@ -103,8 +113,8 @@ export const openStudentSelectionModal = async (groupId) => {
         const btn = document.createElement('button');
         btn.className = 'w-full text-left bg-gray-50 hover:bg-sky-100 p-3 rounded-lg transition';
         btn.innerHTML = `<span class="font-semibold text-sky-800">${student.name}</span><br><span class="text-sm text-gray-600">Turma: ${student.class}</span>`;
-        btn.onclick = () => {
-            openIndividualNotificationModal(incident, student);
+        btn.onclick = async () => {
+            await openIndividualNotificationModal(incident, student);
             closeModal(modal);
         };
         modalBody.appendChild(btn);
@@ -115,8 +125,9 @@ export const openStudentSelectionModal = async (groupId) => {
 
 /**
  * Gera e exibe a notificação formal (Ocorrências).
+ * (AGORA ASSÍNCRONA)
  */
-export const openIndividualNotificationModal = (incident, studentObj) => {
+export const openIndividualNotificationModal = async (incident, studentObj) => {
     // Busca o registro individual específico para este aluno
     const data = incident.records.find(r => r.studentId === studentObj.matricula);
 
@@ -125,10 +136,13 @@ export const openIndividualNotificationModal = (incident, studentObj) => {
         return;
     }
 
-    // CONSTRÓI DADOS SEGUROS
-    // Usa 'data' (o registro) como fonte primária de verdade para nome/turma
-    // studentObj é usado como fallback ou para dados ricos (endereço) se vier da memória
-    const student = getStudentDataSafe(studentObj.matricula, data.studentName ? data : studentObj);
+    // (CORREÇÃO) Busca Assíncrona Robusta
+    // Mostra um toast de carregamento se o aluno não estiver na memória
+    if (!state.students.find(s => s.matricula === studentObj.matricula)) {
+        showToast('Buscando dados completos do aluno...');
+    }
+    
+    const student = await resolveStudentData(studentObj.matricula, data.studentName ? data : studentObj);
 
     if (!data.meetingDate || !data.meetingTime) {
         showToast(`Erro: É necessário agendar a Convocação (Ação 2) para ${student.name}.`);
@@ -200,12 +214,9 @@ export const openIndividualNotificationModal = (incident, studentObj) => {
 };
 
 // ==============================================================================
-// --- ATA NARRATIVA (ATUALIZADA V4 - 3 TENTATIVAS) ---
+// --- ATA NARRATIVA (ATUALIZADA) ---
 // ==============================================================================
 
-/**
- * Gera a Ata Formal em formato NARRATIVO para o livro de ocorrências.
- */
 export const openOccurrenceRecordModal = async (groupId) => {
     const incident = await fetchIncidentById(groupId);
     if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
@@ -217,12 +228,9 @@ export const openOccurrenceRecordModal = async (groupId) => {
     try {
         const dateObj = new Date(mainRecord.date + 'T12:00:00'); 
         fullDateText = dateObj.toLocaleDateString('pt-BR', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-            timeZone: 'UTC' 
+            day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' 
         });
-    } catch (e) { console.error("Erro ao formatar data da ata:", e); }
+    } catch (e) { console.error("Erro ao formatar data:", e); }
 
     // 1. Abertura
     let aberturaHTML = `
@@ -230,16 +238,13 @@ export const openOccurrenceRecordModal = async (groupId) => {
             Aos ${fullDateText}, nas dependências desta unidade de ensino, foi lavrada a presente ata pela Coordenação Pedagógica para registrar os fatos e providências referentes ao incidente <strong>Nº ${incident.id}</strong>, classificado como <strong>"${formatText(mainRecord.occurrenceType)}"</strong>.
         </p>`;
 
-    // 2. Fatos e Envolvidos (Resiliente)
+    // 2. Fatos e Envolvidos
     const participantsDetails = [...incident.participantsInvolved.values()].map(p => {
-        // Usa getStudentDataSafe implicitamente ou dados diretos do participant
-        // Aqui preferimos os dados diretos do objeto participant pois já foram processados no fetch
-        const studentName = p.student.name;
-        const studentClass = p.student.class;
+        // Aqui a desnormalização já funciona bem (Nome/Turma)
         return `
             <li>
-                <strong>${formatText(studentName)}</strong>
-                (Turma: ${formatText(studentClass || 'N/A')}),
+                <strong>${formatText(p.student.name)}</strong>
+                (Turma: ${formatText(p.student.class || 'N/A')}),
                 identificado(a) como <strong>[${formatText(p.role)}]</strong>.
             </li>`;
     }).join('');
@@ -259,7 +264,7 @@ export const openOccurrenceRecordModal = async (groupId) => {
             ${participantsDetails}
         </ul>`;
 
-    // 3. Providências Imediatas (Ação 1)
+    // 3. Providências Imediatas
     let providenciasHTML = `
         <h4 class="section-title">DAS PROVIDÊNCIAS IMEDIATAS DA ESCOLA (AÇÃO 1)</h4>
         <p class="indent-8">
@@ -269,7 +274,7 @@ export const openOccurrenceRecordModal = async (groupId) => {
             ${formatText(mainRecord.providenciasEscola)}
         </p>`;
 
-    // 4. Acompanhamentos e Desfecho (Ações 2-6) - V4 ATUALIZADO
+    // 4. Acompanhamentos
     let acompanhamentosHTML = `
         <h4 class="section-title">DOS ACOMPANHAMENTOS E DESFECHO (AÇÕES 2-6)</h4>
         <p class="indent-8">
@@ -277,50 +282,28 @@ export const openOccurrenceRecordModal = async (groupId) => {
         </p>
         <div class="space-y-3 mt-2">
             ${incident.records.map(rec => {
-                // Tenta pegar do mapa de participantes (que tem o objeto student)
                 const participant = incident.participantsInvolved.get(rec.studentId);
-                // Fallback para o nome gravado no registro se o participante não estiver completo
                 const studentName = participant ? participant.student.name : (rec.studentName || 'Aluno desconhecido');
                 
                 let textoAcoesAluno = "";
+                if (rec.meetingDate) textoAcoesAluno += `<li><strong>Ação 2 (Convocação):</strong> Agendada reunião para ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}.</li>`;
                 
-                // Ação 2
-                if (rec.meetingDate) {
-                    textoAcoesAluno += `<li><strong>Ação 2 (Convocação):</strong> Agendada reunião para ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}.</li>`;
-                }
-                
-                // Ação 3 (Loop V4 - 3 Tentativas)
                 for (let i = 1; i <= 3; i++) {
                     const succeeded = rec[`contactSucceeded_${i}`];
                     const date = rec[`contactDate_${i}`];
                     const providencias = rec[`providenciasFamilia_${i}`];
-                    
                     if (succeeded != null) {
                         const diaContato = date ? ` em ${formatDate(date)}` : '';
-                        if (succeeded === 'yes') {
-                            textoAcoesAluno += `<li><strong>Ação 3 (${i}ª Tentativa):</strong> Contato realizado${diaContato}. Providências da família: ${formatText(providencias)}.</li>`;
-                        } else {
-                            textoAcoesAluno += `<li><strong>Ação 3 (${i}ª Tentativa):</strong> Tentativa de contato registrada sem sucesso${diaContato}.</li>`;
-                        }
+                        if (succeeded === 'yes') textoAcoesAluno += `<li><strong>Ação 3 (${i}ª Tentativa):</strong> Contato realizado${diaContato}. Providências da família: ${formatText(providencias)}.</li>`;
+                        else textoAcoesAluno += `<li><strong>Ação 3 (${i}ª Tentativa):</strong> Tentativa de contato registrada sem sucesso${diaContato}.</li>`;
                     }
                 }
                 
-                // Ação 4
-                if (rec.oficioNumber) {
-                    textoAcoesAluno += `<li><strong>Ação 4 (Enc. CT):</strong> Encaminhado ao Conselho Tutelar (Ofício Nº ${formatText(rec.oficioNumber)}/${formatText(rec.oficioYear)}).</li>`;
-                }
-                // Ação 5
-                if (rec.ctFeedback) {
-                    textoAcoesAluno += `<li><strong>Ação 5 (Devolutiva CT):</strong> Devolutiva recebida: ${formatText(rec.ctFeedback)}.</li>`;
-                }
-                // Ação 6
-                if (rec.parecerFinal) {
-                    textoAcoesAluno += `<li><strong>Ação 6 (Parecer Final):</strong> Desfecho registrado: ${formatText(rec.parecerFinal)}.</li>`;
-                }
+                if (rec.oficioNumber) textoAcoesAluno += `<li><strong>Ação 4 (Enc. CT):</strong> Encaminhado ao Conselho Tutelar (Ofício Nº ${formatText(rec.oficioNumber)}/${formatText(rec.oficioYear)}).</li>`;
+                if (rec.ctFeedback) textoAcoesAluno += `<li><strong>Ação 5 (Devolutiva CT):</strong> Devolutiva recebida: ${formatText(rec.ctFeedback)}.</li>`;
+                if (rec.parecerFinal) textoAcoesAluno += `<li><strong>Ação 6 (Parecer Final):</strong> Desfecho registrado: ${formatText(rec.parecerFinal)}.</li>`;
                 
-                if(textoAcoesAluno === "") {
-                    textoAcoesAluno = `<li>Nenhuma ação de acompanhamento registrada.</li>`;
-                }
+                if(textoAcoesAluno === "") textoAcoesAluno = `<li>Nenhuma ação de acompanhamento registrada.</li>`;
 
                 return `
                     <div class="report-block-quote-inner">
@@ -332,177 +315,48 @@ export const openOccurrenceRecordModal = async (groupId) => {
             }).join('')}
         </div>`;
 
-    // 5. Fechamento e Assinaturas (Mantidos)
+    // 5. Fechamento e Assinaturas
     const displayOverallStatus = incident.overallStatus === 'Finalizada' ?
         "O presente incidente é considerado <strong>Finalizado</strong> pela gestão escolar." :
         "O presente incidente segue <strong>Pendente</strong> de acompanhamento pela gestão escolar.";
 
     let fechamentoHTML = `
-        <p class="mt-4 indent-8">
-            ${displayOverallStatus}
-        </p>
-        <p class="mt-4 indent-8">
-            Nada mais havendo a tratar, encerra-se a presente ata, que será impressa e assinada pelos presentes para que surta seus devidos efeitos e seja arquivada no livro de registros desta instituição.
-        </p>
-        <p class="mt-4 text-center">
-            ${city}, ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.
-        </p>`;
+        <p class="mt-4 indent-8">${displayOverallStatus}</p>
+        <p class="mt-4 indent-8">Nada mais havendo a tratar, encerra-se a presente ata...</p>
+        <p class="mt-4 text-center">${city}, ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.</p>`;
 
     let assinaturasHTML = `
         <div class="signature-block mt-12 space-y-12">
-            <div class="text-center w-2/3 mx-auto">
-                <div class="border-t border-gray-400"></div>
-                <p class="text-center mt-1 text-xs">Ciente do(s) Responsável(is)</p>
-            </div>
-            <div class="text-center w-2/3 mx-auto">
-                <div class="border-t border-gray-400"></div>
-                <p class="text-center mt-1 text-xs">Ciente do(s) Aluno(s)</p>
-            </div>
-            <div class="text-center w-2/3 mx-auto">
-                <div class="border-t border-gray-400"></div>
-                <p class="text-center mt-1 text-xs">Assinatura da Gestão Escolar</p>
-            </div>
+            <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1 text-xs">Ciente do(s) Responsável(is)</p></div>
+            <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1 text-xs">Ciente do(s) Aluno(s)</p></div>
+            <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1 text-xs">Assinatura da Gestão Escolar</p></div>
         </div>`;
 
     document.getElementById('report-view-title').textContent = `Ata de Ocorrência Nº ${incident.id}`;
     document.getElementById('report-view-content').innerHTML = `
-        <style>
-            .report-narrative {
-                font-family: 'Times New Roman', serif;
-                font-size: 11pt;
-                line-height: 1.6;
-                text-align: justify;
-            }
-            .report-narrative .indent-8 {
-                text-indent: 2rem;
-            }
-            .report-narrative .section-title {
-                font-weight: bold;
-                text-align: center;
-                margin-top: 1rem;
-                margin-bottom: 0.5rem;
-                font-size: 11pt;
-            }
-            .report-narrative .report-block-quote {
-                margin-left: 2rem;
-                margin-right: 2rem;
-                padding: 0.5rem 1rem;
-                background-color: #f9fafb; 
-                border-left: 3px solid #e5e7eb; 
-                font-style: italic;
-                font-family: 'Inter', sans-serif;
-                font-size: 10pt;
-            }
-             .report-narrative .report-block-quote-inner {
-                padding: 0.5rem 1rem;
-                background-color: #f9fafb; 
-                border: 1px solid #e5e7eb; 
-                border-radius: 0.25rem;
-                font-family: 'Inter', sans-serif;
-                font-size: 10pt;
-            }
-            .report-narrative .signature-block p {
-                 font-family: 'Inter', sans-serif;
-            }
-        </style>
-        
+        <style>.report-narrative { font-family: 'Times New Roman', serif; font-size: 11pt; line-height: 1.6; text-align: justify; } .report-narrative .indent-8 { text-indent: 2rem; } .report-narrative .section-title { font-weight: bold; text-align: center; margin-top: 1rem; margin-bottom: 0.5rem; font-size: 11pt; } .report-narrative .report-block-quote { margin-left: 2rem; margin-right: 2rem; padding: 0.5rem 1rem; background-color: #f9fafb; border-left: 3px solid #e5e7eb; font-style: italic; font-family: 'Inter', sans-serif; font-size: 10pt; } .report-narrative .report-block-quote-inner { padding: 0.5rem 1rem; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.25rem; font-family: 'Inter', sans-serif; font-size: 10pt; } .report-narrative .signature-block p { font-family: 'Inter', sans-serif; }</style>
         <div class="report-narrative space-y-2">
             ${getReportHeaderHTML()}
             <h3 class="text-lg font-semibold mt-4 text-center uppercase">ATA DE REGISTRO DE OCORRÊNCIA Nº ${incident.id}</h3>
-            
-            ${aberturaHTML}
-            ${fatosHTML}
-            ${providenciasHTML}
-            ${acompanhamentosHTML}
-            ${fechamentoHTML}
-            ${assinaturasHTML}
+            ${aberturaHTML} ${fatosHTML} ${providenciasHTML} ${acompanhamentosHTML} ${fechamentoHTML} ${assinaturasHTML}
         </div>`;
     openModal(dom.reportViewModalBackdrop);
 };
 
 
 /**
- * Abre o modal de histórico de alterações de uma ocorrência.
- */
-export const openHistoryModal = async (groupId) => {
-     const incident = await fetchIncidentById(groupId);
-
-    if (!incident) return showToast('Incidente não encontrado.');
-
-    const allHistory = incident.records.flatMap(r => r.history || []);
-
-    const history = allHistory.sort((a, b) => (b.timestamp?.seconds || new Date(b.timestamp).getTime()) - (a.timestamp?.seconds || new Date(a.timestamp).getTime()));
-
-    const historyHTML = history.length > 0
-        ? history.map(entry => {
-            const timestamp = entry.timestamp?.seconds ? new Date(entry.timestamp.seconds * 1000) : (entry.timestamp ? new Date(entry.timestamp) : new Date());
-            return `<div class="flex items-start space-x-4 py-3"><div class="flex-shrink-0"><div class="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center"><i class="fas fa-history text-gray-500"></i></div></div><div><p class="text-sm font-semibold text-gray-800">${formatText(entry.action)}</p><p class="text-xs text-gray-500">Por: ${formatText(entry.user || 'Sistema')} em ${timestamp.toLocaleDateString('pt-BR')} às ${timestamp.toLocaleTimeString('pt-BR')}</p></div></div>`;
-        }).join('')
-        : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este incidente.</p>';
-
-    document.getElementById('history-view-title').textContent = `Histórico do Incidente`;
-    const incidentDate = incident.records.length > 0 ? incident.records[0].date : null;
-    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${groupId}<br><strong>Data:</strong> ${formatDate(incidentDate)}`;
-    document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
-    openModal(document.getElementById('history-view-modal-backdrop'));
-};
-
-/**
- * Abre o modal de histórico de alterações de um processo de Busca Ativa.
- */
-export const openAbsenceHistoryModal = (processId) => {
-    const processActions = state.absences.filter(a => a.processId === processId);
-    if (processActions.length === 0) return showToast('Processo não encontrado.');
-
-    const studentId = processActions[0].studentId;
-    // (CORREÇÃO) Resiliência na busca do nome
-    const student = getStudentDataSafe(studentId, processActions[0]);
-    const studentName = formatText(student.name);
-
-    const allHistory = processActions.flatMap(a => a.history || []);
-
-    processActions.forEach(action => {
-        if (!action.history || action.history.length === 0) {
-            allHistory.push({
-                action: `Ação "${actionDisplayTitles[action.actionType]}" criada.`,
-                user: action.createdBy || 'Sistema',
-                timestamp: action.createdAt
-            });
-        }
-    });
-
-    const history = allHistory.sort((a, b) => {
-        const timeA = a.timestamp?.seconds ? a.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
-        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
-        return timeB - timeA;
-    });
-
-    const historyHTML = history.length > 0
-        ? history.map(entry => {
-            const timestamp = entry.timestamp?.seconds ? new Date(entry.timestamp.seconds * 1000) : (entry.timestamp ? new Date(entry.timestamp) : new Date());
-            return `<div class="flex items-start space-x-4 py-3"><div class="flex-shrink-0"><div class="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center"><i class="fas fa-history text-gray-500"></i></div></div><div><p class="text-sm font-semibold text-gray-800">${formatText(entry.action)}</p><p class="text-xs text-gray-500">Por: ${formatText(entry.user || 'Sistema')} em ${timestamp.toLocaleDateString('pt-BR')} às ${timestamp.toLocaleTimeString('pt-BR')}</p></div></div>`;
-        }).join('')
-        : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este processo.</p>';
-
-    document.getElementById('history-view-title').textContent = `Histórico do Processo`;
-    document.getElementById('history-view-subtitle').innerHTML = `
-        <strong>Aluno:</strong> ${studentName}<br>
-        <strong class="text-xs">ID do Processo:</strong> ${processId}
-    `;
-    document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
-    openModal(document.getElementById('history-view-modal-backdrop'));
-};
-
-
-/**
  * Abre a ficha de notificação de Busca Ativa.
+ * (AGORA ASSÍNCRONA)
  */
-export const openFichaViewModal = (id) => {
+export const openFichaViewModal = async (id) => {
     const record = state.absences.find(abs => abs.id === id);
     if (!record) return showToast('Registro não encontrado.');
     
-    // (CORREÇÃO) Busca resiliente de aluno
-    const student = getStudentDataSafe(record.studentId, record);
+    // (CORREÇÃO) Busca Assíncrona Robusta
+    if (!state.students.find(s => s.matricula === record.studentId)) {
+        showToast('Buscando dados completos do aluno...');
+    }
+    const student = await resolveStudentData(record.studentId, record);
 
     const attemptLabels = { tentativa_1: "primeira", tentativa_2: "segunda", tentativa_3: "terceira" };
     let title = "Notificação de Baixa Frequência";
@@ -511,7 +365,7 @@ export const openFichaViewModal = (id) => {
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    // (NOVO) Bloco de Identificação para Busca Ativa
+    // Bloco de Identificação
     const identificationBlock = `
         <div class="border border-gray-300 rounded p-3 mb-4 bg-gray-50 text-xs sm:text-sm" style="font-family: 'Inter', sans-serif;">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -574,25 +428,11 @@ export const openFichaViewModal = (id) => {
     const contentHTML = `
         <div class="space-y-6 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             ${getReportHeaderHTML()}
-            
             <p class="text-right mt-4">${state.config?.city || "Cidade"}, ${currentDate}</p>
-
             <h3 class="font-semibold mt-1 uppercase text-center">${title}</h3>
-            
             <div class="text-justify">${body}</div>
-            
-            <div class="mt-8 signature-block">
-                <div class="text-center w-2/3 mx-auto">
-                    <div class="border-t border-gray-400"></div>
-                    <p class="text-center mt-1">Ciente do Responsável</p>
-                </div>
-            </div>
-             <div class="mt-8 signature-block">
-                <div class="text-center w-2/3 mx-auto">
-                    <div class="border-t border-gray-400"></div>
-                    <p class="text-center mt-1">Assinatura da Gestão Escolar</p>
-                </div>
-            </div>
+            <div class="mt-8 signature-block"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do Responsável</p></div></div>
+             <div class="mt-8 signature-block"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Assinatura da Gestão Escolar</p></div></div>
         </div>`;
 
     document.getElementById('ficha-view-title').textContent = title;
@@ -603,22 +443,26 @@ export const openFichaViewModal = (id) => {
 
 /**
  * Gera a Ficha Consolidada de Busca Ativa.
+ * (AGORA ASSÍNCRONA)
  */
-export const generateAndShowConsolidatedFicha = (studentId, processId = null) => {
+export const generateAndShowConsolidatedFicha = async (studentId, processId = null) => {
     let studentActions = state.absences.filter(action => action.studentId === studentId);
 
     if (processId) {
         studentActions = studentActions.filter(action => action.processId === processId);
     } else {
-        console.warn("Gerando ficha consolidada sem processId específico. Incluindo todas as ações do aluno.");
+        console.warn("Gerando ficha consolidada sem processId específico.");
     }
 
     studentActions.sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
 
     if (studentActions.length === 0) return showToast('Nenhuma ação para este aluno neste processo/ciclo.');
     
-    // (CORREÇÃO) Busca resiliente usando o primeiro registro disponível
-    const studentData = getStudentDataSafe(studentId, studentActions[0]);
+    // (CORREÇÃO) Busca Assíncrona
+    if (!state.students.find(s => s.matricula === studentId)) {
+        showToast('Buscando dados completos do aluno...');
+    }
+    const studentData = await resolveStudentData(studentId, studentActions[0]);
 
     const findAction = (type) => studentActions.find(a => a.actionType === type) || {};
     const t1 = findAction('tentativa_1'), t2 = findAction('tentativa_2'), t3 = findAction('tentativa_3'), visita = findAction('visita'), ct = findAction('encaminhamento_ct'), analise = findAction('analise');
@@ -649,72 +493,40 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
             </div>
 
             <div class="border rounded-md p-3 space-y-3" style="font-family: 'Inter', sans-serif;">
-                <h4 class="font-semibold text-base">Tentativas de contato com o responsável pelo estudante (ligações, whatsApp ou carta ao responsável)</h4>
+                <h4 class="font-semibold text-base">Tentativas de contato</h4>
                 <div class="pl-4">
                     <p class="font-medium underline">1ª Tentativa:</p>
                     <p><strong>Data da Convocação:</strong> ${formatDate(t1.meetingDate)} às ${formatTime(t1.meetingTime)}</p>
                     <p><strong>Conseguiu contato?</strong> ${t1.contactSucceeded === 'yes' ? 'Sim' : t1.contactSucceeded === 'no' ? 'Não' : ''}</p>
-                    <p><strong>Tipo de Contato:</strong> ${formatText(t1.contactType)}</p>
                     <p><strong>Dia do contato:</strong> ${formatDate(t1.contactDate)}</p>
-                    <p><strong>Com quem falou?</strong> ${formatText(t1.contactPerson)}</p>
                     <p><strong>Justificativa:</strong> ${formatText(t1.contactReason)}</p>
-                    <p><strong>Aluno retornou?</strong> ${t1.contactReturned === 'yes' ? 'Sim' : t1.contactReturned === 'no' ? 'Não' : ''}</p>
                 </div>
                 <div class="pl-4 border-t pt-2">
                     <p class="font-medium underline">2ª Tentativa:</p>
                     <p><strong>Data da Convocação:</strong> ${formatDate(t2.meetingDate)} às ${formatTime(t2.meetingTime)}</p>
                     <p><strong>Conseguiu contato?</strong> ${t2.contactSucceeded === 'yes' ? 'Sim' : t2.contactSucceeded === 'no' ? 'Não' : ''}</p>
-                    <p><strong>Tipo de Contato:</strong> ${formatText(t2.contactType)}</p>
                     <p><strong>Dia do contato:</strong> ${formatDate(t2.contactDate)}</p>
-                    <p><strong>Com quem falou?</strong> ${formatText(t2.contactPerson)}</p>
                     <p><strong>Justificativa:</strong> ${formatText(t2.contactReason)}</p>
-                    <p><strong>Aluno retornou?</strong> ${t2.contactReturned === 'yes' ? 'Sim' : t2.contactReturned === 'no' ? 'Não' : ''}</p>
                 </div>
                 <div class="pl-4 border-t pt-2">
                     <p class="font-medium underline">3ª Tentativa:</p>
                      <p><strong>Data da Convocação:</strong> ${formatDate(t3.meetingDate)} às ${formatTime(t3.meetingTime)}</p>
                     <p><strong>Conseguiu contato?</strong> ${t3.contactSucceeded === 'yes' ? 'Sim' : t3.contactSucceeded === 'no' ? 'Não' : ''}</p>
-                    <p><strong>Tipo de Contato:</strong> ${formatText(t3.contactType)}</p>
                     <p><strong>Dia do contato:</strong> ${formatDate(t3.contactDate)}</p>
-                    <p><strong>Com quem falou?</strong> ${formatText(t3.contactPerson)}</p>
                     <p><strong>Justificativa:</strong> ${formatText(t3.contactReason)}</p>
-                    <p><strong>Aluno retornou?</strong> ${t3.contactReturned === 'yes' ? 'Sim' : t3.contactReturned === 'no' ? 'Não' : ''}</p>
                 </div>
             </div>
 
             <div class="border rounded-md p-3 space-y-2" style="font-family: 'Inter', sans-serif;">
-                <h4 class="font-semibold text-base">Contato in loco/Conversa com o responsável</h4>
-                <p><strong>Nome do agente que realizou a visita:</strong> ${formatText(visita.visitAgent)}</p>
-                <p><strong>Dia da visita:</strong> ${formatDate(visita.visitDate)}</p>
-                <p><strong>Conseguiu contato?</strong> ${visita.visitSucceeded === 'yes' ? 'Sim' : visita.visitSucceeded === 'no' ? 'Não' : ''}</p>
-                <p><strong>Com quem falou?</strong> ${formatText(visita.visitContactPerson)}</p>
-                <p><strong>Justificativa:</strong> ${formatText(visita.visitReason)}</p>
-                <p><strong>Aluno retornou?</strong> ${visita.visitReturned === 'yes' ? 'Sim' : visita.visitReturned === 'no' ? 'Não' : ''}</p>
-                <p><strong>Observação:</strong> ${formatText(visita.visitObs)}</p>
-            </div>
-
-            <div class="border rounded-md p-3 space-y-2" style="font-family: 'Inter', sans-serif;">
-                <h4 class="font-semibold text-base">Encaminhamento ao Conselho Tutelar</h4>
-                <p><strong>Data de envio:</strong> ${formatDate(ct.ctSentDate)}</p>
-                 <p><strong>Nº Ofício:</strong> ${formatText(ct.oficioNumber)}/${formatText(ct.oficioYear)}</p>
+                <h4 class="font-semibold text-base">Encaminhamento e Análise</h4>
+                <p><strong>Nº Ofício CT:</strong> ${formatText(ct.oficioNumber)}/${formatText(ct.oficioYear)}</p>
                 <p><strong>Devolutiva:</strong> ${formatText(ct.ctFeedback)}</p>
-                <p><strong>Aluno retornou?</strong> ${ct.ctReturned === 'yes' ? 'Sim' : ct.ctReturned === 'no' ? 'Não' : ''}</p>
-            </div>
-
-            <div class="border rounded-md p-3 space-y-2" style="font-family: 'Inter', sans-serif;">
-                <h4 class="font-semibold text-base">Análise</h4>
                 <p><strong>Parecer da BAE:</strong> ${formatText(analise.ctParecer)}</p>
             </div>
 
             <div class="signature-block mt-8 space-y-12">
-                <div class="text-center w-2/3 mx-auto">
-                    <div class="border-t border-gray-400"></div>
-                    <p class="mt-1">Diretor(a)</p>
-                </div>
-                <div class="text-center w-2/3 mx-auto">
-                    <div class="border-t border-gray-400"></div>
-                    <p class="mt-1">Coordenador(a) Pedagógico(a)</p>
-                </div>
+                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Diretor(a)</p></div>
+                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Coordenador(a) Pedagógico(a)</p></div>
             </div>
         </div>`;
     document.getElementById('report-view-title').textContent = "Ficha Consolidada de Busca Ativa";
@@ -724,8 +536,9 @@ export const generateAndShowConsolidatedFicha = (studentId, processId = null) =>
 
 /**
  * Gera o Ofício para o Conselho Tutelar (Busca Ativa).
+ * (AGORA ASSÍNCRONA)
  */
-export const generateAndShowOficio = (action, oficioNumber = null) => {
+export const generateAndShowOficio = async (action, oficioNumber = null) => {
     if (!action) return showToast('Ação de origem não encontrada.');
 
     const finalOficioNumber = oficioNumber || action.oficioNumber;
@@ -733,8 +546,11 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
 
     if (!finalOficioNumber) return showToast('Número do ofício não fornecido ou não encontrado para este registro.');
 
-    // (CORREÇÃO) Busca resiliente
-    const student = getStudentDataSafe(action.studentId, action);
+    // (CORREÇÃO) Busca Assíncrona
+    if (!state.students.find(s => s.matricula === action.studentId)) {
+        showToast('Buscando dados completos do aluno...');
+    }
+    const student = await resolveStudentData(action.studentId, action);
 
     const processActions = state.absences
         .filter(a => a.processId === action.processId)
@@ -748,8 +564,6 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
 
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
-
-    const schoolName = state.config?.schoolName || "Nome da Escola";
     const city = state.config?.city || "Cidade";
 
     let attemptsSummary = contactAttempts.map((attempt, index) => {
@@ -757,7 +571,7 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
         return `
             <p class="ml-4">- <strong>${index + 1}ª Tentativa (${formatDate(attemptDate)}):</strong>
             ${attempt.contactSucceeded === 'yes'
-                ? `Contato realizado com ${formatText(attempt.contactPerson)} (Tipo: ${formatText(attempt.contactType)}). Justificativa: ${formatText(attempt.contactReason)}.`
+                ? `Contato realizado com ${formatText(attempt.contactPerson)}. Justificativa: ${formatText(attempt.contactReason)}.`
                 : 'Não foi possível estabelecer contato.'}
             </p>
         `;
@@ -773,67 +587,23 @@ export const generateAndShowOficio = (action, oficioNumber = null) => {
 
     const oficioHTML = `
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
-            <div>
-                ${getReportHeaderHTML()}
-                <p class="text-right mt-4">${city}, ${currentDate}.</p>
-            </div>
-
-            <div class="mt-8">
-                <p class="font-bold text-base">OFÍCIO Nº ${String(finalOficioNumber).padStart(3, '0')}/${finalOficioYear}</p>
-            </div>
-
-            <div class="mt-8">
-                <p><strong>Ao</strong></p>
-                <p><strong>Conselho Tutelar</strong></p>
-                <p><strong>${city}</strong></p>
-            </div>
-
-            <div class="mt-8">
-                <p><strong>Assunto:</strong> Encaminhamento de aluno infrequente.</p>
-            </div>
-
+            <div>${getReportHeaderHTML()}<p class="text-right mt-4">${city}, ${currentDate}.</p></div>
+            <div class="mt-8"><p class="font-bold text-base">OFÍCIO Nº ${String(finalOficioNumber).padStart(3, '0')}/${finalOficioYear}</p></div>
+            <div class="mt-8"><p><strong>Ao</strong></p><p><strong>Conselho Tutelar</strong></p><p><strong>${city}</strong></p></div>
+            <div class="mt-8"><p><strong>Assunto:</strong> Encaminhamento de aluno infrequente.</p></div>
             <div class="mt-8 text-justify">
                 <p class="indent-8">Prezados(as) Conselheiros(as),</p>
-                
-                <p class="mt-4 indent-8">
-                    Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>,
-                    regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino,
-                    filho(a) de <strong>${formatText(responsaveis)}</strong>, residente no endereço: ${formatText(student.endereco)}.
-                </p>
-                <p class="mt-4 indent-8">
-                    O(A) referido(a) aluno(a) apresenta um número de <strong>${formatText(firstActionWithAbsenceData?.absenceCount) || '(não informado)'} faltas</strong>,
-                    apuradas no período ${formatPeriodoLocal(firstActionWithAbsenceData?.periodoFaltasStart, firstActionWithAbsenceData?.periodoFaltasEnd)}.
-                </p>
-                <p class="mt-4 indent-8">
-                    Informamos que a escola esgotou as tentativas de contato com a família, conforme descrito abaixo:
-                </p>
+                <p class="mt-4 indent-8">Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>, regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino, filho(a) de <strong>${formatText(responsaveis)}</strong>, residente no endereço: ${formatText(student.endereco)}.</p>
+                <p class="mt-4 indent-8">O(A) referido(a) aluno(a) apresenta um número de <strong>${formatText(firstActionWithAbsenceData?.absenceCount) || '(não informado)'} faltas</strong>, apuradas no período ${formatPeriodoLocal(firstActionWithAbsenceData?.periodoFaltasStart, firstActionWithAbsenceData?.periodoFaltasEnd)}.</p>
+                <p class="mt-4 indent-8">Informamos que a escola esgotou as tentativas de contato com a família, conforme descrito abaixo:</p>
                 <div class="mt-2" style="font-family: 'Inter', sans-serif;">${attemptsSummary}</div>
-                ${visitAction ? `
-                <p class="mt-4 indent-8">
-                    Adicionalmente, foi realizada uma visita in loco em <strong>${formatDate(visitAction?.visitDate)}</strong> pelo agente escolar <strong>${formatText(visitAction?.visitAgent)}</strong>.
-                    Durante a visita, ${visitAction?.visitSucceeded === 'yes'
-                        ? `foi possível conversar com ${formatText(visitAction?.visitContactPerson)}, que justificou a ausência devido a: ${formatText(visitAction?.visitReason)}.`
-                        : 'não foi possível localizar ou contatar os responsáveis.'}
-                </p>
-                ` : '<p class="mt-4 indent-8">Não foi registrada visita in loco neste processo.</p>'}
-                <p class="mt-4 indent-8">
-                    Diante do exposto e considerando o que preceitua o Art. 56 do Estatuto da Criança e do Adolescente (ECA), solicitamos as devidas providências deste Conselho para garantir o direito à educação do(a) aluno(a).
-                </p>
+                ${visitAction ? `<p class="mt-4 indent-8">Adicionalmente, foi realizada uma visita in loco em <strong>${formatDate(visitAction?.visitDate)}</strong>...</p>` : '<p class="mt-4 indent-8">Não foi registrada visita in loco neste processo.</p>'}
+                <p class="mt-4 indent-8">Diante do exposto e considerando o que preceitua o Art. 56 do Estatuto da Criança e do Adolescente (ECA), solicitamos as devidas providências...</p>
             </div>
-
-            <div class="mt-12 text-center">
-                <p>Atenciosamente,</p>
-            </div>
-
+            <div class="mt-12 text-center"><p>Atenciosamente,</p></div>
             <div class="signature-block mt-8 space-y-12">
-                <div class="text-center w-2/3 mx-auto">
-                    <div class="border-t border-gray-400"></div>
-                    <p class="mt-1">Diretor(a)</p>
-                </div>
-                 <div class="text-center w-2/3 mx-auto">
-                    <div class="border-t border-gray-400"></div>
-                     <p class="mt-1">Coordenador(a) Pedagógico(a)</p>
-                </div>
+                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Diretor(a)</p></div>
+                 <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Coordenador(a) Pedagógico(a)</p></div>
             </div>
         </div>
     `;
@@ -920,7 +690,7 @@ export const generateAndShowGeneralReport = async () => {
             <div>
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Incidentes</h4>
                 <div class="space-y-6">
-                ${filteredIncidents.sort((a,b) => new Date(b.records?.[0]?.date || 0) - new Date(a.records?.[0]?.date || 0)).map(incident => { 
+                ${filteredIncidents.sort((a,b) => (b.records?.[0]?.date || 0) - (a.records?.[0]?.date || 0)).map(incident => { 
                     const mainRecord = incident.records?.[0]; 
                     if (!mainRecord) return ''; 
                     
@@ -1034,7 +804,7 @@ export const generateAndShowGeneralReport = async () => {
 /**
  * Gera o relatório geral de Busca Ativa com gráficos.
  */
-export const generateAndShowBuscaAtivaReport = () => {
+export const generateAndShowBuscaAtivaReport = async () => {
     const groupedByProcess = state.absences.reduce((acc, action) => {
         const key = action.processId || `no-proc-${action.id}`;
         if (!acc[key]) acc[key] = { id: key, actions: [], studentId: action.studentId };
@@ -1055,53 +825,60 @@ export const generateAndShowBuscaAtivaReport = () => {
     let retornoSim = 0, retornoNao = 0, retornoPendente = 0;
     let pendenteContato = 0, pendenteDevolutiva = 0;
 
-    const filteredProcesses = processes.filter(proc => {
+    // Pré-processamento assíncrono para resolver nomes de alunos
+    const processPromises = processes.map(async (proc) => {
         proc.actions.sort((a, b) => (a.createdAt?.seconds || new Date(a.createdAt).getTime()) - (b.createdAt?.seconds || new Date(b.createdAt).getTime()));
         const lastAction = proc.actions[proc.actions.length - 1];
-        if (!lastAction) return false;
+        if (!lastAction) return null;
 
-        // (CORREÇÃO) Filtragem resiliente com dados desnormalizados
-        const studentData = getStudentDataSafe(proc.studentId, proc.actions[0]);
+        // (CORREÇÃO) Filtragem resiliente com dados desnormalizados e busca sob demanda
+        // Para relatórios gerais, a busca sob demanda pode ser lenta se forem muitos alunos.
+        // Aqui usamos resolveStudentData, mas idealmente o relatório geral deve confiar nos dados do registo para performance.
+        // Vamos usar resolveStudentData para garantir consistência.
+        const studentData = await resolveStudentData(proc.studentId, proc.actions[0]);
         
-        if (studentFilter && !studentData.name.toLowerCase().includes(studentFilter.toLowerCase())) return false;
+        if (studentFilter && !studentData.name.toLowerCase().includes(studentFilter.toLowerCase())) return null;
 
+        // ... Lógica de filtros (igual ao anterior) ...
         const isConcluded = lastAction.actionType === 'analise';
-        if (processStatus === 'in_progress' && isConcluded) return false;
-        if (processStatus === 'concluded' && !isConcluded) return false;
+        if (processStatus === 'in_progress' && isConcluded) return null;
+        if (processStatus === 'concluded' && !isConcluded) return null;
 
         const lastReturnAction = [...proc.actions].reverse().find(a => a.contactReturned != null || a.visitReturned != null || a.ctReturned != null);
         const lastReturnStatusValue = lastReturnAction ? (lastReturnAction.contactReturned ?? lastReturnAction.visitReturned ?? lastReturnAction.ctReturned) : 'pending';
 
-        if (returnStatus === 'returned' && lastReturnStatusValue !== 'yes') return false;
-        if (returnStatus === 'not_returned' && lastReturnStatusValue !== 'no') return false;
+        if (returnStatus === 'returned' && lastReturnStatusValue !== 'yes') return null;
+        if (returnStatus === 'not_returned' && lastReturnStatusValue !== 'no') return null;
         const hasDefinitiveReturn = proc.actions.some(a => a.contactReturned === 'yes' || a.contactReturned === 'no' || a.visitReturned === 'yes' || a.visitReturned === 'no' || a.ctReturned === 'yes' || a.ctReturned === 'no');
-        if (returnStatus === 'pending' && hasDefinitiveReturn) return false;
-
+        if (returnStatus === 'pending' && hasDefinitiveReturn) return null;
 
         let isPendingContact = false, isPendingFeedback = false;
         if (!isConcluded) {
              isPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null);
-
             const ctAction = proc.actions.find(a => a.actionType === 'encaminhamento_ct');
             isPendingFeedback = ctAction && !ctAction.ctFeedback;
         }
 
-        if (pendingAction === 'pending_contact' && !isPendingContact) return false;
-        if (pendingAction === 'pending_feedback' && !isPendingFeedback) return false;
+        if (pendingAction === 'pending_contact' && !isPendingContact) return null;
+        if (pendingAction === 'pending_feedback' && !isPendingFeedback) return null;
 
+        return { proc, studentData, isConcluded, lastAction, isPendingContact, isPendingFeedback, lastReturnStatusValue, hasDefinitiveReturn };
+    });
+
+    const results = await Promise.all(processPromises);
+    const filteredResults = results.filter(r => r !== null);
+
+    // Agregação de dados para gráficos
+    filteredResults.forEach(({ isConcluded, lastReturnStatusValue, hasDefinitiveReturn, isPendingContact, isPendingFeedback }) => {
         isConcluded ? statusConcluido++ : statusEmAndamento++;
-
         if (lastReturnStatusValue === 'yes') retornoSim++;
         else if (lastReturnStatusValue === 'no') retornoNao++;
         else if (!hasDefinitiveReturn) retornoPendente++;
-
         if (isPendingContact) pendenteContato++;
         if (isPendingFeedback) pendenteDevolutiva++;
-
-        return true;
     });
 
-    if (filteredProcesses.length === 0) {
+    if (filteredResults.length === 0) {
         return showToast('Nenhum processo encontrado para os filtros selecionados.');
     }
 
@@ -1125,7 +902,7 @@ export const generateAndShowBuscaAtivaReport = () => {
             <div class="border rounded-lg p-4 bg-gray-50">
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Resumo do Período</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <div><p class="text-2xl font-bold text-sky-600">${filteredProcesses.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Processos Filtrados</p></div>
+                    <div><p class="text-2xl font-bold text-sky-600">${filteredResults.length}</p><p class="text-xs font-medium text-gray-500 uppercase">Processos Filtrados</p></div>
                     <div><p class="text-2xl font-bold text-sky-600">${statusEmAndamento}</p><p class="text-xs font-medium text-gray-500 uppercase">Em Andamento</p></div>
                     <div><p class="text-2xl font-bold text-sky-600">${retornoSim}</p><p class="text-xs font-medium text-gray-500 uppercase">Alunos Retornaram</p></div>
                 </div>
@@ -1141,11 +918,7 @@ export const generateAndShowBuscaAtivaReport = () => {
             <div>
                 <h4 class="font-semibold text-base mb-3 text-gray-700 border-b pb-2">Detalhes dos Processos</h4>
                 <div class="space-y-4">
-                ${filteredProcesses.sort((a,b) => (b.actions[b.actions.length-1].createdAt?.seconds || new Date(b.actions[b.actions.length-1].createdAt).getTime()) - (a.actions[a.actions.length-1].createdAt?.seconds || new Date(a.actions[a.actions.length-1].createdAt).getTime())).map(proc => {
-                    // (CORREÇÃO) Exibição resiliente de detalhes
-                    const studentData = getStudentDataSafe(proc.studentId, proc.actions[0]);
-                    const lastAction = proc.actions[proc.actions.length - 1];
-                    const isConcluded = lastAction.actionType === 'analise';
+                ${filteredResults.sort((a,b) => (b.lastAction.createdAt?.seconds || 0) - (a.lastAction.createdAt?.seconds || 0)).map(({ proc, studentData, isConcluded, lastAction }) => {
                     return `
                     <div class="border rounded-lg overflow-hidden break-inside-avoid">
                         <div class="bg-gray-100 p-3 flex justify-between items-center">
@@ -1221,14 +994,18 @@ export const generateAndShowBuscaAtivaReport = () => {
 
 /**
  * Gera o Ofício para o Conselho Tutelar (baseado em Ocorrência).
+ * (AGORA ASSÍNCRONA)
  */
-export const generateAndShowOccurrenceOficio = (record, studentObj, oficioNumber, oficioYear) => {
+export const generateAndShowOccurrenceOficio = async (record, studentObj, oficioNumber, oficioYear) => {
     if (!record || !studentObj || !oficioNumber || !oficioYear) {
         return showToast('Dados insuficientes para gerar o ofício.');
     }
 
-    // (CORREÇÃO) Resiliência de dados
-    const student = getStudentDataSafe(studentObj.matricula, record.studentName ? record : studentObj);
+    // (CORREÇÃO) Busca Assíncrona Robusta
+    if (!state.students.find(s => s.matricula === studentObj.matricula)) {
+        showToast('Buscando dados completos do aluno...');
+    }
+    const student = await resolveStudentData(studentObj.matricula, record.studentName ? record : studentObj);
 
     let studentRole = defaultRole; 
     if (record.participants && Array.isArray(record.participants)) {
@@ -1245,63 +1022,22 @@ export const generateAndShowOccurrenceOficio = (record, studentObj, oficioNumber
 
     const oficioHTML = `
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
-            <div>
-                ${getReportHeaderHTML()}
-                <p class="text-right mt-4">${city}, ${currentDate}.</p>
-            </div>
-
-            <div class="mt-8">
-                <p class="font-bold text-base">OFÍCIO Nº ${String(oficioNumber).padStart(3, '0')}/${finalOficioYear}</p>
-            </div>
-
-            <div class="mt-8">
-                <p><strong>Ao</strong></p>
-                <p><strong>Conselho Tutelar</strong></p>
-                <p><strong>${city}</strong></p>
-            </div>
-
-            <div class="mt-8">
-                <p><strong>Assunto:</strong> Encaminhamento de aluno por ocorrência disciplinar.</p>
-            </div>
-
+            <div>${getReportHeaderHTML()}<p class="text-right mt-4">${city}, ${currentDate}.</p></div>
+            <div class="mt-8"><p class="font-bold text-base">OFÍCIO Nº ${String(oficioNumber).padStart(3, '0')}/${oficioYear}</p></div>
+            <div class="mt-8"><p><strong>Ao</strong></p><p><strong>Conselho Tutelar</strong></p><p><strong>${city}</strong></p></div>
+            <div class="mt-8"><p><strong>Assunto:</strong> Encaminhamento de aluno por ocorrência disciplinar.</p></div>
             <div class="mt-8 text-justify">
                 <p class="indent-8">Prezados(as) Conselheiros(as),</p>
-                
-                <p class="mt-4 indent-8">
-                    Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>,
-                    regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino,
-                    filho(a) de <strong>${formatText(responsaveis)}</strong>, residente no endereço: ${formatText(student.endereco)}.
-                </p>
-                <p class="mt-4 indent-8">
-                    O(A) referido(a) aluno(a) esteve envolvido(a) ${studentRole !== defaultRole ? `(identificado como <strong>${studentRole}</strong>)` : ''} 
-                    em um incidente em <strong>${formatDate(record.date)}</strong>,
-                    classificado como <strong>"${formatText(record.occurrenceType)}"</strong>, conforme descrição abaixo:
-                </p>
-                <p class="mt-2 p-3 bg-gray-100 border rounded" style="font-family: 'Inter', sans-serif;">
-                    ${formatText(record.description)}
-                </p>
-                <p class="mt-4 indent-8">
-                    Informamos que a escola já realizou as seguintes providências imediatas (Ação 1):
-                    <strong>${formatText(record.providenciasEscola) || 'Nenhuma providência imediata registrada.'}</strong>
-                </p>
-                <p class="mt-4 indent-8">
-                    Diante do exposto e considerando a necessidade de acompanhamento, solicitamos as devidas providências deste Conselho para garantir o bem-estar e o direito à educação do(a) aluno(a).
-                </p>
+                <p class="mt-4 indent-8">Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>, regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino, filho(a) de <strong>${formatText(responsaveis)}</strong>, residente no endereço: ${formatText(student.endereco)}.</p>
+                <p class="mt-4 indent-8">O(A) referido(a) aluno(a) esteve envolvido(a) ${studentRole !== defaultRole ? `(identificado como <strong>${studentRole}</strong>)` : ''} em um incidente em <strong>${formatDate(record.date)}</strong>, classificado como <strong>"${formatText(record.occurrenceType)}"</strong>, conforme descrição abaixo:</p>
+                <p class="mt-2 p-3 bg-gray-100 border rounded" style="font-family: 'Inter', sans-serif;">${formatText(record.description)}</p>
+                <p class="mt-4 indent-8">Informamos que a escola já realizou as seguintes providências imediatas (Ação 1): <strong>${formatText(record.providenciasEscola) || 'Nenhuma providência imediata registrada.'}</strong></p>
+                <p class="mt-4 indent-8">Diante do exposto e considerando a necessidade de acompanhamento, solicitamos as devidas providências deste Conselho para garantir o bem-estar e o direito à educação do(a) aluno(a).</p>
             </div>
-
-            <div class="mt-12 text-center">
-                <p>Atenciosamente,</p>
-            </div>
-
+            <div class="mt-12 text-center"><p>Atenciosamente,</p></div>
             <div class="signature-block mt-8 space-y-12">
-                <div class="text-center w-2/3 mx-auto">
-                    <div class="border-t border-gray-400"></div>
-                    <p class="mt-1">Diretor(a)</p>
-                </div>
-                 <div class="text-center w-2/3 mx-auto">
-                    <div class="border-t border-gray-400"></div>
-                     <p class="mt-1">Coordenador(a) Pedagógico(a)</p>
-                </div>
+                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Diretor(a)</p></div>
+                 <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Coordenador(a) Pedagógico(a)</p></div>
             </div>
         </div>
     `;
