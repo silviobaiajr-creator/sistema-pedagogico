@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: firestore.js
-// VERSÃO: 2.1 (Com Paginação e Busca Server-Side)
+// VERSÃO: 2.3 (Busca Multi-Caso Inteligente)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
@@ -9,42 +9,24 @@ import {
 import { db } from './firebase.js';
 import { state } from './state.js';
 
-// --- FUNÇÕES DE REFERÊNCIA (Caminhos para os dados) ---
+// --- FUNÇÕES DE REFERÊNCIA ---
 
-/**
- * Retorna a referência para a COLEÇÃO de alunos.
- * @returns {CollectionReference}
- */
 export const getStudentsCollectionRef = () => {
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     return collection(db, `/artifacts/${appId}/public/data/students`);
 };
 
-/**
- * Retorna a referência para o documento de configurações da escola.
- * @returns {DocumentReference}
- */
 export const getSchoolConfigDocRef = () => {
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     return doc(db, `/artifacts/${appId}/public/data/school-data`, 'config');
 };
 
-/**
- * Retorna a referência para uma coleção principal ('occurrences' ou 'absences').
- * @param {string} type - O nome da coleção.
- * @returns {CollectionReference}
- */
 export const getCollectionRef = (type) => {
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const collectionName = type === 'occurrence' ? 'occurrences' : 'absences';
     return collection(db, `/artifacts/${appId}/public/data/${collectionName}`);
 };
 
-/**
- * Retorna a referência para um documento de contador.
- * @param {string} counterName - O nome do contador (ex: 'occurrences').
- * @returns {DocumentReference}
- */
 export const getCounterDocRef = (counterName) => {
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     return doc(db, `/artifacts/${appId}/public/data/counters`, counterName);
@@ -94,26 +76,16 @@ export const deleteRecord = (type, id) => deleteDoc(doc(getCollectionRef(type), 
 
 // --- FUNÇÕES DE LEITURA OTIMIZADAS (PAGINAÇÃO E BUSCA) ---
 
-/**
- * (OTIMIZADO) Carrega alunos de forma paginada.
- * @param {object|null} lastVisibleDoc - O último documento carregado (cursor) ou null para o início.
- * @param {number} pageSize - Quantidade de registos por página (Padrão: 50).
- * @returns {Promise<object>} - { students: Array, lastVisible: DocSnapshot }
- */
 export const loadStudentsPaginated = async (lastVisibleDoc = null, pageSize = 50) => {
     try {
         const studentsRef = getStudentsCollectionRef();
-        
-        // Consulta base ordenada por nome
         let q = query(studentsRef, orderBy('name'), limit(pageSize));
 
-        // Se tiver cursor, começa depois dele
         if (lastVisibleDoc) {
             q = query(studentsRef, orderBy('name'), startAfter(lastVisibleDoc), limit(pageSize));
         }
 
         const querySnapshot = await getDocs(q);
-        
         const studentsList = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
@@ -122,7 +94,6 @@ export const loadStudentsPaginated = async (lastVisibleDoc = null, pageSize = 50
         });
 
         const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
-        
         return { students: studentsList, lastVisible };
 
     } catch (error) {
@@ -132,63 +103,77 @@ export const loadStudentsPaginated = async (lastVisibleDoc = null, pageSize = 50
 };
 
 /**
- * (NOVO) Busca alunos pelo nome no servidor (Firestore).
- * Essencial quando se tem milhares de alunos e não se pode filtrar no cliente.
- * Nota: O Firestore é case-sensitive por padrão. Para busca perfeita, precisaríamos de um campo 'name_lowercase'.
- * Aqui usamos uma busca de prefixo simples.
+ * Auxiliar para converter texto para Title Case (Primeira Letra Maiúscula).
+ * Ex: "joao da silva" -> "Joao Da Silva"
+ */
+const toTitleCase = (str) => {
+    return str.replace(/\w\S*/g, (txt) => {
+        return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+    });
+}
+
+/**
+ * (ATUALIZADO 2.3) Busca Inteligente Multi-Caso.
+ * Tenta encontrar o aluno buscando pelo termo exato, TitleCase e UpperCase simultaneamente.
  */
 export const searchStudentsByName = async (searchText) => {
     if (!searchText) return [];
     
-    // Normaliza para evitar buscas vazias
-    const term = searchText.trim();
-    // O caractere \uf8ff é um truque do Firestore para simular "começa com"
-    const endTerm = term + '\uf8ff';
+    const rawTerm = searchText.trim();
+    if (!rawTerm) return [];
 
-    try {
-        const studentsRef = getStudentsCollectionRef();
+    // Cria variações do termo para tentar "adivinhar" como está no banco
+    const variations = new Set();
+    variations.add(rawTerm); // Como digitado
+    variations.add(rawTerm.toLowerCase()); // Minúsculo
+    variations.add(rawTerm.toUpperCase()); // Maiúsculo (comum em sistemas antigos)
+    variations.add(toTitleCase(rawTerm)); // Title Case (Padrão de nomes: Ana Silva)
+
+    const studentsRef = getStudentsCollectionRef();
+    const promises = [];
+
+    // Dispara uma busca para cada variação
+    variations.forEach(term => {
+        const endTerm = term + '\uf8ff'; // Truque do Firestore para "começa com"
         const q = query(
             studentsRef, 
             orderBy('name'), 
             where('name', '>=', term),
             where('name', '<=', endTerm),
-            limit(20) // Limita resultados da busca para não travar
+            limit(10) // Limite menor por variação para não sobrecarregar
         );
+        promises.push(getDocs(q));
+    });
 
-        const querySnapshot = await getDocs(q);
-        const results = [];
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            if (!data.matricula) data.matricula = doc.id;
-            results.push(data);
+    try {
+        const snapshots = await Promise.all(promises);
+        const resultsMap = new Map(); // Map para remover duplicatas (mesmo aluno encontrado em variações diferentes)
+
+        snapshots.forEach(snap => {
+            snap.forEach(doc => {
+                const data = doc.data();
+                if (!data.matricula) data.matricula = doc.id;
+                resultsMap.set(data.matricula, data);
+            });
         });
-        return results;
+
+        return Array.from(resultsMap.values());
 
     } catch (error) {
-        console.error("Erro na busca de alunos:", error);
+        console.error("Erro na busca inteligente de alunos:", error);
         return [];
     }
 };
 
-/**
- * (LEGADO/COMPATIBILIDADE) Função antiga adaptada.
- * Agora carrega apenas a PRIMEIRA página para popular o estado inicial,
- * evitando o crash de "Download da Morte".
- */
 export const loadStudents = async () => {
     try {
-        // Carrega apenas os primeiros 50 para a interface inicial
         const { students, lastVisible } = await loadStudentsPaginated(null, 50);
-        
         state.students = students;
-        
-        // Salva o cursor no estado (precisaremos adicionar isso ao state.js depois)
         state.pagination = {
             lastVisible: lastVisible,
             hasMore: students.length === 50,
             isLoading: false
         };
-
         console.log(`Inicialização: ${students.length} alunos carregados.`);
     } catch (error) {
         console.error("Erro ao carregar lista inicial:", error);
@@ -199,24 +184,16 @@ export const loadStudents = async () => {
     }
 };
 
-/**
- * (NOVO) Busca um aluno específico pelo ID.
- * Útil quando uma ocorrência cita um aluno que não está na lista paginada atual.
- */
 export const getStudentById = async (studentId) => {
-    // Primeiro verifica se já está na memória
     const cachedStudent = state.students.find(s => s.matricula === studentId);
     if (cachedStudent) return cachedStudent;
 
     try {
         const docRef = doc(getStudentsCollectionRef(), studentId);
         const docSnap = await getDoc(docRef);
-        
         if (docSnap.exists()) {
             const data = docSnap.data();
             if (!data.matricula) data.matricula = docSnap.id;
-            // Opcional: Adicionar ao state.students para cache futuro? 
-            // Não por enquanto, para não poluir a lista visual da tabela.
             return data;
         }
         return null;
@@ -273,9 +250,7 @@ export const getIncidentByGroupId = async (groupId) => {
         const mainRecord = incident.records[0];
         const participantsList = mainRecord.participants || [];
 
-        // Otimização: Busca paralela de alunos faltantes
         const studentPromises = participantsList.map(async (participant) => {
-            // Tenta buscar na memória ou no banco individualmente
             const student = await getStudentById(participant.studentId);
             if (student) {
                 return {
@@ -290,7 +265,6 @@ export const getIncidentByGroupId = async (groupId) => {
         });
 
         const resolvedStudents = await Promise.all(studentPromises);
-        
         resolvedStudents.forEach(item => {
             if (item) incident.participantsInvolved.set(item.id, item.data);
         });
