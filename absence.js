@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 3.0 (Padronização de Fluxo e Modais)
+// VERSÃO: 3.1 (Correção: Prevenção de Recarga no Form Submission)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -854,7 +854,10 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
  * Lida com a submissão do formulário de Busca Ativa.
  */
 async function handleAbsenceSubmit(e) {
-    e.preventDefault();
+    // [DEBUG] Confirmação de que o handler está a correr ANTES do preventDefault
+    console.log("DEBUG: Tentativa de submissão do formulário de Busca Ativa interceptada."); 
+    
+    e.preventDefault(); // <-- ESTA LINHA É CRÍTICA PARA IMPEDIR A RECARGA DA PÁGINA
     const form = e.target;
     let firstInvalidField = null;
     
@@ -1195,7 +1198,7 @@ export const initAbsenceListeners = () => {
     
     // REQUISIÇÃO 2: Barra de pesquisa principal agora é APENAS filtro.
     if (dom.searchAbsences) {
-        dom.searchAbsences.removeEventListener('input', setupAbsenceAutocomplete); // Remove listener antigo
+        // [AQUI] Remove listener antigo (se existia)
         dom.searchAbsences.addEventListener('input', (e) => {
             state.filterAbsences = e.target.value; 
             // Garante que o container de sugestões esteja escondido, pois agora é apenas filtro
@@ -1220,9 +1223,12 @@ export const initAbsenceListeners = () => {
         renderAbsences();
     });
 
-    // (REMOVIDO: setupAbsenceAutocomplete() foi removido)
-
-    dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
+    // CORREÇÃO CRÍTICA: Garante que o listener de submissão está anexado
+    if (dom.absenceForm) {
+        dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
+    } else {
+        console.error("ERRO CRÍTICO: Dom.absenceForm não encontrado ao inicializar listeners. A submissão do formulário causará recarga da página.");
+    }
     
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
