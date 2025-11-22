@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 2.2 (Busca de Alunos no Servidor e Filtros Insensíveis a Acentos)
+// VERSÃO: 2.4 (Persistência de Dados de Aluno em Ocorrências)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
@@ -170,6 +170,11 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
                         item.innerHTML = `<span class="font-semibold text-gray-800">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
                         
                         item.addEventListener('click', () => {
+                            // (CORREÇÃO) Cache Imediato: Adiciona à memória se não existir
+                            if (!state.students.find(s => s.matricula === student.matricula)) {
+                                state.students.push(student);
+                            }
+
                             studentPendingRoleSelection = student;
                             roleSelectionStudentName.textContent = student.name;
                             roleSelectionPanel.classList.remove('hidden');
@@ -180,11 +185,11 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
                         suggestionsElement.appendChild(item);
                     });
                 } else {
-                    suggestionsElement.innerHTML = '<div class="p-2 text-gray-500 text-xs">Nenhum aluno encontrado.</div>';
+                    suggestionsContainer.innerHTML = '<div class="p-2 text-gray-500 text-xs">Nenhum aluno encontrado.</div>';
                 }
             } catch (error) {
                 console.error("Erro na busca de alunos:", error);
-                suggestionsElement.innerHTML = '<div class="p-2 text-red-500 text-xs">Erro na busca.</div>';
+                suggestionsContainer.innerHTML = '<div class="p-2 text-red-500 text-xs">Erro na busca.</div>';
             }
         }, 400);
     });
@@ -711,9 +716,12 @@ async function handleOccurrenceSubmit(e) {
     const groupId = document.getElementById('occurrence-group-id').value;
     if (state.selectedStudents.size === 0) return showToast("Selecione pelo menos um aluno.");
 
+    // (CORREÇÃO) Salva também Nome e Turma junto com ID e Papel
     const participants = Array.from(state.selectedStudents.entries()).map(([studentId, data]) => ({
         studentId: studentId,
-        role: data.role
+        role: data.role,
+        studentName: data.student.name, // Desnormalização
+        studentClass: data.student.class // Desnormalização
     }));
 
     const collectiveData = {
@@ -756,6 +764,10 @@ async function handleOccurrenceSubmit(e) {
                     const newRecordData = {
                         ...collectiveData,
                         studentId,
+                        // (Opcional) Também salvar na raiz para redundância
+                        studentName: participant.studentName,
+                        studentClass: participant.studentClass,
+                        
                         occurrenceGroupId: groupId,
                         statusIndividual: 'Aguardando Convocação',
                         meetingDate: null, meetingTime: null, 
@@ -813,6 +825,10 @@ async function handleOccurrenceSubmit(e) {
                 const recordData = {
                     ...collectiveData, 
                     studentId: participant.studentId,
+                    // (Desnormalização redundante na raiz para fácil acesso)
+                    studentName: participant.studentName,
+                    studentClass: participant.studentClass,
+
                     occurrenceGroupId: newGroupId,
                     statusIndividual: 'Aguardando Convocação',
                     meetingDate: null, meetingTime: null,

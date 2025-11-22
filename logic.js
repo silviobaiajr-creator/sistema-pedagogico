@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: logic.js
-// VERSÃO: 2.2 (Resiliente a Paginação)
+// VERSÃO: 2.3 (Resiliente a Paginação e Desnormalização de Ocorrências)
 
 import { state } from './state.js';
 import { getStatusBadge } from './utils.js';
@@ -45,21 +45,35 @@ export const getFilteredOccurrences = () => {
 
         // (CORREÇÃO) Lógica resiliente para alunos não carregados (paginação)
         if (!incident.participantsInvolved.has(occ.studentId)) {
-            // 1. Tenta encontrar na lista carregada
+            // 1. Tenta encontrar na lista carregada (Memória)
             let student = state.students.find(s => s.matricula === occ.studentId);
             
-            // 2. Se não achar, cria um Placeholder para não quebrar a UI
+            // 2. Se não achar, tenta usar os dados cacheados no próprio registro (Desnormalização)
             if (!student) {
-                // Tenta usar o nome salvo no próprio registro de ocorrência (se existir futuramente) ou usa ID
-                // Verificamos se temos esse aluno no cache de seleção (state.selectedStudents pode ter sobras)
-                if (state.selectedStudents && state.selectedStudents.has(occ.studentId)) {
+                // Verifica se o registro tem dados cacheados do aluno (novo padrão)
+                const participantData = occ.participants?.find(p => p.studentId === occ.studentId);
+                
+                // Prioridade: Dados no participants > Dados no registro raiz (se houver) > Cache de seleção > Placeholder
+                const cachedName = participantData?.studentName || occ.studentName;
+                const cachedClass = participantData?.studentClass || occ.studentClass;
+
+                if (cachedName) {
+                    student = {
+                        matricula: occ.studentId,
+                        name: cachedName,
+                        class: cachedClass || '?',
+                        isPlaceholder: true // Marca visual (opcional, por enquanto invisível)
+                    };
+                } else if (state.selectedStudents && state.selectedStudents.has(occ.studentId)) {
+                     // Fallback para cache de seleção recente
                      student = state.selectedStudents.get(occ.studentId).student;
                 } else {
+                     // Fallback final: Apenas ID
                      student = {
                         matricula: occ.studentId,
-                        name: `Aluno (${occ.studentId})`, // Nome provisório
+                        name: `Aluno (${occ.studentId})`, 
                         class: '?',
-                        isPlaceholder: true // Marca para saber que não é completo
+                        isPlaceholder: true
                     };
                 }
             }
