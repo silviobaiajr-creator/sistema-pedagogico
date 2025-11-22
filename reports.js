@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 2.6 (Busca Híbrida Sob Demanda - Correção Definitiva de Cache)
+// VERSÃO: 2.6 (Busca Híbrida Sob Demanda - Correção Definitiva de Cache e Exports)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -345,6 +345,79 @@ export const openOccurrenceRecordModal = async (groupId) => {
 
 
 /**
+ * Abre o modal de histórico de alterações de uma ocorrência.
+ */
+export const openHistoryModal = async (groupId) => {
+     const incident = await fetchIncidentById(groupId);
+
+    if (!incident) return showToast('Incidente não encontrado.');
+
+    const allHistory = incident.records.flatMap(r => r.history || []);
+
+    const history = allHistory.sort((a, b) => (b.timestamp?.seconds || new Date(b.timestamp).getTime()) - (a.timestamp?.seconds || new Date(a.timestamp).getTime()));
+
+    const historyHTML = history.length > 0
+        ? history.map(entry => {
+            const timestamp = entry.timestamp?.seconds ? new Date(entry.timestamp.seconds * 1000) : (entry.timestamp ? new Date(entry.timestamp) : new Date());
+            return `<div class="flex items-start space-x-4 py-3"><div class="flex-shrink-0"><div class="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center"><i class="fas fa-history text-gray-500"></i></div></div><div><p class="text-sm font-semibold text-gray-800">${formatText(entry.action)}</p><p class="text-xs text-gray-500">Por: ${formatText(entry.user || 'Sistema')} em ${timestamp.toLocaleDateString('pt-BR')} às ${timestamp.toLocaleTimeString('pt-BR')}</p></div></div>`;
+        }).join('')
+        : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este incidente.</p>';
+
+    document.getElementById('history-view-title').textContent = `Histórico do Incidente`;
+    const incidentDate = incident.records.length > 0 ? incident.records[0].date : null;
+    document.getElementById('history-view-subtitle').innerHTML = `<strong>ID:</strong> ${groupId}<br><strong>Data:</strong> ${formatDate(incidentDate)}`;
+    document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
+    openModal(document.getElementById('history-view-modal-backdrop'));
+};
+
+/**
+ * Abre o modal de histórico de alterações de um processo de Busca Ativa.
+ */
+export const openAbsenceHistoryModal = (processId) => {
+    const processActions = state.absences.filter(a => a.processId === processId);
+    if (processActions.length === 0) return showToast('Processo não encontrado.');
+
+    const studentId = processActions[0].studentId;
+    // (CORREÇÃO) Resiliência na busca do nome (não é async aqui porque é modal simples de histórico)
+    // Como é histórico, não precisamos fazer fetch sob demanda, basta mostrar o que temos.
+    const studentName = formatText(processActions[0].studentName || state.students.find(s => s.matricula === studentId)?.name || `Aluno (${studentId})`);
+
+    const allHistory = processActions.flatMap(a => a.history || []);
+
+    processActions.forEach(action => {
+        if (!action.history || action.history.length === 0) {
+            allHistory.push({
+                action: `Ação "${actionDisplayTitles[action.actionType]}" criada.`,
+                user: action.createdBy || 'Sistema',
+                timestamp: action.createdAt
+            });
+        }
+    });
+
+    const history = allHistory.sort((a, b) => {
+        const timeA = a.timestamp?.seconds ? a.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
+        const timeB = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(a.timestamp).getTime();
+        return timeB - timeA;
+    });
+
+    const historyHTML = history.length > 0
+        ? history.map(entry => {
+            const timestamp = entry.timestamp?.seconds ? new Date(entry.timestamp.seconds * 1000) : (entry.timestamp ? new Date(entry.timestamp) : new Date());
+            return `<div class="flex items-start space-x-4 py-3"><div class="flex-shrink-0"><div class="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center"><i class="fas fa-history text-gray-500"></i></div></div><div><p class="text-sm font-semibold text-gray-800">${formatText(entry.action)}</p><p class="text-xs text-gray-500">Por: ${formatText(entry.user || 'Sistema')} em ${timestamp.toLocaleDateString('pt-BR')} às ${timestamp.toLocaleTimeString('pt-BR')}</p></div></div>`;
+        }).join('')
+        : '<p class="text-sm text-gray-500 text-center py-4">Nenhum histórico de alterações para este processo.</p>';
+
+    document.getElementById('history-view-title').textContent = `Histórico do Processo`;
+    document.getElementById('history-view-subtitle').innerHTML = `
+        <strong>Aluno:</strong> ${studentName}<br>
+        <strong class="text-xs">ID do Processo:</strong> ${processId}
+    `;
+    document.getElementById('history-view-content').innerHTML = `<div class="divide-y divide-gray-200">${historyHTML}</div>`;
+    openModal(document.getElementById('history-view-modal-backdrop'));
+};
+
+
+/**
  * Abre a ficha de notificação de Busca Ativa.
  * (AGORA ASSÍNCRONA)
  */
@@ -428,11 +501,25 @@ export const openFichaViewModal = async (id) => {
     const contentHTML = `
         <div class="space-y-6 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             ${getReportHeaderHTML()}
+            
             <p class="text-right mt-4">${state.config?.city || "Cidade"}, ${currentDate}</p>
+
             <h3 class="font-semibold mt-1 uppercase text-center">${title}</h3>
+            
             <div class="text-justify">${body}</div>
-            <div class="mt-8 signature-block"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Ciente do Responsável</p></div></div>
-             <div class="mt-8 signature-block"><div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="text-center mt-1">Assinatura da Gestão Escolar</p></div></div>
+            
+            <div class="mt-8 signature-block">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="text-center mt-1">Ciente do Responsável</p>
+                </div>
+            </div>
+             <div class="mt-8 signature-block">
+                <div class="text-center w-2/3 mx-auto">
+                    <div class="border-t border-gray-400"></div>
+                    <p class="text-center mt-1">Assinatura da Gestão Escolar</p>
+                </div>
+            </div>
         </div>`;
 
     document.getElementById('ficha-view-title').textContent = title;
@@ -608,7 +695,7 @@ export const generateAndShowOficio = async (action, oficioNumber = null) => {
         </div>
     `;
 
-    document.getElementById('report-view-title').textContent = `Ofício Nº ${finalOficioNumber}/${finalOficioYear}`;
+    document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNumber}/${oficioYear}`;
     document.getElementById('report-view-content').innerHTML = oficioHTML;
     openModal(dom.reportViewModalBackdrop);
 };
@@ -1023,7 +1110,7 @@ export const generateAndShowOccurrenceOficio = async (record, studentObj, oficio
     const oficioHTML = `
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             <div>${getReportHeaderHTML()}<p class="text-right mt-4">${city}, ${currentDate}.</p></div>
-            <div class="mt-8"><p class="font-bold text-base">OFÍCIO Nº ${String(oficioNumber).padStart(3, '0')}/${oficioYear}</p></div>
+            <div class="mt-8"><p class="font-bold text-base">OFÍCIO Nº ${String(oficioNumber).padStart(3, '0')}/${finalOficioYear}</p></div>
             <div class="mt-8"><p><strong>Ao</strong></p><p><strong>Conselho Tutelar</strong></p><p><strong>${city}</strong></p></div>
             <div class="mt-8"><p><strong>Assunto:</strong> Encaminhamento de aluno por ocorrência disciplinar.</p></div>
             <div class="mt-8 text-justify">
