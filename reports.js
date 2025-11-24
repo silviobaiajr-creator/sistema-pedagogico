@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 3.2 (Correção: Resgate de dados de faltas do histórico do processo)
+// VERSÃO: 3.3 (Limpeza da Ficha Consolidada e Notificações de Ocorrência com Contagem de Tentativas)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -126,6 +126,7 @@ export const openStudentSelectionModal = async (groupId) => {
 
 /**
  * Gera e exibe a notificação formal (Ocorrências).
+ * ATUALIZADO: Inclui lógica de contagem de tentativas (similar à Busca Ativa).
  */
 export const openIndividualNotificationModal = async (incident, studentObj) => {
     const data = incident.records.find(r => r.studentId === studentObj.matricula);
@@ -145,6 +146,14 @@ export const openIndividualNotificationModal = async (incident, studentObj) => {
         showToast(`Erro: É necessário agendar a Convocação (Ação 2) para ${student.name}.`);
         return;
     }
+
+    // Cálculo da Tentativa Atual baseada no histórico de contatos falhados
+    let attemptCount = 1;
+    if (data.contactSucceeded_1 != null) attemptCount = 2;
+    if (data.contactSucceeded_2 != null) attemptCount = 3;
+    
+    const attemptLabels = { 1: "primeira", 2: "segunda", 3: "terceira" };
+    const attemptText = `Esta é a <strong>${attemptLabels[attemptCount] || 'uma'} tentativa de contato</strong> realizada pela escola.`;
 
     const responsibleNames = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -175,6 +184,7 @@ export const openIndividualNotificationModal = async (incident, studentObj) => {
             <p class="text-justify mt-4">
                 Prezados(as), vimos por meio desta notificá-los sobre um registro referente ao(à) aluno(a) acima identificado(a),
                 referente a um incidente classificado como <strong>"${formatText(data.occurrenceType)}"</strong>, ocorrido em ${formatDate(data.date)}.
+                ${attemptText}
             </p>
 
             <p class="text-justify bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded" style="font-family: 'Inter', sans-serif;">
@@ -538,6 +548,7 @@ export const openFichaViewModal = async (id) => {
 
 /**
  * Gera a Ficha Consolidada de Busca Ativa.
+ * ATUALIZADO: Agora esconde tentativas que ainda não aconteceram.
  */
 export const generateAndShowConsolidatedFicha = async (studentId, processId = null) => {
     let studentActions = state.absences.filter(action => action.studentId === studentId);
@@ -563,6 +574,29 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
     const faltasData = studentActions.find(a => a.periodoFaltasStart) || {};
     const currentProcessId = processId || faltasData.processId || 'N/A';
 
+    // Helper interno para renderizar o bloco da tentativa somente se existir ID
+    const renderAttemptBlock = (attempt, label, addBorder) => {
+        if (!attempt || !attempt.id) return ''; // Se não tem ID, retorna string vazia
+        return `
+            <div class="pl-4 ${addBorder ? 'border-t pt-2' : ''}">
+                <p class="font-medium underline">${label}:</p>
+                <p><strong>Data da Convocação:</strong> ${formatDate(attempt.meetingDate)} às ${formatTime(attempt.meetingTime)}</p>
+                <p><strong>Conseguiu contato?</strong> ${attempt.contactSucceeded === 'yes' ? 'Sim' : attempt.contactSucceeded === 'no' ? 'Não' : ''}</p>
+                <p><strong>Dia do contato:</strong> ${formatDate(attempt.contactDate)}</p>
+                <p><strong>Justificativa:</strong> ${formatText(attempt.contactReason)}</p>
+            </div>`;
+    };
+
+    // Gera o HTML das tentativas dinamicamente
+    let attemptsHTML = '';
+    attemptsHTML += renderAttemptBlock(t1, '1ª Tentativa', false);
+    attemptsHTML += renderAttemptBlock(t2, '2ª Tentativa', true);
+    attemptsHTML += renderAttemptBlock(t3, '3ª Tentativa', true);
+
+    if (attemptsHTML === '') {
+        attemptsHTML = '<div class="pl-4 text-gray-500 italic">Nenhuma tentativa registrada.</div>';
+    }
+
     const fichaHTML = `
         <div class="space-y-4 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             ${getReportHeaderHTML()}
@@ -587,27 +621,7 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
 
             <div class="border rounded-md p-3 space-y-3" style="font-family: 'Inter', sans-serif;">
                 <h4 class="font-semibold text-base">Tentativas de contato</h4>
-                <div class="pl-4">
-                    <p class="font-medium underline">1ª Tentativa:</p>
-                    <p><strong>Data da Convocação:</strong> ${formatDate(t1.meetingDate)} às ${formatTime(t1.meetingTime)}</p>
-                    <p><strong>Conseguiu contato?</strong> ${t1.contactSucceeded === 'yes' ? 'Sim' : t1.contactSucceeded === 'no' ? 'Não' : ''}</p>
-                    <p><strong>Dia do contato:</strong> ${formatDate(t1.contactDate)}</p>
-                    <p><strong>Justificativa:</strong> ${formatText(t1.contactReason)}</p>
-                </div>
-                <div class="pl-4 border-t pt-2">
-                    <p class="font-medium underline">2ª Tentativa:</p>
-                    <p><strong>Data da Convocação:</strong> ${formatDate(t2.meetingDate)} às ${formatTime(t2.meetingTime)}</p>
-                    <p><strong>Conseguiu contato?</strong> ${t2.contactSucceeded === 'yes' ? 'Sim' : t2.contactSucceeded === 'no' ? 'Não' : ''}</p>
-                    <p><strong>Dia do contato:</strong> ${formatDate(t2.contactDate)}</p>
-                    <p><strong>Justificativa:</strong> ${formatText(t2.contactReason)}</p>
-                </div>
-                <div class="pl-4 border-t pt-2">
-                    <p class="font-medium underline">3ª Tentativa:</p>
-                     <p><strong>Data da Convocação:</strong> ${formatDate(t3.meetingDate)} às ${formatTime(t3.meetingTime)}</p>
-                    <p><strong>Conseguiu contato?</strong> ${t3.contactSucceeded === 'yes' ? 'Sim' : t3.contactSucceeded === 'no' ? 'Não' : ''}</p>
-                    <p><strong>Dia do contato:</strong> ${formatDate(t3.contactDate)}</p>
-                    <p><strong>Justificativa:</strong> ${formatText(t3.contactReason)}</p>
-                </div>
+                ${attemptsHTML}
             </div>
 
             <div class="border rounded-md p-3 space-y-2" style="font-family: 'Inter', sans-serif;">
