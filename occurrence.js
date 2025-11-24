@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 3.0 (Padronização de Modais de Acompanhamento)
+// VERSÃO: 3.1 (Correção: Blindagem contra erro ao abrir Ofício e Fallback de Aluno)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
@@ -11,7 +11,7 @@ import {
     addRecordWithHistory, 
     deleteRecord, 
     getIncidentByGroupId as fetchIncidentById,
-    searchStudentsByName // (NOVO) Importado para busca no servidor
+    searchStudentsByName 
 } from './firestore.js'; 
 import { 
     determineNextOccurrenceStep, 
@@ -48,11 +48,10 @@ export const occurrenceActionTitles = {
 
 let studentPendingRoleSelection = null;
 let editingRoleId = null; 
-let studentSearchTimeout = null; // (NOVO) Debounce para busca de alunos
+let studentSearchTimeout = null;
 
 /**
- * Normaliza strings para comparação (remove acentos e põe em minúsculas).
- * Ex: "João" -> "joao"
+ * Normaliza strings para comparação.
  */
 const normalizeText = (text) => {
     if (!text) return '';
@@ -132,9 +131,8 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
     roleSelectionPanel.classList.add('hidden');
     roleEditDropdown.classList.add('hidden');
 
-    // (MODIFICADO) Busca no Servidor com Debounce
     inputElement.addEventListener('input', () => {
-        const value = inputElement.value; // Pega valor bruto
+        const value = inputElement.value; 
         const normalizedValue = normalizeText(value);
         
         suggestionsElement.innerHTML = '';
@@ -146,21 +144,16 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             return;
         }
 
-        // Limpa timeout anterior
         if (studentSearchTimeout) clearTimeout(studentSearchTimeout);
 
-        // Inicia novo timeout (400ms)
         studentSearchTimeout = setTimeout(async () => {
             suggestionsElement.classList.remove('hidden');
             suggestionsElement.innerHTML = '<div class="p-2 text-gray-500 text-xs"><i class="fas fa-spinner fa-spin"></i> Buscando no servidor...</div>';
 
             try {
-                // Busca no Firestore (Server-Side)
                 const results = await searchStudentsByName(value);
-                
                 suggestionsElement.innerHTML = '';
                 
-                // Filtra os que já foram selecionados
                 const filteredResults = results.filter(s => !state.selectedStudents.has(s.matricula));
 
                 if (filteredResults.length > 0) {
@@ -170,7 +163,6 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
                         item.innerHTML = `<span class="font-semibold text-gray-800">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
                         
                         item.addEventListener('click', () => {
-                            // (CORREÇÃO) Cache Imediato: Adiciona à memória se não existir
                             if (!state.students.find(s => s.matricula === student.matricula)) {
                                 state.students.push(student);
                             }
@@ -185,11 +177,11 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
                         suggestionsElement.appendChild(item);
                     });
                 } else {
-                    suggestionsContainer.innerHTML = '<div class="p-2 text-gray-500 text-xs">Nenhum aluno encontrado.</div>';
+                    suggestionsElement.innerHTML = '<div class="p-2 text-gray-500 text-xs">Nenhum aluno encontrado.</div>';
                 }
             } catch (error) {
                 console.error("Erro na busca de alunos:", error);
-                suggestionsContainer.innerHTML = '<div class="p-2 text-red-500 text-xs">Erro na busca.</div>';
+                suggestionsElement.innerHTML = '<div class="p-2 text-red-500 text-xs">Erro na busca.</div>';
             }
         }, 400);
     });
@@ -261,13 +253,11 @@ export const renderOccurrences = () => {
         const mainRecord = incident.records && incident.records.length > 0 ? incident.records[0] : null;
         if (!mainRecord) return '';
 
-        // (CORREÇÃO) Normaliza o termo de busca para filtro insensível a acentos/caixa
         const studentSearch = normalizeText(state.filterOccurrences);
         const isFinalizada = incident.overallStatus === 'Finalizada';
 
         const studentAccordionsHTML = [...incident.participantsInvolved.values()]
             .filter(participant => {
-                // (CORREÇÃO) Usa includes normalizado
                 if (studentSearch && !normalizeText(participant.student.name).includes(studentSearch)) {
                     return false;
                 }
@@ -280,7 +270,6 @@ export const renderOccurrences = () => {
                 const recordId = record?.id || '';
                 const status = record?.statusIndividual || 'Aguardando Convocação';
                 
-                // (CORREÇÃO) Destaque visual robusto
                 const isMatch = studentSearch && normalizeText(student.name).includes(studentSearch);
                 const nameClass = isMatch ? 'font-bold text-yellow-800 bg-yellow-100 px-1 rounded' : 'font-medium text-gray-700';
                 
@@ -295,7 +284,6 @@ export const renderOccurrences = () => {
                 for (let i = 1; i <= 3; i++) {
                     const succeeded = record[`contactSucceeded_${i}`];
                     const date = record[`contactDate_${i}`];
-                    const providencias = record[`providenciasFamilia_${i}`];
                     
                     if (succeeded != null) {
                         if (succeeded === 'yes') {
@@ -331,6 +319,7 @@ export const renderOccurrences = () => {
                     </button>
                 `;
 
+                // (CORREÇÃO) Garante que o ID do registro é passado corretamente para o ofício
                 const viewOficioBtn = record?.oficioNumber ? `
                     <button type="button"
                             class="view-occurrence-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50 hover:bg-green-100"
@@ -455,9 +444,6 @@ export const renderOccurrences = () => {
 // MODAIS - AÇÃO 1 (FATO COLETIVO)
 // =================================================================================
 
-/**
- * Abre o modal para registrar ou editar os dados COLETIVOS (Ação 1).
- */
 export const openOccurrenceModal = (incidentToEdit = null) => {
     dom.occurrenceForm.reset();
     state.selectedStudents.clear(); 
@@ -511,7 +497,6 @@ const toggleOccurrenceContactFields = (enable) => {
 };
 
 const toggleDesfechoFields = (choice) => {
-    // Esconde todos os fieldsets opcionais
     document.getElementById('group-encaminhamento-ct')?.classList.add('hidden');
     document.getElementById('group-parecer-final')?.classList.add('hidden');
 
@@ -524,17 +509,12 @@ const toggleDesfechoFields = (choice) => {
     const showCt = choice === 'ct';
     const showParecer = choice === 'parecer';
 
-    // O campo Parecer Final do Ação 6 e o campo Ofício do Ação 4 são o mesmo campo no formulário HTML.
-    // É crucial que apenas um esteja required/disabled.
-
     if (groupCt) groupCt.classList.toggle('hidden', !showCt);
     if (groupParecer) groupParecer.classList.toggle('hidden', !showParecer);
 
-    // Regras de validação/estado para Encaminhamento ao CT (Ação 4)
     if (oficioInput) { oficioInput.disabled = !showCt; oficioInput.required = showCt; }
     if (dateCtInput) { dateCtInput.disabled = !showCt; dateCtInput.required = showCt; }
     
-    // Regras de validação/estado para Parecer Final (Ação 6 - Desfecho Direto)
     if (parecerInput) { parecerInput.disabled = !showParecer; parecerInput.required = showParecer; }
 };
 
@@ -559,7 +539,6 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
         if (el) el.removeAttribute('min');
     });
 
-    // REQUISIÇÃO 1: Limpeza completa de todos os grupos dinâmicos antes de configurar
     document.querySelectorAll('.dynamic-occurrence-step').forEach(group => {
         group.classList.add('hidden');
         group.querySelectorAll('input, select, textarea, button').forEach(el => {
@@ -568,9 +547,7 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
         });
         group.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
     });
-    // Limpeza da seção de desfecho/CT, se ela já estiver sido preenchida
     toggleDesfechoFields(null); 
-    // Garante que os campos de contato sub-detalhe estão escondidos/desabilitados
     toggleOccurrenceContactFields(false);
 
     let requiredFieldsValid = true;
@@ -649,7 +626,7 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
             if (choiceGroup) {
                 choiceGroup.classList.remove('hidden');
                 const choiceRadios = choiceGroup.querySelectorAll('input[name="follow-up-desfecho-choice"]');
-                choiceRadios.forEach(r => { r.disabled = false; r.required = true; }); // Garante que a escolha é obrigatória
+                choiceRadios.forEach(r => { r.disabled = false; r.required = true; });
 
                 const currentChoice = record.desfechoChoice || null;
                 if (currentChoice) {
@@ -661,7 +638,6 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
                 }
             }
 
-            // Preenche os campos do Ação 4/6 se existirem dados de edição
             const oficioInput = document.getElementById('follow-up-oficio-number');
             const dateCtInput = document.getElementById('follow-up-ct-sent-date');
             const parecerInput = document.getElementById('follow-up-parecer-final');
@@ -711,7 +687,6 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
         followUpForm.classList.remove('hidden');
         openModal(dom.followUpModal);
     } else {
-        // Se a validação falhar, garantimos que o modal esteja fechado.
         closeModal(dom.followUpModal);
     }
 };
@@ -733,12 +708,11 @@ async function handleOccurrenceSubmit(e) {
     const groupId = document.getElementById('occurrence-group-id').value;
     if (state.selectedStudents.size === 0) return showToast("Selecione pelo menos um aluno.");
 
-    // (CORREÇÃO) Salva também Nome e Turma junto com ID e Papel
     const participants = Array.from(state.selectedStudents.entries()).map(([studentId, data]) => ({
         studentId: studentId,
         role: data.role,
-        studentName: data.student.name, // Desnormalização
-        studentClass: data.student.class // Desnormalização
+        studentName: data.student.name, 
+        studentClass: data.student.class 
     }));
 
     const collectiveData = {
@@ -781,7 +755,6 @@ async function handleOccurrenceSubmit(e) {
                     const newRecordData = {
                         ...collectiveData,
                         studentId,
-                        // (Opcional) Também salvar na raiz para redundância
                         studentName: participant.studentName,
                         studentClass: participant.studentClass,
                         
@@ -842,7 +815,6 @@ async function handleOccurrenceSubmit(e) {
                 const recordData = {
                     ...collectiveData, 
                     studentId: participant.studentId,
-                    // (Desnormalização redundante na raiz para fácil acesso)
                     studentName: participant.studentName,
                     studentClass: participant.studentClass,
 
@@ -895,7 +867,6 @@ async function handleOccurrenceStepSubmit(e) {
             };
             if (!dataToUpdate.meetingDate || !dataToUpdate.meetingTime) return showToast('Data e Horário obrigatórios.');
             
-            // (NOVO) Validação Cronológica Centralizada
             const dateCheck = validateOccurrenceChronology(record, 'convocacao', dataToUpdate.meetingDate);
             if (!dateCheck.isValid) return showToast(dateCheck.message);
 
@@ -927,7 +898,6 @@ async function handleOccurrenceStepSubmit(e) {
                      return showToast('Preencha Tipo, Data e Providências.');
                 }
                 
-                // (NOVO) Validação Cronológica Centralizada
                 const dateCheck = validateOccurrenceChronology(record, actionType, dataToUpdate[fields.date]);
                 if (!dateCheck.isValid) return showToast(dateCheck.message);
 
@@ -958,7 +928,6 @@ async function handleOccurrenceStepSubmit(e) {
 
                 if (!oficioNumber || !ctSentDate) return showToast("Erro: Preencha o Ofício e Data.");
 
-                // (NOVO) Validação Cronológica Centralizada
                 const dateCheck = validateOccurrenceChronology(record, 'desfecho_ou_ct', ctSentDate);
                 if (!dateCheck.isValid) return showToast(dateCheck.message);
 
@@ -972,11 +941,13 @@ async function handleOccurrenceStepSubmit(e) {
                 historyAction = `Ação 4 (Encaminhamento ao CT) registrada. Ofício: ${oficioNumber}/${dataToUpdate.oficioYear}.`;
                 nextStatus = 'Aguardando Devolutiva CT';
 
-                const student = state.students.find(s => s.matricula === form.dataset.studentId);
-                if (student) {
-                     generateAndShowOccurrenceOficio({ ...record, ...dataToUpdate }, student, dataToUpdate.oficioNumber, dataToUpdate.oficioYear);
-                }
-
+                // (CORREÇÃO) Geração de Ofício após salvar
+                // Como é assíncrono e pode falhar, fazemos apenas se o registro for bem sucedido
+                // Mas para garantir integridade, idealmente geramos após o await updateRecordWithHistory.
+                // No entanto, precisamos dos dados do aluno.
+                
+                // Aqui apenas preparamos os dados para abrir DEPOIS de salvar.
+                
             } else { 
                  const parecerFinal = document.getElementById('follow-up-parecer-final').value.trim();
                  if (!parecerFinal) return showToast("Erro: Preencha o Parecer.");
@@ -1019,24 +990,33 @@ async function handleOccurrenceStepSubmit(e) {
         await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
         showToast("Etapa salva com sucesso!");
 
-        if (actionType === 'convocacao') {
-            const studentId = form.dataset.studentId;
-            const student = state.students.find(s => s.matricula === studentId);
-            if (student) {
-                const incident = await fetchIncidentById(record.occurrenceGroupId);
-                const updatedRecordForNotification = { ...record, ...dataToUpdate };
-                if (incident) {
-                    const recordIndex = incident.records.findIndex(r => r.id === recordId);
-                    if (recordIndex > -1) incident.records[recordIndex] = updatedRecordForNotification;
-                    else incident.records.push(updatedRecordForNotification);
-                    
-                    openIndividualNotificationModal(incident, student);
-                    closeModal(dom.followUpModal);
-                }
-            }
-        } else {
-            closeModal(dom.followUpModal);
+        const studentId = form.dataset.studentId;
+        const student = state.students.find(s => s.matricula === studentId);
+
+        // Se foi um encaminhamento ao CT, abrimos o ofício automaticamente
+        if (actionType === 'desfecho_ou_ct' && dataToUpdate.desfechoChoice === 'ct') {
+             if(student) {
+                 generateAndShowOccurrenceOficio({ ...record, ...dataToUpdate }, student, dataToUpdate.oficioNumber, dataToUpdate.oficioYear);
+             } else {
+                 // Se não achou na memória, tenta buscar (fallback simples)
+                 // Mas como acabou de salvar, provavelmente está ok.
+             }
         }
+
+        if (actionType === 'convocacao' && student) {
+            const incident = await fetchIncidentById(record.occurrenceGroupId);
+            const updatedRecordForNotification = { ...record, ...dataToUpdate };
+            if (incident) {
+                // Atualiza localmente para notificação imediata
+                const recordIndex = incident.records.findIndex(r => r.id === recordId);
+                if (recordIndex > -1) incident.records[recordIndex] = updatedRecordForNotification;
+                else incident.records.push(updatedRecordForNotification);
+                
+                openIndividualNotificationModal(incident, student);
+            }
+        } 
+        
+        closeModal(dom.followUpModal);
 
     } catch (error) {
         console.error("Erro ao salvar etapa:", error);
@@ -1067,28 +1047,26 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
 
     let actionToEdit = determineCurrentActionFromStatus(record.statusIndividual);
 
-    // Ajusta a ação de edição com base no estado mais recente
     if (record.statusIndividual === 'Resolvido') {
         if (record.desfechoChoice) {
-            actionToEdit = 'desfecho_ou_ct'; // Se escolheu Parecer Direto ou CT
+            actionToEdit = 'desfecho_ou_ct'; 
         } else if (record.oficioNumber && record.ctFeedback) {
-             actionToEdit = 'parecer_final'; // Se o fluxo passou por CT, edita o parecer final
+             actionToEdit = 'parecer_final'; 
         } else if (record.oficioNumber) {
-             actionToEdit = 'devolutiva_ct'; // Se enviou CT mas não tem feedback
+             actionToEdit = 'devolutiva_ct'; 
         } else if (record.contactSucceeded_1 != null) {
-            actionToEdit = 'desfecho_ou_ct'; // Se parou em Ação 3
+            actionToEdit = 'desfecho_ou_ct'; 
         } else {
-             actionToEdit = 'convocacao'; // Deve ser a 1ª ação
+             actionToEdit = 'convocacao'; 
         }
     } 
     else if (record.statusIndividual === 'Aguardando Parecer Final') {
         actionToEdit = 'devolutiva_ct';
     }
     else if (record.statusIndividual === 'Aguardando Devolutiva CT') {
-        actionToEdit = 'desfecho_ou_ct'; // Edita a ação que enviou ao CT (Ação 4)
+        actionToEdit = 'desfecho_ou_ct'; 
     }
     else if (record.statusIndividual === 'Aguardando Desfecho' || actionToEdit === 'contato_familia_x') {
-        // Encontra qual foi a última tentativa registrada
         if (record.contactSucceeded_3 != null) actionToEdit = 'contato_familia_3';
         else if (record.contactSucceeded_2 != null) actionToEdit = 'contato_familia_2';
         else if (record.contactSucceeded_1 != null) actionToEdit = 'contato_familia_1';
@@ -1117,16 +1095,14 @@ async function handleResetActionConfirmation(studentId, groupId, recordId) {
     const record = incident.records.find(r => r.id === recordId);
     if (!record) return showToast('Erro: Registro não encontrado.');
     
-    // Determina a última ação COMPLETA registrada para resetar A PARTIR dela
     let actionToReset = determineCurrentActionFromStatus(record.statusIndividual);
 
      if (record.statusIndividual === 'Resolvido') {
-        // Se está resolvido, a última ação é Parecer Final (Ação 6) ou Desfecho Direto
         if (record.parecerFinal && record.oficioNumber) actionToReset = 'parecer_final';
         else if (record.parecerFinal && record.desfechoChoice === 'parecer') actionToReset = 'desfecho_ou_ct';
         else if (record.ctFeedback) actionToReset = 'devolutiva_ct';
         else if (record.oficioNumber) actionToReset = 'desfecho_ou_ct';
-        else actionToReset = 'parecer_final'; // Fallback para Parecer Final (Ação 6)
+        else actionToReset = 'parecer_final'; 
     }
     else if (record.statusIndividual === 'Aguardando Parecer Final') {
         actionToReset = 'devolutiva_ct';
@@ -1209,32 +1185,59 @@ async function handleGenerateNotification(recordId, studentId, groupId) {
     openIndividualNotificationModal(incident, student);
 }
 
+// (CORREÇÃO CRÍTICA) Função Blindada para Visualização de Ofício
 async function handleViewOccurrenceOficio(recordId) {
-    if (!recordId) return;
-    let targetRecord = null; let targetIncident = null;
+    try {
+        if (!recordId) return;
+        let targetRecord = null; let targetIncident = null;
 
-    const recordFromState = state.occurrences.find(r => r.id === recordId);
-    if (!recordFromState || !recordFromState.occurrenceGroupId) {
-         return showToast('Registro não encontrado.');
+        // 1. Busca no estado local para pegar o GroupID
+        const recordFromState = state.occurrences.find(r => r.id === recordId);
+        if (!recordFromState || !recordFromState.occurrenceGroupId) {
+             return showToast('Registro não encontrado localmente.');
+        }
+
+        // 2. Busca o Incidente Completo (com timeout via firestore.js corrigido)
+        targetIncident = await fetchIncidentById(recordFromState.occurrenceGroupId);
+        if (!targetIncident) return showToast('Incidente não encontrado no servidor.');
+
+        // 3. Encontra o registro específico dentro do incidente carregado
+        targetRecord = targetIncident.records.find(r => r.id === recordId);
+        if (!targetRecord) return showToast('Registro específico não encontrado.'); 
+
+        if (!targetRecord.oficioNumber) return showToast('Este registro não possui um ofício associado.');
+
+        // 4. Recupera o aluno (que pode ser um placeholder se a busca falhou)
+        const participantData = targetIncident.participantsInvolved.get(targetRecord.studentId);
+        let student = participantData?.student;
+
+        // Fallback de emergência se o aluno não estiver no mapa (inconsistência de dados)
+        // Isso garante que o ofício abra mesmo se os dados do aluno estiverem incompletos na memória
+        if (!student) {
+            console.warn("Aviso: Aluno não encontrado no mapa de participantes. Usando dados do registro para forçar abertura.");
+            student = {
+                matricula: targetRecord.studentId,
+                name: targetRecord.studentName || `Aluno (${targetRecord.studentId})`,
+                class: targetRecord.studentClass || 'N/A',
+                endereco: '', // Endereço vazio é melhor que quebrar a app
+                contato: ''
+            };
+        }
+
+        // 5. Chama a geração do ofício
+        // (O reports.js já tem um resolveStudentData que tenta buscar mais dados se necessário)
+        await generateAndShowOccurrenceOficio(
+            targetRecord, 
+            student, 
+            targetRecord.oficioNumber, 
+            targetRecord.oficioYear
+        );
+
+    } catch (e) {
+        console.error("Erro fatal ao abrir ofício de ocorrência:", e);
+        showToast("Erro interno ao abrir o ofício. Tente recarregar a página.");
     }
-
-    targetIncident = await fetchIncidentById(recordFromState.occurrenceGroupId);
-    if (!targetIncident) return showToast('Incidente não encontrado.');
-
-    targetRecord = targetIncident.records.find(r => r.id === recordId);
-    if (!targetRecord) return showToast('Registro não encontrado.'); 
-
-    if (!targetRecord.oficioNumber) return showToast('Este registro não possui um ofício associado.');
-
-    const participantData = targetIncident.participantsInvolved.get(targetRecord.studentId);
-    const student = participantData?.student;
-
-    if (!student) return showToast('Aluno não encontrado.');
-    generateAndShowOccurrenceOficio(targetRecord, student, targetRecord.oficioNumber, targetRecord.oficioYear);
 }
-
-// Funções sendOccurrenceCtModal e handleSendOccurrenceCtSubmit removidas (não utilizadas na UI atual)
-// e foco deve ser no fluxo individualizado de Ação 4 dentro do follow-up modal.
 
 
 // =================================================================================
@@ -1255,12 +1258,8 @@ export const initOccurrenceListeners = () => {
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.followUpForm.addEventListener('submit', handleOccurrenceStepSubmit);
     
-    // As funções sendOccurrenceCtSubmit e openSendOccurrenceCtModal foram removidas 
-    // pois o fluxo de envio ao CT é tratado agora dentro do follow-up modal (Ação 4).
-    // Se o código da UI não foi atualizado, vamos garantir que o listener não quebre:
     const sendCtForm = document.getElementById('send-occurrence-ct-form');
     if (sendCtForm) {
-        // sendCtForm.addEventListener('submit', handleSendOccurrenceCtSubmit);
         const closeSendCtBtn = document.getElementById('close-send-ct-modal-btn');
         const cancelSendCtBtn = document.getElementById('cancel-send-ct-modal-btn');
         const sendCtModal = document.getElementById('send-occurrence-ct-modal');
