@@ -1,10 +1,10 @@
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 3.2 (Correção Crítica: Modal de Devolutiva e Seletores Robustos)
+// VERSÃO: 4.0 (Padronização Visual Completa - Modal de Busca Ativa)
 // =================================================================================
 
 import { state, dom } from './state.js';
-import { showToast, openModal, closeModal, formatDate, formatTime } from './utils.js';
+import { showToast, openModal, closeModal, formatDate, formatTime, getStatusBadge } from './utils.js';
 import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js'; 
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
 import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName, getStudentById } from './firestore.js'; 
@@ -157,19 +157,12 @@ export const renderAbsences = () => {
     dom.loadingAbsences.classList.add('hidden');
     const filterTerm = normalizeText(state.filterAbsences);
 
-    // ... (restante da função renderAbsences permanece inalterado) ...
     const searchFiltered = state.absences.filter(a => {
         if (!filterTerm) return true;
-        // Tenta buscar nome no registo (novo) ou na memória (antigo)
         const nameToCheck = a.studentName ? normalizeText(a.studentName) : '';
-        
-        // Se tiver nome salvo no registo, usa ele
         if (nameToCheck && nameToCheck.includes(filterTerm)) return true;
-
-        // Fallback: Tenta buscar o aluno na memória
         const student = state.students.find(s => s.matricula === a.studentId);
         if (student && normalizeText(student.name).includes(filterTerm)) return true;
-
         return false;
     });
 
@@ -348,7 +341,6 @@ export const renderAbsences = () => {
                 }
 
                 let viewButtonHtml = '';
-                // (CORREÇÃO DE BOTÃO) Garante que o botão seja gerado com data-id correto
                 if (abs.actionType.startsWith('tentativa') && abs.meetingDate && abs.meetingTime) {
                     viewButtonHtml = `
                         <button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2 cursor-pointer" data-id="${abs.id}" title="Ver Notificação">
@@ -590,18 +582,42 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     // Esconde todos os grupos dinâmicos e fieldsets de dados de aluno/faltas
     document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
     
-    const absenceStudentInfo = document.getElementById('absence-student-info');
+    // === (NOVO) Padronização Visual: Status Display ===
+    const statusDisplay = document.getElementById('absence-status-display');
+    const finalActionType = forceActionType || (data ? data.actionType : determineNextActionForStudent(student.matricula));
+    
+    // Determina o texto do status visual
+    let statusText = 'Em Andamento';
+    let statusColor = 'bg-blue-100 text-blue-800';
+
+    if (finalActionType === 'analise') {
+        statusText = 'Aguardando Análise BAE';
+        statusColor = 'bg-purple-100 text-purple-800';
+    } else if (finalActionType.startsWith('tentativa')) {
+        statusText = `Tentativa ${finalActionType.split('_')[1]}`;
+    } else if (finalActionType === 'encaminhamento_ct') {
+        statusText = 'Encaminhamento CT';
+    } else if (finalActionType === 'visita') {
+        statusText = 'Visita Domiciliar';
+    }
+
+    if (statusDisplay) {
+        statusDisplay.innerHTML = `<strong>Etapa:</strong> <span class="text-xs font-medium px-2.5 py-0.5 rounded-full ${statusColor} ml-2">${statusText}</span>`;
+    }
+
+    const absenceStudentInfo = document.getElementById('absence-student-info'); // Não usamos mais este ID no novo HTML, mas mantemos a lógica para os hiddens
     const absencePeriodData = document.getElementById('absence-period-data');
 
     const isEditing = !!data;
-    document.getElementById('absence-modal-title').innerText = isEditing ? 'Editar Ação de Busca Ativa' : 'Registar Nova Ação';
+    document.getElementById('absence-modal-title').innerText = isEditing ? 'Editar Ação de Busca Ativa' : 'Acompanhamento Busca Ativa';
     document.getElementById('absence-id').value = isEditing ? data.id : '';
 
     // (CORREÇÃO) Armazena o ID do aluno selecionado no dataset do formulário para validação segura
     dom.absenceForm.dataset.selectedStudentId = student.matricula;
 
-    // 1. Popula dados imutáveis do aluno
+    // 1. Popula dados (Visíveis e Ocultos)
     document.getElementById('absence-student-name').value = student.name || '';
+    // Campos ocultos:
     document.getElementById('absence-student-class').value = student.class || '';
     document.getElementById('absence-student-endereco').value = student.endereco || '';
     document.getElementById('absence-student-contato').value = student.contato || '';
@@ -622,23 +638,28 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 
     document.getElementById('absence-process-id').value = data?.processId || processId;
 
-    const finalActionType = forceActionType || (isEditing ? data.actionType : determineNextActionForStudent(student.matricula));
     document.getElementById('action-type').value = finalActionType;
     document.getElementById('action-type-display').value = actionDisplayTitles[finalActionType] || '';
     
     // 2. Configura a visibilidade e editabilidade dos dados de Faltas
     const firstAbsenceRecordInCycle = currentCycleActions.find(a => a.periodoFaltasStart);
-    const isAbsenceDataEditable = finalActionType === 'tentativa_1' && !firstAbsenceRecordInCycle; 
+    const isFirstStep = finalActionType === 'tentativa_1';
+    const isAbsenceDataEditable = isFirstStep && !firstAbsenceRecordInCycle; 
     
-    // Mostra SEMPRE as informações do aluno e dados de faltas, mas define editabilidade
-    absenceStudentInfo.classList.remove('hidden');
-    absencePeriodData.classList.remove('hidden');
+    // Mostra o fieldset de faltas APENAS se for a 1ª etapa ou se já tiver dados preenchidos para visualização
+    if (isFirstStep || firstAbsenceRecordInCycle) {
+        absencePeriodData.classList.remove('hidden');
+    } else {
+        absencePeriodData.classList.add('hidden');
+    }
 
     const absenceInputs = absencePeriodData.querySelectorAll('input');
     
-    document.getElementById('absence-start-date').required = isAbsenceDataEditable;
-    document.getElementById('absence-end-date').required = isAbsenceDataEditable;
-    document.getElementById('absence-count').required = isAbsenceDataEditable;
+    // Só exige os campos de falta se estiverem visíveis e editáveis
+    const shouldRequireAbsenceData = isAbsenceDataEditable && !absencePeriodData.classList.contains('hidden');
+    document.getElementById('absence-start-date').required = shouldRequireAbsenceData;
+    document.getElementById('absence-end-date').required = shouldRequireAbsenceData;
+    document.getElementById('absence-count').required = shouldRequireAbsenceData;
 
     if (isAbsenceDataEditable) {
         // Se é a primeira tentativa (nova) OU estamos editando a primeira tentativa
@@ -783,7 +804,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
         }
     }
 
-    // 4. Popula dados de edição
+    // 4. Popula dados de edição (Lógica Inalterada, apenas ajustando seletores se necessário)
     if (isEditing) {
         switch (data.actionType) {
             case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
@@ -833,10 +854,6 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 if (ctReturnedRadio) ctReturnedRadio.checked = true;
                 else document.querySelectorAll(`input[name="ct-returned"]`).forEach(r => r.checked = false);
                 
-                // (CORREÇÃO) Re-executa as toggles para garantir a visibilidade CORRETA
-                // Isso sobrescreve a lógica do passo 3, que define o padrão.
-                // Aqui ajustamos baseado nos dados reais.
-                
                 const ctGroup = document.getElementById('group-encaminhamento_ct');
                 const fieldsets = ctGroup ? ctGroup.querySelectorAll('fieldset') : [];
                 const ctSendSection = fieldsets.length > 0 ? fieldsets[0] : null;
@@ -873,14 +890,10 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
  * Lida com a submissão do formulário de Busca Ativa.
  */
 async function handleAbsenceSubmit(e) {
-    // [DEBUG] Confirmação de que o handler está a correr ANTES do preventDefault
-    console.log("DEBUG: Tentativa de submissão do formulário de Busca Ativa interceptada."); 
-    
-    e.preventDefault(); // <-- ESTA LINHA É CRÍTICA PARA IMPEDIR A RECARGA DA PÁGINA
+    e.preventDefault(); 
     const form = e.target;
     let firstInvalidField = null;
     
-    // (Melhoria) Validação de todos os campos visíveis e não desabilitados
     form.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled])').forEach(el => {
         if (el.required && !el.value && el.type !== 'radio') {
              if (!firstInvalidField) firstInvalidField = el;
@@ -913,10 +926,7 @@ async function handleAbsenceSubmit(e) {
     if (id) {
         const existingAction = state.absences.find(a => a.id === id);
         if (existingAction) {
-            // Se estiver editando e um campo que não faz parte da etapa atual vier vazio,
-            // garantimos que o valor original (que não é null) seja mantido para evitar o reset acidental de dados antigos.
             for (const key in data) {
-                // Se o novo valor é null E o valor existente não era null, usamos o valor existente
                 if (data[key] === null && existingAction[key] != null) {
                     data[key] = existingAction[key];
                 }
@@ -924,15 +934,12 @@ async function handleAbsenceSubmit(e) {
         }
     }
 
-    // --- Validação Cronológica (Centralizada) ---
     const { currentCycleActions } = getStudentProcessInfo(data.studentId);
     const dateCheck = validateAbsenceChronology(currentCycleActions, data);
     
     if (!dateCheck.isValid) {
         return showToast(dateCheck.message);
     }
-    // --- Fim da Validação ---
-
 
     try {
         const historyAction = id ? "Dados da ação atualizados." : `Ação de Busca Ativa registada (${actionDisplayTitles[data.actionType]}).`;
@@ -958,13 +965,11 @@ async function handleAbsenceSubmit(e) {
         }
 
         const studentReturned = (data.contactReturned === 'yes' || data.visitReturned === 'yes' || data.ctReturned === 'yes');
-        // Se o aluno retornou e não estamos na etapa de análise, move para a análise
         if (studentReturned && data.actionType !== 'analise') {
             const student = state.students.find(s => s.matricula === data.studentId);
              setTimeout(() => {
                  const { currentCycleActions: updatedActions } = getStudentProcessInfo(data.studentId); 
                  if (student && !updatedActions.some(a => a.actionType === 'analise')) {
-                    // Abrir diretamente a modal de análise
                     openAbsenceModalForStudent(student, 'analise'); 
                  }
              }, 400); 
@@ -988,6 +993,7 @@ function getAbsenceFormData() {
     }
 
     const studentName = document.getElementById('absence-student-name').value;
+    // Captura dos campos ocultos
     const studentClass = document.getElementById('absence-student-class').value;
 
     const data = {
@@ -998,12 +1004,10 @@ function getAbsenceFormData() {
         actionType: document.getElementById('action-type').value,
         processId: document.getElementById('absence-process-id').value,
         
-        // Dados de faltas (só serão preenchidos se o campo for editável - primeira etapa)
         periodoFaltasStart: document.getElementById('absence-start-date').readOnly ? null : document.getElementById('absence-start-date').value || null,
         periodoFaltasEnd: document.getElementById('absence-end-date').readOnly ? null : document.getElementById('absence-end-date').value || null,
         absenceCount: document.getElementById('absence-count').readOnly ? null : document.getElementById('absence-count').value || null,
         
-        // Reset para campos não pertencentes à etapa atual
         meetingDate: null, meetingTime: null, contactSucceeded: null, contactType: null, contactDate: null, contactPerson: null, contactReason: null, contactReturned: null,
         visitAgent: null, visitDate: null, visitSucceeded: null, visitContactPerson: null, visitReason: null, visitObs: null, visitReturned: null,
         ctSentDate: null, ctFeedback: null, ctReturned: null, oficioNumber: null, oficioYear: null,
@@ -1013,13 +1017,11 @@ function getAbsenceFormData() {
     const actionType = data.actionType;
 
     if (actionType.startsWith('tentativa')) {
-        // Ação 1/2 (Convocação)
         if (!document.getElementById('convocation-section').classList.contains('hidden')) {
             data.meetingDate = document.getElementById('meeting-date').value || null;
             data.meetingTime = document.getElementById('meeting-time').value || null;
         }
 
-        // Ação 3 (Contato)
         if (!document.getElementById('family-contact-section').classList.contains('hidden')) {
             const contactSucceededRadio = document.querySelector('input[name="contact-succeeded"]:checked');
             data.contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
@@ -1054,14 +1056,12 @@ function getAbsenceFormData() {
         const hasCtFeedbackData = document.getElementById('ct-feedback').required;
         
         if (hasCtSentData) {
-            // Seção de Envio
             data.ctSentDate = document.getElementById('ct-sent-date').value || null;
             data.oficioNumber = document.getElementById('oficio-number').value.trim() || null;
             data.oficioYear = document.getElementById('oficio-year').value.trim() || null;
         }
 
         if (hasCtFeedbackData) {
-            // Seção de Devolutiva
             data.ctFeedback = document.getElementById('ct-feedback').value.trim() || null; 
             const ctReturnedRadio = document.querySelector('input[name="ct-returned"]:checked');
             data.ctReturned = ctReturnedRadio ? ctReturnedRadio.value : null; 
@@ -1078,9 +1078,6 @@ function getAbsenceFormData() {
  * Mostra/esconde campos dinâmicos no modal de Busca Ativa.
  */
 function handleActionTypeChange(action) {
-    // (Função removida, pois a lógica de visibilidade é agora tratada
-    // de forma mais robusta em openAbsenceModalForStudent)
-    // Manter apenas para evitar quebra de código se chamado de outro lugar:
     document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
     const groupToShow = action.startsWith('tentativa') ? 'group-tentativas' : `group-${action}`;
     const groupElement = document.getElementById(groupToShow);
@@ -1155,12 +1152,11 @@ function handleEditAbsence(id) {
     let student = state.students.find(s => s.matricula === data.studentId);
     
     if (!student) {
-        // Fallback robusto se o aluno não estiver na memória
         student = {
             matricula: data.studentId,
-            name: data.studentName || `Aluno (${data.studentId})`, // Usa nome salvo ou ID
-            class: data.studentClass || '', // Usa turma salva
-            endereco: '', // Info não disponível se não estiver na memória
+            name: data.studentName || `Aluno (${data.studentId})`, 
+            class: data.studentClass || '', 
+            endereco: '', 
             contato: ''
         };
     }
@@ -1209,18 +1205,13 @@ function handleDeleteAbsence(id) {
 // --- Função Principal de Inicialização ---
 
 export const initAbsenceListeners = () => {
-    
-    // REQUISIÇÃO 2: Botão "Nova Ação" abre o modal de busca de fluxo
     if (dom.addAbsenceBtn) {
         dom.addAbsenceBtn.addEventListener('click', openAbsenceSearchFlowModal);
     }
     
-    // REQUISIÇÃO 2: Barra de pesquisa principal agora é APENAS filtro.
     if (dom.searchAbsences) {
-        // [AQUI] Remove listener antigo (se existia)
         dom.searchAbsences.addEventListener('input', (e) => {
             state.filterAbsences = e.target.value; 
-            // Garante que o container de sugestões esteja escondido, pois agora é apenas filtro
             document.getElementById('absence-student-suggestions').classList.add('hidden');
             renderAbsences();
         });
@@ -1242,7 +1233,6 @@ export const initAbsenceListeners = () => {
         renderAbsences();
     });
 
-    // CORREÇÃO CRÍTICA: Garante que o listener de submissão está anexado
     if (dom.absenceForm) {
         dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
     } else {

@@ -450,41 +450,53 @@
         </div>
     </div>
 
-    <!-- Modal: Registro/Edição de Ação de Busca Ativa (REVISADO - Req. 1) -->
+    <!-- Modal: Registro/Edição de Ação de Busca Ativa (REVISADO E PADRONIZADO) -->
     <div id="absence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0 max-h-[95vh] flex flex-col">
-            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="absence-modal-title" class="text-xl font-semibold">Registar Ação</h3><button id="close-absence-modal-btn" class="text-gray-500 text-2xl font-bold">&times;</button></div>
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0 max-h-[95vh] flex flex-col"> <!-- max-w-xl para igualar ocorrência -->
+            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
+                <h3 id="absence-modal-title" class="text-xl font-semibold">Acompanhamento Busca Ativa</h3>
+                <button id="close-absence-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+            </div>
             <form id="absence-form" class="p-6 space-y-4 overflow-y-auto">
-                <input type="hidden" id="absence-id"><input type="hidden" id="absence-process-id">
+                <input type="hidden" id="absence-id">
+                <input type="hidden" id="absence-process-id">
                 
-                <!-- REVISÃO (Req. 1): Dados do Aluno (Informação de Referência) -->
-                <fieldset id="absence-student-info" class="p-3 border rounded-md bg-gray-50">
-                    <legend class="text-sm font-semibold text-gray-700 px-2">Informações do Aluno</legend>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><label class="block text-sm font-medium">Aluno(a)</label><input type="text" id="absence-student-name" class="mt-1 w-full bg-gray-100 p-2 border rounded" required readonly></div>
-                        <div><label class="block text-sm font-medium">Ano/Ciclo</label><input type="text" id="absence-student-class" class="mt-1 w-full bg-gray-100 p-2 border rounded" readonly></div>
-                        <div class="md:col-span-2"><label class="block text-sm font-medium">Endereço</label><input type="text" id="absence-student-endereco" class="mt-1 w-full bg-gray-100 p-2 border rounded" readonly></div>
-                        <div><label class="block text-sm font-medium">Contato</label><input type="text" id="absence-student-contato" class="mt-1 w-full bg-gray-100 p-2 border rounded" readonly></div>
+                <!-- Inputs ocultos para dados que o JS precisa, mas não exibimos mais -->
+                <input type="hidden" id="absence-student-class">
+                <input type="hidden" id="absence-student-endereco">
+                <input type="hidden" id="absence-student-contato">
+                
+                <!-- Identificação e Status (Padrão Ocorrência) -->
+                <fieldset class="p-3 border rounded-md bg-gray-50">
+                    <legend class="text-sm font-semibold text-gray-700 px-2">Aluno</legend>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="absence-student-name" class="block text-sm font-medium">Aluno</label>
+                            <input type="text" id="absence-student-name" class="mt-1 block w-full bg-gray-100 p-2 border rounded" readonly>
+                        </div>
+                        <div id="absence-status-display" class="flex items-center justify-center sm:justify-end text-sm pt-5">
+                            <!-- Status injetado via JS -->
+                        </div>
                     </div>
                 </fieldset>
                 
-                <!-- REVISÃO (Req. 1): Dados de Faltas (Editável apenas na 1ª Etapa) -->
-                <fieldset id="absence-period-data" class="p-3 border rounded-md space-y-2 bg-gray-50">
-                    <legend class="text-sm font-semibold text-gray-700 px-2">Faltas apuradas no período de:</legend>
+                <!-- Dados de Faltas (Específico Busca Ativa - Estilo Padronizado) -->
+                <fieldset id="absence-period-data" class="p-3 border rounded-md bg-gray-50 space-y-2 hidden">
+                    <legend class="text-sm font-semibold text-gray-700 px-2">Dados das Faltas</legend>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div><label class="block text-sm">Início</label><input type="date" id="absence-start-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
                         <div><label class="block text-sm">Fim</label><input type="date" id="absence-end-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
                     </div>
                     <div class="pt-2"><label class="block text-sm">Nº de faltas</label><input type="number" id="absence-count" class="mt-1 w-full border-gray-300 rounded-md"></div>
                 </fieldset>
-                
-                <!-- Tipo de Ação (Apenas Visual) -->
+
+                <!-- Campo Visual da Etapa (Readonly) -->
                 <div class="border-t pt-4">
                     <label class="block text-sm font-medium">Etapa Atual</label>
                     <input type="text" id="action-type-display" class="mt-1 w-full bg-gray-100 p-2 border rounded" readonly>
                     <input type="hidden" id="action-type">
                 </div>
-                
+
                 <!-- Container de Campos Dinâmicos (Etapa Específica) -->
                 <div id="dynamic-fields-container" class="space-y-4 pt-2">
                     
