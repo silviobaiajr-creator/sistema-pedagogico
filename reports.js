@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 3.0 (Correção: Timeout de segurança na busca de dados para evitar travamento)
+// VERSÃO: 3.1 (Correção: Erro de variável 'finalOficioYear' corrigido)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -20,24 +20,21 @@ export const actionDisplayTitles = {
 };
 
 // --- HELPER DE DADOS DE ALUNO (ASSÍNCRONO E ROBUSTO) ---
-// Tenta memória -> Tenta registo -> Tenta buscar no servidor -> Timeout de 4s -> Fallback
 const resolveStudentData = async (studentId, recordSource = null) => {
     // 1. Tenta memória local (Cache Rápido)
     let memoryStudent = state.students.find(s => s.matricula === studentId);
     
-    // 2. Dados do Registo (Snapshot Histórico - Prioridade para Nome/Turma se não houver memória)
+    // 2. Dados do Registo (Snapshot Histórico)
     const recordName = recordSource?.studentName;
     const recordClass = recordSource?.studentClass;
 
     // 3. Se não tiver memória, busca no servidor com TIMEOUT DE SEGURANÇA
     if (!memoryStudent) {
         try {
-            // Cria uma promessa que rejeita após 4 segundos
             const timeoutPromise = new Promise((_, reject) => 
                 setTimeout(() => reject(new Error("Timeout")), 4000)
             );
             
-            // Corrida entre a busca e o timeout
             memoryStudent = await Promise.race([
                 getStudentById(studentId),
                 timeoutPromise
@@ -49,14 +46,11 @@ const resolveStudentData = async (studentId, recordSource = null) => {
         }
     }
 
-    // 4. Montagem Final (Fusão Inteligente)
+    // 4. Montagem Final
     return {
         matricula: studentId,
-        // Nome: Registo (Histórico) > Servidor/Memória (Atual) > ID
         name: recordName || memoryStudent?.name || `Aluno (${studentId})`,
-        // Turma: Registo > Servidor/Memória > N/A
         class: recordClass || memoryStudent?.class || 'N/A',
-        // Dados Ricos: Servidor/Memória > Vazio
         endereco: memoryStudent?.endereco || '',
         contato: memoryStudent?.contato || '',
         resp1: memoryStudent?.resp1 || '',
@@ -134,7 +128,6 @@ export const openStudentSelectionModal = async (groupId) => {
  * Gera e exibe a notificação formal (Ocorrências).
  */
 export const openIndividualNotificationModal = async (incident, studentObj) => {
-    // Busca o registro individual específico para este aluno
     const data = incident.records.find(r => r.studentId === studentObj.matricula);
 
     if (!data) {
@@ -142,7 +135,6 @@ export const openIndividualNotificationModal = async (incident, studentObj) => {
         return;
     }
 
-    // Mostra toast de carregamento se necessário
     if (!state.students.find(s => s.matricula === studentObj.matricula)) {
         showToast('Buscando dados completos do aluno...');
     }
@@ -157,7 +149,6 @@ export const openIndividualNotificationModal = async (incident, studentObj) => {
     const responsibleNames = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    // Bloco de Identificação
     const identificationBlock = `
         <div class="border border-gray-300 rounded p-3 mb-4 bg-gray-50 text-xs sm:text-sm" style="font-family: 'Inter', sans-serif;">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -382,7 +373,6 @@ export const openAbsenceHistoryModal = (processId) => {
     if (processActions.length === 0) return showToast('Processo não encontrado.');
 
     const studentId = processActions[0].studentId;
-    // Fallback de nome (histórico)
     const studentName = formatText(processActions[0].studentName || state.students.find(s => s.matricula === studentId)?.name || `Aluno (${studentId})`);
 
     const allHistory = processActions.flatMap(a => a.history || []);
@@ -427,7 +417,6 @@ export const openFichaViewModal = async (id) => {
     const record = state.absences.find(abs => abs.id === id);
     if (!record) return showToast('Registro não encontrado.');
     
-    // Toast de carregamento se não tiver cache
     if (!state.students.find(s => s.matricula === record.studentId)) {
         showToast('Buscando dados completos do aluno...');
     }
@@ -440,7 +429,6 @@ export const openFichaViewModal = async (id) => {
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    // Bloco de Identificação
     const identificationBlock = `
         <div class="border border-gray-300 rounded p-3 mb-4 bg-gray-50 text-xs sm:text-sm" style="font-family: 'Inter', sans-serif;">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -635,7 +623,6 @@ export const generateAndShowOficio = async (action, oficioNumber = null) => {
     if (!state.students.find(s => s.matricula === action.studentId)) {
         showToast('Buscando dados completos do aluno...');
     }
-    // Busca segura com timeout (via resolveStudentData)
     const student = await resolveStudentData(action.studentId, action);
 
     const processActions = state.absences
@@ -1104,7 +1091,7 @@ export const generateAndShowOccurrenceOficio = async (record, studentObj, oficio
     const oficioHTML = `
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             <div>${getReportHeaderHTML()}<p class="text-right mt-4">${city}, ${currentDate}.</p></div>
-            <div class="mt-8"><p class="font-bold text-base">OFÍCIO Nº ${String(oficioNumber).padStart(3, '0')}/${finalOficioYear}</p></div>
+            <div class="mt-8"><p class="font-bold text-base">OFÍCIO Nº ${String(oficioNumber).padStart(3, '0')}/${oficioYear}</p></div>
             <div class="mt-8"><p><strong>Ao</strong></p><p><strong>Conselho Tutelar</strong></p><p><strong>${city}</strong></p></div>
             <div class="mt-8"><p><strong>Assunto:</strong> Encaminhamento de aluno por ocorrência disciplinar.</p></div>
             <div class="mt-8 text-justify">
@@ -1123,7 +1110,7 @@ export const generateAndShowOccurrenceOficio = async (record, studentObj, oficio
         </div>
     `;
 
-    document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNumber}/${finalOficioYear}`;
+    document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNumber}/${oficioYear}`;
     document.getElementById('report-view-content').innerHTML = oficioHTML;
     openModal(dom.reportViewModalBackdrop);
 };
