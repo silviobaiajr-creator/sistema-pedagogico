@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 3.1 (Correção: Prevenção de Recarga no Form Submission)
+// VERSÃO: 3.2 (Correção Crítica: Modal de Devolutiva e Seletores Robustos)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -148,11 +148,6 @@ const setupAbsenceSearchFlowAutocomplete = (input, suggestionsContainer) => {
     });
 };
 
-/**
- * (REMOVIDO) A função setupAbsenceAutocomplete anterior foi substituída 
- * pela lógica de filtro na barra principal e a função setupAbsenceSearchFlowAutocomplete
- * no novo modal. A barra principal agora é APENAS filtro.
- */
 
 // =================================================================================
 // RENDERIZAÇÃO (Render Absences)
@@ -281,7 +276,7 @@ export const renderAbsences = () => {
         } else {
             dom.emptyStateAbsences.classList.remove('hidden');
             dom.emptyStateAbsences.querySelector('h3').textContent = 'Nenhuma ação registada';
-            dom.emptyStateAbsences.querySelector('p').textContent = 'Use o botão "Nova Ação" para começar.'; // (MODIFICADO)
+            dom.emptyStateAbsences.querySelector('p').textContent = 'Use o botão "Nova Ação" para começar.'; 
         }
         dom.absencesListDiv.innerHTML = ''; 
     } else {
@@ -311,7 +306,6 @@ export const renderAbsences = () => {
             const lastProcessAction = actions[actions.length - 1]; 
             const student = state.students.find(s => s.matricula === firstAction.studentId);
             
-            // (CORREÇÃO 2) Fallback Robusto
             const studentName = firstAction.studentName || (student ? student.name : `Aluno (${firstAction.studentId})`);
             const studentClass = firstAction.studentClass || (student ? student.class : 'N/A');
 
@@ -517,6 +511,8 @@ export const handleNewAbsenceAction = (student) => {
 
         if (isPending) {
             showToast(pendingActionMessage);
+            // (CORREÇÃO CRÍTICA) Passamos a 'lastAction' como o objeto 'data' para edição
+            // Isso força o modal a abrir no modo de "edição" da ação pendente.
             openAbsenceModalForStudent(student, lastAction.actionType, lastAction); 
             return;
         }
@@ -708,13 +704,37 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
             document.querySelectorAll('input[name="visit-returned"]').forEach(r => r.required = true);
             break;
         case 'encaminhamento_ct':
-            const ctSendSection = document.querySelector('#group-encaminhamento_ct fieldset:first-child');
-            const ctFeedbackSection = document.querySelector('#group-encaminhamento_ct fieldset:last-child');
+            // (CORREÇÃO) Seleção robusta dos fieldsets
+            const ctGroup = document.getElementById('group-encaminhamento_ct');
+            const fieldsets = ctGroup ? ctGroup.querySelectorAll('fieldset') : [];
+            const ctSendSection = fieldsets.length > 0 ? fieldsets[0] : null;
+            const ctFeedbackSection = fieldsets.length > 1 ? fieldsets[1] : null;
+
+            if (!ctSendSection || !ctFeedbackSection) {
+                console.error("ERRO CRÍTICO: Fieldsets de CT não encontrados.");
+                showToast("Erro de estrutura HTML no modal de CT.");
+                return;
+            }
             
             const hasSentCT = !!(data?.ctSentDate);
 
-            if (!isEditing || !hasSentCT) {
-                // Nova Ação OU Edição de Envio
+            // Regra: Se estamos editando E já temos data de envio, mostramos a devolutiva.
+            // Se estamos editando mas NÃO temos data de envio (erro de dados), mostramos envio.
+            // Se é nova ação, mostramos envio.
+            
+            if (isEditing && hasSentCT) {
+                 // Edição de Devolutiva (após o envio)
+                ctSendSection.classList.add('hidden');
+                ctFeedbackSection.classList.remove('hidden');
+                document.getElementById('ct-feedback').required = true;
+                document.querySelectorAll('input[name="ct-returned"]').forEach(r => r.required = true);
+                
+                document.getElementById('ct-sent-date').required = false;
+                document.getElementById('oficio-number').required = false;
+                document.getElementById('oficio-year').required = false;
+
+            } else {
+                // Nova Ação OU Edição de Envio (ainda não enviou ou corrigindo envio)
                 ctSendSection.classList.remove('hidden');
                 ctFeedbackSection.classList.add('hidden');
                 document.getElementById('ct-sent-date').required = true;
@@ -726,17 +746,6 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 
                 document.getElementById('ct-feedback').required = false;
                 document.querySelectorAll('input[name="ct-returned"]').forEach(r => r.required = false);
-
-            } else {
-                // Edição de Devolutiva (após o envio)
-                ctSendSection.classList.add('hidden');
-                ctFeedbackSection.classList.remove('hidden');
-                document.getElementById('ct-feedback').required = true;
-                document.querySelectorAll('input[name="ct-returned"]').forEach(r => r.required = true);
-                
-                document.getElementById('ct-sent-date').required = false;
-                document.getElementById('oficio-number').required = false;
-                document.getElementById('oficio-year').required = false;
             }
             break;
         case 'analise':
@@ -824,13 +833,23 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 if (ctReturnedRadio) ctReturnedRadio.checked = true;
                 else document.querySelectorAll(`input[name="ct-returned"]`).forEach(r => r.checked = false);
                 
-                // Re-executa as toggles para garantir a visibilidade
-                if(data.ctSentDate) { // Se já enviou, mostra o feedback
-                    ctSendSection.classList.add('hidden');
-                    ctFeedbackSection.classList.remove('hidden');
-                } else { // Se não enviou, volta para a seção de envio
-                    ctSendSection.classList.remove('hidden');
-                    ctFeedbackSection.classList.add('hidden');
+                // (CORREÇÃO) Re-executa as toggles para garantir a visibilidade CORRETA
+                // Isso sobrescreve a lógica do passo 3, que define o padrão.
+                // Aqui ajustamos baseado nos dados reais.
+                
+                const ctGroup = document.getElementById('group-encaminhamento_ct');
+                const fieldsets = ctGroup ? ctGroup.querySelectorAll('fieldset') : [];
+                const ctSendSection = fieldsets.length > 0 ? fieldsets[0] : null;
+                const ctFeedbackSection = fieldsets.length > 1 ? fieldsets[1] : null;
+
+                if (ctSendSection && ctFeedbackSection) {
+                    if(data.ctSentDate) { // Se já enviou, mostra o feedback
+                        ctSendSection.classList.add('hidden');
+                        ctFeedbackSection.classList.remove('hidden');
+                    } else { // Se não enviou, volta para a seção de envio
+                        ctSendSection.classList.remove('hidden');
+                        ctFeedbackSection.classList.add('hidden');
+                    }
                 }
                 break;
             case 'analise':

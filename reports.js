@@ -1,12 +1,11 @@
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 2.7 (Correção de Bug: Variável responsibleNames indefinida)
+// VERSÃO: 3.0 (Correção: Timeout de segurança na busca de dados para evitar travamento)
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
 import { roleIcons, defaultRole, getFilteredOccurrences } from './logic.js';
-// (CORREÇÃO) Importa getStudentById para busca sob demanda
 import { getIncidentByGroupId as fetchIncidentById, getStudentById } from './firestore.js';
 
 
@@ -20,24 +19,33 @@ export const actionDisplayTitles = {
     analise: "Análise"
 };
 
-// --- HELPER DE DADOS DE ALUNO (ASSÍNCRONO E INTELIGENTE) ---
-// Tenta memória -> Tenta registo -> Tenta buscar no servidor se faltar dados críticos
+// --- HELPER DE DADOS DE ALUNO (ASSÍNCRONO E ROBUSTO) ---
+// Tenta memória -> Tenta registo -> Tenta buscar no servidor -> Timeout de 4s -> Fallback
 const resolveStudentData = async (studentId, recordSource = null) => {
     // 1. Tenta memória local (Cache Rápido)
     let memoryStudent = state.students.find(s => s.matricula === studentId);
     
-    // 2. Dados do Registo (Snapshot Histórico - Prioridade para Nome/Turma)
+    // 2. Dados do Registo (Snapshot Histórico - Prioridade para Nome/Turma se não houver memória)
     const recordName = recordSource?.studentName;
     const recordClass = recordSource?.studentClass;
 
-    // 3. Se não tiver memória OU se a memória estiver incompleta (sem endereço), busca no servidor
-    // Isso resolve o problema do celular que não tem a lista carregada
+    // 3. Se não tiver memória, busca no servidor com TIMEOUT DE SEGURANÇA
     if (!memoryStudent) {
         try {
-            // Só busca se realmente precisarmos (evita chamadas desnecessárias)
-            memoryStudent = await getStudentById(studentId);
+            // Cria uma promessa que rejeita após 4 segundos
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Timeout")), 4000)
+            );
+            
+            // Corrida entre a busca e o timeout
+            memoryStudent = await Promise.race([
+                getStudentById(studentId),
+                timeoutPromise
+            ]);
+
         } catch (e) {
-            console.warn(`Erro ao buscar aluno ${studentId} sob demanda:`, e);
+            console.warn(`Aviso: Não foi possível carregar dados completos do aluno ${studentId} (Timeout ou Erro). Usando dados parciais.`);
+            if (e.message === "Timeout") showToast("Aviso: Demora na rede. Carregando dados parciais.");
         }
     }
 
@@ -48,7 +56,7 @@ const resolveStudentData = async (studentId, recordSource = null) => {
         name: recordName || memoryStudent?.name || `Aluno (${studentId})`,
         // Turma: Registo > Servidor/Memória > N/A
         class: recordClass || memoryStudent?.class || 'N/A',
-        // Dados Ricos: Servidor/Memória > Vazio (Nunca "Não informado" hardcoded)
+        // Dados Ricos: Servidor/Memória > Vazio
         endereco: memoryStudent?.endereco || '',
         contato: memoryStudent?.contato || '',
         resp1: memoryStudent?.resp1 || '',
@@ -94,7 +102,6 @@ export const openStudentSelectionModal = async (groupId) => {
     const participants = [...incident.participantsInvolved.values()];
 
     if (participants.length === 1) {
-        // (CORREÇÃO) Chama a função assíncrona corretamente
         await openIndividualNotificationModal(incident, participants[0].student);
         return;
     }
@@ -125,7 +132,6 @@ export const openStudentSelectionModal = async (groupId) => {
 
 /**
  * Gera e exibe a notificação formal (Ocorrências).
- * (AGORA ASSÍNCRONA)
  */
 export const openIndividualNotificationModal = async (incident, studentObj) => {
     // Busca o registro individual específico para este aluno
@@ -136,8 +142,7 @@ export const openIndividualNotificationModal = async (incident, studentObj) => {
         return;
     }
 
-    // (CORREÇÃO) Busca Assíncrona Robusta
-    // Mostra um toast de carregamento se o aluno não estiver na memória
+    // Mostra toast de carregamento se necessário
     if (!state.students.find(s => s.matricula === studentObj.matricula)) {
         showToast('Buscando dados completos do aluno...');
     }
@@ -214,7 +219,7 @@ export const openIndividualNotificationModal = async (incident, studentObj) => {
 };
 
 // ==============================================================================
-// --- ATA NARRATIVA (ATUALIZADA) ---
+// --- ATA NARRATIVA ---
 // ==============================================================================
 
 export const openOccurrenceRecordModal = async (groupId) => {
@@ -240,7 +245,6 @@ export const openOccurrenceRecordModal = async (groupId) => {
 
     // 2. Fatos e Envolvidos
     const participantsDetails = [...incident.participantsInvolved.values()].map(p => {
-        // Aqui a desnormalização já funciona bem (Nome/Turma)
         return `
             <li>
                 <strong>${formatText(p.student.name)}</strong>
@@ -378,8 +382,7 @@ export const openAbsenceHistoryModal = (processId) => {
     if (processActions.length === 0) return showToast('Processo não encontrado.');
 
     const studentId = processActions[0].studentId;
-    // (CORREÇÃO) Resiliência na busca do nome (não é async aqui porque é modal simples de histórico)
-    // Como é histórico, não precisamos fazer fetch sob demanda, basta mostrar o que temos.
+    // Fallback de nome (histórico)
     const studentName = formatText(processActions[0].studentName || state.students.find(s => s.matricula === studentId)?.name || `Aluno (${studentId})`);
 
     const allHistory = processActions.flatMap(a => a.history || []);
@@ -419,13 +422,12 @@ export const openAbsenceHistoryModal = (processId) => {
 
 /**
  * Abre a ficha de notificação de Busca Ativa.
- * (AGORA ASSÍNCRONA)
  */
 export const openFichaViewModal = async (id) => {
     const record = state.absences.find(abs => abs.id === id);
     if (!record) return showToast('Registro não encontrado.');
     
-    // (CORREÇÃO) Busca Assíncrona Robusta
+    // Toast de carregamento se não tiver cache
     if (!state.students.find(s => s.matricula === record.studentId)) {
         showToast('Buscando dados completos do aluno...');
     }
@@ -435,7 +437,6 @@ export const openFichaViewModal = async (id) => {
     let title = "Notificação de Baixa Frequência";
 
     let body = '';
-    // (CORREÇÃO AQUI: responsibleNames estava indefinido, trocado por responsaveis)
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -531,7 +532,6 @@ export const openFichaViewModal = async (id) => {
 
 /**
  * Gera a Ficha Consolidada de Busca Ativa.
- * (AGORA ASSÍNCRONA)
  */
 export const generateAndShowConsolidatedFicha = async (studentId, processId = null) => {
     let studentActions = state.absences.filter(action => action.studentId === studentId);
@@ -546,7 +546,6 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
 
     if (studentActions.length === 0) return showToast('Nenhuma ação para este aluno neste processo/ciclo.');
     
-    // (CORREÇÃO) Busca Assíncrona
     if (!state.students.find(s => s.matricula === studentId)) {
         showToast('Buscando dados completos do aluno...');
     }
@@ -624,7 +623,6 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
 
 /**
  * Gera o Ofício para o Conselho Tutelar (Busca Ativa).
- * (AGORA ASSÍNCRONA)
  */
 export const generateAndShowOficio = async (action, oficioNumber = null) => {
     if (!action) return showToast('Ação de origem não encontrada.');
@@ -634,10 +632,10 @@ export const generateAndShowOficio = async (action, oficioNumber = null) => {
 
     if (!finalOficioNumber) return showToast('Número do ofício não fornecido ou não encontrado para este registro.');
 
-    // (CORREÇÃO) Busca Assíncrona
     if (!state.students.find(s => s.matricula === action.studentId)) {
         showToast('Buscando dados completos do aluno...');
     }
+    // Busca segura com timeout (via resolveStudentData)
     const student = await resolveStudentData(action.studentId, action);
 
     const processActions = state.absences
@@ -696,7 +694,7 @@ export const generateAndShowOficio = async (action, oficioNumber = null) => {
         </div>
     `;
 
-    document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNumber}/${oficioYear}`;
+    document.getElementById('report-view-title').textContent = `Ofício Nº ${finalOficioNumber}/${finalOficioYear}`;
     document.getElementById('report-view-content').innerHTML = oficioHTML;
     openModal(dom.reportViewModalBackdrop);
 };
@@ -919,15 +917,11 @@ export const generateAndShowBuscaAtivaReport = async () => {
         const lastAction = proc.actions[proc.actions.length - 1];
         if (!lastAction) return null;
 
-        // (CORREÇÃO) Filtragem resiliente com dados desnormalizados e busca sob demanda
-        // Para relatórios gerais, a busca sob demanda pode ser lenta se forem muitos alunos.
-        // Aqui usamos resolveStudentData, mas idealmente o relatório geral deve confiar nos dados do registo para performance.
-        // Vamos usar resolveStudentData para garantir consistência.
+        // Busca resiliente
         const studentData = await resolveStudentData(proc.studentId, proc.actions[0]);
         
         if (studentFilter && !studentData.name.toLowerCase().includes(studentFilter.toLowerCase())) return null;
 
-        // ... Lógica de filtros (igual ao anterior) ...
         const isConcluded = lastAction.actionType === 'analise';
         if (processStatus === 'in_progress' && isConcluded) return null;
         if (processStatus === 'concluded' && !isConcluded) return null;
@@ -956,7 +950,6 @@ export const generateAndShowBuscaAtivaReport = async () => {
     const results = await Promise.all(processPromises);
     const filteredResults = results.filter(r => r !== null);
 
-    // Agregação de dados para gráficos
     filteredResults.forEach(({ isConcluded, lastReturnStatusValue, hasDefinitiveReturn, isPendingContact, isPendingFeedback }) => {
         isConcluded ? statusConcluido++ : statusEmAndamento++;
         if (lastReturnStatusValue === 'yes') retornoSim++;
@@ -1082,17 +1075,18 @@ export const generateAndShowBuscaAtivaReport = async () => {
 
 /**
  * Gera o Ofício para o Conselho Tutelar (baseado em Ocorrência).
- * (AGORA ASSÍNCRONA)
  */
 export const generateAndShowOccurrenceOficio = async (record, studentObj, oficioNumber, oficioYear) => {
     if (!record || !studentObj || !oficioNumber || !oficioYear) {
         return showToast('Dados insuficientes para gerar o ofício.');
     }
 
-    // (CORREÇÃO) Busca Assíncrona Robusta
+    // Toast de carregamento se não tiver cache
     if (!state.students.find(s => s.matricula === studentObj.matricula)) {
         showToast('Buscando dados completos do aluno...');
     }
+    
+    // Busca segura via resolveStudentData (com timeout e fallback)
     const student = await resolveStudentData(studentObj.matricula, record.studentName ? record : studentObj);
 
     let studentRole = defaultRole; 
@@ -1105,7 +1099,6 @@ export const generateAndShowOccurrenceOficio = async (record, studentObj, oficio
 
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
-    const schoolName = state.config?.schoolName || "Nome da Escola";
     const city = state.config?.city || "Cidade";
 
     const oficioHTML = `
@@ -1130,7 +1123,7 @@ export const generateAndShowOccurrenceOficio = async (record, studentObj, oficio
         </div>
     `;
 
-    document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNumber}/${oficioYear}`;
+    document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNumber}/${finalOficioYear}`;
     document.getElementById('report-view-content').innerHTML = oficioHTML;
     openModal(dom.reportViewModalBackdrop);
 };
