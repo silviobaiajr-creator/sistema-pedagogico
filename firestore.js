@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: firestore.js
-// VERSÃO: 2.3 (Busca Multi-Caso Inteligente)
+// VERSÃO: 2.4 (Correção: Robustez no carregamento de incidentes com timeout)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
@@ -113,7 +113,7 @@ const toTitleCase = (str) => {
 }
 
 /**
- * (ATUALIZADO 2.3) Busca Inteligente Multi-Caso.
+ * Busca Inteligente Multi-Caso.
  * Tenta encontrar o aluno buscando pelo termo exato, TitleCase e UpperCase simultaneamente.
  */
 export const searchStudentsByName = async (searchText) => {
@@ -250,18 +250,41 @@ export const getIncidentByGroupId = async (groupId) => {
         const mainRecord = incident.records[0];
         const participantsList = mainRecord.participants || [];
 
+        // (CORREÇÃO) Busca robusta de alunos com Timeout
         const studentPromises = participantsList.map(async (participant) => {
-            const student = await getStudentById(participant.studentId);
-            if (student) {
-                return {
-                    id: participant.studentId,
-                    data: {
-                        student: student,
-                        role: participant.role || 'Envolvido'
-                    }
+            let student = null;
+            try {
+                // Tenta buscar o aluno com um timeout de 3 segundos
+                // Se o banco travar ou o aluno não existir, não bloqueia o modal
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error("Timeout")), 3000)
+                );
+                
+                student = await Promise.race([
+                    getStudentById(participant.studentId),
+                    timeoutPromise
+                ]);
+            } catch (e) {
+                console.warn(`Aviso: Falha ao carregar aluno ${participant.studentId} no incidente:`, e);
+            }
+
+            // Se não encontrou ou deu erro, usa dados parciais (desnormalizados ou placeholder)
+            if (!student) {
+                student = {
+                    matricula: participant.studentId,
+                    name: participant.studentName || `Aluno (${participant.studentId})`, // Tenta usar nome salvo no registro
+                    class: participant.studentClass || 'N/A',
+                    isPlaceholder: true // Marca para saber que não é o dado completo
                 };
             }
-            return null;
+
+            return {
+                id: participant.studentId,
+                data: {
+                    student: student,
+                    role: participant.role || 'Envolvido'
+                }
+            };
         });
 
         const resolvedStudents = await Promise.all(studentPromises);
