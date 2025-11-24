@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 3.1 (Correção: Erro de variável 'finalOficioYear' corrigido)
+// VERSÃO: 3.2 (Correção: Resgate de dados de faltas do histórico do processo)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -422,6 +422,24 @@ export const openFichaViewModal = async (id) => {
     }
     const student = await resolveStudentData(record.studentId, record);
 
+    // --- CORREÇÃO: Recupera dados de faltas do processo (se não estiverem no registo atual) ---
+    let absenceCount = record.absenceCount;
+    let periodoStart = record.periodoFaltasStart;
+    let periodoEnd = record.periodoFaltasEnd;
+
+    if (!absenceCount || !periodoStart) {
+        // Procura no histórico do processo
+        const processActions = state.absences.filter(a => a.processId === record.processId);
+        const firstActionWithData = processActions.find(a => a.periodoFaltasStart && a.absenceCount);
+        
+        if (firstActionWithData) {
+            absenceCount = firstActionWithData.absenceCount;
+            periodoStart = firstActionWithData.periodoFaltasStart;
+            periodoEnd = firstActionWithData.periodoFaltasEnd;
+        }
+    }
+    // ----------------------------------------------------------------------------------------
+
     const attemptLabels = { tentativa_1: "primeira", tentativa_2: "segunda", tentativa_3: "terceira" };
     let title = "Notificação de Baixa Frequência";
 
@@ -448,7 +466,7 @@ export const openFichaViewModal = async (id) => {
                 <p class="mt-4 text-justify">Prezados(as) Responsáveis,</p>
                 <p class="mt-4 text-justify">
                     Vimos por meio desta notificar que o(a) estudante acima identificado(a),
-                    acumulou <strong>${formatText(record.absenceCount)} faltas</strong> no período de ${formatDate(record.periodoFaltasStart)} a ${formatDate(record.periodoFaltasEnd)},
+                    acumulou <strong>${formatText(absenceCount)} faltas</strong> no período de ${formatDate(periodoStart)} a ${formatDate(periodoEnd)},
                     configurando baixa frequência escolar. Esta é a <strong>${attemptLabels[record.actionType]} tentativa de contato</strong> realizada pela escola.
                 </p>
                 <p class="mt-4 text-justify bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded" style="font-family: 'Inter', sans-serif;">
