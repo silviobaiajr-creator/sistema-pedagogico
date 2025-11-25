@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: logic.js
-// VERSÃO: 2.3 (Resiliente a Paginação e Desnormalização de Ocorrências)
+// VERSÃO: 3.0 (Lógica de 3 Convocações Estritas e Busca Ativa)
 
 import { state } from './state.js';
 import { getStatusBadge } from './utils.js';
@@ -43,17 +43,14 @@ export const getFilteredOccurrences = () => {
         
         incident.records.push(occ);
 
-        // (CORREÇÃO) Lógica resiliente para alunos não carregados (paginação)
+        // Lógica resiliente para alunos não carregados (paginação)
         if (!incident.participantsInvolved.has(occ.studentId)) {
             // 1. Tenta encontrar na lista carregada (Memória)
             let student = state.students.find(s => s.matricula === occ.studentId);
             
             // 2. Se não achar, tenta usar os dados cacheados no próprio registro (Desnormalização)
             if (!student) {
-                // Verifica se o registro tem dados cacheados do aluno (novo padrão)
                 const participantData = occ.participants?.find(p => p.studentId === occ.studentId);
-                
-                // Prioridade: Dados no participants > Dados no registro raiz (se houver) > Cache de seleção > Placeholder
                 const cachedName = participantData?.studentName || occ.studentName;
                 const cachedClass = participantData?.studentClass || occ.studentClass;
 
@@ -62,13 +59,11 @@ export const getFilteredOccurrences = () => {
                         matricula: occ.studentId,
                         name: cachedName,
                         class: cachedClass || '?',
-                        isPlaceholder: true // Marca visual (opcional, por enquanto invisível)
+                        isPlaceholder: true 
                     };
                 } else if (state.selectedStudents && state.selectedStudents.has(occ.studentId)) {
-                     // Fallback para cache de seleção recente
                      student = state.selectedStudents.get(occ.studentId).student;
                 } else {
-                     // Fallback final: Apenas ID
                      student = {
                         matricula: occ.studentId,
                         name: `Aluno (${occ.studentId})`, 
@@ -90,7 +85,6 @@ export const getFilteredOccurrences = () => {
     // 2. Filtragem e Processamento
     const filteredIncidents = new Map();
     const { startDate, endDate, status, type } = state.filtersOccurrences;
-    // Normalização para busca segura
     const studentSearchRaw = state.filterOccurrences || '';
     const studentSearch = studentSearchRaw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -98,22 +92,18 @@ export const getFilteredOccurrences = () => {
         const mainRecord = incident.records && incident.records.length > 0 ? incident.records[0] : null;
         if (!mainRecord) continue;
 
-        // Recalcula status geral
         const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
         incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
 
-        // Filtros Rápidos (Short-circuit)
         if (status !== 'all' && incident.overallStatus !== status) continue;
         if (type !== 'all' && mainRecord.occurrenceType !== type) continue;
         if (startDate && mainRecord.date < startDate) continue;
         if (endDate && mainRecord.date > endDate) continue;
 
-        // Filtro de Texto (Busca por nome do aluno)
         if (studentSearch) {
             let hasMatchingStudent = false;
             for (const p of incident.participantsInvolved.values()) {
                 const pName = p.student.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                // Se for placeholder, permite buscar pelo ID também
                 if (pName.includes(studentSearch) || p.student.matricula.includes(studentSearch)) {
                     hasMatchingStudent = true;
                     break;
@@ -193,14 +183,17 @@ export const determineNextActionForStudent = (studentId) => {
 
 
 // ==============================================================================
-// --- Lógica das Ocorrências (3 Tentativas) ---
+// --- Lógica das Ocorrências (3 Convocações) ---
 // ==============================================================================
 
+// Mapeia o Status Atual para a PRÓXIMA AÇÃO necessária
 const occurrenceNextActionMap = {
-    'Aguardando Convocação': 'convocacao', 
-    'Aguardando Contato 1': 'contato_familia_1', 
-    'Aguardando Contato 2': 'contato_familia_2', 
-    'Aguardando Contato 3': 'contato_familia_3', 
+    'Aguardando Convocação 1': 'convocacao_1',
+    'Aguardando Feedback 1': 'feedback_1', 
+    'Aguardando Convocação 2': 'convocacao_2',
+    'Aguardando Feedback 2': 'feedback_2',
+    'Aguardando Convocação 3': 'convocacao_3',
+    'Aguardando Feedback 3': 'feedback_3',
     'Aguardando Desfecho': 'desfecho_ou_ct', 
     'Aguardando Devolutiva CT': 'devolutiva_ct', 
     'Aguardando Parecer Final': 'parecer_final', 
@@ -208,25 +201,34 @@ const occurrenceNextActionMap = {
 };
 
 export const determineNextOccurrenceStep = (currentStatus) => {
-    if (!currentStatus) return 'convocacao'; 
+    // Se não tiver status, assume o início (1ª Convocação)
+    if (!currentStatus || currentStatus === 'Aguardando Convocação') return 'convocacao_1';
     return occurrenceNextActionMap[currentStatus] || null;
 };
 
+// Mapeia o Status Atual para a AÇÃO QUE O GEROU (para edição)
 const occurrencePreviousActionMap = {
-    'Aguardando Convocação': null, 
-    'Aguardando Contato 1': 'convocacao', 
-    'Aguardando Contato 2': 'contato_familia_1', 
-    'Aguardando Contato 3': 'contato_familia_2', 
-    'Aguardando Desfecho': 'contato_familia_x', 
+    'Aguardando Convocação 1': null, 
+    'Aguardando Feedback 1': 'convocacao_1', // Edita a Convocação 1
+    'Aguardando Convocação 2': 'feedback_1', // Edita o Feedback da 1 (que falhou)
+    'Aguardando Feedback 2': 'convocacao_2', // Edita a Convocação 2
+    'Aguardando Convocação 3': 'feedback_2', // Edita o Feedback da 2
+    'Aguardando Feedback 3': 'convocacao_3', // Edita a Convocação 3
+    'Aguardando Desfecho': 'feedback_3',     // Edita o Feedback da 3 (Sucesso ou Falha->Desfecho)
     'Aguardando Devolutiva CT': 'desfecho_ou_ct', 
     'Aguardando Parecer Final': 'devolutiva_ct',
     'Resolvido': 'parecer_final'
 };
 
 export const determineCurrentActionFromStatus = (currentStatus) => {
-    if (!currentStatus) return null;
+    if (!currentStatus) return 'convocacao_1';
     if (currentStatus === 'Resolvido') return 'parecer_final';
-    if (currentStatus === 'Aguardando Desfecho') return 'contato_familia_x'; 
+    
+    // Tratamento especial para status legados ou genéricos
+    if (currentStatus === 'Aguardando Contato 1') return 'convocacao_1'; 
+    if (currentStatus === 'Aguardando Contato 2') return 'convocacao_2';
+    if (currentStatus === 'Aguardando Contato 3') return 'convocacao_3';
+
     return occurrencePreviousActionMap[currentStatus] || null;
 };
 
@@ -252,35 +254,34 @@ export const validateOccurrenceChronology = (record, actionType, newDate) => {
     const dateToCheck = new Date(newDate + 'T00:00:00'); 
     const occurrenceDate = new Date(record.date + 'T00:00:00');
 
+    // Nenhuma ação pode ser antes da ocorrência em si
     if (dateToCheck < occurrenceDate) {
         return { isValid: false, message: `A data não pode ser anterior à data da Ocorrência (${record.date}).` };
     }
 
-    if (actionType === 'contato_familia_1') {
-        if (record.meetingDate) {
-            const meetingDate = new Date(record.meetingDate + 'T00:00:00');
-            if (dateToCheck < meetingDate) return { isValid: false, message: `A 1ª Tentativa não pode ser anterior à Convocação (${record.meetingDate}).` };
+    // Validação da Convocação 2 (Não pode ser antes da Convocação 1)
+    if (actionType === 'convocacao_2') {
+        if (record.meetingDate_1) {
+            const prevDate = new Date(record.meetingDate_1 + 'T00:00:00');
+            if (dateToCheck < prevDate) return { isValid: false, message: `A 2ª Convocação não pode ser anterior à 1ª (${record.meetingDate_1}).` };
         }
     }
-    if (actionType === 'contato_familia_2') {
-        const prevDateStr = record.contactDate_1 || record.meetingDate;
+
+    // Validação da Convocação 3 (Não pode ser antes da Convocação 2)
+    if (actionType === 'convocacao_3') {
+        const prevDateStr = record.meetingDate_2 || record.meetingDate_1;
         if (prevDateStr) {
             const prevDate = new Date(prevDateStr + 'T00:00:00');
-            if (dateToCheck < prevDate) return { isValid: false, message: `A 2ª Tentativa não pode ser anterior à 1ª Tentativa ou Convocação (${prevDateStr}).` };
+            if (dateToCheck < prevDate) return { isValid: false, message: `A 3ª Convocação não pode ser anterior à anterior (${prevDateStr}).` };
         }
     }
-    if (actionType === 'contato_familia_3') {
-        const prevDateStr = record.contactDate_2 || record.contactDate_1;
-        if (prevDateStr) {
-            const prevDate = new Date(prevDateStr + 'T00:00:00');
-            if (dateToCheck < prevDate) return { isValid: false, message: `A 3ª Tentativa não pode ser anterior à tentativa passada (${prevDateStr}).` };
-        }
-    }
-    if (actionType === 'desfecho_ou_ct' || actionType === 'devolutiva_ct') {
-        const lastContactDate = record.contactDate_3 || record.contactDate_2 || record.contactDate_1 || record.meetingDate;
-        if (lastContactDate) {
-            const prevDate = new Date(lastContactDate + 'T00:00:00');
-            if (dateToCheck < prevDate) return { isValid: false, message: `A data não pode ser anterior à última tentativa de contato (${lastContactDate}).` };
+
+    // Validação do Desfecho (Não pode ser antes da última convocação)
+    if (actionType === 'desfecho_ou_ct') {
+        const lastMeetingDate = record.meetingDate_3 || record.meetingDate_2 || record.meetingDate_1;
+        if (lastMeetingDate) {
+            const prevDate = new Date(lastMeetingDate + 'T00:00:00');
+            if (dateToCheck < prevDate) return { isValid: false, message: `A data não pode ser anterior à última convocação (${lastMeetingDate}).` };
         }
     }
 
@@ -340,23 +341,37 @@ const getActionTitle = (type) => {
 
 
 // ==============================================================================
-// --- Lógica de Reset ---
+// --- Lógica de Reset (Limpar Ação) ---
 // ==============================================================================
 
+// Definição dos campos para cada etapa de Ocorrência
 const camposAcao6 = ['parecerFinal'];
 const camposAcao5 = ['ctFeedback', ...camposAcao6];
-const camposAcao4_6 = ['oficioNumber', 'oficioYear', 'ctSentDate', 'desfechoChoice', ...camposAcao5]; 
-const camposAcao3_3 = ['contactSucceeded_3', 'contactType_3', 'contactDate_3', 'providenciasFamilia_3', ...camposAcao4_6];
-const camposAcao3_2 = ['contactSucceeded_2', 'contactType_2', 'contactDate_2', 'providenciasFamilia_2', ...camposAcao3_3];
-const camposAcao3_1 = ['contactSucceeded_1', 'contactType_1', 'contactDate_1', 'providenciasFamilia_1', ...camposAcao3_2];
-const camposAcao2 = ['meetingDate', 'meetingTime', ...camposAcao3_1];
+const camposAcao4 = ['oficioNumber', 'oficioYear', 'ctSentDate', 'desfechoChoice', ...camposAcao5]; 
+
+// Campos da Convocação 3
+const camposFeedback3 = ['contactSucceeded_3', 'contactType_3', 'contactDate_3', 'providenciasFamilia_3', ...camposAcao4];
+const camposConvocacao3 = ['meetingDate_3', 'meetingTime_3', ...camposFeedback3];
+
+// Campos da Convocação 2
+const camposFeedback2 = ['contactSucceeded_2', 'contactType_2', 'contactDate_2', 'providenciasFamilia_2', ...camposConvocacao3];
+const camposConvocacao2 = ['meetingDate_2', 'meetingTime_2', ...camposFeedback2];
+
+// Campos da Convocação 1
+const camposFeedback1 = ['contactSucceeded_1', 'contactType_1', 'contactDate_1', 'providenciasFamilia_1', ...camposConvocacao2];
+const camposConvocacao1 = ['meetingDate_1', 'meetingTime_1', ...camposFeedback1];
 
 export const occurrenceStepLogic = {
-    'convocacao': { fieldsToClear: camposAcao2, statusAfterReset: 'Aguardando Convocação' },
-    'contato_familia_1': { fieldsToClear: camposAcao3_1, statusAfterReset: 'Aguardando Contato 1' },
-    'contato_familia_2': { fieldsToClear: camposAcao3_2, statusAfterReset: 'Aguardando Contato 2' },
-    'contato_familia_3': { fieldsToClear: camposAcao3_3, statusAfterReset: 'Aguardando Contato 3' },
-    'desfecho_ou_ct': { fieldsToClear: camposAcao4_6, statusAfterReset: 'Aguardando Desfecho' },
-    'devolutiva_ct': { fieldsToClear: camposAcao5, statusAfterReset: 'Aguardando Devolutiva CT' },
-    'parecer_final': { fieldsToClear: camposAcao6, statusAfterReset: 'Aguardando Parecer Final' }
+    'convocacao_1': { fieldsToClear: camposConvocacao1, statusAfterReset: 'Aguardando Convocação 1' },
+    'feedback_1':   { fieldsToClear: camposFeedback1,   statusAfterReset: 'Aguardando Feedback 1' },
+    
+    'convocacao_2': { fieldsToClear: camposConvocacao2, statusAfterReset: 'Aguardando Convocação 2' },
+    'feedback_2':   { fieldsToClear: camposFeedback2,   statusAfterReset: 'Aguardando Feedback 2' },
+    
+    'convocacao_3': { fieldsToClear: camposConvocacao3, statusAfterReset: 'Aguardando Convocação 3' },
+    'feedback_3':   { fieldsToClear: camposFeedback3,   statusAfterReset: 'Aguardando Feedback 3' },
+
+    'desfecho_ou_ct': { fieldsToClear: camposAcao4, statusAfterReset: 'Aguardando Desfecho' },
+    'devolutiva_ct':  { fieldsToClear: camposAcao5, statusAfterReset: 'Aguardando Devolutiva CT' },
+    'parecer_final':  { fieldsToClear: camposAcao6, statusAfterReset: 'Aguardando Parecer Final' }
 };

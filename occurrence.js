@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 3.2 (Ajuste de Tentativas, Ícone Olho e Modais Enxutos)
+// VERSÃO: 4.0 (Fluxo Estrito de 3 Convocações + Botões Interativos na Lista)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
@@ -36,12 +36,14 @@ import { db } from './firebase.js';
 // CONFIGURAÇÕES E UTILITÁRIOS LOCAIS
 // =================================================================================
 
-// (AJUSTE 1) Atualização dos títulos para refletir Convocação como 1ª Tentativa
+// Títulos atualizados para o novo fluxo
 export const occurrenceActionTitles = { 
-    'convocacao': 'Ação 2: 1ª Tentativa (Convocação)',
-    'contato_familia_1': 'Ação 3: 2ª Tentativa de Contato',
-    'contato_familia_2': 'Ação 3: 3ª Tentativa de Contato',
-    'contato_familia_3': 'Ação 3: 4ª Tentativa de Contato',
+    'convocacao_1': 'Ação 2: 1ª Convocação',
+    'feedback_1':   'Ação 3: Feedback da 1ª Tentativa',
+    'convocacao_2': 'Ação 2: 2ª Convocação',
+    'feedback_2':   'Ação 3: Feedback da 2ª Tentativa',
+    'convocacao_3': 'Ação 2: 3ª Convocação',
+    'feedback_3':   'Ação 3: Feedback da 3ª Tentativa',
     'desfecho_ou_ct': 'Ação 4 ou 6: Encaminhar ao CT ou Dar Parecer',
     'devolutiva_ct': 'Ação 5: Registrar Devolutiva do CT',
     'parecer_final': 'Ação 6: Dar Parecer Final'
@@ -51,9 +53,6 @@ let studentPendingRoleSelection = null;
 let editingRoleId = null; 
 let studentSearchTimeout = null;
 
-/**
- * Normaliza strings para comparação.
- */
 const normalizeText = (text) => {
     if (!text) return '';
     return text.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -230,7 +229,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 };
 
 // =================================================================================
-// RENDERIZAÇÃO 
+// RENDERIZAÇÃO (LISTA DE OCORRÊNCIAS)
 // =================================================================================
 
 export const renderOccurrences = () => {
@@ -273,63 +272,86 @@ export const renderOccurrences = () => {
                 
                 const isMatch = studentSearch && normalizeText(student.name).includes(studentSearch);
                 const nameClass = isMatch ? 'font-bold text-yellow-800 bg-yellow-100 px-1 rounded' : 'font-medium text-gray-700';
-                
                 const iconClass = roleIcons[role] || roleIcons[defaultRole];
                 const isIndividualResolvido = record?.statusIndividual === 'Resolvido';
 
                 let historyHtml = '';
-                if (record?.meetingDate) {
-                    // (AJUSTE 2) Botão "Olho" e Rótulo "1ª Tentativa"
-                    historyHtml += `
-                        <p class="text-xs text-gray-600 flex items-center flex-wrap">
-                            <span>
-                                <i class="fas fa-check text-green-500 fa-fw mr-1"></i> 
-                                <strong>Ação 2 (1ª Tentativa - Convocação):</strong> Agendada para ${formatDate(record.meetingDate)} às ${formatTime(record.meetingTime)}.
-                            </span>
-                            <button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2 cursor-pointer" 
-                                    data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" title="Ver Notificação">
-                                [<i class="fas fa-eye fa-fw"></i> Ver Notificação]
-                            </button>
-                        </p>`;
-                }
                 
-                for (let i = 1; i <= 3; i++) {
-                    const succeeded = record[`contactSucceeded_${i}`];
-                    const date = record[`contactDate_${i}`];
-                    // (AJUSTE 1) Ajuste da numeração das tentativas: i+1
-                    const attemptNumber = i + 1;
+                // Helper para renderizar bloco de Tentativa
+                const renderAttemptBlock = (index, mDate, mTime, succeeded, contactDate) => {
+                    if (!mDate) return '';
                     
-                    if (succeeded != null) {
-                        if (succeeded === 'yes') {
-                            historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 3 (${attemptNumber}ª Tentativa):</strong> Sucesso (${formatDate(date)}).</p>`;
-                        } else {
-                            historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-times text-red-500 fa-fw mr-1"></i> <strong>Ação 3 (${attemptNumber}ª Tentativa):</strong> Sem sucesso.</p>`;
-                        }
+                    const attemptNum = index; // 1, 2 ou 3
+                    const notificationBtn = `
+                        <button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2 cursor-pointer" 
+                                data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" title="Ver Notificação">
+                            [<i class="fas fa-eye fa-fw"></i> Ver Notificação]
+                        </button>`;
+                    
+                    let statusContent = '';
+                    
+                    if (succeeded === null) {
+                        // LÓGICA DO BOTÃO INTERATIVO: Pendente de Feedback
+                        statusContent = `
+                            <div class="mt-1 flex items-center gap-2">
+                                <span class="text-xs text-yellow-700 font-medium">Conseguiu contato?</span>
+                                <button type="button" class="quick-feedback-btn bg-green-100 text-green-700 hover:bg-green-200 text-xs px-2 py-0.5 rounded border border-green-300 transition"
+                                        data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" data-action="feedback_${attemptNum}" data-value="yes">
+                                    Sim
+                                </button>
+                                <button type="button" class="quick-feedback-btn bg-red-100 text-red-700 hover:bg-red-200 text-xs px-2 py-0.5 rounded border border-red-300 transition"
+                                        data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" data-action="feedback_${attemptNum}" data-value="no">
+                                    Não
+                                </button>
+                            </div>
+                        `;
+                    } else if (succeeded === 'yes') {
+                        statusContent = `<span class="text-green-600 font-semibold ml-1">- Contato Realizado (${formatDate(contactDate)})</span>`;
+                    } else {
+                        statusContent = `<span class="text-red-600 font-semibold ml-1">- Sem sucesso</span>`;
                     }
-                }
 
+                    return `
+                        <div class="mb-2 pb-2 border-b border-gray-100 last:border-0">
+                            <p class="text-xs text-gray-700 flex items-center flex-wrap">
+                                <i class="fas fa-bullhorn text-gray-400 fa-fw mr-1"></i> 
+                                <strong>${attemptNum}ª Convocação:</strong> Agendada p/ ${formatDate(mDate)} às ${formatTime(mTime)}.
+                                ${notificationBtn}
+                            </p>
+                            ${statusContent}
+                        </div>`;
+                };
+
+                // Renderiza as 3 tentativas possíveis
+                // Nota: meetingDate (legacy) é tratado como meetingDate_1
+                historyHtml += renderAttemptBlock(1, record.meetingDate || record.meetingDate_1, record.meetingTime || record.meetingTime_1, record.contactSucceeded_1, record.contactDate_1);
+                historyHtml += renderAttemptBlock(2, record.meetingDate_2, record.meetingTime_2, record.contactSucceeded_2, record.contactDate_2);
+                historyHtml += renderAttemptBlock(3, record.meetingDate_3, record.meetingTime_3, record.contactSucceeded_3, record.contactDate_3);
+
+                // Ações Finais (4, 5, 6)
                 if (record?.oficioNumber) {
-                     historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 4 (Enc. CT):</strong> Enviado Ofício Nº ${record.oficioNumber}/${record.oficioYear}.</p>`;
+                     historyHtml += `<p class="text-xs text-gray-600 mt-1"><i class="fas fa-file-export text-blue-500 fa-fw mr-1"></i> <strong>Ação 4 (Enc. CT):</strong> Enviado Ofício Nº ${record.oficioNumber}/${record.oficioYear}.</p>`;
                 }
                 if (record?.ctFeedback) {
-                     historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 5 (Devolutiva):</strong> Devolutiva recebida.</p>`;
+                     historyHtml += `<p class="text-xs text-gray-600 mt-1"><i class="fas fa-reply text-purple-500 fa-fw mr-1"></i> <strong>Ação 5 (Devolutiva):</strong> Recebida.</p>`;
                 }
                 if (record?.parecerFinal) {
-                     historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 6 (Parecer Final):</strong> Processo finalizado.</p>`;
+                     historyHtml += `<p class="text-xs text-gray-600 mt-1"><i class="fas fa-flag-checkered text-green-600 fa-fw mr-1"></i> <strong>Ação 6 (Parecer Final):</strong> Processo finalizado.</p>`;
                 }
+                
                 if (historyHtml === '') {
-                     historyHtml = `<p class="text-xs text-gray-400 italic">Nenhuma ação de acompanhamento registrada.</p>`;
+                     historyHtml = `<p class="text-xs text-gray-400 italic">Aguardando início do acompanhamento.</p>`;
                 }
                 
                 const avancarBtn = `
                     <button type="button"
                             class="avancar-etapa-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100 ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
-                            title="${isIndividualResolvido ? 'Processo individual finalizado' : `Avançar acompanhamento de ${student.name}`}"
+                            title="${isIndividualResolvido ? 'Processo individual finalizado' : `Agendar próxima etapa`}"
                             ${isIndividualResolvido ? 'disabled' : ''}
                             data-group-id="${incident.id}"
                             data-student-id="${student.matricula}"
                             data-record-id="${recordId}">
-                        <i class="fas fa-plus"></i> Avançar Etapa
+                        <i class="fas fa-plus"></i> Avançar / Agendar
                     </button>
                 `;
 
@@ -349,7 +371,7 @@ export const renderOccurrences = () => {
                             data-student-id="${student.matricula}"
                             data-record-id="${recordId}"
                             title="Editar a última ação salva">
-                        <i class="fas fa-pencil-alt"></i> Editar Ação
+                        <i class="fas fa-pencil-alt"></i> Editar Última
                     </button>
                 `;
                 
@@ -381,12 +403,12 @@ export const renderOccurrences = () => {
                         </div>
                         
                         <div id="${contentId}" class="process-content" style="max-height: 0px; overflow: hidden;">
-                            <div class="p-3 border-t border-gray-200">
-                                <h5 class="text-xs font-bold uppercase text-gray-500 mb-2">Histórico Individual</h5>
-                                <div class="space-y-1 mb-3">
+                            <div class="p-3 border-t border-gray-200 bg-white">
+                                <h5 class="text-xs font-bold uppercase text-gray-500 mb-2">Histórico de Ações</h5>
+                                <div class="space-y-2 mb-3">
                                     ${historyHtml}
                                 </div>
-                                <h5 class="text-xs font-bold uppercase text-gray-500 mb-2">Ações</h5>
+                                <h5 class="text-xs font-bold uppercase text-gray-500 mb-2 mt-4">Gestão</h5>
                                 <div class="flex items-center flex-wrap gap-2">
                                     ${avancarBtn}
                                     ${editActionBtn}
@@ -520,7 +542,7 @@ const toggleDesfechoFields = (choice) => {
 };
 
 
-export const openOccurrenceStepModal = (student, record, actionType) => {
+export const openOccurrenceStepModal = (student, record, actionType, preFilledData = null) => {
     const followUpForm = document.getElementById('follow-up-form');
     followUpForm.reset();
     followUpForm.dataset.recordId = record.id;
@@ -535,12 +557,9 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
     modalTitle.textContent = occurrenceActionTitles[actionType] || 'Acompanhamento Individual';
     statusDisplay.innerHTML = `<strong>Status:</strong> ${getStatusBadge(record.statusIndividual || 'Aguardando Convocação')}`;
 
-    // (AJUSTE 3) Ocultar fieldset de identificação do aluno
+    // Ocultar fieldset de identificação do aluno para layout enxuto
     const studentInfoBlock = document.querySelector('#follow-up-form fieldset:first-of-type');
-    if (studentInfoBlock) {
-        // Ocultamos para deixar o modal enxuto, pois o contexto já foi dado ao clicar na linha
-        studentInfoBlock.classList.add('hidden');
-    }
+    if (studentInfoBlock) studentInfoBlock.classList.add('hidden');
 
     ['follow-up-meeting-date', 'follow-up-contact-date', 'follow-up-ct-sent-date'].forEach(id => {
         const el = document.getElementById(id);
@@ -558,151 +577,128 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
     toggleDesfechoFields(null); 
     toggleOccurrenceContactFields(false);
 
-    let requiredFieldsValid = true;
     let currentGroup = null;
 
-    const isContactAction = actionType.startsWith('contato_familia_');
-    const attemptNumber = isContactAction ? parseInt(actionType.split('_')[2]) : 0;
+    // --- LÓGICA DE ABERTURA BASEADA NO TIPO DE AÇÃO ---
 
-    if (actionType === 'convocacao') { 
+    if (actionType.startsWith('convocacao_')) { 
+        // Ação 2: Agendar Convocação (1, 2 ou 3)
+        const attemptNum = actionType.split('_')[1];
+        
         currentGroup = document.getElementById('group-convocacao');
         if (currentGroup) {
             currentGroup.classList.remove('hidden');
+            currentGroup.querySelector('legend').textContent = `Ação 2: Agendar ${attemptNum}ª Convocação`;
+            
             const dateInput = document.getElementById('follow-up-meeting-date');
             const timeInput = document.getElementById('follow-up-meeting-time');
-            dateInput.value = record.meetingDate || '';
-            timeInput.value = record.meetingTime || '';
+            
+            // Tenta carregar dados existentes para edição
+            const existingDate = record[`meetingDate_${attemptNum}`] || (attemptNum == 1 ? record.meetingDate : null);
+            const existingTime = record[`meetingTime_${attemptNum}`] || (attemptNum == 1 ? record.meetingTime : null);
+            
+            dateInput.value = existingDate || '';
+            timeInput.value = existingTime || '';
             dateInput.disabled = false; dateInput.required = true;
             timeInput.disabled = false; timeInput.required = true;
-            if (record.date) dateInput.min = record.date;
-        }
-
-    } else if (isContactAction) { 
-        
-        if (attemptNumber === 1 && (!record.meetingDate || !record.meetingTime)) {
-            showToast('Erro: Preencha a Ação 2 (Convocação) primeiro.');
-            requiredFieldsValid = false;
-        } 
-        else if (attemptNumber > 1) {
-            const prevAttempt = attemptNumber - 1;
-            if (record[`contactSucceeded_${prevAttempt}`] !== 'no') {
-                showToast(`Erro: A tentativa ${prevAttempt} precisa ter sido registrada como "Não" para abrir a ${attemptNumber}ª.`);
-                requiredFieldsValid = false;
+            
+            // Define data mínima baseada na etapa anterior
+            if (attemptNum == 1) {
+                if(record.date) dateInput.min = record.date;
+            } else {
+                const prevAttempt = attemptNum - 1;
+                const prevDate = record[`meetingDate_${prevAttempt}`] || (prevAttempt == 1 ? record.meetingDate : null);
+                if (prevDate) dateInput.min = prevDate;
             }
         }
 
-        if (requiredFieldsValid) {
-            currentGroup = document.getElementById('group-contato');
-            if (currentGroup) {
-                currentGroup.classList.remove('hidden');
-                
-                const legend = document.getElementById('legend-contato');
-                if (legend) {
-                    // (AJUSTE 1) Ajuste dinâmico da legenda do modal
-                    // Se attemptNumber é 1, é a 2ª Tentativa (pois a 1ª foi convocação)
-                    // Se attemptNumber é 2, é a 3ª Tentativa
-                    const displayAttempt = attemptNumber + 1; 
-                    legend.textContent = `Ação 3: ${displayAttempt}ª Tentativa de Contato`;
-                }
+    } else if (actionType.startsWith('feedback_')) { 
+        // Ação 3: Feedback (1, 2 ou 3)
+        const attemptNum = parseInt(actionType.split('_')[1]);
+        
+        currentGroup = document.getElementById('group-contato');
+        if (currentGroup) {
+            currentGroup.classList.remove('hidden');
+            const legend = document.getElementById('legend-contato');
+            if (legend) legend.textContent = `Ação 3: Feedback da ${attemptNum}ª Tentativa`;
 
-                const radios = currentGroup.querySelectorAll('input[name="follow-up-contact-succeeded"]');
-                radios.forEach(r => { r.disabled = false; r.required = true; });
+            const radios = currentGroup.querySelectorAll('input[name="follow-up-contact-succeeded"]');
+            radios.forEach(r => { r.disabled = false; r.required = true; });
 
-                const currentSucceededValue = record[`contactSucceeded_${attemptNumber}`]; 
+            // Se vier pré-preenchido do botão rápido
+            if (preFilledData && preFilledData.succeeded) {
+                const radio = currentGroup.querySelector(`input[value="${preFilledData.succeeded}"]`);
+                if(radio) radio.checked = true;
+                toggleOccurrenceContactFields(preFilledData.succeeded === 'yes');
+            } else {
+                // Carrega do banco para edição
+                const currentSucceededValue = record[`contactSucceeded_${attemptNum}`]; 
                 const radioChecked = document.querySelector(`input[name="follow-up-contact-succeeded"][value="${currentSucceededValue}"]`);
                 if (radioChecked) radioChecked.checked = true;
-                
                 toggleOccurrenceContactFields(currentSucceededValue === 'yes');
-                
-                document.getElementById('follow-up-contact-type').value = record[`contactType_${attemptNumber}`] || '';
-                
-                const contactDateInput = document.getElementById('follow-up-contact-date');
-                contactDateInput.value = record[`contactDate_${attemptNumber}`] || '';
-                
-                if (attemptNumber === 1 && record.meetingDate) {
-                    contactDateInput.min = record.meetingDate;
-                } else if (attemptNumber > 1 && record[`contactDate_${attemptNumber-1}`]) {
-                    contactDateInput.min = record[`contactDate_${attemptNumber-1}`];
-                }
-
-                document.getElementById('follow-up-family-actions').value = record[`providenciasFamilia_${attemptNumber}`] || '';
             }
+            
+            document.getElementById('follow-up-contact-type').value = record[`contactType_${attemptNum}`] || '';
+            const contactDateInput = document.getElementById('follow-up-contact-date');
+            contactDateInput.value = record[`contactDate_${attemptNum}`] || '';
+            
+            // Data mínima = Data da Convocação correspondente
+            const meetingDate = record[`meetingDate_${attemptNum}`] || (attemptNum == 1 ? record.meetingDate : null);
+            if (meetingDate) contactDateInput.min = meetingDate;
+
+            document.getElementById('follow-up-family-actions').value = record[`providenciasFamilia_${attemptNum}`] || '';
         }
 
     } else if (actionType === 'desfecho_ou_ct') { 
-         const hasAnyAttempt = record.contactSucceeded_1 != null;
-         
-         if (!hasAnyAttempt) { 
-            showToast('Erro: Registre pelo menos uma tentativa de contato primeiro.');
-            requiredFieldsValid = false;
-        } else {
-            const choiceGroup = document.getElementById('group-desfecho-choice');
-            if (choiceGroup) {
-                choiceGroup.classList.remove('hidden');
-                const choiceRadios = choiceGroup.querySelectorAll('input[name="follow-up-desfecho-choice"]');
-                choiceRadios.forEach(r => { r.disabled = false; r.required = true; });
+        const choiceGroup = document.getElementById('group-desfecho-choice');
+        if (choiceGroup) {
+            choiceGroup.classList.remove('hidden');
+            const choiceRadios = choiceGroup.querySelectorAll('input[name="follow-up-desfecho-choice"]');
+            choiceRadios.forEach(r => { r.disabled = false; r.required = true; });
 
-                const currentChoice = record.desfechoChoice || null;
-                if (currentChoice) {
-                    const radioToCheck = choiceGroup.querySelector(`input[value="${currentChoice}"]`);
-                    if (radioToCheck) radioToCheck.checked = true;
-                    toggleDesfechoFields(currentChoice);
-                } else {
-                     toggleDesfechoFields(null);
-                }
+            const currentChoice = record.desfechoChoice || null;
+            if (currentChoice) {
+                const radioToCheck = choiceGroup.querySelector(`input[value="${currentChoice}"]`);
+                if (radioToCheck) radioToCheck.checked = true;
+                toggleDesfechoFields(currentChoice);
+            } else {
+                 toggleDesfechoFields(null);
             }
+        }
 
-            const oficioInput = document.getElementById('follow-up-oficio-number');
-            const dateCtInput = document.getElementById('follow-up-ct-sent-date');
-            const parecerInput = document.getElementById('follow-up-parecer-final');
-            if(oficioInput) oficioInput.value = record.oficioNumber || '';
-            if(dateCtInput) dateCtInput.value = record.ctSentDate || '';
-            if(parecerInput) parecerInput.value = record.parecerFinal || '';
-            
-            if (dateCtInput) {
-                let lastContactDate = record.contactDate_3 || record.contactDate_2 || record.contactDate_1 || record.meetingDate;
-                if (lastContactDate) dateCtInput.min = lastContactDate;
-            }
+        const oficioInput = document.getElementById('follow-up-oficio-number');
+        const dateCtInput = document.getElementById('follow-up-ct-sent-date');
+        const parecerInput = document.getElementById('follow-up-parecer-final');
+        if(oficioInput) oficioInput.value = record.oficioNumber || '';
+        if(dateCtInput) dateCtInput.value = record.ctSentDate || '';
+        if(parecerInput) parecerInput.value = record.parecerFinal || '';
+        
+        if (dateCtInput) {
+            let lastContactDate = record.contactDate_3 || record.contactDate_2 || record.contactDate_1 || record.meetingDate;
+            if (lastContactDate) dateCtInput.min = lastContactDate;
         }
 
     } else if (actionType === 'devolutiva_ct') { 
-        if (!record.oficioNumber || !record.ctSentDate) {
-            showToast('Erro: Preencha a Ação 4 (Encaminhamento ao CT) primeiro.');
-            requiredFieldsValid = false;
-        } else {
-            currentGroup = document.getElementById('group-devolutiva-ct');
-            if (currentGroup) {
-                currentGroup.classList.remove('hidden');
-                const feedbackInput = document.getElementById('follow-up-ct-feedback');
-                feedbackInput.value = record.ctFeedback || '';
-                feedbackInput.disabled = false; feedbackInput.required = true;
-            }
+        currentGroup = document.getElementById('group-devolutiva-ct');
+        if (currentGroup) {
+            currentGroup.classList.remove('hidden');
+            const feedbackInput = document.getElementById('follow-up-ct-feedback');
+            feedbackInput.value = record.ctFeedback || '';
+            feedbackInput.disabled = false; feedbackInput.required = true;
         }
 
     } else if (actionType === 'parecer_final') { 
-        if (record.oficioNumber && record.ctFeedback == null) {
-            showToast('Erro: Preencha a Ação 5 (Devolutiva do CT) primeiro.');
-            requiredFieldsValid = false;
-        } else if (!record.oficioNumber && record.contactSucceeded_1 == null) { 
-             showToast('Erro: Fluxo incompleto.');
-             requiredFieldsValid = false;
-        } else {
-            currentGroup = document.getElementById('group-parecer-final');
-            if (currentGroup) {
-                currentGroup.classList.remove('hidden');
-                const parecerInputFinal = document.getElementById('follow-up-parecer-final');
-                parecerInputFinal.value = record.parecerFinal || '';
-                parecerInputFinal.disabled = false; parecerInputFinal.required = true;
-            }
+        currentGroup = document.getElementById('group-parecer-final');
+        if (currentGroup) {
+            currentGroup.classList.remove('hidden');
+            const parecerInputFinal = document.getElementById('follow-up-parecer-final');
+            parecerInputFinal.value = record.parecerFinal || '';
+            parecerInputFinal.disabled = false; parecerInputFinal.required = true;
         }
     }
 
-    if (requiredFieldsValid) {
-        followUpForm.classList.remove('hidden');
-        openModal(dom.followUpModal);
-    } else {
-        closeModal(dom.followUpModal);
-    }
+    followUpForm.classList.remove('hidden');
+    openModal(dom.followUpModal);
 };
 
 
@@ -773,7 +769,7 @@ async function handleOccurrenceSubmit(e) {
                         studentClass: participant.studentClass,
                         
                         occurrenceGroupId: groupId,
-                        statusIndividual: 'Aguardando Convocação',
+                        statusIndividual: 'Aguardando Convocação 1',
                         meetingDate: null, meetingTime: null, 
                         contactSucceeded_1: null, contactType_1: null, contactDate_1: null, providenciasFamilia_1: null,
                         contactSucceeded_2: null, contactType_2: null, contactDate_2: null, providenciasFamilia_2: null,
@@ -833,7 +829,7 @@ async function handleOccurrenceSubmit(e) {
                     studentClass: participant.studentClass,
 
                     occurrenceGroupId: newGroupId,
-                    statusIndividual: 'Aguardando Convocação',
+                    statusIndividual: 'Aguardando Convocação 1',
                     meetingDate: null, meetingTime: null,
                     contactSucceeded_1: null, contactType_1: null, contactDate_1: null, providenciasFamilia_1: null,
                     contactSucceeded_2: null, contactType_2: null, contactDate_2: null, providenciasFamilia_2: null,
@@ -874,31 +870,40 @@ async function handleOccurrenceStepSubmit(e) {
     let nextStatus = record.statusIndividual; 
 
     try {
-        if (actionType === 'convocacao') {
-            dataToUpdate = {
-                meetingDate: document.getElementById('follow-up-meeting-date').value,
-                meetingTime: document.getElementById('follow-up-meeting-time').value,
-            };
-            if (!dataToUpdate.meetingDate || !dataToUpdate.meetingTime) return showToast('Data e Horário obrigatórios.');
+        if (actionType.startsWith('convocacao_')) {
+            const attemptNum = actionType.split('_')[1];
+            // Mapeia para campos do banco (1 usa meetingDate legacy, outros usam sufixo)
+            const dateField = attemptNum == 1 ? 'meetingDate' : `meetingDate_${attemptNum}`;
+            const timeField = attemptNum == 1 ? 'meetingTime' : `meetingTime_${attemptNum}`;
+
+            const inputDate = document.getElementById('follow-up-meeting-date').value;
+            const inputTime = document.getElementById('follow-up-meeting-time').value;
+
+            if (!inputDate || !inputTime) return showToast('Data e Horário obrigatórios.');
             
-            const dateCheck = validateOccurrenceChronology(record, 'convocacao', dataToUpdate.meetingDate);
+            const dateCheck = validateOccurrenceChronology(record, actionType, inputDate);
             if (!dateCheck.isValid) return showToast(dateCheck.message);
 
-            historyAction = `Ação 2 (Convocação) agendada para ${formatDate(dataToUpdate.meetingDate)} às ${formatTime(dataToUpdate.meetingTime)}.`;
-            nextStatus = 'Aguardando Contato 1'; 
+            dataToUpdate = {
+                [dateField]: inputDate,
+                [timeField]: inputTime
+            };
 
-        } else if (actionType.startsWith('contato_familia_')) {
-            const attemptNumber = parseInt(actionType.split('_')[2]);
+            historyAction = `Ação 2 (${attemptNum}ª Convocação) agendada para ${formatDate(inputDate)} às ${formatTime(inputTime)}.`;
+            nextStatus = `Aguardando Feedback ${attemptNum}`; 
+
+        } else if (actionType.startsWith('feedback_')) {
+            const attemptNum = parseInt(actionType.split('_')[1]);
             const contactSucceededRadio = document.querySelector('input[name="follow-up-contact-succeeded"]:checked');
             const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
 
             if (!contactSucceeded) return showToast('Selecione se conseguiu contato.');
 
             const fields = {
-                succeeded: `contactSucceeded_${attemptNumber}`,
-                type: `contactType_${attemptNumber}`,
-                date: `contactDate_${attemptNumber}`,
-                providencias: `providenciasFamilia_${attemptNumber}`
+                succeeded: `contactSucceeded_${attemptNum}`,
+                type: `contactType_${attemptNum}`,
+                date: `contactDate_${attemptNum}`,
+                providencias: `providenciasFamilia_${attemptNum}`
             };
 
             if (contactSucceeded === 'yes') {
@@ -915,7 +920,7 @@ async function handleOccurrenceStepSubmit(e) {
                 const dateCheck = validateOccurrenceChronology(record, actionType, dataToUpdate[fields.date]);
                 if (!dateCheck.isValid) return showToast(dateCheck.message);
 
-                historyAction = `Ação 3 (${attemptNumber + 1}ª Tentativa) registrada com sucesso.`;
+                historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato realizado com sucesso.`;
                 nextStatus = 'Aguardando Desfecho'; 
 
             } else { 
@@ -923,11 +928,12 @@ async function handleOccurrenceStepSubmit(e) {
                     [fields.succeeded]: 'no',
                     [fields.type]: null, [fields.date]: null, [fields.providencias]: null, 
                 };
-                historyAction = `Ação 3 (${attemptNumber + 1}ª Tentativa) sem sucesso.`;
+                historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato sem sucesso.`;
                 
-                if (attemptNumber === 1) nextStatus = 'Aguardando Contato 2';
-                else if (attemptNumber === 2) nextStatus = 'Aguardando Contato 3';
-                else nextStatus = 'Aguardando Desfecho'; 
+                // Define próxima etapa baseada na tentativa atual
+                if (attemptNum === 1) nextStatus = 'Aguardando Convocação 2';
+                else if (attemptNum === 2) nextStatus = 'Aguardando Convocação 3';
+                else nextStatus = 'Aguardando Desfecho'; // Esgotou tentativas, vai para desfecho
             }
 
         } else if (actionType === 'desfecho_ou_ct') {
@@ -954,13 +960,6 @@ async function handleOccurrenceStepSubmit(e) {
                 
                 historyAction = `Ação 4 (Encaminhamento ao CT) registrada. Ofício: ${oficioNumber}/${dataToUpdate.oficioYear}.`;
                 nextStatus = 'Aguardando Devolutiva CT';
-
-                // (CORREÇÃO) Geração de Ofício após salvar
-                // Como é assíncrono e pode falhar, fazemos apenas se o registro for bem sucedido
-                // Mas para garantir integridade, idealmente geramos após o await updateRecordWithHistory.
-                // No entanto, precisamos dos dados do aluno.
-                
-                // Aqui apenas preparamos os dados para abrir DEPOIS de salvar.
                 
             } else { 
                  const parecerFinal = document.getElementById('follow-up-parecer-final').value.trim();
@@ -1011,13 +1010,11 @@ async function handleOccurrenceStepSubmit(e) {
         if (actionType === 'desfecho_ou_ct' && dataToUpdate.desfechoChoice === 'ct') {
              if(student) {
                  generateAndShowOccurrenceOficio({ ...record, ...dataToUpdate }, student, dataToUpdate.oficioNumber, dataToUpdate.oficioYear);
-             } else {
-                 // Se não achou na memória, tenta buscar (fallback simples)
-                 // Mas como acabou de salvar, provavelmente está ok.
              }
         }
 
-        if (actionType === 'convocacao' && student) {
+        // Se foi um agendamento de convocação, abre notificação
+        if (actionType.startsWith('convocacao_') && student) {
             const incident = await fetchIncidentById(record.occurrenceGroupId);
             const updatedRecordForNotification = { ...record, ...dataToUpdate };
             if (incident) {
@@ -1060,44 +1057,11 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
     if (!record) return showToast('Erro: Registro não encontrado.');
 
     let actionToEdit = determineCurrentActionFromStatus(record.statusIndividual);
-
-    if (record.statusIndividual === 'Resolvido') {
-        if (record.desfechoChoice) {
-            actionToEdit = 'desfecho_ou_ct'; 
-        } else if (record.oficioNumber && record.ctFeedback) {
-             actionToEdit = 'parecer_final'; 
-        } else if (record.oficioNumber) {
-             actionToEdit = 'devolutiva_ct'; 
-        } else if (record.contactSucceeded_1 != null) {
-            actionToEdit = 'desfecho_ou_ct'; 
-        } else {
-             actionToEdit = 'convocacao'; 
-        }
-    } 
-    else if (record.statusIndividual === 'Aguardando Parecer Final') {
-        actionToEdit = 'devolutiva_ct';
-    }
-    else if (record.statusIndividual === 'Aguardando Devolutiva CT') {
-        actionToEdit = 'desfecho_ou_ct'; 
-    }
-    else if (record.statusIndividual === 'Aguardando Desfecho' || actionToEdit === 'contato_familia_x') {
-        if (record.contactSucceeded_3 != null) actionToEdit = 'contato_familia_3';
-        else if (record.contactSucceeded_2 != null) actionToEdit = 'contato_familia_2';
-        else if (record.contactSucceeded_1 != null) actionToEdit = 'contato_familia_1';
-        else actionToEdit = 'convocacao'; 
-    } else if (record.statusIndividual === 'Aguardando Contato 3') {
-         actionToEdit = 'contato_familia_2'; 
-    } else if (record.statusIndividual === 'Aguardando Contato 2') {
-         actionToEdit = 'contato_familia_1';
-    } else if (record.statusIndividual === 'Aguardando Contato 1') {
-         actionToEdit = 'convocacao';
-    } else if (record.statusIndividual === 'Aguardando Convocação') {
-         actionToEdit = 'convocacao'; 
-    }
-
-    if (actionToEdit === null || actionToEdit === 'convocacao') {
-        showToast('Use "Editar Fato" para alterar a Ação 1 ou "Avançar Etapa" se a Convocação ainda não foi registrada.');
-        return;
+    
+    // Fallback: Se actionToEdit retornar nulo ou não for específico o suficiente,
+    // a função determineCurrentActionFromStatus já deve tratar, mas garantimos aqui que abra algo.
+    if (!actionToEdit) {
+        return showToast('Estado inválido para edição direta.');
     }
     
     openOccurrenceStepModal(student, record, actionToEdit);
@@ -1110,38 +1074,6 @@ async function handleResetActionConfirmation(studentId, groupId, recordId) {
     if (!record) return showToast('Erro: Registro não encontrado.');
     
     let actionToReset = determineCurrentActionFromStatus(record.statusIndividual);
-
-     if (record.statusIndividual === 'Resolvido') {
-        if (record.parecerFinal && record.oficioNumber) actionToReset = 'parecer_final';
-        else if (record.parecerFinal && record.desfechoChoice === 'parecer') actionToReset = 'desfecho_ou_ct';
-        else if (record.ctFeedback) actionToReset = 'devolutiva_ct';
-        else if (record.oficioNumber) actionToReset = 'desfecho_ou_ct';
-        else actionToReset = 'parecer_final'; 
-    }
-    else if (record.statusIndividual === 'Aguardando Parecer Final') {
-        actionToReset = 'devolutiva_ct';
-    }
-    else if (record.statusIndividual === 'Aguardando Devolutiva CT') {
-        actionToReset = 'desfecho_ou_ct';
-    }
-    else if (record.statusIndividual === 'Aguardando Desfecho') {
-        if (record.contactSucceeded_3) actionToReset = 'contato_familia_3';
-        else if (record.contactSucceeded_2) actionToReset = 'contato_familia_2';
-        else if (record.contactSucceeded_1) actionToReset = 'contato_familia_1';
-        else actionToReset = 'convocacao'; 
-    }
-    else if (record.statusIndividual === 'Aguardando Contato 3') {
-        actionToReset = 'contato_familia_2';
-    }
-    else if (record.statusIndividual === 'Aguardando Contato 2') {
-        actionToReset = 'contato_familia_1';
-    }
-    else if (record.statusIndividual === 'Aguardando Contato 1') {
-        actionToReset = 'convocacao';
-    }
-    else if (record.statusIndividual === 'Aguardando Convocação') {
-         actionToReset = 'convocacao';
-    }
 
     if (actionToReset === null) {
         return showToast('Não é possível Limpar a Ação 1 (Fato). Use "Editar Fato".');
@@ -1168,6 +1100,7 @@ function handleDelete(type, id) {
     openModal(dom.deleteConfirmModal);
 }
 
+// Handler para o botão "Avançar"
 async function handleNewOccurrenceAction(studentId, groupId, recordId) {
     const incident = await fetchIncidentById(groupId); 
     if (!incident) return showToast('Erro: Incidente não encontrado.');
@@ -1188,6 +1121,23 @@ async function handleNewOccurrenceAction(studentId, groupId, recordId) {
     openOccurrenceStepModal(student, record, nextAction);
 }
 
+// Handler para botões rápidos de feedback (Sim/Não) na lista
+async function handleQuickFeedback(studentId, groupId, recordId, actionType, value) {
+    const incident = await fetchIncidentById(groupId); 
+    if (!incident) return showToast('Erro: Incidente não encontrado.');
+
+    const participantData = incident.participantsInvolved.get(studentId);
+    const student = participantData?.student;
+    if (!student) return showToast('Erro: Aluno não encontrado.');
+
+    const record = incident.records.find(r => r.id === recordId);
+    if (!record) return showToast('Erro: Registro não encontrado.');
+
+    // Abre o modal de feedback pre-preenchido
+    openOccurrenceStepModal(student, record, actionType, { succeeded: value });
+}
+
+
 async function handleGenerateNotification(recordId, studentId, groupId) {
     const incident = await fetchIncidentById(groupId); 
      if (!incident) return showToast('Erro: Incidente não encontrado.');
@@ -1199,47 +1149,38 @@ async function handleGenerateNotification(recordId, studentId, groupId) {
     openIndividualNotificationModal(incident, student);
 }
 
-// (CORREÇÃO CRÍTICA) Função Blindada para Visualização de Ofício
 async function handleViewOccurrenceOficio(recordId) {
     try {
         if (!recordId) return;
         let targetRecord = null; let targetIncident = null;
 
-        // 1. Busca no estado local para pegar o GroupID
         const recordFromState = state.occurrences.find(r => r.id === recordId);
         if (!recordFromState || !recordFromState.occurrenceGroupId) {
              return showToast('Registro não encontrado localmente.');
         }
 
-        // 2. Busca o Incidente Completo (com timeout via firestore.js corrigido)
         targetIncident = await fetchIncidentById(recordFromState.occurrenceGroupId);
         if (!targetIncident) return showToast('Incidente não encontrado no servidor.');
 
-        // 3. Encontra o registro específico dentro do incidente carregado
         targetRecord = targetIncident.records.find(r => r.id === recordId);
         if (!targetRecord) return showToast('Registro específico não encontrado.'); 
 
         if (!targetRecord.oficioNumber) return showToast('Este registro não possui um ofício associado.');
 
-        // 4. Recupera o aluno (que pode ser um placeholder se a busca falhou)
         const participantData = targetIncident.participantsInvolved.get(targetRecord.studentId);
         let student = participantData?.student;
 
-        // Fallback de emergência se o aluno não estiver no mapa (inconsistência de dados)
-        // Isso garante que o ofício abra mesmo se os dados do aluno estiverem incompletos na memória
         if (!student) {
             console.warn("Aviso: Aluno não encontrado no mapa de participantes. Usando dados do registro para forçar abertura.");
             student = {
                 matricula: targetRecord.studentId,
                 name: targetRecord.studentName || `Aluno (${targetRecord.studentId})`,
                 class: targetRecord.studentClass || 'N/A',
-                endereco: '', // Endereço vazio é melhor que quebrar a app
+                endereco: '', 
                 contato: ''
             };
         }
 
-        // 5. Chama a geração do ofício
-        // (O reports.js já tem um resolveStudentData que tenta buscar mais dados se necessário)
         await generateAndShowOccurrenceOficio(
             targetRecord, 
             student, 
@@ -1303,13 +1244,15 @@ export const initOccurrenceListeners = () => {
                     handleResetActionConfirmation(studentIdBtn, groupIdBtn, recordIdBtn);
                     return;
                 }
-                if (button.classList.contains('notification-student-btn')) {
-                     handleGenerateNotification(recordIdBtn, studentIdBtn, groupIdBtn);
-                     return;
+                // Handler para os novos botões rápidos de feedback
+                if (button.classList.contains('quick-feedback-btn')) {
+                    const action = button.dataset.action;
+                    const value = button.dataset.value;
+                    handleQuickFeedback(studentIdBtn, groupIdBtn, recordIdBtn, action, value);
+                    return;
                 }
-                // Listener para o novo botão de visualizar notificação (olho)
                 if (button.classList.contains('view-notification-btn-hist')) {
-                     handleGenerateNotification(recordIdBtn, studentIdBtn, groupIdBtn); // Usa a mesma função de gerar notificação
+                     handleGenerateNotification(recordIdBtn, studentIdBtn, groupIdBtn);
                      return;
                 }
                 if (button.classList.contains('view-occurrence-oficio-btn')) {

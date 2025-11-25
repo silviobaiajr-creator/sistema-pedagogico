@@ -178,7 +178,6 @@
                         <button id="general-ba-report-btn" class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral
                         </button>
-                        <!-- BOTÃO MODIFICADO: Apenas abre o modal de seleção/início do fluxo (Req. 2) -->
                         <button id="add-absence-btn" class="w-full sm:w-auto bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-emerald-700 transition duration-300">
                             <i class="fas fa-plus mr-2"></i>Nova Ação
                         </button>
@@ -186,10 +185,8 @@
                 </div>
                  <!-- Filtros da Busca Ativa -->
                 <div id="absence-filters" class="mb-6 bg-gray-50 p-4 rounded-lg border grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                     <!-- Título dos Filtros -->
                     <div class="md:col-span-5"><h3 class="text-md font-semibold text-gray-700">Filtros</h3></div>
 
-                    <!-- Filtros Existentes -->
                     <div class="flex-1 min-w-[150px]">
                         <label for="filter-process-status" class="text-sm font-medium text-gray-600">Estado</label>
                         <select id="filter-process-status" class="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm">
@@ -215,7 +212,6 @@
                             <option value="pending">Pendente</option>
                         </select>
                     </div>
-                     <!-- Filtros de Data para Busca Ativa -->
                     <div class="flex-1 min-w-[150px]">
                         <label for="absence-start-date-filter" class="text-sm font-medium text-gray-600">De</label>
                         <input type="date" id="absence-start-date-filter" class="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm">
@@ -229,9 +225,7 @@
                     <div class="mb-4">
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
-                            <!-- INPUT AGORA APENAS PARA FILTRAR A LISTA -->
                             <input type="text" id="search-absences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md" placeholder="Filtrar processos por nome do aluno...">
-                            <!-- A sugestão de busca foi movida para o modal "Nova Ação" -->
                             <div id="absence-student-suggestions" class="autocomplete-suggestions hidden"></div> 
                         </div>
                     </div>
@@ -304,7 +298,7 @@
         </div>
     </div>
 
-    <!-- Modal para Acompanhamento Individual da Ocorrência (Ações 2-6) - REVISADO (Req. 1) -->
+    <!-- Modal para Acompanhamento Individual da Ocorrência (Ações 2-6) -->
     <div id="follow-up-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -314,7 +308,7 @@
             <!-- Formulário de acompanhamento dinâmico -->
             <form id="follow-up-form" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto" data-record-id="" data-student-id="" data-action-type="">
                 
-                <!-- REVISÃO (Req. 1): Identificação e Status Isolados -->
+                <!-- Identificação e Status -->
                 <fieldset class="p-3 border rounded-md bg-gray-50">
                     <legend class="text-sm font-semibold text-gray-700 px-2">Aluno</legend>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -331,7 +325,7 @@
                 <!-- Container para os grupos de campos dinâmicos (Etapa Atual) -->
                 <div id="dynamic-occurrence-fields" class="border-t pt-4">
 
-                    <!-- Grupo Ação 2: Convocação -->
+                    <!-- Grupo Ação 2: Convocação (Reutilizável para 1ª, 2ª e 3ª) -->
                     <fieldset id="group-convocacao" class="dynamic-occurrence-step hidden">
                         <legend class="text-md font-semibold text-gray-600">Ação 2: Agendar Convocação</legend>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
@@ -346,9 +340,9 @@
                         </div>
                     </fieldset>
 
-                    <!-- Grupo Ação 3: Contato com Família -->
+                    <!-- Grupo Ação 3: Feedback / Contato com Família (Reutilizável) -->
                     <fieldset id="group-contato" class="dynamic-occurrence-step hidden">
-                        <legend id="legend-contato" class="text-md font-semibold text-gray-600">Ação 3: Registrar Contato com Família</legend>
+                        <legend id="legend-contato" class="text-md font-semibold text-gray-600">Ação 3: Registrar Contato</legend>
                         <div class="mt-2">
                             <span class="block text-sm font-medium">Conseguiu contato? <span class="text-red-500">*</span></span>
                             <div class="mt-2 space-x-4">
@@ -399,7 +393,6 @@
                     </fieldset>
 
                     <!-- Grupo Ação 6: Parecer Final -->
-                    <!-- Reutiliza a fieldset, mas é tratado pelo desfecho-choice e parecer_final -->
                     <fieldset id="group-parecer-final" class="dynamic-occurrence-step hidden border rounded-md p-3 space-y-4 bg-gray-50">
                         <legend class="text-sm font-semibold px-2">Ação 6: Parecer Final / Desfecho</legend>
                         <div class="mt-2">
@@ -417,12 +410,8 @@
             </form>
         </div>
     </div>
-    <!-- FIM DO MODAL DE OCORRÊNCIAS (Ações 2-6) -->
 
-    <!-- ============================================================================== -->
-    <!-- Modal NOVO: Busca de Aluno para Iniciar Ação de Busca Ativa (Req. 2) -->
-    <!-- Este modal inicia o processo e determina se é novo ou continua. -->
-    <!-- ============================================================================== -->
+    <!-- Modal NOVO: Busca de Aluno para Iniciar Ação de Busca Ativa -->
      <div id="absence-search-flow-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -450,9 +439,9 @@
         </div>
     </div>
 
-    <!-- Modal: Registro/Edição de Ação de Busca Ativa (REVISADO E PADRONIZADO) -->
+    <!-- Modal: Registro/Edição de Ação de Busca Ativa -->
     <div id="absence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0 max-h-[95vh] flex flex-col"> <!-- max-w-xl para igualar ocorrência -->
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0 max-h-[95vh] flex flex-col"> 
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
                 <h3 id="absence-modal-title" class="text-xl font-semibold">Acompanhamento Busca Ativa</h3>
                 <button id="close-absence-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
@@ -461,12 +450,12 @@
                 <input type="hidden" id="absence-id">
                 <input type="hidden" id="absence-process-id">
                 
-                <!-- Inputs ocultos para dados que o JS precisa, mas não exibimos mais -->
+                <!-- Inputs ocultos -->
                 <input type="hidden" id="absence-student-class">
                 <input type="hidden" id="absence-student-endereco">
                 <input type="hidden" id="absence-student-contato">
                 
-                <!-- Identificação e Status (Padrão Ocorrência) -->
+                <!-- Identificação e Status -->
                 <fieldset class="p-3 border rounded-md bg-gray-50">
                     <legend class="text-sm font-semibold text-gray-700 px-2">Aluno</legend>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -474,13 +463,11 @@
                             <label for="absence-student-name" class="block text-sm font-medium">Aluno</label>
                             <input type="text" id="absence-student-name" class="mt-1 block w-full bg-gray-100 p-2 border rounded" readonly>
                         </div>
-                        <div id="absence-status-display" class="flex items-center justify-center sm:justify-end text-sm pt-5">
-                            <!-- Status injetado via JS -->
-                        </div>
+                        <div id="absence-status-display" class="flex items-center justify-center sm:justify-end text-sm pt-5"></div>
                     </div>
                 </fieldset>
                 
-                <!-- Dados de Faltas (Específico Busca Ativa - Estilo Padronizado) -->
+                <!-- Dados de Faltas -->
                 <fieldset id="absence-period-data" class="p-3 border rounded-md bg-gray-50 space-y-2 hidden">
                     <legend class="text-sm font-semibold text-gray-700 px-2">Dados das Faltas</legend>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -490,20 +477,20 @@
                     <div class="pt-2"><label class="block text-sm">Nº de faltas</label><input type="number" id="absence-count" class="mt-1 w-full border-gray-300 rounded-md"></div>
                 </fieldset>
 
-                <!-- Campo Visual da Etapa (Readonly) -->
+                <!-- Campo Visual da Etapa -->
                 <div class="border-t pt-4">
                     <label class="block text-sm font-medium">Etapa Atual</label>
                     <input type="text" id="action-type-display" class="mt-1 w-full bg-gray-100 p-2 border rounded" readonly>
                     <input type="hidden" id="action-type">
                 </div>
 
-                <!-- Container de Campos Dinâmicos (Etapa Específica) -->
+                <!-- Container de Campos Dinâmicos -->
                 <div id="dynamic-fields-container" class="space-y-4 pt-2">
                     
                     <!-- Etapa: Tentativas (Com Convocação e Contato) -->
                     <div id="group-tentativas" class="dynamic-field-group hidden space-y-4">
                         
-                        <!-- Sub-grupo 1: Convocação (terá ID) -->
+                        <!-- Convocação -->
                         <fieldset id="convocation-section" class="border rounded-md p-3 space-y-2 bg-gray-50">
                             <legend class="text-sm font-semibold px-2">Data para notificação (Ação 1/2)</legend>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -512,7 +499,7 @@
                             </div>
                         </fieldset>
                         
-                        <!-- Sub-grupo 2: Contato (já tinha ID) -->
+                        <!-- Contato -->
                         <fieldset id="family-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
                             <legend class="text-sm font-semibold px-2">Família na escola (Ação 3)</legend>
                             <div><span class="block text-sm">Conseguiu contato?</span><div class="mt-2 space-x-4"><label><input type="radio" name="contact-succeeded" value="yes"> Sim</label><label><input type="radio" name="contact-succeeded" value="no"> Não</label></div></div>
@@ -546,8 +533,6 @@
 
                     <!-- Etapa: Encaminhamento CT -->
                     <div id="group-encaminhamento_ct" class="dynamic-field-group hidden space-y-4">
-                        
-                        <!-- Campos de Envio (Data, Nº, Ano) -->
                         <fieldset class="border rounded-md p-3 space-y-2 bg-gray-50">
                             <legend class="text-sm font-semibold px-2">Dados do Encaminhamento</legend>
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -565,8 +550,6 @@
                                 </div>
                             </div>
                         </fieldset>
-
-                        <!-- Campos de Devolutiva -->
                         <fieldset class="border rounded-md p-3 space-y-4 bg-gray-50">
                              <legend class="text-sm font-semibold px-2">Devolutiva do Conselho Tutelar</legend>
                             <div><label class="block text-sm">Devolutiva do CT:</label><textarea id="ct-feedback" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
@@ -588,10 +571,8 @@
             </form>
         </div>
     </div>
-    <!-- FIM DO MODAL DE BUSCA ATIVA -->
 
-
-    <!-- Modal: Gerenciamento de Alunos (Inalterado) -->
+    <!-- Modal: Gerenciamento de Alunos -->
     <div id="students-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 class="text-xl font-semibold">Gerir Lista de Alunos</h3><button id="close-students-modal-btn" class="text-gray-500 text-2xl font-bold">&times;</button></div>
@@ -603,7 +584,7 @@
         </div>
     </div>
 
-    <!-- Modal: Configurações (Inalterado) -->
+    <!-- Modal: Configurações -->
     <div id="settings-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -625,7 +606,6 @@
                     <p class="text-xs text-gray-500 mt-1">Insira o link completo da imagem. Deixe em branco para usar apenas o nome.</p>
                 </div>
                 
-                <!-- Campo de Gestão de Admin -->
                 <div>
                     <label for="admin-emails-input" class="block text-sm font-medium text-gray-700">
                         Emails dos Administradores (separados por vírgula)
@@ -644,7 +624,7 @@
         </div>
     </div>
 
-    <!-- Modal de Seleção de Aluno para Notificação (Inalterado) -->
+    <!-- Modal de Seleção de Aluno para Notificação -->
     <div id="student-selection-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -658,7 +638,7 @@
         </div>
     </div>
 
-    <!-- Modal Enviar Ofício (Ocorrência) (Inalterado) -->
+    <!-- Modal Enviar Ofício (Ocorrência) -->
     <div id="send-occurrence-ct-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
@@ -666,19 +646,16 @@
                 <button id="close-send-ct-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <form id="send-occurrence-ct-form">
-                <!-- Armazena IDs necessários -->
                 <input type="hidden" id="send-ct-group-id">
                 <input type="hidden" id="send-ct-record-id">
                 <input type="hidden" id="send-ct-student-id">
 
                 <div class="p-6 space-y-4">
-                    <!-- Informações do Incidente (Serão preenchidas por JS) -->
                     <div class="bg-gray-50 border rounded-md p-3 text-sm">
                         <p><strong>Incidente ID:</strong> <span id="send-ct-incident-id-display"></span></p>
                         <p><strong>Tipo:</strong> <span id="send-ct-incident-type-display"></span></p>
                     </div>
 
-                    <!-- Seleção de Aluno (se necessário) -->
                     <div id="send-ct-student-selection-section" class="hidden">
                          <label for="send-ct-student-select" class="block text-sm font-medium text-gray-700 mb-1">Selecione o Aluno:</label>
                          <select id="send-ct-student-select" class="block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm" required>
@@ -686,13 +663,11 @@
                          </select>
                          <p class="text-xs text-gray-500 mt-1">Este incidente envolve múltiplos alunos.</p>
                     </div>
-                    <!-- Aluno Selecionado (quando não há seleção) -->
                     <div id="send-ct-selected-student-display" class="hidden">
                         <p class="text-sm font-medium text-gray-700">Aluno:</p>
                         <p id="send-ct-student-name-display" class="mt-1 p-2 bg-gray-100 rounded-md text-sm"></p>
                     </div>
 
-                    <!-- Número do Ofício (Obrigatório) -->
                     <div>
                         <label for="send-ct-oficio-number" class="block text-sm font-medium">Número do Ofício <span class="text-red-500">*</span></label>
                         <input type="text" id="send-ct-oficio-number" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required placeholder="Ex: 123">
@@ -707,7 +682,7 @@
     </div>
 
 
-    <!-- Modais de Visualização e Impressão (Estrutura Genérica - Inalterados) -->
+    <!-- Modais de Visualização e Impressão -->
     <div id="notification-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="notification-title" class="text-xl font-semibold">Notificação</h3><button id="close-notification-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="notification-content" class="p-8 overflow-y-auto bg-white"></div>
         <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
             <button id="share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
@@ -727,7 +702,7 @@
         </div>
     </div></div>
 
-    <!-- Modal: Visualização de Histórico (Inalterado) -->
+    <!-- Modal: Visualização de Histórico -->
     <div id="history-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center flex-shrink-0">
@@ -741,13 +716,13 @@
         </div>
     </div>
 
-    <!-- Modal: Gerador de Relatório (Apenas Busca Ativa por enquanto - Inalterado) -->
+    <!-- Modal: Gerador de Relatório -->
     <div id="report-generator-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="report-generator-title" class="text-xl font-semibold">Gerar Relatório</h3><button id="close-report-generator-btn" class="text-gray-500 text-2xl">&times;</button></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium">Selecione o Aluno(a)</label><select id="student-select" class="mt-1 block w-full"><option value="">Carregando...</option></select></div></div><div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg"><button type="button" id="cancel-report-generator-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="button" id="create-report-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">Gerar</button></div></div></div>
 
-    <!-- Modal: Confirmação de Exclusão (Inalterado) -->
+    <!-- Modal: Confirmação de Exclusão -->
     <div id="delete-confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="p-6 text-center"><i class="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i><h3 class="text-lg font-semibold">Confirmar Exclusão</h3><p id="delete-confirm-message" class="mt-2 text-sm text-gray-500">Tem certeza?</p></div><div class="bg-gray-50 px-4 py-3 sm:px-6 flex flex-row-reverse rounded-b-lg"><button type="button" id="confirm-delete-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700">Excluir</button><button type="button" id="cancel-delete-btn" class="mt-3 sm:mt-0 w-full sm:w-auto inline-flex justify-center rounded-md px-4 py-2 bg-white text-gray-700 border hover:bg-gray-50 sm:mr-3">Cancelar</button></div></div></div>
 
-    <!-- Notificação Toast (Inalterado) -->
+    <!-- Notificação Toast -->
     <div id="toast-notification" class="fixed bottom-5 right-5 bg-gray-800 text-white py-3 px-5 rounded-lg shadow-lg transform translate-y-20 opacity-0 z-50"><p id="toast-message"></p></div>
 
     <!-- Script principal da aplicação -->
