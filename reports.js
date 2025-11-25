@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 3.3 (Limpeza da Ficha Consolidada e Notificações de Ocorrência com Contagem de Tentativas)
+// VERSÃO: 3.4 (Correção Visita Condicional e Ajustes de Layout)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -126,7 +126,6 @@ export const openStudentSelectionModal = async (groupId) => {
 
 /**
  * Gera e exibe a notificação formal (Ocorrências).
- * ATUALIZADO: Inclui lógica de contagem de tentativas (similar à Busca Ativa).
  */
 export const openIndividualNotificationModal = async (incident, studentObj) => {
     const data = incident.records.find(r => r.studentId === studentObj.matricula);
@@ -147,7 +146,7 @@ export const openIndividualNotificationModal = async (incident, studentObj) => {
         return;
     }
 
-    // Cálculo da Tentativa Atual baseada no histórico de contatos falhados
+    // Cálculo da Tentativa Atual
     let attemptCount = 1;
     if (data.contactSucceeded_1 != null) attemptCount = 2;
     if (data.contactSucceeded_2 != null) attemptCount = 3;
@@ -548,7 +547,7 @@ export const openFichaViewModal = async (id) => {
 
 /**
  * Gera a Ficha Consolidada de Busca Ativa.
- * ATUALIZADO: Agora esconde tentativas que ainda não aconteceram.
+ * ATUALIZADO: Agora esconde tentativas que ainda não aconteceram E esconde Visita se não ocorreu.
  */
 export const generateAndShowConsolidatedFicha = async (studentId, processId = null) => {
     let studentActions = state.absences.filter(action => action.studentId === studentId);
@@ -597,6 +596,22 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
         attemptsHTML = '<div class="pl-4 text-gray-500 italic">Nenhuma tentativa registrada.</div>';
     }
 
+    // Lógica CONDICIONAL para VISITA
+    let visitaHTML = '';
+    if (visita && visita.id) {
+        visitaHTML = `
+            <div class="border rounded-md p-3 space-y-3" style="font-family: 'Inter', sans-serif;">
+                <h4 class="font-semibold text-base">Visita In Loco</h4>
+                <div class="pl-4">
+                    <p><strong>Data da Visita:</strong> ${formatDate(visita.visitDate)}</p>
+                    <p><strong>Agente Responsável:</strong> ${formatText(visita.visitAgent)}</p>
+                    <p><strong>Conseguiu contato?</strong> ${visita.visitSucceeded === 'yes' ? 'Sim' : visita.visitSucceeded === 'no' ? 'Não' : ''}</p>
+                    <p><strong>Com quem falou?</strong> ${formatText(visita.visitContactPerson)}</p>
+                    <p><strong>Justificativa/Obs:</strong> ${formatText(visita.visitReason)}</p>
+                </div>
+            </div>`;
+    }
+
     const fichaHTML = `
         <div class="space-y-4 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             ${getReportHeaderHTML()}
@@ -623,6 +638,8 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
                 <h4 class="font-semibold text-base">Tentativas de contato</h4>
                 ${attemptsHTML}
             </div>
+
+            ${visitaHTML}
 
             <div class="border rounded-md p-3 space-y-2" style="font-family: 'Inter', sans-serif;">
                 <h4 class="font-semibold text-base">Encaminhamento e Análise</h4>

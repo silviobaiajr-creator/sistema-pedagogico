@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 4.0 (Padronização Visual Completa - Modal de Busca Ativa)
+// VERSÃO: 4.1 (Modais Enxutos e Correções de Layout)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -568,7 +568,7 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
 
 /**
  * Abre e popula o modal de registro/edição de uma ação de Busca Ativa.
- * (REQUISIÇÃO 1: Padronização de Modais e Ocultação de Campos Antigos)
+ * (REQUISIÇÃO 2 - MODAIS ENXUTOS: Esconde dados do aluno/faltas se não for 1ª etapa/nova)
  */
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null) => {
     dom.absenceForm.reset();
@@ -605,8 +605,9 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
         statusDisplay.innerHTML = `<strong>Etapa:</strong> <span class="text-xs font-medium px-2.5 py-0.5 rounded-full ${statusColor} ml-2">${statusText}</span>`;
     }
 
-    const absenceStudentInfo = document.getElementById('absence-student-info'); // Não usamos mais este ID no novo HTML, mas mantemos a lógica para os hiddens
-    const absencePeriodData = document.getElementById('absence-period-data');
+    // Seletores dos blocos que queremos "enxugar"
+    const studentIdentityBlock = document.querySelector('#absence-form fieldset:first-of-type'); // Bloco "Aluno"
+    const absencePeriodData = document.getElementById('absence-period-data'); // Bloco "Dados das Faltas"
 
     const isEditing = !!data;
     document.getElementById('absence-modal-title').innerText = isEditing ? 'Editar Ação de Busca Ativa' : 'Acompanhamento Busca Ativa';
@@ -641,15 +642,22 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     document.getElementById('action-type').value = finalActionType;
     document.getElementById('action-type-display').value = actionDisplayTitles[finalActionType] || '';
     
-    // 2. Configura a visibilidade e editabilidade dos dados de Faltas
-    const firstAbsenceRecordInCycle = currentCycleActions.find(a => a.periodoFaltasStart);
+    // 2. Configura a visibilidade dos dados de Faltas e Identificação (LÓGICA "ENXUTA")
     const isFirstStep = finalActionType === 'tentativa_1';
+    const firstAbsenceRecordInCycle = currentCycleActions.find(a => a.periodoFaltasStart);
     const isAbsenceDataEditable = isFirstStep && !firstAbsenceRecordInCycle; 
     
-    // Mostra o fieldset de faltas APENAS se for a 1ª etapa ou se já tiver dados preenchidos para visualização
-    if (isFirstStep || firstAbsenceRecordInCycle) {
+    // --- LÓGICA DE VISIBILIDADE DOS BLOCOS ---
+    // Se for a 1ª Tentativa (criação do processo) OU se for uma edição da 1ª tentativa: MOSTRA TUDO.
+    // Se for qualquer outra etapa (2ª tentativa, visita, CT...): ESCONDE identificação e faltas para limpar o modal.
+    
+    if (isFirstStep) {
+        // É o início do processo ou edição do início: mostra tudo para conferência/input
+        if (studentIdentityBlock) studentIdentityBlock.classList.remove('hidden');
         absencePeriodData.classList.remove('hidden');
     } else {
+        // Etapas subsequentes: Modal Enxuto
+        if (studentIdentityBlock) studentIdentityBlock.classList.add('hidden');
         absencePeriodData.classList.add('hidden');
     }
 
@@ -665,7 +673,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
         // Se é a primeira tentativa (nova) OU estamos editando a primeira tentativa
         absenceInputs.forEach(input => { input.readOnly = false; input.classList.remove('bg-gray-100'); });
     } else {
-        // Se não é a primeira tentativa, preenche com os dados existentes e torna só leitura
+        // Se não é a primeira tentativa, preenche com os dados existentes (mesmo escondidos, para submit correto) e torna só leitura
         const sourceData = isEditing && data.actionType === 'tentativa_1' ? data : firstAbsenceRecordInCycle;
 
         document.getElementById('absence-start-date').value = sourceData?.periodoFaltasStart || '';
