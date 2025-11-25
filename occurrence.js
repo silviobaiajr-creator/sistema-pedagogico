@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 3.1 (Correção: Blindagem contra erro ao abrir Ofício e Fallback de Aluno)
+// VERSÃO: 3.2 (Ajuste de Tentativas, Ícone Olho e Modais Enxutos)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
@@ -36,11 +36,12 @@ import { db } from './firebase.js';
 // CONFIGURAÇÕES E UTILITÁRIOS LOCAIS
 // =================================================================================
 
+// (AJUSTE 1) Atualização dos títulos para refletir Convocação como 1ª Tentativa
 export const occurrenceActionTitles = { 
-    'convocacao': 'Ação 2: Agendar Convocação',
-    'contato_familia_1': 'Ação 3: 1ª Tentativa de Contato',
-    'contato_familia_2': 'Ação 3: 2ª Tentativa de Contato',
-    'contato_familia_3': 'Ação 3: 3ª Tentativa de Contato',
+    'convocacao': 'Ação 2: 1ª Tentativa (Convocação)',
+    'contato_familia_1': 'Ação 3: 2ª Tentativa de Contato',
+    'contato_familia_2': 'Ação 3: 3ª Tentativa de Contato',
+    'contato_familia_3': 'Ação 3: 4ª Tentativa de Contato',
     'desfecho_ou_ct': 'Ação 4 ou 6: Encaminhar ao CT ou Dar Parecer',
     'devolutiva_ct': 'Ação 5: Registrar Devolutiva do CT',
     'parecer_final': 'Ação 6: Dar Parecer Final'
@@ -278,18 +279,31 @@ export const renderOccurrences = () => {
 
                 let historyHtml = '';
                 if (record?.meetingDate) {
-                    historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 2 (Convocação):</strong> Agendada para ${formatDate(record.meetingDate)} às ${formatTime(record.meetingTime)}.</p>`;
+                    // (AJUSTE 2) Botão "Olho" e Rótulo "1ª Tentativa"
+                    historyHtml += `
+                        <p class="text-xs text-gray-600 flex items-center flex-wrap">
+                            <span>
+                                <i class="fas fa-check text-green-500 fa-fw mr-1"></i> 
+                                <strong>Ação 2 (1ª Tentativa - Convocação):</strong> Agendada para ${formatDate(record.meetingDate)} às ${formatTime(record.meetingTime)}.
+                            </span>
+                            <button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2 cursor-pointer" 
+                                    data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" title="Ver Notificação">
+                                [<i class="fas fa-eye fa-fw"></i> Ver Notificação]
+                            </button>
+                        </p>`;
                 }
                 
                 for (let i = 1; i <= 3; i++) {
                     const succeeded = record[`contactSucceeded_${i}`];
                     const date = record[`contactDate_${i}`];
+                    // (AJUSTE 1) Ajuste da numeração das tentativas: i+1
+                    const attemptNumber = i + 1;
                     
                     if (succeeded != null) {
                         if (succeeded === 'yes') {
-                            historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 3 (${i}ª Tentativa):</strong> Sucesso (${formatDate(date)}).</p>`;
+                            historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-check text-green-500 fa-fw mr-1"></i> <strong>Ação 3 (${attemptNumber}ª Tentativa):</strong> Sucesso (${formatDate(date)}).</p>`;
                         } else {
-                            historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-times text-red-500 fa-fw mr-1"></i> <strong>Ação 3 (${i}ª Tentativa):</strong> Sem sucesso.</p>`;
+                            historyHtml += `<p class="text-xs text-gray-600"><i class="fas fa-times text-red-500 fa-fw mr-1"></i> <strong>Ação 3 (${attemptNumber}ª Tentativa):</strong> Sem sucesso.</p>`;
                         }
                     }
                 }
@@ -319,7 +333,6 @@ export const renderOccurrences = () => {
                     </button>
                 `;
 
-                // (CORREÇÃO) Garante que o ID do registro é passado corretamente para o ofício
                 const viewOficioBtn = record?.oficioNumber ? `
                     <button type="button"
                             class="view-occurrence-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50 hover:bg-green-100"
@@ -329,17 +342,6 @@ export const renderOccurrences = () => {
                     </button>
                 ` : '';
 
-                const notificationBtn = (record && record.meetingDate && record.meetingTime) ? `
-                    <button type="button"
-                            class="notification-student-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100"
-                            data-record-id="${recordId}"
-                            data-student-id="${student.matricula}"
-                            data-group-id="${incident.id}"
-                            title="Gerar Notificação para ${student.name}">
-                        <i class="fas fa-paper-plane"></i> Notificação
-                    </button>
-                ` : '';
-                
                 const editActionBtn = `
                     <button type="button"
                             class="edit-occurrence-action-btn text-yellow-600 hover:text-yellow-900 text-xs font-semibold py-1 px-2 rounded-md bg-yellow-50 hover:bg-yellow-100"
@@ -389,7 +391,6 @@ export const renderOccurrences = () => {
                                     ${avancarBtn}
                                     ${editActionBtn}
                                     ${resetActionBtn}
-                                    ${notificationBtn}
                                     ${viewOficioBtn}
                                 </div>
                             </div>
@@ -534,6 +535,13 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
     modalTitle.textContent = occurrenceActionTitles[actionType] || 'Acompanhamento Individual';
     statusDisplay.innerHTML = `<strong>Status:</strong> ${getStatusBadge(record.statusIndividual || 'Aguardando Convocação')}`;
 
+    // (AJUSTE 3) Ocultar fieldset de identificação do aluno
+    const studentInfoBlock = document.querySelector('#follow-up-form fieldset:first-of-type');
+    if (studentInfoBlock) {
+        // Ocultamos para deixar o modal enxuto, pois o contexto já foi dado ao clicar na linha
+        studentInfoBlock.classList.add('hidden');
+    }
+
     ['follow-up-meeting-date', 'follow-up-contact-date', 'follow-up-ct-sent-date'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.removeAttribute('min');
@@ -589,7 +597,13 @@ export const openOccurrenceStepModal = (student, record, actionType) => {
                 currentGroup.classList.remove('hidden');
                 
                 const legend = document.getElementById('legend-contato');
-                if (legend) legend.textContent = `Ação 3: ${attemptNumber}ª Tentativa de Contato`;
+                if (legend) {
+                    // (AJUSTE 1) Ajuste dinâmico da legenda do modal
+                    // Se attemptNumber é 1, é a 2ª Tentativa (pois a 1ª foi convocação)
+                    // Se attemptNumber é 2, é a 3ª Tentativa
+                    const displayAttempt = attemptNumber + 1; 
+                    legend.textContent = `Ação 3: ${displayAttempt}ª Tentativa de Contato`;
+                }
 
                 const radios = currentGroup.querySelectorAll('input[name="follow-up-contact-succeeded"]');
                 radios.forEach(r => { r.disabled = false; r.required = true; });
@@ -901,7 +915,7 @@ async function handleOccurrenceStepSubmit(e) {
                 const dateCheck = validateOccurrenceChronology(record, actionType, dataToUpdate[fields.date]);
                 if (!dateCheck.isValid) return showToast(dateCheck.message);
 
-                historyAction = `Ação 3 (${attemptNumber}ª Tentativa) registrada com sucesso.`;
+                historyAction = `Ação 3 (${attemptNumber + 1}ª Tentativa) registrada com sucesso.`;
                 nextStatus = 'Aguardando Desfecho'; 
 
             } else { 
@@ -909,7 +923,7 @@ async function handleOccurrenceStepSubmit(e) {
                     [fields.succeeded]: 'no',
                     [fields.type]: null, [fields.date]: null, [fields.providencias]: null, 
                 };
-                historyAction = `Ação 3 (${attemptNumber}ª Tentativa) sem sucesso.`;
+                historyAction = `Ação 3 (${attemptNumber + 1}ª Tentativa) sem sucesso.`;
                 
                 if (attemptNumber === 1) nextStatus = 'Aguardando Contato 2';
                 else if (attemptNumber === 2) nextStatus = 'Aguardando Contato 3';
@@ -1291,6 +1305,11 @@ export const initOccurrenceListeners = () => {
                 }
                 if (button.classList.contains('notification-student-btn')) {
                      handleGenerateNotification(recordIdBtn, studentIdBtn, groupIdBtn);
+                     return;
+                }
+                // Listener para o novo botão de visualizar notificação (olho)
+                if (button.classList.contains('view-notification-btn-hist')) {
+                     handleGenerateNotification(recordIdBtn, studentIdBtn, groupIdBtn); // Usa a mesma função de gerar notificação
                      return;
                 }
                 if (button.classList.contains('view-occurrence-oficio-btn')) {
