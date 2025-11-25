@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: logic.js
-// VERSÃO: 2.3 (Resiliente a Paginação e Desnormalização de Ocorrências)
+// VERSÃO: 3.0 (Ciclo de 3 Convocações e Botões de Ação Rápida)
 
 import { state } from './state.js';
 import { getStatusBadge } from './utils.js';
@@ -36,24 +36,18 @@ export const getFilteredOccurrences = () => {
                 id: groupId,
                 records: [],
                 participantsInvolved: new Map(),
-                overallStatus: 'Aguardando Convocação'
+                overallStatus: 'Aguardando 1ª Convocação'
             };
             groupedByIncident.set(groupId, incident);
         }
         
         incident.records.push(occ);
 
-        // (CORREÇÃO) Lógica resiliente para alunos não carregados (paginação)
         if (!incident.participantsInvolved.has(occ.studentId)) {
-            // 1. Tenta encontrar na lista carregada (Memória)
             let student = state.students.find(s => s.matricula === occ.studentId);
             
-            // 2. Se não achar, tenta usar os dados cacheados no próprio registro (Desnormalização)
             if (!student) {
-                // Verifica se o registro tem dados cacheados do aluno (novo padrão)
                 const participantData = occ.participants?.find(p => p.studentId === occ.studentId);
-                
-                // Prioridade: Dados no participants > Dados no registro raiz (se houver) > Cache de seleção > Placeholder
                 const cachedName = participantData?.studentName || occ.studentName;
                 const cachedClass = participantData?.studentClass || occ.studentClass;
 
@@ -62,13 +56,11 @@ export const getFilteredOccurrences = () => {
                         matricula: occ.studentId,
                         name: cachedName,
                         class: cachedClass || '?',
-                        isPlaceholder: true // Marca visual (opcional, por enquanto invisível)
+                        isPlaceholder: true 
                     };
                 } else if (state.selectedStudents && state.selectedStudents.has(occ.studentId)) {
-                     // Fallback para cache de seleção recente
                      student = state.selectedStudents.get(occ.studentId).student;
                 } else {
-                     // Fallback final: Apenas ID
                      student = {
                         matricula: occ.studentId,
                         name: `Aluno (${occ.studentId})`, 
@@ -90,7 +82,6 @@ export const getFilteredOccurrences = () => {
     // 2. Filtragem e Processamento
     const filteredIncidents = new Map();
     const { startDate, endDate, status, type } = state.filtersOccurrences;
-    // Normalização para busca segura
     const studentSearchRaw = state.filterOccurrences || '';
     const studentSearch = studentSearchRaw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -98,22 +89,18 @@ export const getFilteredOccurrences = () => {
         const mainRecord = incident.records && incident.records.length > 0 ? incident.records[0] : null;
         if (!mainRecord) continue;
 
-        // Recalcula status geral
-        const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
+        const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido' || r.statusIndividual === 'Finalizado');
         incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
 
-        // Filtros Rápidos (Short-circuit)
         if (status !== 'all' && incident.overallStatus !== status) continue;
         if (type !== 'all' && mainRecord.occurrenceType !== type) continue;
         if (startDate && mainRecord.date < startDate) continue;
         if (endDate && mainRecord.date > endDate) continue;
 
-        // Filtro de Texto (Busca por nome do aluno)
         if (studentSearch) {
             let hasMatchingStudent = false;
             for (const p of incident.participantsInvolved.values()) {
                 const pName = p.student.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                // Se for placeholder, permite buscar pelo ID também
                 if (pName.includes(studentSearch) || p.student.matricula.includes(studentSearch)) {
                     hasMatchingStudent = true;
                     break;
@@ -193,41 +180,54 @@ export const determineNextActionForStudent = (studentId) => {
 
 
 // ==============================================================================
-// --- Lógica das Ocorrências (3 Tentativas) ---
+// --- Lógica das Ocorrências (3 Convocações) ---
 // ==============================================================================
 
+// Mapa de Próxima Ação (Agendamento) baseado no Status
 const occurrenceNextActionMap = {
-    'Aguardando Convocação': 'convocacao', 
-    'Aguardando Contato 1': 'contato_familia_1', 
-    'Aguardando Contato 2': 'contato_familia_2', 
-    'Aguardando Contato 3': 'contato_familia_3', 
-    'Aguardando Desfecho': 'desfecho_ou_ct', 
+    'Aguardando Convocação': 'agendar_convocacao_1', // Legado
+    'Aguardando 1ª Convocação': 'agendar_convocacao_1',
+    'Aguardando Comparecimento 1': null, // Ação deve ser via botão de Sim/Não, não "Avançar"
+    'Aguardando 2ª Convocação': 'agendar_convocacao_2',
+    'Aguardando Comparecimento 2': null,
+    'Aguardando 3ª Convocação': 'agendar_convocacao_3',
+    'Aguardando Comparecimento 3': null,
+    'Aguardando Desfecho': 'desfecho_ou_ct', // Se falhou tudo
     'Aguardando Devolutiva CT': 'devolutiva_ct', 
     'Aguardando Parecer Final': 'parecer_final', 
-    'Resolvido': null
+    'Resolvido': null,
+    'Finalizado': null
 };
 
 export const determineNextOccurrenceStep = (currentStatus) => {
-    if (!currentStatus) return 'convocacao'; 
+    if (!currentStatus) return 'agendar_convocacao_1'; 
     return occurrenceNextActionMap[currentStatus] || null;
 };
 
-const occurrencePreviousActionMap = {
-    'Aguardando Convocação': null, 
-    'Aguardando Contato 1': 'convocacao', 
-    'Aguardando Contato 2': 'contato_familia_1', 
-    'Aguardando Contato 3': 'contato_familia_2', 
-    'Aguardando Desfecho': 'contato_familia_x', 
-    'Aguardando Devolutiva CT': 'desfecho_ou_ct', 
-    'Aguardando Parecer Final': 'devolutiva_ct',
-    'Resolvido': 'parecer_final'
-};
-
+// Mapa para "Editar Ação" (descobrir qual modal abrir baseado no status atual)
+// Nota: Para Comparecimento, a edição deve ser feita nos botões de ação ou "Editar Fato" se for Ação 1
 export const determineCurrentActionFromStatus = (currentStatus) => {
     if (!currentStatus) return null;
-    if (currentStatus === 'Resolvido') return 'parecer_final';
-    if (currentStatus === 'Aguardando Desfecho') return 'contato_familia_x'; 
-    return occurrencePreviousActionMap[currentStatus] || null;
+    
+    switch(currentStatus) {
+        case 'Resolvido': 
+        case 'Finalizado':
+            return 'parecer_final';
+        case 'Aguardando Parecer Final': return 'devolutiva_ct';
+        case 'Aguardando Devolutiva CT': return 'desfecho_ou_ct';
+        
+        // Edição das Convocações (apenas se estiver aguardando comparecimento, edita o agendamento)
+        case 'Aguardando Comparecimento 3': return 'agendar_convocacao_3';
+        case 'Aguardando Comparecimento 2': return 'agendar_convocacao_2';
+        case 'Aguardando Comparecimento 1': return 'agendar_convocacao_1';
+        
+        // Se estiver aguardando agendamento da próxima, quer dizer que a anterior falhou e foi registrada como "Não"
+        case 'Aguardando 3ª Convocação': return 'resultado_convocacao_2'; // Edita o resultado da 2ª que foi "Não"
+        case 'Aguardando 2ª Convocação': return 'resultado_convocacao_1'; // Edita o resultado da 1ª que foi "Não"
+        case 'Aguardando Desfecho': return 'resultado_convocacao_3'; // Edita o resultado da 3ª que foi "Não"
+        
+        default: return null;
+    }
 };
 
 // ==============================================================================
@@ -250,37 +250,34 @@ export const validateOccurrenceChronology = (record, actionType, newDate) => {
     if (!newDate) return { isValid: true, message: '' };
 
     const dateToCheck = new Date(newDate + 'T00:00:00'); 
-    const occurrenceDate = new Date(record.date + 'T00:00:00');
+    const occurrenceDate = record.date ? new Date(record.date + 'T00:00:00') : null;
 
-    if (dateToCheck < occurrenceDate) {
+    if (occurrenceDate && dateToCheck < occurrenceDate) {
         return { isValid: false, message: `A data não pode ser anterior à data da Ocorrência (${record.date}).` };
     }
 
-    if (actionType === 'contato_familia_1') {
-        if (record.meetingDate) {
-            const meetingDate = new Date(record.meetingDate + 'T00:00:00');
-            if (dateToCheck < meetingDate) return { isValid: false, message: `A 1ª Tentativa não pode ser anterior à Convocação (${record.meetingDate}).` };
-        }
-    }
-    if (actionType === 'contato_familia_2') {
-        const prevDateStr = record.contactDate_1 || record.meetingDate;
+    // Validação Cronológica das Convocações
+    if (actionType === 'agendar_convocacao_2') {
+        const prevDateStr = record.meetingDate;
         if (prevDateStr) {
             const prevDate = new Date(prevDateStr + 'T00:00:00');
-            if (dateToCheck < prevDate) return { isValid: false, message: `A 2ª Tentativa não pode ser anterior à 1ª Tentativa ou Convocação (${prevDateStr}).` };
+            if (dateToCheck < prevDate) return { isValid: false, message: `A 2ª Convocação não pode ser anterior à 1ª Convocação (${prevDateStr}).` };
         }
     }
-    if (actionType === 'contato_familia_3') {
-        const prevDateStr = record.contactDate_2 || record.contactDate_1;
+    
+    if (actionType === 'agendar_convocacao_3') {
+        const prevDateStr = record.meetingDate_2 || record.meetingDate;
         if (prevDateStr) {
             const prevDate = new Date(prevDateStr + 'T00:00:00');
-            if (dateToCheck < prevDate) return { isValid: false, message: `A 3ª Tentativa não pode ser anterior à tentativa passada (${prevDateStr}).` };
+            if (dateToCheck < prevDate) return { isValid: false, message: `A 3ª Convocação não pode ser anterior à convocação anterior (${prevDateStr}).` };
         }
     }
+
     if (actionType === 'desfecho_ou_ct' || actionType === 'devolutiva_ct') {
-        const lastContactDate = record.contactDate_3 || record.contactDate_2 || record.contactDate_1 || record.meetingDate;
-        if (lastContactDate) {
-            const prevDate = new Date(lastContactDate + 'T00:00:00');
-            if (dateToCheck < prevDate) return { isValid: false, message: `A data não pode ser anterior à última tentativa de contato (${lastContactDate}).` };
+        const lastDate = record.meetingDate_3 || record.meetingDate_2 || record.meetingDate;
+        if (lastDate) {
+            const prevDate = new Date(lastDate + 'T00:00:00');
+            if (dateToCheck < prevDate) return { isValid: false, message: `A data não pode ser anterior à última convocação (${lastDate}).` };
         }
     }
 
@@ -343,19 +340,33 @@ const getActionTitle = (type) => {
 // --- Lógica de Reset ---
 // ==============================================================================
 
+// Campos associados a cada etapa para limpeza
 const camposAcao6 = ['parecerFinal'];
 const camposAcao5 = ['ctFeedback', ...camposAcao6];
 const camposAcao4_6 = ['oficioNumber', 'oficioYear', 'ctSentDate', 'desfechoChoice', ...camposAcao5]; 
-const camposAcao3_3 = ['contactSucceeded_3', 'contactType_3', 'contactDate_3', 'providenciasFamilia_3', ...camposAcao4_6];
-const camposAcao3_2 = ['contactSucceeded_2', 'contactType_2', 'contactDate_2', 'providenciasFamilia_2', ...camposAcao3_3];
-const camposAcao3_1 = ['contactSucceeded_1', 'contactType_1', 'contactDate_1', 'providenciasFamilia_1', ...camposAcao3_2];
-const camposAcao2 = ['meetingDate', 'meetingTime', ...camposAcao3_1];
+
+// Convocação 3
+const camposConv3_Result = ['contactSucceeded_3', 'contactType_3', 'contactDate_3', 'providenciasFamilia_3', ...camposAcao4_6];
+const camposConv3_Schedule = ['meetingDate_3', 'meetingTime_3', ...camposConv3_Result];
+
+// Convocação 2
+const camposConv2_Result = ['contactSucceeded_2', 'contactType_2', 'contactDate_2', 'providenciasFamilia_2', ...camposConv3_Schedule];
+const camposConv2_Schedule = ['meetingDate_2', 'meetingTime_2', ...camposConv2_Result];
+
+// Convocação 1
+const camposConv1_Result = ['contactSucceeded_1', 'contactType_1', 'contactDate_1', 'providenciasFamilia_1', ...camposConv2_Schedule];
+const camposConv1_Schedule = ['meetingDate', 'meetingTime', ...camposConv1_Result];
 
 export const occurrenceStepLogic = {
-    'convocacao': { fieldsToClear: camposAcao2, statusAfterReset: 'Aguardando Convocação' },
-    'contato_familia_1': { fieldsToClear: camposAcao3_1, statusAfterReset: 'Aguardando Contato 1' },
-    'contato_familia_2': { fieldsToClear: camposAcao3_2, statusAfterReset: 'Aguardando Contato 2' },
-    'contato_familia_3': { fieldsToClear: camposAcao3_3, statusAfterReset: 'Aguardando Contato 3' },
+    'agendar_convocacao_1': { fieldsToClear: camposConv1_Schedule, statusAfterReset: 'Aguardando 1ª Convocação' },
+    'resultado_convocacao_1': { fieldsToClear: camposConv1_Result, statusAfterReset: 'Aguardando Comparecimento 1' },
+    
+    'agendar_convocacao_2': { fieldsToClear: camposConv2_Schedule, statusAfterReset: 'Aguardando 2ª Convocação' },
+    'resultado_convocacao_2': { fieldsToClear: camposConv2_Result, statusAfterReset: 'Aguardando Comparecimento 2' },
+    
+    'agendar_convocacao_3': { fieldsToClear: camposConv3_Schedule, statusAfterReset: 'Aguardando 3ª Convocação' },
+    'resultado_convocacao_3': { fieldsToClear: camposConv3_Result, statusAfterReset: 'Aguardando Comparecimento 3' },
+
     'desfecho_ou_ct': { fieldsToClear: camposAcao4_6, statusAfterReset: 'Aguardando Desfecho' },
     'devolutiva_ct': { fieldsToClear: camposAcao5, statusAfterReset: 'Aguardando Devolutiva CT' },
     'parecer_final': { fieldsToClear: camposAcao6, statusAfterReset: 'Aguardando Parecer Final' }
