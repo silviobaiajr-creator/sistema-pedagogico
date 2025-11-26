@@ -1,8 +1,9 @@
+
 // =================================================================================
 // ARQUIVO: auth.js
 
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { showToast } from './utils.js';
+import { showAlert } from './utils.js';
 import { auth } from './firebase.js';
 import { dom } from './state.js';
 
@@ -30,7 +31,7 @@ async function handleLogin(e) {
         await signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value);
     } catch (error) {
         console.error("Erro de Login:", error);
-        showToast("Email ou senha inválidos.");
+        showAlert("Email ou senha inválidos.");
     }
 }
 
@@ -44,7 +45,7 @@ async function handleRegister(e) {
         await createUserWithEmailAndPassword(auth, document.getElementById('register-email').value, document.getElementById('register-password').value);
     } catch (error) {
         console.error("Erro de Registo:", error);
-        showToast(getAuthErrorMessage(error.code));
+        showAlert(getAuthErrorMessage(error.code));
     }
 }
 

@@ -1,10 +1,11 @@
+
 // =================================================================================
 // ARQUIVO: absence.js 
 // VERSÃO: 5.3 (Correção: Botão Salvar travado por campo oculto obrigatório)
 // =================================================================================
 
 import { state, dom } from './state.js';
-import { showToast, openModal, closeModal, formatDate, formatTime, getStatusBadge } from './utils.js';
+import { showToast, showAlert, openModal, closeModal, formatDate, formatTime, getStatusBadge } from './utils.js';
 import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js'; 
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
 import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName, getStudentById } from './firestore.js'; 
@@ -504,7 +505,7 @@ export const handleNewAbsenceAction = (student) => {
         }
 
         if (isPending) {
-            showToast(pendingActionMessage);
+            showAlert(pendingActionMessage);
             openAbsenceModalForStudent(student, lastAction.actionType, lastAction); 
             return;
         }
@@ -513,7 +514,7 @@ export const handleNewAbsenceAction = (student) => {
     if (nextActionType) {
         openAbsenceModalForStudent(student, nextActionType); 
     } else {
-        showToast("Processo já concluído ou em etapa final."); 
+        showAlert("Processo já concluído ou em etapa final."); 
     }
 };
 
@@ -844,7 +845,7 @@ async function handleAbsenceSubmit(e) {
     });
 
     if (firstInvalidField) {
-         showToast(`Por favor, preencha o campo obrigatório: ${firstInvalidField.labels?.[0]?.textContent || firstInvalidField.name || firstInvalidField.placeholder || 'Campo Requerido'}`);
+         showAlert(`Por favor, preencha o campo obrigatório: ${firstInvalidField.labels?.[0]?.textContent || firstInvalidField.name || firstInvalidField.placeholder || 'Campo Requerido'}`);
          firstInvalidField.focus();
          return;
     }
@@ -856,14 +857,14 @@ async function handleAbsenceSubmit(e) {
             const contactSucceededRadio = form.querySelector('input[name="contact-succeeded"]:checked');
             
             if (!contactSucceededRadio) {
-                showToast("Por favor, informe se conseguiu contato (Sim/Não).");
+                showAlert("Por favor, informe se conseguiu contato (Sim/Não).");
                 return;
             }
 
             // Independente se conseguiu contato ou não, deve informar se retornou
             const contactReturnedRadio = form.querySelector('input[name="contact-returned"]:checked');
             if (!contactReturnedRadio) {
-                showToast("Por favor, informe se o aluno retornou.");
+                showAlert("Por favor, informe se o aluno retornou.");
                 return;
             }
         }
@@ -889,7 +890,7 @@ async function handleAbsenceSubmit(e) {
     const dateCheck = validateAbsenceChronology(currentCycleActions, data);
     
     if (!dateCheck.isValid) {
-        return showToast(dateCheck.message);
+        return showAlert(dateCheck.message);
     }
 
     try {
@@ -927,7 +928,7 @@ async function handleAbsenceSubmit(e) {
         }
     } catch (error) {
         console.error("Erro ao salvar ação de BA:", error);
-        showToast('Erro ao salvar ação.');
+        showAlert('Erro ao salvar ação.');
     }
 }
 
@@ -936,7 +937,7 @@ function getAbsenceFormData() {
     const studentId = dom.absenceForm.dataset.selectedStudentId;
     
     if (!studentId) {
-        showToast("Erro: Aluno não identificado.");
+        showAlert("Erro: Aluno não identificado.");
         return null;
     }
 
@@ -1033,7 +1034,7 @@ function handleViewOficio(id) {
     if (ctAction && ctAction.oficioNumber) {
         generateAndShowOficio(ctAction, ctAction.oficioNumber); 
     } else {
-        showToast("Registro de encaminhamento ou número do ofício não encontrado.");
+        showAlert("Registro de encaminhamento ou número do ofício não encontrado.");
     }
 }
 
@@ -1053,14 +1054,14 @@ async function handleNewAbsenceFromHistory(studentId) {
     if (student) {
         handleNewAbsenceAction(student); 
     } else {
-        showToast("Erro: Aluno não encontrado no sistema.");
+        showAlert("Erro: Aluno não encontrado no sistema.");
     }
 }
 
 // Handler para botão rápido de Busca Ativa
 async function handleQuickFeedbackAbsence(id, actionType, value) {
     const action = state.absences.find(a => a.id === id);
-    if (!action) return showToast("Ação não encontrada.");
+    if (!action) return showAlert("Ação não encontrada.");
 
     let student = state.students.find(s => s.matricula === action.studentId);
     if (!student) {
@@ -1073,14 +1074,14 @@ async function handleQuickFeedbackAbsence(id, actionType, value) {
         // Abre o modal preenchendo o status de sucesso
         openAbsenceModalForStudent(student, actionType, action, { succeeded: value });
     } else {
-        showToast("Dados do aluno não encontrados.");
+        showAlert("Dados do aluno não encontrados.");
     }
 }
 
 
 function handleEditAbsence(id) {
     const data = state.absences.find(a => a.id === id);
-    if (!data) return showToast("Ação não encontrada.");
+    if (!data) return showAlert("Ação não encontrada.");
 
     const processActions = state.absences
         .filter(a => a.processId === data.processId)
@@ -1101,7 +1102,7 @@ function handleEditAbsence(id) {
     const isConcluded = processActions.some(a => a.actionType === 'analise');
 
     if (isConcluded || data.id !== lastProcessAction?.id) { 
-        return showToast(isConcluded ? "Processo concluído, não pode editar." : "Apenas a última ação pode ser editada.");
+        return showAlert(isConcluded ? "Processo concluído, não pode editar." : "Apenas a última ação pode ser editada.");
     }
 
     let student = state.students.find(s => s.matricula === data.studentId);
@@ -1145,7 +1146,7 @@ function handleDeleteAbsence(id) {
     const isConcluded = processActions.some(a => a.actionType === 'analise');
 
     if (isConcluded || !lastProcessAction || actionToDelete.id !== lastProcessAction.id) {
-        return showToast(isConcluded ? "Processo concluído, não pode excluir." : "Apenas a última ação pode ser excluída.");
+        return showAlert(isConcluded ? "Processo concluído, não pode excluir." : "Apenas a última ação pode ser excluída.");
     }
 
     document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja Limpar esta ação? Esta ação não pode ser desfeita.';
@@ -1202,7 +1203,7 @@ export const initAbsenceListeners = () => {
                 
                 if (button.classList.contains('view-notification-btn-hist')) {
                     if (id) openFichaViewModal(id);
-                    else showToast("ID da notificação não encontrado.");
+                    else showAlert("ID da notificação não encontrado.");
                     return;
                 }
 

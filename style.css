@@ -17,7 +17,14 @@ body {
     transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
 }
 
-/* REMOVIDO ESTILOS DE TOAST - AGORA É MODAL CENTRALIZADO */
+/* --- NOTIFICAÇÃO TOAST (DISCRETA) --- */
+#toast-notification {
+    transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
+}
+#toast-notification.show {
+    transform: translateY(0);
+    opacity: 1;
+}
 
 /* --- ESTILOS DE NAVEGAÇÃO E TABELAS --- */
 .tab-active {

@@ -1,3 +1,4 @@
+
 // =================================================================================
 // ARQUIVO: students.js
 // VERSÃO: 2.1 (Com Paginação e Busca Server-Side)
@@ -6,7 +7,7 @@ import { state, dom } from './state.js';
 import { setDoc, doc, writeBatch, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStudentsCollectionRef, loadStudentsPaginated, searchStudentsByName } from './firestore.js'; 
 import { db } from './firebase.js'; 
-import { showToast, openModal, loadScript } from './utils.js'; 
+import { showToast, showAlert, openModal, loadScript } from './utils.js'; 
 
 // Variável local para controle de debounce da pesquisa
 let searchTimeout = null;
@@ -125,7 +126,7 @@ async function handleLoadMore() {
 
     } catch (error) {
         console.error("Erro ao carregar mais alunos:", error);
-        showToast("Erro ao carregar mais alunos.");
+        showAlert("Erro ao carregar mais alunos.");
     } finally {
         state.pagination.isLoading = false;
         renderStudentsList(true); // Atualiza a tabela
@@ -172,7 +173,7 @@ function handleServerSideSearch(e) {
             renderStudentsList(false);
         } catch (error) {
             console.error("Erro na busca:", error);
-            showToast("Erro ao buscar alunos.");
+            showAlert("Erro ao buscar alunos.");
         }
     }, 500); // 500ms delay
 }
@@ -196,7 +197,7 @@ async function handleCsvUpload() {
     const fileInput = dom.csvFile; 
     const feedbackDiv = dom.csvFeedback; 
 
-    if (fileInput.files.length === 0) return showToast("Por favor, selecione um ficheiro CSV.");
+    if (fileInput.files.length === 0) return showAlert("Por favor, selecione um ficheiro CSV.");
 
     try {
         if (typeof window.Papa === 'undefined') {
@@ -287,7 +288,7 @@ async function handleCsvUpload() {
 
     } catch (error) {
         console.error(error);
-        showToast("Erro ao carregar biblioteca CSV.");
+        showAlert("Erro ao carregar biblioteca CSV.");
     }
 }
 
@@ -300,7 +301,7 @@ async function handleStudentFormSubmit(e) {
     const matricula = document.getElementById('student-matricula-input').value.trim();
     const name = document.getElementById('student-name-input').value.trim();
     
-    if (!matricula || !name) return showToast("Matrícula e Nome são obrigatórios.");
+    if (!matricula || !name) return showAlert("Matrícula e Nome são obrigatórios.");
 
     const studentData = {
         matricula, name,
@@ -339,7 +340,7 @@ async function handleStudentFormSubmit(e) {
         
     } catch(error) {
         console.error("Erro ao salvar:", error);
-        showToast(error.code === 'permission-denied' ? "Erro de Permissão." : "Erro ao salvar.");
+        showAlert(error.code === 'permission-denied' ? "Erro de Permissão." : "Erro ao salvar.");
     }
 }
 
@@ -379,7 +380,7 @@ async function handleStudentTableActions(e) {
                 showToast("Aluno removido com sucesso.");
             } catch(error) {
                 console.error(error);
-                showToast("Erro ao remover aluno.");
+                showAlert("Erro ao remover aluno.");
             }
         }
     }

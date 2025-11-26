@@ -19,8 +19,22 @@ export const formatPeriodo = (start, end) => {
     return 'Não informado';
 }
 
-// NOVA FUNÇÃO: Exibe alerta centralizado (Modal)
+// --- SISTEMA HÍBRIDO DE NOTIFICAÇÃO ---
+
+// 1. TOAST (Para Sucesso/Info) - Canto inferior direito
 export const showToast = (message) => {
+    const toastMessage = document.getElementById('toast-message');
+    const toastEl = document.getElementById('toast-notification');
+    
+    if (toastMessage && toastEl) {
+        toastMessage.textContent = message;
+        toastEl.classList.add('show');
+        setTimeout(() => toastEl.classList.remove('show'), 3000);
+    }
+};
+
+// 2. ALERT (Para Erros/Validação) - Modal Centralizado
+export const showAlert = (message) => {
     const alertModal = document.getElementById('alert-modal');
     const messageEl = document.getElementById('alert-modal-message');
     const okBtn = document.getElementById('alert-modal-ok-btn');
@@ -28,14 +42,13 @@ export const showToast = (message) => {
     if (alertModal && messageEl) {
         messageEl.textContent = message;
         
-        // Listener para fechar
+        // Garante que o listener não se acumule
         const closeAlert = () => closeModal(alertModal);
         okBtn.onclick = closeAlert;
         
         openModal(alertModal);
     } else {
-        // Fallback seguro caso o modal não exista no HTML
-        alert(message); 
+        alert(message); // Fallback
     }
 };
 
@@ -143,7 +156,7 @@ export const shareContent = async (title, text) => {
             await navigator.share({ title, text: enhancedText });
         } catch (error) {
             console.error('Erro ao partilhar:', error);
-            showToast('Erro ao partilhar o conteúdo.');
+            showAlert('Erro ao partilhar o conteúdo.');
         }
     } else {
         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(enhancedText)}`;

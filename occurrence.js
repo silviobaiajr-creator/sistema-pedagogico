@@ -1,10 +1,10 @@
 
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 4.2 (Agendamento em Lote + Feedback Rápido + Ajustes de UX)
+// VERSÃO: 4.3 (Correção de UX: Mensagens de Erro no Centro, Sucesso no Canto)
 
 import { state, dom } from './state.js';
-import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
+import { showToast, showAlert, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
 import { 
     getCollectionRef, 
     getCounterDocRef, 
@@ -714,12 +714,12 @@ async function handleOccurrenceSubmit(e) {
     const form = e.target;
     if (!form.checkValidity()) {
         form.reportValidity();
-        showToast("Por favor, preencha todos os campos obrigatórios (*).");
+        showAlert("Por favor, preencha todos os campos obrigatórios (*).");
         return;
     }
 
     const groupId = document.getElementById('occurrence-group-id').value;
-    if (state.selectedStudents.size === 0) return showToast("Selecione pelo menos um aluno.");
+    if (state.selectedStudents.size === 0) return showAlert("Selecione pelo menos um aluno.");
 
     const participants = Array.from(state.selectedStudents.entries()).map(([studentId, data]) => ({
         studentId: studentId,
@@ -738,11 +738,11 @@ async function handleOccurrenceSubmit(e) {
     
     const today = new Date().toISOString().split('T')[0];
     if (collectiveData.date > today) {
-        return showToast("Erro: A data da ocorrência não pode ser no futuro.");
+        return showAlert("Erro: A data da ocorrência não pode ser no futuro.");
     }
 
     if (!collectiveData.providenciasEscola) {
-        showToast("O campo 'Providências da Escola' é obrigatório.");
+        showAlert("O campo 'Providências da Escola' é obrigatório.");
         document.getElementById('providencias-escola').focus();
         return;
     }
@@ -848,7 +848,7 @@ async function handleOccurrenceSubmit(e) {
         closeModal(dom.occurrenceModal);
     } catch (error) {
         console.error("Erro ao salvar ocorrência:", error);
-        showToast('Erro ao salvar a ocorrência.');
+        showAlert('Erro ao salvar a ocorrência.');
     }
 }
 
@@ -858,15 +858,15 @@ async function handleOccurrenceStepSubmit(e) {
     const form = e.target;
     if (!form.checkValidity()) {
         form.reportValidity();
-        return showToast('Por favor, preencha todos os campos obrigatórios (*).');
+        return showAlert('Por favor, preencha todos os campos obrigatórios (*).');
     }
 
     const recordId = form.dataset.recordId;
     const actionType = form.dataset.actionType;
-    if (!recordId || !actionType) return showToast("Erro: ID do registro ou tipo de ação não encontrado.");
+    if (!recordId || !actionType) return showAlert("Erro: ID do registro ou tipo de ação não encontrado.");
 
     const record = state.occurrences.find(r => r.id === recordId);
-    if (!record) return showToast("Erro: Registro original não encontrado.");
+    if (!record) return showAlert("Erro: Registro original não encontrado.");
 
     let dataToUpdate = {};
     let historyAction = "";
@@ -882,10 +882,10 @@ async function handleOccurrenceStepSubmit(e) {
             const inputDate = document.getElementById('follow-up-meeting-date').value;
             const inputTime = document.getElementById('follow-up-meeting-time').value;
 
-            if (!inputDate || !inputTime) return showToast('Data e Horário obrigatórios.');
+            if (!inputDate || !inputTime) return showAlert('Data e Horário obrigatórios.');
             
             const dateCheck = validateOccurrenceChronology(record, actionType, inputDate);
-            if (!dateCheck.isValid) return showToast(dateCheck.message);
+            if (!dateCheck.isValid) return showAlert(dateCheck.message);
 
             // --- AGENDAMENTO EM LOTE PARA 1ª CONVOCAÇÃO ---
             if (attemptNum == 1) {
@@ -918,9 +918,7 @@ async function handleOccurrenceStepSubmit(e) {
                     
                     // Adiciona o registro atual ao batch (será executado junto)
                     // Mas precisamos continuar o fluxo normal para este registro para fechar modal e notificar
-                    // Então faremos o update localmente aqui e deixaremos o fluxo normal salvar o registro atual individualmente?
-                    // Melhor fazer tudo no batch se for lote, ou deixar o fluxo normal cuidar do atual e o batch dos outros.
-                    // Vamos deixar o batch cuidar dos OUTROS e o fluxo normal cuidar do ATUAL.
+                    // Então faremos o update localmente aqui e deixaremos o fluxo normal cuidar do ATUAL.
                     await batch.commit();
                     showToast(`Agendamento replicado para mais ${otherPendingRecords.length} alunos.`);
                 }
@@ -940,7 +938,7 @@ async function handleOccurrenceStepSubmit(e) {
             const contactSucceededRadio = document.querySelector('input[name="follow-up-contact-succeeded"]:checked');
             const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
 
-            if (!contactSucceeded) return showToast('Selecione se conseguiu contato.');
+            if (!contactSucceeded) return showAlert('Selecione se conseguiu contato.');
 
             const fields = {
                 succeeded: `contactSucceeded_${attemptNum}`,
@@ -957,11 +955,11 @@ async function handleOccurrenceStepSubmit(e) {
                     [fields.providencias]: document.getElementById('follow-up-family-actions').value,
                 };
                 if (!dataToUpdate[fields.type] || !dataToUpdate[fields.date] || !dataToUpdate[fields.providencias]) {
-                     return showToast('Preencha Tipo, Data e Providências.');
+                     return showAlert('Preencha Tipo, Data e Providências.');
                 }
                 
                 const dateCheck = validateOccurrenceChronology(record, actionType, dataToUpdate[fields.date]);
-                if (!dateCheck.isValid) return showToast(dateCheck.message);
+                if (!dateCheck.isValid) return showAlert(dateCheck.message);
 
                 historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato realizado com sucesso.`;
                 nextStatus = 'Aguardando Desfecho'; 
@@ -983,16 +981,16 @@ async function handleOccurrenceStepSubmit(e) {
             const desfechoChoiceRadio = document.querySelector('input[name="follow-up-desfecho-choice"]:checked');
             const desfechoChoice = desfechoChoiceRadio ? desfechoChoiceRadio.value : null;
 
-            if (!desfechoChoice) return showToast("Erro: Escolha uma opção.");
+            if (!desfechoChoice) return showAlert("Erro: Escolha uma opção.");
 
             if (desfechoChoice === 'ct') {
                 const oficioNumber = document.getElementById('follow-up-oficio-number').value.trim();
                 const ctSentDate = document.getElementById('follow-up-ct-sent-date').value;
 
-                if (!oficioNumber || !ctSentDate) return showToast("Erro: Preencha o Ofício e Data.");
+                if (!oficioNumber || !ctSentDate) return showAlert("Erro: Preencha o Ofício e Data.");
 
                 const dateCheck = validateOccurrenceChronology(record, 'desfecho_ou_ct', ctSentDate);
-                if (!dateCheck.isValid) return showToast(dateCheck.message);
+                if (!dateCheck.isValid) return showAlert(dateCheck.message);
 
                 dataToUpdate = {
                     oficioNumber, ctSentDate,
@@ -1006,7 +1004,7 @@ async function handleOccurrenceStepSubmit(e) {
                 
             } else { 
                  const parecerFinal = document.getElementById('follow-up-parecer-final').value.trim();
-                 if (!parecerFinal) return showToast("Erro: Preencha o Parecer.");
+                 if (!parecerFinal) return showAlert("Erro: Preencha o Parecer.");
                  
                  dataToUpdate = {
                     parecerFinal,
@@ -1021,7 +1019,7 @@ async function handleOccurrenceStepSubmit(e) {
             dataToUpdate = {
                 ctFeedback: document.getElementById('follow-up-ct-feedback').value.trim(),
             };
-             if (!dataToUpdate.ctFeedback) return showToast("Erro: Preencha a Devolutiva.");
+             if (!dataToUpdate.ctFeedback) return showAlert("Erro: Preencha a Devolutiva.");
             historyAction = `Ação 5 (Devolutiva do CT) registrada.`;
             nextStatus = 'Aguardando Parecer Final';
 
@@ -1029,14 +1027,14 @@ async function handleOccurrenceStepSubmit(e) {
             dataToUpdate = {
                 parecerFinal: document.getElementById('follow-up-parecer-final').value.trim(),
             };
-             if (!dataToUpdate.parecerFinal) return showToast("Erro: Preencha o Parecer final.");
+             if (!dataToUpdate.parecerFinal) return showAlert("Erro: Preencha o Parecer final.");
             historyAction = `Ação 6 (Parecer Final) registrada após devolutiva do CT.`;
             nextStatus = 'Resolvido'; 
         }
 
     } catch (collectError) {
         console.error("Erro ao coletar dados:", collectError);
-        showToast("Erro ao processar dados.");
+        showAlert("Erro ao processar dados.");
         return;
     }
 
@@ -1066,7 +1064,7 @@ async function handleOccurrenceStepSubmit(e) {
                 if (recordIndex > -1) incident.records[recordIndex] = updatedRecordForNotification;
                 else incident.records.push(updatedRecordForNotification);
                 
-                // CORREÇÃO: Passa o número da tentativa (extraído da actionType)
+                // Passa o número da tentativa
                 const attemptNum = parseInt(actionType.split('_')[1]) || 1;
                 openIndividualNotificationModal(incident, student, attemptNum);
             }
@@ -1076,7 +1074,7 @@ async function handleOccurrenceStepSubmit(e) {
 
     } catch (error) {
         console.error("Erro ao salvar etapa:", error);
-        showToast('Erro ao salvar a etapa.');
+        showAlert('Erro ao salvar a etapa.');
     }
 }
 
@@ -1084,31 +1082,29 @@ async function handleOccurrenceStepSubmit(e) {
 async function handleEditOccurrence(groupId) {
     const incident = await fetchIncidentById(groupId);
     if (incident) {
-        if (incident.overallStatus === 'Finalizada') return showToast('Ocorrência finalizada. Não é possível editar.');
+        if (incident.overallStatus === 'Finalizada') return showAlert('Ocorrência finalizada. Não é possível editar.');
         openOccurrenceModal(incident); 
     } else {
-        showToast('Incidente não encontrado.');
+        showAlert('Incidente não encontrado.');
     }
 }
 
 async function handleEditOccurrenceAction(studentId, groupId, recordId) {
     const incident = await fetchIncidentById(groupId);
-    if (!incident) return showToast('Erro: Incidente não encontrado.');
-    if (incident.overallStatus === 'Finalizada') return showToast('Ocorrência finalizada. Não é possível editar.');
+    if (!incident) return showAlert('Erro: Incidente não encontrado.');
+    if (incident.overallStatus === 'Finalizada') return showAlert('Ocorrência finalizada. Não é possível editar.');
 
     const participantData = incident.participantsInvolved.get(studentId);
     const student = participantData?.student;
-    if (!student) return showToast('Erro: Aluno não encontrado.');
+    if (!student) return showAlert('Erro: Aluno não encontrado.');
 
     const record = incident.records.find(r => r.id === recordId);
-    if (!record) return showToast('Erro: Registro não encontrado.');
+    if (!record) return showAlert('Erro: Registro não encontrado.');
 
     let actionToEdit = determineCurrentActionFromStatus(record.statusIndividual);
     
-    // Fallback: Se actionToEdit retornar nulo ou não for específico o suficiente,
-    // a função determineCurrentActionFromStatus já deve tratar, mas garantimos aqui que abra algo.
     if (!actionToEdit) {
-        return showToast('Estado inválido para edição direta.');
+        return showAlert('Estado inválido para edição direta.');
     }
     
     openOccurrenceStepModal(student, record, actionToEdit);
@@ -1116,16 +1112,16 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
 
 async function handleResetActionConfirmation(studentId, groupId, recordId) {
     const incident = await fetchIncidentById(groupId);
-    if (!incident) return showToast('Erro: Incidente não encontrado.');
-    if (incident.overallStatus === 'Finalizada') return showToast('Ocorrência finalizada. Não é possível limpar.');
+    if (!incident) return showAlert('Erro: Incidente não encontrado.');
+    if (incident.overallStatus === 'Finalizada') return showAlert('Ocorrência finalizada. Não é possível limpar.');
     
     const record = incident.records.find(r => r.id === recordId);
-    if (!record) return showToast('Erro: Registro não encontrado.');
+    if (!record) return showAlert('Erro: Registro não encontrado.');
     
     let actionToReset = determineCurrentActionFromStatus(record.statusIndividual);
 
     if (actionToReset === null) {
-        return showToast('Não é possível Limpar a Ação 1 (Fato). Use "Editar Fato".');
+        return showAlert('Não é possível Limpar a Ação 1 (Fato). Use "Editar Fato".');
     }
 
     const actionTitle = occurrenceActionTitles[actionToReset] || `Etapa '${actionToReset}'`;
@@ -1145,7 +1141,7 @@ async function handleResetActionConfirmation(studentId, groupId, recordId) {
 
 function handleDelete(type, id) {
     const incident = state.occurrences.find(occ => occ.occurrenceGroupId === id || occ.id === id); 
-    if (incident && incident.overallStatus === 'Finalizada') return showToast('Ocorrência finalizada. Não é possível excluir.');
+    if (incident && incident.overallStatus === 'Finalizada') return showAlert('Ocorrência finalizada. Não é possível excluir.');
     
     document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este incidente e todos os seus registros associados?';
     state.recordToDelete = { type, id };
@@ -1155,19 +1151,19 @@ function handleDelete(type, id) {
 // Handler para o botão "Avançar"
 async function handleNewOccurrenceAction(studentId, groupId, recordId) {
     const incident = await fetchIncidentById(groupId); 
-    if (!incident) return showToast('Erro: Incidente não encontrado.');
+    if (!incident) return showAlert('Erro: Incidente não encontrado.');
 
     const participantData = incident.participantsInvolved.get(studentId);
     const student = participantData?.student;
-    if (!student) return showToast('Erro: Aluno não encontrado.');
+    if (!student) return showAlert('Erro: Aluno não encontrado.');
 
     const record = incident.records.find(r => r.id === recordId);
-    if (!record) return showToast('Erro: Registro não encontrado.');
+    if (!record) return showAlert('Erro: Registro não encontrado.');
 
     const nextAction = determineNextOccurrenceStep(record.statusIndividual);
 
     if (nextAction === null) {
-        showToast('Processo finalizado. Use "Editar Ação" ou "Limpar Ação".');
+        showAlert('Processo finalizado. Use "Editar Ação" ou "Limpar Ação".');
         return;
     }
     openOccurrenceStepModal(student, record, nextAction);
@@ -1180,7 +1176,7 @@ async function handleQuickFeedback(studentId, groupId, recordId, actionType, val
         const incident = await fetchIncidentById(groupId); 
         const record = incident ? incident.records.find(r => r.id === recordId) : null;
         
-        if (!record) return showToast('Erro: Registro não encontrado.');
+        if (!record) return showAlert('Erro: Registro não encontrado.');
 
         const attemptNum = parseInt(actionType.split('_')[1]);
         const fields = { succeeded: `contactSucceeded_${attemptNum}` };
@@ -1200,21 +1196,21 @@ async function handleQuickFeedback(studentId, groupId, recordId, actionType, val
             showToast('Feedback "Sem Sucesso" registrado.');
         } catch (e) {
             console.error(e);
-            showToast('Erro ao salvar feedback.');
+            showAlert('Erro ao salvar feedback.');
         }
         return; // Não abre modal
     }
 
     // SE FOR "SIM", SEGUE FLUXO NORMAL (ABRE MODAL)
     const incident = await fetchIncidentById(groupId); 
-    if (!incident) return showToast('Erro: Incidente não encontrado.');
+    if (!incident) return showAlert('Erro: Incidente não encontrado.');
 
     const participantData = incident.participantsInvolved.get(studentId);
     const student = participantData?.student;
-    if (!student) return showToast('Erro: Aluno não encontrado.');
+    if (!student) return showAlert('Erro: Aluno não encontrado.');
 
     const record = incident.records.find(r => r.id === recordId);
-    if (!record) return showToast('Erro: Registro não encontrado.');
+    if (!record) return showAlert('Erro: Registro não encontrado.');
 
     // Abre o modal de feedback pre-preenchido
     openOccurrenceStepModal(student, record, actionType, { succeeded: value });
@@ -1223,11 +1219,11 @@ async function handleQuickFeedback(studentId, groupId, recordId, actionType, val
 
 async function handleGenerateNotification(recordId, studentId, groupId, attemptNum) {
     const incident = await fetchIncidentById(groupId); 
-     if (!incident) return showToast('Erro: Incidente não encontrado.');
+     if (!incident) return showAlert('Erro: Incidente não encontrado.');
 
     const participantData = incident.participantsInvolved.get(studentId);
     const student = participantData?.student;
-    if (!student) return showToast('Erro: Aluno não encontrado.');
+    if (!student) return showAlert('Erro: Aluno não encontrado.');
 
     openIndividualNotificationModal(incident, student, attemptNum);
 }
@@ -1239,16 +1235,16 @@ async function handleViewOccurrenceOficio(recordId) {
 
         const recordFromState = state.occurrences.find(r => r.id === recordId);
         if (!recordFromState || !recordFromState.occurrenceGroupId) {
-             return showToast('Registro não encontrado localmente.');
+             return showAlert('Registro não encontrado localmente.');
         }
 
         targetIncident = await fetchIncidentById(recordFromState.occurrenceGroupId);
-        if (!targetIncident) return showToast('Incidente não encontrado no servidor.');
+        if (!targetIncident) return showAlert('Incidente não encontrado no servidor.');
 
         targetRecord = targetIncident.records.find(r => r.id === recordId);
-        if (!targetRecord) return showToast('Registro específico não encontrado.'); 
+        if (!targetRecord) return showAlert('Registro específico não encontrado.'); 
 
-        if (!targetRecord.oficioNumber) return showToast('Este registro não possui um ofício associado.');
+        if (!targetRecord.oficioNumber) return showAlert('Este registro não possui um ofício associado.');
 
         const participantData = targetIncident.participantsInvolved.get(targetRecord.studentId);
         let student = participantData?.student;
@@ -1273,7 +1269,7 @@ async function handleViewOccurrenceOficio(recordId) {
 
     } catch (e) {
         console.error("Erro fatal ao abrir ofício de ocorrência:", e);
-        showToast("Erro interno ao abrir o ofício. Tente recarregar a página.");
+        showAlert("Erro interno ao abrir o ofício. Tente recarregar a página.");
     }
 }
 
