@@ -1,7 +1,6 @@
-
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 5.2 (Correção: Obrigatoriedade 'Aluno Retornou' independente do contato)
+// VERSÃO: 5.3 (Correção: Botão Salvar travado por campo oculto obrigatório)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -524,8 +523,11 @@ export const handleNewAbsenceAction = (student) => {
  */
 export const toggleFamilyContactFields = (enable, fieldsContainer) => {
     if (!fieldsContainer) return;
+    
+    // Controls visibility
     fieldsContainer.classList.toggle('hidden', !enable);
-    const detailFields = fieldsContainer.querySelectorAll('input[type="date"], input[type="text"], textarea, select');
+    
+    const detailFields = fieldsContainer.querySelectorAll('input, textarea, select');
     const returnedRadioGroup = document.querySelectorAll('input[name="contact-returned"]');
 
     detailFields.forEach(input => {
@@ -539,10 +541,12 @@ export const toggleFamilyContactFields = (enable, fieldsContainer) => {
         }
     });
     
-    // "Aluno retornou?" deve ser sempre obrigatório se estamos nessa tela, independente do sucesso do contato
+    // CORREÇÃO: Remove obrigatoriedade HTML5 para evitar "not focusable" quando oculto
+    // A validação de obrigatoriedade é feita manualmente em handleAbsenceSubmit
     returnedRadioGroup.forEach(radio => {
-        radio.required = true;
-        radio.disabled = false; // Garantir que não fique desabilitado
+        radio.required = false; // Desativa validação nativa
+        radio.disabled = false; // Mantém habilitado (se visível)
+        if (!enable) radio.checked = false; 
     });
 };
 
@@ -667,8 +671,9 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 convocationSection.classList.add('hidden');
                 familyContactSection.classList.remove('hidden');
                 document.querySelectorAll('input[name="contact-succeeded"]').forEach(r => r.required = true);
-                // Garantir que "Aluno retornou?" seja obrigatório quando a seção de contato estiver visível
-                document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = true);
+                // CORREÇÃO: Desativa required HTML5 para 'contact-returned' para evitar bloqueio
+                // Validação manual cuida disso
+                document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = false);
             } else {
                 convocationSection.classList.remove('hidden');
                 familyContactSection.classList.add('hidden');
@@ -822,6 +827,9 @@ async function handleAbsenceSubmit(e) {
     
     // Verifica campos explicitamente requeridos
     form.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled])').forEach(el => {
+        // CORREÇÃO: Ignora campos ocultos na validação automática
+        if (el.offsetParent === null) return;
+
         if (el.required && !el.value && el.type !== 'radio') {
              if (!firstInvalidField) firstInvalidField = el;
         }
