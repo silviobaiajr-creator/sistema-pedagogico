@@ -538,6 +538,7 @@ export const toggleFamilyContactFields = (enable, fieldsContainer) => {
         }
     });
     
+    // Assegura que o retorno seja obrigatório se a seção estiver visível
     returnedRadioGroup.forEach(radio => radio.required = enable);
 };
 
@@ -662,6 +663,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 convocationSection.classList.add('hidden');
                 familyContactSection.classList.remove('hidden');
                 document.querySelectorAll('input[name="contact-succeeded"]').forEach(r => r.required = true);
+                // Garantir que "Aluno retornou?" seja obrigatório quando a seção de contato estiver visível
                 document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = true);
             } else {
                 convocationSection.classList.remove('hidden');

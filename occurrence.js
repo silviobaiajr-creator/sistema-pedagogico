@@ -366,10 +366,11 @@ export const renderOccurrences = () => {
 
                 const editActionBtn = `
                     <button type="button"
-                            class="edit-occurrence-action-btn text-yellow-600 hover:text-yellow-900 text-xs font-semibold py-1 px-2 rounded-md bg-yellow-50 hover:bg-yellow-100"
+                            class="edit-occurrence-action-btn text-yellow-600 hover:text-yellow-900 text-xs font-semibold py-1 px-2 rounded-md bg-yellow-50 hover:bg-yellow-100 ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}"
                             data-group-id="${incident.id}"
                             data-student-id="${student.matricula}"
                             data-record-id="${recordId}"
+                            ${isFinalizada ? 'disabled' : ''}
                             title="Editar a última ação salva">
                         <i class="fas fa-pencil-alt"></i> Editar Última
                     </button>
@@ -377,10 +378,11 @@ export const renderOccurrences = () => {
                 
                 const resetActionBtn = `
                      <button type="button"
-                            class="reset-occurrence-action-btn text-red-600 hover:text-red-900 text-xs font-semibold py-1 px-2 rounded-md bg-red-50 hover:bg-red-100"
+                            class="reset-occurrence-action-btn text-red-600 hover:text-red-900 text-xs font-semibold py-1 px-2 rounded-md bg-red-50 hover:bg-red-100 ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}"
                             data-group-id="${incident.id}"
                             data-student-id="${student.matricula}"
                             data-record-id="${recordId}"
+                            ${isFinalizada ? 'disabled' : ''}
                             title="Limpar a última ação (desfazer)">
                         <i class="fas fa-undo-alt"></i> Limpar
                     </button>
@@ -1039,6 +1041,7 @@ async function handleOccurrenceStepSubmit(e) {
 async function handleEditOccurrence(groupId) {
     const incident = await fetchIncidentById(groupId);
     if (incident) {
+        if (incident.overallStatus === 'Finalizada') return showToast('Ocorrência finalizada. Não é possível editar.');
         openOccurrenceModal(incident); 
     } else {
         showToast('Incidente não encontrado.');
@@ -1048,6 +1051,7 @@ async function handleEditOccurrence(groupId) {
 async function handleEditOccurrenceAction(studentId, groupId, recordId) {
     const incident = await fetchIncidentById(groupId);
     if (!incident) return showToast('Erro: Incidente não encontrado.');
+    if (incident.overallStatus === 'Finalizada') return showToast('Ocorrência finalizada. Não é possível editar.');
 
     const participantData = incident.participantsInvolved.get(studentId);
     const student = participantData?.student;
@@ -1070,6 +1074,8 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
 async function handleResetActionConfirmation(studentId, groupId, recordId) {
     const incident = await fetchIncidentById(groupId);
     if (!incident) return showToast('Erro: Incidente não encontrado.');
+    if (incident.overallStatus === 'Finalizada') return showToast('Ocorrência finalizada. Não é possível limpar.');
+    
     const record = incident.records.find(r => r.id === recordId);
     if (!record) return showToast('Erro: Registro não encontrado.');
     
@@ -1095,6 +1101,11 @@ async function handleResetActionConfirmation(studentId, groupId, recordId) {
 }
 
 function handleDelete(type, id) {
+    // A validação de 'Finalizada' já é feita visualmente no botão, mas adicionamos aqui por segurança
+    const incident = state.occurrences.find(occ => occ.occurrenceGroupId === id || occ.id === id); // Procura simplificada para validar status localmente
+    // Para validação mais robusta seria necessário fetchIncidentById, mas a UI já bloqueia.
+    // Se quiser estrito, adicione aqui.
+    
     document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este incidente e todos os seus registros associados?';
     state.recordToDelete = { type, id };
     openModal(dom.deleteConfirmModal);

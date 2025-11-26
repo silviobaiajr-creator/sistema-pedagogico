@@ -141,15 +141,28 @@ export const openIndividualNotificationModal = async (incident, studentObj) => {
     
     const student = await resolveStudentData(studentObj.matricula, data.studentName ? data : studentObj);
 
-    if (!data.meetingDate || !data.meetingTime) {
-        showToast(`Erro: É necessário agendar a Convocação (Ação 2) para ${student.name}.`);
-        return;
-    }
-
     // Cálculo da Tentativa Atual
     let attemptCount = 1;
     if (data.contactSucceeded_1 != null) attemptCount = 2;
     if (data.contactSucceeded_2 != null) attemptCount = 3;
+
+    // Identifica qual a data de agendamento que deve ser exibida na notificação
+    // (A data que foi configurada na ação de Convocação correspondente)
+    let meetingDateToShow = data.meetingDate;
+    let meetingTimeToShow = data.meetingTime;
+
+    if (attemptCount === 2) {
+        meetingDateToShow = data.meetingDate_2;
+        meetingTimeToShow = data.meetingTime_2;
+    } else if (attemptCount === 3) {
+        meetingDateToShow = data.meetingDate_3;
+        meetingTimeToShow = data.meetingTime_3;
+    }
+
+    if (!meetingDateToShow || !meetingTimeToShow) {
+        showToast(`Erro: É necessário agendar a ${attemptCount}ª Convocação para ${student.name}.`);
+        return;
+    }
     
     const attemptLabels = { 1: "primeira", 2: "segunda", 3: "terceira" };
     const attemptText = `Esta é a <strong>${attemptLabels[attemptCount] || 'uma'} tentativa de contato</strong> realizada pela escola.`;
@@ -198,8 +211,8 @@ export const openIndividualNotificationModal = async (incident, studentObj) => {
                 na seguinte data e horário:
             </p>
             <div class="mt-4 p-3 bg-sky-100 text-sky-800 rounded-md text-center font-semibold" style="font-family: 'Inter', sans-serif;">
-                <p><strong>Data:</strong> ${formatDate(data.meetingDate)}</p>
-                <p><strong>Horário:</strong> ${formatTime(data.meetingTime)}</p>
+                <p><strong>Data:</strong> ${formatDate(meetingDateToShow)}</p>
+                <p><strong>Horário:</strong> ${formatTime(meetingTimeToShow)}</p>
             </div>
 
             <div class="mt-8 signature-block">
