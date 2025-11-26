@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: logic.js
-// VERSÃO: 3.1 (Correção: Suporte a dados externos para relatórios escaláveis)
+// VERSÃO: 3.2 (Correção Crítica: Dependência Circular e Dados Externos)
 
 import { state } from './state.js';
 import { getStatusBadge } from './utils.js';
@@ -356,20 +356,21 @@ const getActionTitle = (type) => {
 // --- Lógica de Reset (Limpar Ação) ---
 // ==============================================================================
 
-// Definição dos campos para cada etapa de Ocorrência
+// Definição dos campos para cada etapa de Ocorrência (Reset Cascata Reverso)
 const camposAcao6 = ['parecerFinal'];
 const camposAcao5 = ['ctFeedback', ...camposAcao6];
 const camposAcao4 = ['oficioNumber', 'oficioYear', 'ctSentDate', 'desfechoChoice', ...camposAcao5]; 
 
-// Campos da Convocação 3
+// Campos da Convocação 3 (e tudo que vem depois)
 const camposFeedback3 = ['contactSucceeded_3', 'contactType_3', 'contactDate_3', 'providenciasFamilia_3', ...camposAcao4];
 const camposConvocacao3 = ['meetingDate_3', 'meetingTime_3', ...camposFeedback3];
 
-// Campos da Convocação 2
-const camposFeedback2 = ['contactSucceeded_2', 'contactType_2', 'contactDate_2', 'providenciasFamilia_2', ...camposConvocacao2];
+// Campos da Convocação 2 (e tudo que vem depois)
+// CORREÇÃO: Se reseta Feedback 2, limpa Feedback 2 E Convocação 3 (próxima etapa)
+const camposFeedback2 = ['contactSucceeded_2', 'contactType_2', 'contactDate_2', 'providenciasFamilia_2', ...camposConvocacao3];
 const camposConvocacao2 = ['meetingDate_2', 'meetingTime_2', ...camposFeedback2];
 
-// Campos da Convocação 1
+// Campos da Convocação 1 (e tudo que vem depois)
 const camposFeedback1 = ['contactSucceeded_1', 'contactType_1', 'contactDate_1', 'providenciasFamilia_1', ...camposConvocacao2];
 const camposConvocacao1 = ['meetingDate_1', 'meetingTime_1', ...camposFeedback1];
 
