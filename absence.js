@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 5.1 (Correção: Validação Estrita de Campos Obrigatórios)
+// VERSÃO: 5.2 (Correção: Obrigatoriedade 'Aluno Retornou' independente do contato)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -539,8 +539,11 @@ export const toggleFamilyContactFields = (enable, fieldsContainer) => {
         }
     });
     
-    // Assegura que o retorno seja obrigatório se a seção estiver visível
-    returnedRadioGroup.forEach(radio => radio.required = enable);
+    // "Aluno retornou?" deve ser sempre obrigatório se estamos nessa tela, independente do sucesso do contato
+    returnedRadioGroup.forEach(radio => {
+        radio.required = true;
+        radio.disabled = false; // Garantir que não fique desabilitado
+    });
 };
 
 /**
@@ -849,13 +852,11 @@ async function handleAbsenceSubmit(e) {
                 return;
             }
 
-            // Se conseguiu contato, o campo "Aluno retornou?" é OBRIGATÓRIO
-            if (contactSucceededRadio.value === 'yes') {
-                const contactReturnedRadio = form.querySelector('input[name="contact-returned"]:checked');
-                if (!contactReturnedRadio) {
-                    showToast("Por favor, informe se o aluno retornou.");
-                    return;
-                }
+            // Independente se conseguiu contato ou não, deve informar se retornou
+            const contactReturnedRadio = form.querySelector('input[name="contact-returned"]:checked');
+            if (!contactReturnedRadio) {
+                showToast("Por favor, informe se o aluno retornou.");
+                return;
             }
         }
     }
