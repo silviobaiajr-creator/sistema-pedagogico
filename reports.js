@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 3.6 (Ofício Ocorrência Detalhado + Padronização Relatórios + Ajustes Ficha BA)
+// VERSÃO: 3.7 (Correção Crítica: Restauração de generateAndShowOficio)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -723,6 +723,83 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
 };
 
 /**
+ * Gera o Ofício para o Conselho Tutelar (Busca Ativa).
+ */
+export const generateAndShowOficio = async (action, oficioNumber = null) => {
+    if (!action) return showToast('Ação de origem não encontrada.');
+
+    const finalOficioNumber = oficioNumber || action.oficioNumber;
+    const finalOficioYear = action.oficioYear || new Date().getFullYear();
+
+    if (!finalOficioNumber) return showToast('Número do ofício não fornecido ou não encontrado para este registro.');
+
+    if (!state.students.find(s => s.matricula === action.studentId)) {
+        showToast('Buscando dados completos do aluno...');
+    }
+    const student = await resolveStudentData(action.studentId, action);
+
+    const processActions = state.absences
+        .filter(a => a.processId === action.processId)
+        .sort((a, b) => (a.createdAt?.seconds || new Date(a.createdAt).getTime()) - (b.createdAt?.seconds || new Date(b.createdAt).getTime()));
+
+    if (processActions.length === 0) return showToast('Nenhuma ação encontrada para este processo.');
+
+    const firstActionWithAbsenceData = processActions.find(a => a.periodoFaltasStart);
+    const visitAction = processActions.find(a => a.actionType === 'visita');
+    const contactAttempts = processActions.filter(a => a.actionType.startsWith('tentativa'));
+
+    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
+    const city = state.config?.city || "Cidade";
+
+    let attemptsSummary = contactAttempts.map((attempt, index) => {
+        const attemptDate = attempt.contactDate || attempt.createdAt?.toDate();
+        return `
+            <p class="ml-4">- <strong>${index + 1}ª Tentativa (${formatDate(attemptDate)}):</strong>
+            ${attempt.contactSucceeded === 'yes'
+                ? `Contato realizado com ${formatText(attempt.contactPerson)}. Justificativa: ${formatText(attempt.contactReason)}.`
+                : 'Não foi possível estabelecer contato.'}
+            </p>
+        `;
+    }).join('');
+    if (!attemptsSummary) attemptsSummary = "<p class='ml-4'>Nenhuma tentativa de contato registrada.</p>";
+
+    const formatPeriodoLocal = (start, end) => {
+        if (start && end) return `de ${formatDate(start)} a ${formatDate(end)}`;
+        if (start) return `a partir de ${formatDate(start)}`;
+        if (end) return `até ${formatDate(end)}`;
+        return '(não informado)';
+    }
+
+    const oficioHTML = `
+        <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
+            <div>${getReportHeaderHTML()}<p class="text-right mt-4">${city}, ${currentDate}.</p></div>
+            <div class="mt-8"><p class="font-bold text-base">OFÍCIO Nº ${String(finalOficioNumber).padStart(3, '0')}/${finalOficioYear}</p></div>
+            <div class="mt-8"><p><strong>Ao</strong></p><p><strong>Conselho Tutelar</strong></p><p><strong>${city}</strong></p></div>
+            <div class="mt-8"><p><strong>Assunto:</strong> Encaminhamento de aluno infrequente.</p></div>
+            <div class="mt-8 text-justify">
+                <p class="indent-8">Prezados(as) Conselheiros(as),</p>
+                <p class="mt-4 indent-8">Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>, regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino, filho(a) de <strong>${formatText(responsaveis)}</strong>, residente no endereço: ${formatText(student.endereco)}.</p>
+                <p class="mt-4 indent-8">O(A) referido(a) aluno(a) apresenta um número de <strong>${formatText(firstActionWithAbsenceData?.absenceCount) || '(não informado)'} faltas</strong>, apuradas no período ${formatPeriodoLocal(firstActionWithAbsenceData?.periodoFaltasStart, firstActionWithAbsenceData?.periodoFaltasEnd)}.</p>
+                <p class="mt-4 indent-8">Informamos que a escola esgotou as tentativas de contato com a família, conforme descrito abaixo:</p>
+                <div class="mt-2" style="font-family: 'Inter', sans-serif;">${attemptsSummary}</div>
+                ${visitAction ? `<p class="mt-4 indent-8">Adicionalmente, foi realizada uma visita in loco em <strong>${formatDate(visitAction?.visitDate)}</strong>...</p>` : '<p class="mt-4 indent-8">Não foi registrada visita in loco neste processo.</p>'}
+                <p class="mt-4 indent-8">Diante do exposto e considerando o que preceitua o Art. 56 do Estatuto da Criança e do Adolescente (ECA), solicitamos as devidas providências...</p>
+            </div>
+            <div class="mt-12 text-center"><p>Atenciosamente,</p></div>
+            <div class="signature-block mt-8 space-y-12">
+                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Diretor(a)</p></div>
+                 <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Coordenador(a) Pedagógico(a)</p></div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('report-view-title').textContent = `Ofício Nº ${finalOficioNumber}/${finalOficioYear}`;
+    document.getElementById('report-view-content').innerHTML = oficioHTML;
+    openModal(dom.reportViewModalBackdrop);
+};
+
+/**
  * Gera o Ofício para o Conselho Tutelar (baseado em Ocorrência).
  * ATUALIZADO: Inclui as 3 tentativas de convocação.
  */
@@ -1179,4 +1256,5 @@ export const generateAndShowBuscaAtivaReport = async () => {
             console.error("Erro ao renderizar gráficos da Busca Ativa:", e);
         }
     }, 100);
-};
+};--- START OF FILE null ---
+
