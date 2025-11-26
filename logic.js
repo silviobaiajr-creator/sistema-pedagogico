@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: logic.js
-// VERSÃO: 3.0 (Lógica de 3 Convocações Estritas e Busca Ativa)
+// VERSÃO: 3.1 (Correção: Suporte a dados externos para relatórios escaláveis)
 
 import { state } from './state.js';
 import { getStatusBadge } from './utils.js';
@@ -21,11 +21,21 @@ export const defaultRole = 'Envolvido';
 /**
  * Processa os dados brutos das ocorrências, agrupa por incidente e aplica filtros.
  * Retorna um Map onde a chave é o ID do Grupo e o valor é o objeto do incidente.
+ * 
+ * @param {Array} externalData - (Opcional) Se fornecido, usa esses dados em vez do state.occurrences
+ * @param {Object} customFilters - (Opcional) Filtros específicos para sobrepor o estado global
  */
-export const getFilteredOccurrences = () => {
+export const getFilteredOccurrences = (externalData = null, customFilters = null) => {
     const groupedByIncident = new Map();
+    
+    // Usa dados externos (para relatórios completos) ou o estado atual (para visualização rápida)
+    const sourceData = externalData || state.occurrences;
+    
+    // Usa filtros passados ou os do estado global
+    const filters = customFilters || state.filtersOccurrences;
+    const studentSearchRaw = (customFilters ? '' : state.filterOccurrences) || ''; // Busca de texto só aplica na UI principal geralmente
 
-    for (const occ of state.occurrences) {
+    for (const occ of sourceData) {
         if (!occ || !occ.studentId) continue;
 
         const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
@@ -84,8 +94,7 @@ export const getFilteredOccurrences = () => {
 
     // 2. Filtragem e Processamento
     const filteredIncidents = new Map();
-    const { startDate, endDate, status, type } = state.filtersOccurrences;
-    const studentSearchRaw = state.filterOccurrences || '';
+    const { startDate, endDate, status, type } = filters;
     const studentSearch = studentSearchRaw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
     for (const [groupId, incident] of groupedByIncident.entries()) {
@@ -95,8 +104,10 @@ export const getFilteredOccurrences = () => {
         const allResolved = incident.records.every(r => r.statusIndividual === 'Resolvido');
         incident.overallStatus = allResolved ? 'Finalizada' : 'Pendente';
 
-        if (status !== 'all' && incident.overallStatus !== status) continue;
-        if (type !== 'all' && mainRecord.occurrenceType !== type) continue;
+        if (status && status !== 'all' && incident.overallStatus !== status) continue;
+        if (type && type !== 'all' && mainRecord.occurrenceType !== type) continue;
+        
+        // Filtro de data rigoroso para relatórios
         if (startDate && mainRecord.date < startDate) continue;
         if (endDate && mainRecord.date > endDate) continue;
 
@@ -354,7 +365,7 @@ const camposFeedback3 = ['contactSucceeded_3', 'contactType_3', 'contactDate_3',
 const camposConvocacao3 = ['meetingDate_3', 'meetingTime_3', ...camposFeedback3];
 
 // Campos da Convocação 2
-const camposFeedback2 = ['contactSucceeded_2', 'contactType_2', 'contactDate_2', 'providenciasFamilia_2', ...camposConvocacao3];
+const camposFeedback2 = ['contactSucceeded_2', 'contactType_2', 'contactDate_2', 'providenciasFamilia_2', ...camposConvocacao2];
 const camposConvocacao2 = ['meetingDate_2', 'meetingTime_2', ...camposFeedback2];
 
 // Campos da Convocação 1

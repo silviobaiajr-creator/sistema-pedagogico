@@ -1,6 +1,6 @@
 // =================================================================================
 // ARQUIVO: firestore.js
-// VERSÃO: 2.4 (Correção: Robustez no carregamento de incidentes com timeout)
+// VERSÃO: 2.5 (Adicionado suporte a Reports Server-Side)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
@@ -102,52 +102,42 @@ export const loadStudentsPaginated = async (lastVisibleDoc = null, pageSize = 50
     }
 };
 
-/**
- * Auxiliar para converter texto para Title Case (Primeira Letra Maiúscula).
- * Ex: "joao da silva" -> "Joao Da Silva"
- */
 const toTitleCase = (str) => {
     return str.replace(/\w\S*/g, (txt) => {
         return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
     });
 }
 
-/**
- * Busca Inteligente Multi-Caso.
- * Tenta encontrar o aluno buscando pelo termo exato, TitleCase e UpperCase simultaneamente.
- */
 export const searchStudentsByName = async (searchText) => {
     if (!searchText) return [];
     
     const rawTerm = searchText.trim();
     if (!rawTerm) return [];
 
-    // Cria variações do termo para tentar "adivinhar" como está no banco
     const variations = new Set();
-    variations.add(rawTerm); // Como digitado
-    variations.add(rawTerm.toLowerCase()); // Minúsculo
-    variations.add(rawTerm.toUpperCase()); // Maiúsculo (comum em sistemas antigos)
-    variations.add(toTitleCase(rawTerm)); // Title Case (Padrão de nomes: Ana Silva)
+    variations.add(rawTerm);
+    variations.add(rawTerm.toLowerCase());
+    variations.add(rawTerm.toUpperCase());
+    variations.add(toTitleCase(rawTerm));
 
     const studentsRef = getStudentsCollectionRef();
     const promises = [];
 
-    // Dispara uma busca para cada variação
     variations.forEach(term => {
-        const endTerm = term + '\uf8ff'; // Truque do Firestore para "começa com"
+        const endTerm = term + '\uf8ff';
         const q = query(
             studentsRef, 
             orderBy('name'), 
             where('name', '>=', term),
             where('name', '<=', endTerm),
-            limit(10) // Limite menor por variação para não sobrecarregar
+            limit(10)
         );
         promises.push(getDocs(q));
     });
 
     try {
         const snapshots = await Promise.all(promises);
-        const resultsMap = new Map(); // Map para remover duplicatas (mesmo aluno encontrado em variações diferentes)
+        const resultsMap = new Map();
 
         snapshots.forEach(snap => {
             snap.forEach(doc => {
@@ -203,7 +193,7 @@ export const getStudentById = async (studentId) => {
     }
 };
 
-// --- CONFIGURAÇÕES E INCIDENTES (Inalterados) ---
+// --- CONFIGURAÇÕES E INCIDENTES ---
 
 export const loadSchoolConfig = async () => {
     try {
@@ -250,12 +240,9 @@ export const getIncidentByGroupId = async (groupId) => {
         const mainRecord = incident.records[0];
         const participantsList = mainRecord.participants || [];
 
-        // (CORREÇÃO) Busca robusta de alunos com Timeout
         const studentPromises = participantsList.map(async (participant) => {
             let student = null;
             try {
-                // Tenta buscar o aluno com um timeout de 3 segundos
-                // Se o banco travar ou o aluno não existir, não bloqueia o modal
                 const timeoutPromise = new Promise((_, reject) => 
                     setTimeout(() => reject(new Error("Timeout")), 3000)
                 );
@@ -268,13 +255,12 @@ export const getIncidentByGroupId = async (groupId) => {
                 console.warn(`Aviso: Falha ao carregar aluno ${participant.studentId} no incidente:`, e);
             }
 
-            // Se não encontrou ou deu erro, usa dados parciais (desnormalizados ou placeholder)
             if (!student) {
                 student = {
                     matricula: participant.studentId,
-                    name: participant.studentName || `Aluno (${participant.studentId})`, // Tenta usar nome salvo no registro
+                    name: participant.studentName || `Aluno (${participant.studentId})`,
                     class: participant.studentClass || 'N/A',
-                    isPlaceholder: true // Marca para saber que não é o dado completo
+                    isPlaceholder: true
                 };
             }
 
@@ -300,5 +286,71 @@ export const getIncidentByGroupId = async (groupId) => {
     } catch (error) {
         console.error(`Erro ao buscar incidente por GroupId (${groupId}):`, error);
         return null;
+    }
+};
+
+// --- NOVO: FUNÇÕES DE RELATÓRIO SERVER-SIDE (ESCALABILIDADE) ---
+// Estas funções baixam TODOS os dados que correspondem aos filtros, 
+// ignorando o limite de 100 itens da interface principal.
+
+export const getOccurrencesForReport = async (startDate, endDate, type) => {
+    try {
+        let q = getCollectionRef('occurrence');
+        const conditions = [];
+
+        // Nota: O Firestore exige indexes compostos para múltiplas cláusulas 'where'.
+        // Se o console der erro, siga o link fornecido pelo Firebase para criar o index.
+        if (startDate) conditions.push(where('date', '>=', startDate));
+        if (endDate) conditions.push(where('date', '<=', endDate));
+        if (type && type !== 'all') conditions.push(where('occurrenceType', '==', type));
+
+        if (conditions.length > 0) {
+            q = query(q, ...conditions);
+        } else {
+            // Se não houver filtros, limita a segurança (ex: últimos 500)
+            q = query(q, orderBy('date', 'desc'), limit(500));
+        }
+
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    } catch (error) {
+        console.error("Erro ao gerar relatório de ocorrências:", error);
+        throw error;
+    }
+};
+
+export const getAbsencesForReport = async (startDate, endDate) => {
+    try {
+        let q = getCollectionRef('absence');
+        const conditions = [];
+
+        // Filtra por data de criação da ação ou data de início da falta se disponível
+        // Simplificação: Vamos filtrar pela data de criação do registro ('createdAt')
+        // pois 'periodoFaltasStart' nem sempre existe em todas as ações
+        
+        if (startDate) {
+            const start = new Date(startDate);
+            conditions.push(where('createdAt', '>=', start));
+        }
+        if (endDate) {
+            const end = new Date(endDate);
+            // Ajusta para o final do dia
+            end.setHours(23, 59, 59, 999);
+            conditions.push(where('createdAt', '<=', end));
+        }
+
+        if (conditions.length > 0) {
+            q = query(q, ...conditions);
+        } else {
+            q = query(q, orderBy('createdAt', 'desc'), limit(500));
+        }
+
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    } catch (error) {
+        console.error("Erro ao gerar relatório de busca ativa:", error);
+        throw error;
     }
 };

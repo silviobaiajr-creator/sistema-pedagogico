@@ -1,12 +1,12 @@
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 3.8 (Correção de Sintaxe e Restauração de Funções)
+// VERSÃO: 3.9 (Correção: Relatórios Server-Side Escaláveis)
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
 import { roleIcons, defaultRole, getFilteredOccurrences } from './logic.js';
-import { getIncidentByGroupId as fetchIncidentById, getStudentById } from './firestore.js';
+import { getIncidentByGroupId as fetchIncidentById, getStudentById, getOccurrencesForReport, getAbsencesForReport } from './firestore.js';
 
 
 // Mapeamento de títulos para Busca Ativa (mantido)
@@ -885,17 +885,33 @@ export const generateAndShowOccurrenceOficio = async (record, studentObj, oficio
 // --- GRÁFICOS (dependem de Chart.js) ---
 /**
  * Gera o relatório geral de ocorrências com gráficos.
+ * AGORA ESCALÁVEL: Busca dados diretamente do Firestore.
  */
 export const generateAndShowGeneralReport = async () => { 
-     const filteredIncidentsMap = getFilteredOccurrences(); 
-     const filteredIncidents = [...filteredIncidentsMap.values()]; 
+    showToast("Baixando dados do relatório...");
+    
+    // Obtém filtros atuais
+    const { startDate, endDate, status, type } = state.filtersOccurrences;
+    const studentFilter = state.filterOccurrences; 
+
+    // --- CORREÇÃO DE ESCALABILIDADE ---
+    // Em vez de usar state.occurrences (limitado a 100), buscamos tudo que corresponde aos filtros
+    let rawData = [];
+    try {
+        rawData = await getOccurrencesForReport(startDate, endDate, type);
+    } catch (e) {
+        showToast("Erro ao baixar dados. Tentando versão local...");
+        rawData = state.occurrences; // Fallback
+    }
+
+    // Processa os dados brutos usando a lógica existente
+    const filteredIncidentsMap = getFilteredOccurrences(rawData, state.filtersOccurrences);
+    const filteredIncidents = [...filteredIncidentsMap.values()]; 
 
     if (filteredIncidents.length === 0) {
         return showToast('Nenhum incidente encontrado para os filtros selecionados.');
     }
 
-    const { startDate, endDate, status, type } = state.filtersOccurrences;
-    const studentFilter = state.filterOccurrences; 
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
     const totalStudentsSet = new Set(
@@ -1074,9 +1090,21 @@ export const generateAndShowGeneralReport = async () => {
 
 /**
  * Gera o relatório geral de Busca Ativa com gráficos.
+ * AGORA ESCALÁVEL: Busca dados diretamente do Firestore.
  */
 export const generateAndShowBuscaAtivaReport = async () => {
-    const groupedByProcess = state.absences.reduce((acc, action) => {
+    showToast("Baixando dados do relatório...");
+    
+    // --- CORREÇÃO DE ESCALABILIDADE ---
+    let absencesData = [];
+    try {
+        absencesData = await getAbsencesForReport(state.filtersAbsences.startDate, state.filtersAbsences.endDate);
+    } catch (e) {
+        showToast("Erro ao baixar dados. Tentando versão local...");
+        absencesData = state.absences;
+    }
+
+    const groupedByProcess = absencesData.reduce((acc, action) => {
         const key = action.processId || `no-proc-${action.id}`;
         if (!acc[key]) acc[key] = { id: key, actions: [], studentId: action.studentId };
         acc[key].actions.push(action);
