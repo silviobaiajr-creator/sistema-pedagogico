@@ -1,7 +1,6 @@
-
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 3.7 (Correção Crítica: Restauração de generateAndShowOficio)
+// VERSÃO: 3.8 (Correção de Sintaxe e Restauração de Funções)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -347,8 +346,8 @@ export const openOccurrenceRecordModal = async (groupId) => {
                     
                     // Verifica se houve agendamento da próxima convocação (exceto para a 3ª tentativa que vai para desfecho)
                     if (i < 3) {
-                        const nextMeetingDate = rec[`meetingDate_${i+1}`];
-                        const nextMeetingTime = rec[`meetingTime_${i+1}`];
+                        const nextMeetingDate = rec['meetingDate_' + (i+1)];
+                        const nextMeetingTime = rec['meetingTime_' + (i+1)];
                         if (nextMeetingDate) {
                             textoAcoesAluno += `<li><strong>Ação 2 (${i+1}ª Convocação):</strong> Agendada p/ ${formatDate(nextMeetingDate)} às ${formatTime(nextMeetingTime)}.</li>`;
                         }
@@ -832,11 +831,11 @@ export const generateAndShowOccurrenceOficio = async (record, studentObj, oficio
     let attemptsSummary = "";
     for (let i = 1; i <= 3; i++) {
         // Nota: Para a 1ª tentativa, usa meetingDate ou meetingDate_1
-        const mDate = (i===1) ? (record.meetingDate || record.meetingDate_1) : record[`meetingDate_${i}`];
-        const mTime = (i===1) ? (record.meetingTime || record.meetingTime_1) : record[`meetingTime_${i}`];
-        const succeeded = record[`contactSucceeded_${i}`];
-        const contactDate = record[`contactDate_${i}`];
-        const providencias = record[`providenciasFamilia_${i}`];
+        const mDate = (i===1) ? (record.meetingDate || record.meetingDate_1) : record['meetingDate_' + i];
+        // const mTime = (i===1) ? (record.meetingTime || record.meetingTime_1) : record['meetingTime_' + i];
+        const succeeded = record['contactSucceeded_' + i];
+        const contactDate = record['contactDate_' + i];
+        const providencias = record['providenciasFamilia_' + i];
 
         if (mDate) {
             let statusText = "Aguardando retorno.";
@@ -1137,10 +1136,16 @@ export const generateAndShowBuscaAtivaReport = async () => {
     const filteredResults = results.filter(r => r !== null);
 
     filteredResults.forEach(({ isConcluded, lastReturnStatusValue, hasDefinitiveReturn, isPendingContact, isPendingFeedback }) => {
-        isConcluded ? statusConcluido++ : statusEmAndamento++;
+        if (isConcluded) {
+            statusConcluido++;
+        } else {
+            statusEmAndamento++;
+        }
+
         if (lastReturnStatusValue === 'yes') retornoSim++;
         else if (lastReturnStatusValue === 'no') retornoNao++;
         else if (!hasDefinitiveReturn) retornoPendente++;
+        
         if (isPendingContact) pendenteContato++;
         if (isPendingFeedback) pendenteDevolutiva++;
     });
@@ -1256,5 +1261,4 @@ export const generateAndShowBuscaAtivaReport = async () => {
             console.error("Erro ao renderizar gráficos da Busca Ativa:", e);
         }
     }, 100);
-};--- START OF FILE null ---
-
+};
