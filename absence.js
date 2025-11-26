@@ -1,6 +1,7 @@
+
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 5.0 (Botões Interativos "Conseguiu Contato?" + Fluxo Otimizado)
+// VERSÃO: 5.1 (Correção: Validação Estrita de Campos Obrigatórios)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -816,6 +817,7 @@ async function handleAbsenceSubmit(e) {
     const form = e.target;
     let firstInvalidField = null;
     
+    // Verifica campos explicitamente requeridos
     form.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled])').forEach(el => {
         if (el.required && !el.value && el.type !== 'radio') {
              if (!firstInvalidField) firstInvalidField = el;
@@ -834,6 +836,28 @@ async function handleAbsenceSubmit(e) {
          showToast(`Por favor, preencha o campo obrigatório: ${firstInvalidField.labels?.[0]?.textContent || firstInvalidField.name || firstInvalidField.placeholder || 'Campo Requerido'}`);
          firstInvalidField.focus();
          return;
+    }
+
+    // VALIDAÇÃO MANUAL ESTRITA PARA 'ALUNO RETORNOU?' E 'CONSEGUIU CONTATO?'
+    const actionType = document.getElementById('action-type').value;
+    if (actionType.startsWith('tentativa')) {
+        if (!document.getElementById('family-contact-section').classList.contains('hidden')) {
+            const contactSucceededRadio = form.querySelector('input[name="contact-succeeded"]:checked');
+            
+            if (!contactSucceededRadio) {
+                showToast("Por favor, informe se conseguiu contato (Sim/Não).");
+                return;
+            }
+
+            // Se conseguiu contato, o campo "Aluno retornou?" é OBRIGATÓRIO
+            if (contactSucceededRadio.value === 'yes') {
+                const contactReturnedRadio = form.querySelector('input[name="contact-returned"]:checked');
+                if (!contactReturnedRadio) {
+                    showToast("Por favor, informe se o aluno retornou.");
+                    return;
+                }
+            }
+        }
     }
 
     const data = getAbsenceFormData();

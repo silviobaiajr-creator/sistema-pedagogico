@@ -1,6 +1,7 @@
+
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 4.0 (Fluxo Estrito de 3 Convocações + Botões Interativos na Lista)
+// VERSÃO: 4.1 (Notificação com Data Correta + Validação Finalizada)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
@@ -284,7 +285,7 @@ export const renderOccurrences = () => {
                     const attemptNum = index; // 1, 2 ou 3
                     const notificationBtn = `
                         <button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2 cursor-pointer" 
-                                data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" title="Ver Notificação">
+                                data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" data-attempt="${attemptNum}" title="Ver Notificação">
                             [<i class="fas fa-eye fa-fw"></i> Ver Notificação]
                         </button>`;
                     
@@ -1025,7 +1026,9 @@ async function handleOccurrenceStepSubmit(e) {
                 if (recordIndex > -1) incident.records[recordIndex] = updatedRecordForNotification;
                 else incident.records.push(updatedRecordForNotification);
                 
-                openIndividualNotificationModal(incident, student);
+                // CORREÇÃO: Passa o número da tentativa (extraído da actionType)
+                const attemptNum = parseInt(actionType.split('_')[1]) || 1;
+                openIndividualNotificationModal(incident, student, attemptNum);
             }
         } 
         
@@ -1101,10 +1104,8 @@ async function handleResetActionConfirmation(studentId, groupId, recordId) {
 }
 
 function handleDelete(type, id) {
-    // A validação de 'Finalizada' já é feita visualmente no botão, mas adicionamos aqui por segurança
-    const incident = state.occurrences.find(occ => occ.occurrenceGroupId === id || occ.id === id); // Procura simplificada para validar status localmente
-    // Para validação mais robusta seria necessário fetchIncidentById, mas a UI já bloqueia.
-    // Se quiser estrito, adicione aqui.
+    const incident = state.occurrences.find(occ => occ.occurrenceGroupId === id || occ.id === id); 
+    if (incident && incident.overallStatus === 'Finalizada') return showToast('Ocorrência finalizada. Não é possível excluir.');
     
     document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este incidente e todos os seus registros associados?';
     state.recordToDelete = { type, id };
@@ -1149,7 +1150,7 @@ async function handleQuickFeedback(studentId, groupId, recordId, actionType, val
 }
 
 
-async function handleGenerateNotification(recordId, studentId, groupId) {
+async function handleGenerateNotification(recordId, studentId, groupId, attemptNum) {
     const incident = await fetchIncidentById(groupId); 
      if (!incident) return showToast('Erro: Incidente não encontrado.');
 
@@ -1157,7 +1158,7 @@ async function handleGenerateNotification(recordId, studentId, groupId) {
     const student = participantData?.student;
     if (!student) return showToast('Erro: Aluno não encontrado.');
 
-    openIndividualNotificationModal(incident, student);
+    openIndividualNotificationModal(incident, student, attemptNum);
 }
 
 async function handleViewOccurrenceOficio(recordId) {
@@ -1263,7 +1264,8 @@ export const initOccurrenceListeners = () => {
                     return;
                 }
                 if (button.classList.contains('view-notification-btn-hist')) {
-                     handleGenerateNotification(recordIdBtn, studentIdBtn, groupIdBtn);
+                     const attemptNum = button.dataset.attempt;
+                     handleGenerateNotification(recordIdBtn, studentIdBtn, groupIdBtn, attemptNum);
                      return;
                 }
                 if (button.classList.contains('view-occurrence-oficio-btn')) {

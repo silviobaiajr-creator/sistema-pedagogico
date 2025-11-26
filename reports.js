@@ -1,6 +1,7 @@
+
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 3.4 (Correção Visita Condicional e Ajustes de Layout)
+// VERSÃO: 3.5 (Correção Notificação Ocorrência - Data Específica)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -126,8 +127,9 @@ export const openStudentSelectionModal = async (groupId) => {
 
 /**
  * Gera e exibe a notificação formal (Ocorrências).
+ * Agora aceita specificAttempt para forçar a visualização de uma etapa passada.
  */
-export const openIndividualNotificationModal = async (incident, studentObj) => {
+export const openIndividualNotificationModal = async (incident, studentObj, specificAttempt = null) => {
     const data = incident.records.find(r => r.studentId === studentObj.matricula);
 
     if (!data) {
@@ -141,15 +143,21 @@ export const openIndividualNotificationModal = async (incident, studentObj) => {
     
     const student = await resolveStudentData(studentObj.matricula, data.studentName ? data : studentObj);
 
-    // Cálculo da Tentativa Atual
-    let attemptCount = 1;
-    if (data.contactSucceeded_1 != null) attemptCount = 2;
-    if (data.contactSucceeded_2 != null) attemptCount = 3;
+    // Define qual tentativa mostrar
+    let attemptCount;
+    
+    if (specificAttempt) {
+        attemptCount = parseInt(specificAttempt);
+    } else {
+        // Fallback: Lógica automática baseada no status atual
+        attemptCount = 1;
+        if (data.contactSucceeded_1 != null) attemptCount = 2;
+        if (data.contactSucceeded_2 != null) attemptCount = 3;
+    }
 
-    // Identifica qual a data de agendamento que deve ser exibida na notificação
-    // (A data que foi configurada na ação de Convocação correspondente)
-    let meetingDateToShow = data.meetingDate;
-    let meetingTimeToShow = data.meetingTime;
+    // Seleciona a data/hora correta com base no attemptCount
+    let meetingDateToShow = data.meetingDate; // Padrão (1ª)
+    let meetingTimeToShow = data.meetingTime; // Padrão (1ª)
 
     if (attemptCount === 2) {
         meetingDateToShow = data.meetingDate_2;
@@ -159,9 +167,22 @@ export const openIndividualNotificationModal = async (incident, studentObj) => {
         meetingTimeToShow = data.meetingTime_3;
     }
 
+    // Validação: Se tentou abrir uma notificação que ainda não foi agendada
     if (!meetingDateToShow || !meetingTimeToShow) {
-        showToast(`Erro: É necessário agendar a ${attemptCount}ª Convocação para ${student.name}.`);
-        return;
+        // Tenta retroceder se a atual estiver vazia (ex: abriu modal genérico mas só tem a 1ª agendada)
+        if (!specificAttempt && attemptCount > 1) {
+             // Fallback silencioso para a anterior
+             if(attemptCount === 3 && data.meetingDate_2) { 
+                 attemptCount = 2; meetingDateToShow = data.meetingDate_2; meetingTimeToShow = data.meetingTime_2;
+             } else if (data.meetingDate) {
+                 attemptCount = 1; meetingDateToShow = data.meetingDate; meetingTimeToShow = data.meetingTime;
+             }
+        }
+        
+        if (!meetingDateToShow) {
+            showToast(`Aviso: Nenhuma data agendada para a ${attemptCount}ª Convocação.`);
+            return;
+        }
     }
     
     const attemptLabels = { 1: "primeira", 2: "segunda", 3: "terceira" };
