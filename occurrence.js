@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 4.1 (Notificação com Data Correta + Validação Finalizada)
+// VERSÃO: 4.2 (Agendamento em Lote + Feedback Rápido + Ajustes de UX)
 
 import { state, dom } from './state.js';
 import { showToast, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
@@ -887,6 +887,46 @@ async function handleOccurrenceStepSubmit(e) {
             const dateCheck = validateOccurrenceChronology(record, actionType, inputDate);
             if (!dateCheck.isValid) return showToast(dateCheck.message);
 
+            // --- AGENDAMENTO EM LOTE PARA 1ª CONVOCAÇÃO ---
+            if (attemptNum == 1) {
+                const incident = await fetchIncidentById(record.occurrenceGroupId);
+                // Filtra outros alunos no mesmo grupo que ainda estão na etapa 1
+                const otherPendingRecords = incident.records.filter(r => 
+                    r.id !== recordId && 
+                    r.statusIndividual === 'Aguardando Convocação 1'
+                );
+
+                if (otherPendingRecords.length > 0 && confirm(`Existem outros ${otherPendingRecords.length} alunos neste incidente aguardando a 1ª convocação. Deseja agendar para todos na mesma data e horário?`)) {
+                    const batch = writeBatch(db);
+                    const batchUpdateData = {
+                        [dateField]: inputDate,
+                        [timeField]: inputTime,
+                        statusIndividual: `Aguardando Feedback 1`,
+                        updatedAt: new Date(),
+                        updatedBy: state.userEmail
+                    };
+                    const batchHistoryAction = `Ação 2 (1ª Convocação) agendada em lote para ${formatDate(inputDate)} às ${formatTime(inputTime)}.`;
+
+                    // Atualiza os outros
+                    otherPendingRecords.forEach(otherRec => {
+                        const ref = doc(getCollectionRef('occurrence'), otherRec.id);
+                        batch.update(ref, {
+                            ...batchUpdateData,
+                            history: [...(otherRec.history||[]), { action: batchHistoryAction, user: state.userEmail, timestamp: new Date() }]
+                        });
+                    });
+                    
+                    // Adiciona o registro atual ao batch (será executado junto)
+                    // Mas precisamos continuar o fluxo normal para este registro para fechar modal e notificar
+                    // Então faremos o update localmente aqui e deixaremos o fluxo normal salvar o registro atual individualmente?
+                    // Melhor fazer tudo no batch se for lote, ou deixar o fluxo normal cuidar do atual e o batch dos outros.
+                    // Vamos deixar o batch cuidar dos OUTROS e o fluxo normal cuidar do ATUAL.
+                    await batch.commit();
+                    showToast(`Agendamento replicado para mais ${otherPendingRecords.length} alunos.`);
+                }
+            }
+            // --- FIM AGENDAMENTO EM LOTE ---
+
             dataToUpdate = {
                 [dateField]: inputDate,
                 [timeField]: inputTime
@@ -1135,6 +1175,37 @@ async function handleNewOccurrenceAction(studentId, groupId, recordId) {
 
 // Handler para botões rápidos de feedback (Sim/Não) na lista
 async function handleQuickFeedback(studentId, groupId, recordId, actionType, value) {
+    // LÓGICA DE SALVAMENTO IMEDIATO PARA "NÃO"
+    if (value === 'no') {
+        const incident = await fetchIncidentById(groupId); 
+        const record = incident ? incident.records.find(r => r.id === recordId) : null;
+        
+        if (!record) return showToast('Erro: Registro não encontrado.');
+
+        const attemptNum = parseInt(actionType.split('_')[1]);
+        const fields = { succeeded: `contactSucceeded_${attemptNum}` };
+        
+        let nextStatus = 'Aguardando Desfecho';
+        if (attemptNum === 1) nextStatus = 'Aguardando Convocação 2';
+        else if (attemptNum === 2) nextStatus = 'Aguardando Convocação 3';
+
+        const dataToUpdate = {
+            [fields.succeeded]: 'no',
+            statusIndividual: nextStatus
+        };
+        const historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato sem sucesso (Salvo Rápido).`;
+
+        try {
+            await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
+            showToast('Feedback "Sem Sucesso" registrado.');
+        } catch (e) {
+            console.error(e);
+            showToast('Erro ao salvar feedback.');
+        }
+        return; // Não abre modal
+    }
+
+    // SE FOR "SIM", SEGUE FLUXO NORMAL (ABRE MODAL)
     const incident = await fetchIncidentById(groupId); 
     if (!incident) return showToast('Erro: Incidente não encontrado.');
 

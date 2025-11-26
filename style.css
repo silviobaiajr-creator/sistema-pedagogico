@@ -1,3 +1,4 @@
+
 /* ============================================================================== */
 /* ARQUIVO: style.css                                                             */
 
@@ -16,14 +17,7 @@ body {
     transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
 }
 
-/* --- NOTIFICAÇÃO TOAST --- */
-#toast-notification {
-    transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
-}
-#toast-notification.show {
-    transform: translateY(0);
-    opacity: 1;
-}
+/* REMOVIDO ESTILOS DE TOAST - AGORA É MODAL CENTRALIZADO */
 
 /* --- ESTILOS DE NAVEGAÇÃO E TABELAS --- */
 .tab-active {

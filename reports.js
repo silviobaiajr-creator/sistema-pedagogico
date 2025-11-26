@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 3.5 (Correção Notificação Ocorrência - Data Específica)
+// VERSÃO: 3.6 (Ofício Ocorrência Detalhado + Padronização Relatórios + Ajustes Ficha BA)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -312,7 +312,7 @@ export const openOccurrenceRecordModal = async (groupId) => {
             ${formatText(mainRecord.providenciasEscola)}
         </p>`;
 
-    // 4. Acompanhamentos
+    // 4. Acompanhamentos (PADRONIZADO COM NOMENCLATURA DO HISTÓRICO)
     let acompanhamentosHTML = `
         <h4 class="section-title">DOS ACOMPANHAMENTOS E DESFECHO (AÇÕES 2-6)</h4>
         <p class="indent-8">
@@ -324,16 +324,34 @@ export const openOccurrenceRecordModal = async (groupId) => {
                 const studentName = participant ? participant.student.name : (rec.studentName || 'Aluno desconhecido');
                 
                 let textoAcoesAluno = "";
-                if (rec.meetingDate) textoAcoesAluno += `<li><strong>Ação 2 (Convocação):</strong> Agendada reunião para ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}.</li>`;
                 
+                // 1ª Convocação
+                if (rec.meetingDate) {
+                    textoAcoesAluno += `<li><strong>Ação 2 (1ª Convocação):</strong> Agendada p/ ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}.</li>`;
+                }
+                
+                // Tentativas (Feedback)
                 for (let i = 1; i <= 3; i++) {
                     const succeeded = rec[`contactSucceeded_${i}`];
                     const date = rec[`contactDate_${i}`];
                     const providencias = rec[`providenciasFamilia_${i}`];
+                    
                     if (succeeded != null) {
-                        const diaContato = date ? ` em ${formatDate(date)}` : '';
-                        if (succeeded === 'yes') textoAcoesAluno += `<li><strong>Ação 3 (${i}ª Tentativa):</strong> Contato realizado${diaContato}. Providências da família: ${formatText(providencias)}.</li>`;
-                        else textoAcoesAluno += `<li><strong>Ação 3 (${i}ª Tentativa):</strong> Tentativa de contato registrada sem sucesso${diaContato}.</li>`;
+                        // Se teve feedback, houve tentativa. Se sucesso, mostra detalhes. Se não, mostra falha.
+                        if (succeeded === 'yes') {
+                            textoAcoesAluno += `<li><strong>Ação 3 (Feedback da ${i}ª Tentativa):</strong> Contato Realizado em ${formatDate(date)}. Providências: ${formatText(providencias)}.</li>`;
+                        } else {
+                            textoAcoesAluno += `<li><strong>Ação 3 (Feedback da ${i}ª Tentativa):</strong> Sem sucesso.</li>`;
+                        }
+                    }
+                    
+                    // Verifica se houve agendamento da próxima convocação (exceto para a 3ª tentativa que vai para desfecho)
+                    if (i < 3) {
+                        const nextMeetingDate = rec[`meetingDate_${i+1}`];
+                        const nextMeetingTime = rec[`meetingTime_${i+1}`];
+                        if (nextMeetingDate) {
+                            textoAcoesAluno += `<li><strong>Ação 2 (${i+1}ª Convocação):</strong> Agendada p/ ${formatDate(nextMeetingDate)} às ${formatTime(nextMeetingTime)}.</li>`;
+                        }
                     }
                 }
                 
@@ -581,7 +599,7 @@ export const openFichaViewModal = async (id) => {
 
 /**
  * Gera a Ficha Consolidada de Busca Ativa.
- * ATUALIZADO: Agora esconde tentativas que ainda não aconteceram E esconde Visita se não ocorreu.
+ * ATUALIZADO: "Parecer BAE" sempre visível. Ofício/Devolutiva condicionais.
  */
 export const generateAndShowConsolidatedFicha = async (studentId, processId = null) => {
     let studentActions = state.absences.filter(action => action.studentId === studentId);
@@ -646,6 +664,17 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
             </div>`;
     }
 
+    // Lógica CONDICIONAL para ENCAMINHAMENTO
+    let encaminhamentoHTML = '';
+    if (ct && ct.oficioNumber) {
+        encaminhamentoHTML = `
+            <p><strong>Nº Ofício CT:</strong> ${formatText(ct.oficioNumber)}/${formatText(ct.oficioYear)}</p>
+            <p><strong>Devolutiva:</strong> ${formatText(ct.ctFeedback)}</p>
+        `;
+    } else {
+        encaminhamentoHTML = `<p class="italic text-gray-500">Não houve encaminhamento ao Conselho Tutelar neste processo.</p>`;
+    }
+
     const fichaHTML = `
         <div class="space-y-4 text-sm" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             ${getReportHeaderHTML()}
@@ -677,9 +706,10 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
 
             <div class="border rounded-md p-3 space-y-2" style="font-family: 'Inter', sans-serif;">
                 <h4 class="font-semibold text-base">Encaminhamento e Análise</h4>
-                <p><strong>Nº Ofício CT:</strong> ${formatText(ct.oficioNumber)}/${formatText(ct.oficioYear)}</p>
-                <p><strong>Devolutiva:</strong> ${formatText(ct.ctFeedback)}</p>
-                <p><strong>Parecer da BAE:</strong> ${formatText(analise.ctParecer)}</p>
+                ${encaminhamentoHTML}
+                <div class="mt-2 border-t pt-2">
+                    <p><strong>Parecer da BAE / Desfecho:</strong> ${formatText(analise.ctParecer)}</p>
+                </div>
             </div>
 
             <div class="signature-block mt-8 space-y-12">
@@ -693,68 +723,75 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
 };
 
 /**
- * Gera o Ofício para o Conselho Tutelar (Busca Ativa).
+ * Gera o Ofício para o Conselho Tutelar (baseado em Ocorrência).
+ * ATUALIZADO: Inclui as 3 tentativas de convocação.
  */
-export const generateAndShowOficio = async (action, oficioNumber = null) => {
-    if (!action) return showToast('Ação de origem não encontrada.');
+export const generateAndShowOccurrenceOficio = async (record, studentObj, oficioNumber, oficioYear) => {
+    if (!record || !studentObj || !oficioNumber || !oficioYear) {
+        return showToast('Dados insuficientes para gerar o ofício.');
+    }
 
-    const finalOficioNumber = oficioNumber || action.oficioNumber;
-    const finalOficioYear = action.oficioYear || new Date().getFullYear();
-
-    if (!finalOficioNumber) return showToast('Número do ofício não fornecido ou não encontrado para este registro.');
-
-    if (!state.students.find(s => s.matricula === action.studentId)) {
+    // Toast de carregamento se não tiver cache
+    if (!state.students.find(s => s.matricula === studentObj.matricula)) {
         showToast('Buscando dados completos do aluno...');
     }
-    const student = await resolveStudentData(action.studentId, action);
+    
+    // Busca segura via resolveStudentData (com timeout e fallback)
+    const student = await resolveStudentData(studentObj.matricula, record.studentName ? record : studentObj);
 
-    const processActions = state.absences
-        .filter(a => a.processId === action.processId)
-        .sort((a, b) => (a.createdAt?.seconds || new Date(a.createdAt).getTime()) - (b.createdAt?.seconds || new Date(b.createdAt).getTime()));
-
-    if (processActions.length === 0) return showToast('Nenhuma ação encontrada para este processo.');
-
-    const firstActionWithAbsenceData = processActions.find(a => a.periodoFaltasStart);
-    const visitAction = processActions.find(a => a.actionType === 'visita');
-    const contactAttempts = processActions.filter(a => a.actionType.startsWith('tentativa'));
+    let studentRole = defaultRole; 
+    if (record.participants && Array.isArray(record.participants)) {
+        const participantData = record.participants.find(p => p.studentId === student.matricula);
+        if (participantData) {
+            studentRole = participantData.role;
+        }
+    }
 
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
     const city = state.config?.city || "Cidade";
 
-    let attemptsSummary = contactAttempts.map((attempt, index) => {
-        const attemptDate = attempt.contactDate || attempt.createdAt?.toDate();
-        return `
-            <p class="ml-4">- <strong>${index + 1}ª Tentativa (${formatDate(attemptDate)}):</strong>
-            ${attempt.contactSucceeded === 'yes'
-                ? `Contato realizado com ${formatText(attempt.contactPerson)}. Justificativa: ${formatText(attempt.contactReason)}.`
-                : 'Não foi possível estabelecer contato.'}
-            </p>
-        `;
-    }).join('');
-    if (!attemptsSummary) attemptsSummary = "<p class='ml-4'>Nenhuma tentativa de contato registrada.</p>";
+    // GERA RESUMO DAS 3 TENTATIVAS DE CONVOCAÇÃO
+    let attemptsSummary = "";
+    for (let i = 1; i <= 3; i++) {
+        // Nota: Para a 1ª tentativa, usa meetingDate ou meetingDate_1
+        const mDate = (i===1) ? (record.meetingDate || record.meetingDate_1) : record[`meetingDate_${i}`];
+        const mTime = (i===1) ? (record.meetingTime || record.meetingTime_1) : record[`meetingTime_${i}`];
+        const succeeded = record[`contactSucceeded_${i}`];
+        const contactDate = record[`contactDate_${i}`];
+        const providencias = record[`providenciasFamilia_${i}`];
 
-    const formatPeriodoLocal = (start, end) => {
-        if (start && end) return `de ${formatDate(start)} a ${formatDate(end)}`;
-        if (start) return `a partir de ${formatDate(start)}`;
-        if (end) return `até ${formatDate(end)}`;
-        return '(não informado)';
+        if (mDate) {
+            let statusText = "Aguardando retorno.";
+            if (succeeded === 'yes') {
+                statusText = `Responsável compareceu/contato realizado em ${formatDate(contactDate)}. Providências: ${formatText(providencias)}.`;
+            } else if (succeeded === 'no') {
+                statusText = "Responsável não compareceu / Sem sucesso no contato.";
+            }
+
+            attemptsSummary += `<p class="ml-4 mt-1">- <strong>${i}ª Convocação (${formatDate(mDate)}):</strong> ${statusText}</p>`;
+        }
     }
+    if (!attemptsSummary) attemptsSummary = "<p class='ml-4'>Nenhuma tentativa de convocação registrada até o momento.</p>";
+
 
     const oficioHTML = `
         <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
             <div>${getReportHeaderHTML()}<p class="text-right mt-4">${city}, ${currentDate}.</p></div>
-            <div class="mt-8"><p class="font-bold text-base">OFÍCIO Nº ${String(finalOficioNumber).padStart(3, '0')}/${finalOficioYear}</p></div>
+            <div class="mt-8"><p class="font-bold text-base">OFÍCIO Nº ${String(oficioNumber).padStart(3, '0')}/${oficioYear}</p></div>
             <div class="mt-8"><p><strong>Ao</strong></p><p><strong>Conselho Tutelar</strong></p><p><strong>${city}</strong></p></div>
-            <div class="mt-8"><p><strong>Assunto:</strong> Encaminhamento de aluno infrequente.</p></div>
+            <div class="mt-8"><p><strong>Assunto:</strong> Encaminhamento de aluno por ocorrência disciplinar.</p></div>
             <div class="mt-8 text-justify">
                 <p class="indent-8">Prezados(as) Conselheiros(as),</p>
                 <p class="mt-4 indent-8">Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>, regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino, filho(a) de <strong>${formatText(responsaveis)}</strong>, residente no endereço: ${formatText(student.endereco)}.</p>
-                <p class="mt-4 indent-8">O(A) referido(a) aluno(a) apresenta um número de <strong>${formatText(firstActionWithAbsenceData?.absenceCount) || '(não informado)'} faltas</strong>, apuradas no período ${formatPeriodoLocal(firstActionWithAbsenceData?.periodoFaltasStart, firstActionWithAbsenceData?.periodoFaltasEnd)}.</p>
-                <p class="mt-4 indent-8">Informamos que a escola esgotou as tentativas de contato com a família, conforme descrito abaixo:</p>
-                <div class="mt-2" style="font-family: 'Inter', sans-serif;">${attemptsSummary}</div>
-                ${visitAction ? `<p class="mt-4 indent-8">Adicionalmente, foi realizada uma visita in loco em <strong>${formatDate(visitAction?.visitDate)}</strong>...</p>` : '<p class="mt-4 indent-8">Não foi registrada visita in loco neste processo.</p>'}
-                <p class="mt-4 indent-8">Diante do exposto e considerando o que preceitua o Art. 56 do Estatuto da Criança e do Adolescente (ECA), solicitamos as devidas providências...</p>
+                <p class="mt-4 indent-8">O(A) referido(a) aluno(a) esteve envolvido(a) ${studentRole !== defaultRole ? `(identificado como <strong>${studentRole}</strong>)` : ''} em um incidente em <strong>${formatDate(record.date)}</strong>, classificado como <strong>"${formatText(record.occurrenceType)}"</strong>, conforme descrição abaixo:</p>
+                <p class="mt-2 p-3 bg-gray-100 border rounded" style="font-family: 'Inter', sans-serif;">${formatText(record.description)}</p>
+                <p class="mt-4 indent-8">Informamos que a escola já realizou as seguintes providências imediatas (Ação 1): <strong>${formatText(record.providenciasEscola) || 'Nenhuma providência imediata registrada.'}</strong></p>
+                
+                <p class="mt-4 indent-8">Além disso, foram realizadas as seguintes tentativas de convocação/diálogo com a família para resolução do caso:</p>
+                <div class="mt-2 mb-2" style="font-family: 'Inter', sans-serif;">${attemptsSummary}</div>
+
+                <p class="mt-4 indent-8">Diante do exposto e considerando a necessidade de acompanhamento, solicitamos as devidas providências deste Conselho para garantir o bem-estar e o direito à educação do(a) aluno(a).</p>
             </div>
             <div class="mt-12 text-center"><p>Atenciosamente,</p></div>
             <div class="signature-block mt-8 space-y-12">
@@ -764,7 +801,7 @@ export const generateAndShowOficio = async (action, oficioNumber = null) => {
         </div>
     `;
 
-    document.getElementById('report-view-title').textContent = `Ofício Nº ${finalOficioNumber}/${finalOficioYear}`;
+    document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNumber}/${oficioYear}`;
     document.getElementById('report-view-content').innerHTML = oficioHTML;
     openModal(dom.reportViewModalBackdrop);
 };
@@ -890,19 +927,21 @@ export const generateAndShowGeneralReport = async () => {
                                     const providencias = rec[`providenciasFamilia_${i}`];
                                     
                                     if (succeeded != null) {
-                                        attemptsHtml += `<p><strong>Ação 3 (${i}ª Tentativa):</strong> ${succeeded === 'yes' ? 'Sim' : 'Não'} (${formatDate(date)})</p>`;
+                                        attemptsHtml += `<p><strong>Ação 3 (Feedback ${i}ª):</strong> ${succeeded === 'yes' ? 'Sim' : 'Não'} (${formatDate(date)})</p>`;
                                         if (providencias) {
                                             attemptsHtml += `<p class="ml-2 text-gray-500">- Providências: ${formatText(providencias)}</p>`;
                                         }
+                                    }
+                                    // Mostra agendamento das convocações
+                                    const mDate = (i===1) ? (rec.meetingDate || rec.meetingDate_1) : rec[`meetingDate_${i}`];
+                                    if (mDate) {
+                                         attemptsHtml += `<p><strong>Ação 2 (${i}ª Convocação):</strong> ${formatDate(mDate)}</p>`;
                                     }
                                 }
 
                                 return `<div class="text-xs border-t mt-2 pt-2">
                                     <p class="font-bold">${formatText(studentName)} (${rec.statusIndividual || 'Pendente'})</p>
-                                    ${rec.meetingDate ? `<p><strong>Ação 2 - Convocação:</strong> ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}</p>` : ''}
-                                    
                                     ${attemptsHtml}
-                                    
                                     ${rec.oficioNumber ? `<p><strong>Ação 4 - Enc. CT:</strong> Ofício ${rec.oficioNumber}/${rec.oficioYear}</p>` : ''}
                                     <p><strong>Ação 5 - Devolutiva CT:</strong> ${formatText(rec.ctFeedback)}</p>
                                     <p><strong>Ação 6 - Parecer Final:</strong> ${formatText(rec.parecerFinal)}</p>
@@ -1140,60 +1179,4 @@ export const generateAndShowBuscaAtivaReport = async () => {
             console.error("Erro ao renderizar gráficos da Busca Ativa:", e);
         }
     }, 100);
-};
-
-
-/**
- * Gera o Ofício para o Conselho Tutelar (baseado em Ocorrência).
- */
-export const generateAndShowOccurrenceOficio = async (record, studentObj, oficioNumber, oficioYear) => {
-    if (!record || !studentObj || !oficioNumber || !oficioYear) {
-        return showToast('Dados insuficientes para gerar o ofício.');
-    }
-
-    // Toast de carregamento se não tiver cache
-    if (!state.students.find(s => s.matricula === studentObj.matricula)) {
-        showToast('Buscando dados completos do aluno...');
-    }
-    
-    // Busca segura via resolveStudentData (com timeout e fallback)
-    const student = await resolveStudentData(studentObj.matricula, record.studentName ? record : studentObj);
-
-    let studentRole = defaultRole; 
-    if (record.participants && Array.isArray(record.participants)) {
-        const participantData = record.participants.find(p => p.studentId === student.matricula);
-        if (participantData) {
-            studentRole = participantData.role;
-        }
-    }
-
-    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Responsáveis Legais';
-    const city = state.config?.city || "Cidade";
-
-    const oficioHTML = `
-        <div class="space-y-6 text-sm text-gray-800" style="font-family: 'Times New Roman', serif; line-height: 1.5;">
-            <div>${getReportHeaderHTML()}<p class="text-right mt-4">${city}, ${currentDate}.</p></div>
-            <div class="mt-8"><p class="font-bold text-base">OFÍCIO Nº ${String(oficioNumber).padStart(3, '0')}/${oficioYear}</p></div>
-            <div class="mt-8"><p><strong>Ao</strong></p><p><strong>Conselho Tutelar</strong></p><p><strong>${city}</strong></p></div>
-            <div class="mt-8"><p><strong>Assunto:</strong> Encaminhamento de aluno por ocorrência disciplinar.</p></div>
-            <div class="mt-8 text-justify">
-                <p class="indent-8">Prezados(as) Conselheiros(as),</p>
-                <p class="mt-4 indent-8">Encaminhamos a V. Sa. o caso do(a) aluno(a) <strong>${student.name}</strong>, regularmente matriculado(a) na turma <strong>${student.class}</strong> desta Unidade de Ensino, filho(a) de <strong>${formatText(responsaveis)}</strong>, residente no endereço: ${formatText(student.endereco)}.</p>
-                <p class="mt-4 indent-8">O(A) referido(a) aluno(a) esteve envolvido(a) ${studentRole !== defaultRole ? `(identificado como <strong>${studentRole}</strong>)` : ''} em um incidente em <strong>${formatDate(record.date)}</strong>, classificado como <strong>"${formatText(record.occurrenceType)}"</strong>, conforme descrição abaixo:</p>
-                <p class="mt-2 p-3 bg-gray-100 border rounded" style="font-family: 'Inter', sans-serif;">${formatText(record.description)}</p>
-                <p class="mt-4 indent-8">Informamos que a escola já realizou as seguintes providências imediatas (Ação 1): <strong>${formatText(record.providenciasEscola) || 'Nenhuma providência imediata registrada.'}</strong></p>
-                <p class="mt-4 indent-8">Diante do exposto e considerando a necessidade de acompanhamento, solicitamos as devidas providências deste Conselho para garantir o bem-estar e o direito à educação do(a) aluno(a).</p>
-            </div>
-            <div class="mt-12 text-center"><p>Atenciosamente,</p></div>
-            <div class="signature-block mt-8 space-y-12">
-                <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Diretor(a)</p></div>
-                 <div class="text-center w-2/3 mx-auto"><div class="border-t border-gray-400"></div><p class="mt-1">Coordenador(a) Pedagógico(a)</p></div>
-            </div>
-        </div>
-    `;
-
-    document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNumber}/${oficioYear}`;
-    document.getElementById('report-view-content').innerHTML = oficioHTML;
-    openModal(dom.reportViewModalBackdrop);
 };

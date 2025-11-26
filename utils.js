@@ -1,3 +1,4 @@
+
 // =================================================================================
 // ARQUIVO: utils.js 
 
@@ -18,11 +19,24 @@ export const formatPeriodo = (start, end) => {
     return 'Não informado';
 }
 
+// NOVA FUNÇÃO: Exibe alerta centralizado (Modal)
 export const showToast = (message) => {
-    const toastMessage = document.getElementById('toast-message');
-    toastMessage.textContent = message;
-    document.getElementById('toast-notification').classList.add('show');
-    setTimeout(() => document.getElementById('toast-notification').classList.remove('show'), 3000);
+    const alertModal = document.getElementById('alert-modal');
+    const messageEl = document.getElementById('alert-modal-message');
+    const okBtn = document.getElementById('alert-modal-ok-btn');
+
+    if (alertModal && messageEl) {
+        messageEl.textContent = message;
+        
+        // Listener para fechar
+        const closeAlert = () => closeModal(alertModal);
+        okBtn.onclick = closeAlert;
+        
+        openModal(alertModal);
+    } else {
+        // Fallback seguro caso o modal não exista no HTML
+        alert(message); 
+    }
 };
 
 // ==============================================================================
