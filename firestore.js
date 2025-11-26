@@ -1,3 +1,4 @@
+
 // =================================================================================
 // ARQUIVO: firestore.js
 // VERSÃO: 2.5 (Adicionado suporte a Reports Server-Side)

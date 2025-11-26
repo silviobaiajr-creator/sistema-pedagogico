@@ -1,3 +1,4 @@
+
 // =================================================================================
 // ARQUIVO: reports.js
 // VERSÃO: 3.9 (Correção: Relatórios Server-Side Escaláveis)

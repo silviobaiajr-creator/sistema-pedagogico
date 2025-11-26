@@ -1,3 +1,4 @@
+
 // =================================================================================
 // ARQUIVO: logic.js
 // VERSÃO: 3.1 (Correção: Suporte a dados externos para relatórios escaláveis)
