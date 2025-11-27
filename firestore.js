@@ -1,11 +1,11 @@
 
 // =================================================================================
 // ARQUIVO: firestore.js
-// VERSÃO: 2.5 (Adicionado suporte a Reports Server-Side)
+// VERSÃO: 2.6 (Adicionado getCountFromServer para Dashboard)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
-    query, where, getDocs, limit, startAfter, orderBy
+    query, where, getDocs, limit, startAfter, orderBy, getCountFromServer
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 import { state } from './state.js';
@@ -291,16 +291,12 @@ export const getIncidentByGroupId = async (groupId) => {
 };
 
 // --- NOVO: FUNÇÕES DE RELATÓRIO SERVER-SIDE (ESCALABILIDADE) ---
-// Estas funções baixam TODOS os dados que correspondem aos filtros, 
-// ignorando o limite de 100 itens da interface principal.
 
 export const getOccurrencesForReport = async (startDate, endDate, type) => {
     try {
         let q = getCollectionRef('occurrence');
         const conditions = [];
 
-        // Nota: O Firestore exige indexes compostos para múltiplas cláusulas 'where'.
-        // Se o console der erro, siga o link fornecido pelo Firebase para criar o index.
         if (startDate) conditions.push(where('date', '>=', startDate));
         if (endDate) conditions.push(where('date', '<=', endDate));
         if (type && type !== 'all') conditions.push(where('occurrenceType', '==', type));
@@ -308,7 +304,6 @@ export const getOccurrencesForReport = async (startDate, endDate, type) => {
         if (conditions.length > 0) {
             q = query(q, ...conditions);
         } else {
-            // Se não houver filtros, limita a segurança (ex: últimos 500)
             q = query(q, orderBy('date', 'desc'), limit(500));
         }
 
@@ -326,17 +321,12 @@ export const getAbsencesForReport = async (startDate, endDate) => {
         let q = getCollectionRef('absence');
         const conditions = [];
 
-        // Filtra por data de criação da ação ou data de início da falta se disponível
-        // Simplificação: Vamos filtrar pela data de criação do registro ('createdAt')
-        // pois 'periodoFaltasStart' nem sempre existe em todas as ações
-        
         if (startDate) {
             const start = new Date(startDate);
             conditions.push(where('createdAt', '>=', start));
         }
         if (endDate) {
             const end = new Date(endDate);
-            // Ajusta para o final do dia
             end.setHours(23, 59, 59, 999);
             conditions.push(where('createdAt', '<=', end));
         }
@@ -353,5 +343,42 @@ export const getAbsencesForReport = async (startDate, endDate) => {
     } catch (error) {
         console.error("Erro ao gerar relatório de busca ativa:", error);
         throw error;
+    }
+};
+
+// --- NOVO: FUNÇÃO PARA DASHBOARD (CONTADOR RÁPIDO) ---
+export const getDashboardStats = async () => {
+    try {
+        const studentColl = getStudentsCollectionRef();
+        const occurrenceColl = getCollectionRef('occurrence');
+        const absenceColl = getCollectionRef('absence');
+
+        // Conta Total de Alunos
+        const snapStudents = await getCountFromServer(studentColl);
+        
+        // Conta Total de Ocorrências
+        const snapOccurrences = await getCountFromServer(occurrenceColl);
+
+        // Conta Busca Ativa (Ex: Processos em aberto, sem 'analise' concluída)
+        // Como o filtro é complexo, para o dashboard vamos contar o total de ações 
+        // ou fazer uma query mais simples. Para performance máxima, contaremos total de ações hoje.
+        const snapAbsences = await getCountFromServer(absenceColl);
+
+        // Para os gráficos, precisamos de alguns dados reais.
+        // Vamos buscar os últimos 50 registros de cada para popular os gráficos de "Tendência"
+        const recentOccurrences = await getDocs(query(occurrenceColl, orderBy('date', 'desc'), limit(50)));
+        const recentAbsences = await getDocs(query(absenceColl, orderBy('createdAt', 'desc'), limit(50)));
+
+        return {
+            totalStudents: snapStudents.data().count,
+            totalOccurrences: snapOccurrences.data().count,
+            totalAbsences: snapAbsences.data().count, // Total de Ações, não processos únicos (aproximação rápida)
+            chartDataOccurrences: recentOccurrences.docs.map(d => d.data()),
+            chartDataAbsences: recentAbsences.docs.map(d => d.data())
+        };
+
+    } catch (error) {
+        console.error("Erro ao buscar stats do dashboard:", error);
+        return null;
     }
 };

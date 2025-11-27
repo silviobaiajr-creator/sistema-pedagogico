@@ -1,32 +1,27 @@
+
 // =================================================================================
 // ARQUIVO: main.js
-// VERSÃO: 2.1 (Listeners Otimizados e Inicialização Segura)
+// VERSÃO: 3.0 (Com Dashboard)
 
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { onSnapshot, query, writeBatch, doc, where, getDocs, limit, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, shareContent, openModal, loadScript } from './utils.js';
-// Importa updateRecordWithHistory para o reset e funções de firestore
 import { loadStudents, loadSchoolConfig, getCollectionRef, deleteRecord, updateRecordWithHistory } from './firestore.js';
 
-// Módulos de Funcionalidade
 import { initAuthListeners } from './auth.js';
 import { initSettingsListeners } from './settings.js';
 import { initStudentListeners } from './students.js';
 import { initOccurrenceListeners, renderOccurrences } from './occurrence.js'; 
 import { initAbsenceListeners, renderAbsences } from './absence.js';     
+import { initDashboard } from './dashboard.js'; // (NOVO)
 
-// Módulos de UI e Lógica
-import { render } from './ui.js';
 import { occurrenceStepLogic } from './logic.js';
 
-// Lista de Super Administradores (Chave-Mestra)
 const SUPER_ADMIN_EMAILS = [
     'silviobaiajr@gmail.com' 
 ];
-
-// --- INICIALIZAÇÃO DA APLICAÇÃO ---
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeDOMReferences();
@@ -42,10 +37,9 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.mainContent.classList.remove('hidden');
             dom.userProfile.classList.remove('hidden');
 
-            // 1. Define Admin IMEDIATAMENTE (Super Admin)
+            // 1. Permissões
             state.isAdmin = SUPER_ADMIN_EMAILS.includes(user.email);
 
-            // 2. Tenta carregar configurações
             try {
                 await loadSchoolConfig(); 
                 const dbAdminList = state.config.adminEmails || [];
@@ -54,10 +48,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
             } catch (configError) {
-                console.warn("Aviso: Não foi possível carregar configurações.", configError);
+                console.warn("Aviso: Configurações não carregadas.", configError);
             }
 
-            // 3. Atualiza a UI dos botões de Admin
+            // Exibe botões admin
             if (state.isAdmin) {
                 if(dom.settingsBtn) dom.settingsBtn.classList.remove('hidden');
                 if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.remove('hidden');
@@ -66,20 +60,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
             }
 
-            // 4. Carrega dados iniciais (Agora PAGINADOS e SEGUROS)
+            // 2. Carrega Dados Iniciais
             try {
-                await loadStudents(); // Carrega apenas os primeiros 50 alunos
-                setupFirestoreListeners(); // Inicia listeners limitados aos últimos 100 registos
+                await loadStudents(); 
+                setupFirestoreListeners(); 
+                
+                // 3. Inicia no Dashboard
+                switchTab('dashboard'); 
+                
             } catch (error) {
-                console.error("Erro no carregamento de dados:", error);
-                if (state.isAdmin) {
-                    showToast("Aviso: Lista de alunos vazia ou inacessível. Use 'Gerir Alunos' para importar.");
-                } else {
-                    showToast("Erro ao carregar dados. Tente recarregar a página.");
-                }
+                console.error("Erro no carregamento:", error);
+                showToast("Erro ao carregar dados.");
             }
-            
-            render(); 
 
         } else {
             // Logout
@@ -87,46 +79,33 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
-            
             if(dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
             if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
-            
-            render();
         }
     });
 
     setupEventListeners();
 });
 
-// --- SINCRONIZAÇÃO COM O BANCO DE DADOS (FIRESTORE) ---
-
 function setupFirestoreListeners() {
     if (!state.userId) return;
 
-    // (SEGURANÇA DE ESCALA) Limitamos a 100 registos mais recentes para evitar crash.
-    // Ocorrências
-    const occurrencesQuery = query(
-        getCollectionRef('occurrence'), 
-        orderBy('createdAt', 'desc'), // Ordena por criação (mais recente primeiro)
-        limit(100)                    // Traz apenas os últimos 100
-    );
-    
+    // Listeners limitados a 100 para UI
+    const occurrencesQuery = query(getCollectionRef('occurrence'), orderBy('createdAt', 'desc'), limit(100));
     state.unsubscribeOccurrences = onSnapshot(occurrencesQuery, (snapshot) => {
         state.occurrences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        if (state.activeTab === 'occurrences') renderOccurrences(); 
-    }, (error) => console.error("Erro ao buscar ocorrências:", error));
+        // Se estivermos na aba de ocorrências, re-renderiza.
+        // Se estivermos no dashboard, atualiza os contadores também.
+        if (state.activeTab === 'occurrences') renderOccurrences();
+        if (state.activeTab === 'dashboard') initDashboard();
+    });
 
-    // Busca Ativa
-    const absencesQuery = query(
-        getCollectionRef('absence'), 
-        orderBy('createdAt', 'desc'), // Ordena por criação
-        limit(100)                    // Traz apenas os últimos 100
-    );
-
+    const absencesQuery = query(getCollectionRef('absence'), orderBy('createdAt', 'desc'), limit(100));
     state.unsubscribeAbsences = onSnapshot(absencesQuery, (snapshot) => {
         state.absences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        if (state.activeTab === 'absences') renderAbsences(); 
-    }, (error) => console.error("Erro ao buscar ações:", error));
+        if (state.activeTab === 'absences') renderAbsences();
+        if (state.activeTab === 'dashboard') initDashboard();
+    });
 };
 
 function detachFirestoreListeners() {
@@ -136,12 +115,12 @@ function detachFirestoreListeners() {
     state.unsubscribeAbsences = null;
 };
 
-// --- CONFIGURAÇÃO CENTRAL DE EVENTOS DA UI ---
-
 function setupEventListeners() {
     initAuthListeners();
     dom.logoutBtn.addEventListener('click', () => signOut(auth));
 
+    // Listeners de Abas
+    dom.tabDashboard.addEventListener('click', () => switchTab('dashboard')); // (NOVO)
     dom.tabOccurrences.addEventListener('click', () => switchTab('occurrences'));
     dom.tabAbsences.addEventListener('click', () => switchTab('absences'));
 
@@ -166,30 +145,37 @@ function setupEventListeners() {
     });
 }
 
-// --- HANDLERS E FUNÇÕES AUXILIARES ---
-
 function switchTab(tabName) {
     state.activeTab = tabName;
-    const isOccurrences = tabName === 'occurrences';
     
-    if (isOccurrences) {
+    // Reseta classes
+    [dom.tabDashboard, dom.tabOccurrences, dom.tabAbsences].forEach(el => {
+        el.classList.remove('tab-active');
+        el.classList.add('text-gray-500', 'hover:text-gray-700');
+    });
+    [dom.tabContentDashboard, dom.tabContentOccurrences, dom.tabContentAbsences].forEach(el => el.classList.add('hidden'));
+
+    // Ativa a selecionada
+    if (tabName === 'dashboard') {
+        dom.tabDashboard.classList.add('tab-active');
+        dom.tabDashboard.classList.remove('text-gray-500');
+        dom.tabContentDashboard.classList.remove('hidden');
+        initDashboard(); // Carrega gráficos
+    } else if (tabName === 'occurrences') {
         dom.tabOccurrences.classList.add('tab-active');
-        dom.tabAbsences.classList.remove('tab-active');
+        dom.tabOccurrences.classList.remove('text-gray-500');
         dom.tabContentOccurrences.classList.remove('hidden');
-        dom.tabContentAbsences.classList.add('hidden');
-    } else {
-        dom.tabOccurrences.classList.remove('tab-active');
+        renderOccurrences();
+    } else if (tabName === 'absences') {
         dom.tabAbsences.classList.add('tab-active');
-        dom.tabContentOccurrences.classList.add('hidden');
+        dom.tabAbsences.classList.remove('text-gray-500');
         dom.tabContentAbsences.classList.remove('hidden');
+        renderAbsences();
     }
-    
-    render(); 
 }
 
 async function handleDeleteConfirmation() {
     if (!state.recordToDelete) return;
-    
     const { type, id, recordId, actionToReset, historyAction } = state.recordToDelete;
     
     try {
@@ -204,29 +190,18 @@ async function handleDeleteConfirmation() {
         } else if (type === 'occurrence-reset') {
             const logic = occurrenceStepLogic[actionToReset];
             if (!logic) throw new Error(`Lógica não encontrada: ${actionToReset}`);
-
             const dataToUpdate = {};
-            for (const field of logic.fieldsToClear) {
-                dataToUpdate[field] = null; 
-            }
+            for (const field of logic.fieldsToClear) { dataToUpdate[field] = null; }
             dataToUpdate.statusIndividual = logic.statusAfterReset;
-
             await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
             showToast('Etapa resetada com sucesso.');
             
-        } else if (type === 'absence-cascade') {
-            const { ctId, analiseId } = state.recordToDelete;
-            const batch = writeBatch(db);
-            batch.delete(doc(getCollectionRef('absence'), ctId));
-            if (analiseId) batch.delete(doc(getCollectionRef('absence'), analiseId));
-            await batch.commit();
-            showToast('Encaminhamento e Análise excluídos.');
         } else {
             await deleteRecord(type, id);
             showToast('Registro excluído com sucesso.');
         }
     } catch (error) { 
-        showToast('Erro ao processar exclusão/reset.'); 
+        showToast('Erro ao processar exclusão.'); 
         console.error("Erro:", error); 
     } finally { 
         state.recordToDelete = null; 
@@ -252,6 +227,8 @@ function setupModalCloseButtons() {
         'cancel-follow-up-btn': dom.followUpModal,
         'close-send-ct-modal-btn': dom.sendOccurrenceCtModal,
         'cancel-send-ct-modal-btn': dom.sendOccurrenceCtModal,
+        'close-absence-search-flow-modal-btn': dom.absenceSearchFlowModal, // (NOVO)
+        'cancel-absence-search-flow-btn': dom.absenceSearchFlowModal,      // (NOVO)
     };
     
     for (const [id, modal] of Object.entries(modalMap)) {

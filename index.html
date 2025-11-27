@@ -85,6 +85,11 @@
                     <p class="opacity-90 mt-1 text-sm sm:text-base">Base de dados partilhada entre todos os utilizadores.</p>
                 </div>
                 <div class="flex items-center flex-wrap justify-center sm:justify-end gap-2 sm:gap-4">
+                     <!-- Botão de Gerar Dados (Movido para cá para facilitar testes) -->
+                     <button id="btn-generate-fake-data" class="bg-red-500/80 hover:bg-red-600 text-white font-bold py-2 px-3 rounded-lg shadow-md text-sm border border-white/20" title="Apenas para Testes">
+                        <i class="fas fa-database mr-2"></i>Gerar Dados
+                    </button>
+
                      <button id="settings-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
                         <i class="fas fa-cog mr-2"></i>Configurações
                     </button>
@@ -102,18 +107,75 @@
 
             <!-- Navegação por Abas -->
             <div class="mb-6 border-b border-gray-200">
-                <nav class="flex -mb-px space-x-2 sm:space-x-6" aria-label="Tabs">
-                    <button id="tab-occurrences" class="text-center flex-1 sm:flex-none whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm tab-active">
+                <nav class="flex -mb-px space-x-2 sm:space-x-6 overflow-x-auto" aria-label="Tabs">
+                    <button id="tab-dashboard" class="text-center whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm tab-active">
+                        <i class="fas fa-chart-pie mr-2"></i>Visão Geral
+                    </button>
+                    <button id="tab-occurrences" class="text-center whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
                         <i class="fas fa-exclamation-triangle mr-2"></i>Ocorrências
                     </button>
-                    <button id="tab-absences" class="text-center flex-1 sm:flex-none whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    <button id="tab-absences" class="text-center whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
                         <i class="fas fa-user-clock mr-2"></i>Busca Ativa
                     </button>
                 </nav>
             </div>
 
+            <!-- CONTEÚDO: DASHBOARD (NOVO) -->
+            <div id="tab-content-dashboard">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <!-- Card 1: Total Alunos -->
+                    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-sky-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 uppercase">Total de Alunos</p>
+                                <p id="dash-total-students" class="text-3xl font-bold text-gray-800">--</p>
+                            </div>
+                            <div class="p-3 bg-sky-100 rounded-full text-sky-600">
+                                <i class="fas fa-users fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Card 2: Ocorrências Recentes -->
+                    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 uppercase">Ocorrências (Total)</p>
+                                <p id="dash-total-occurrences" class="text-3xl font-bold text-gray-800">--</p>
+                            </div>
+                            <div class="p-3 bg-yellow-100 rounded-full text-yellow-600">
+                                <i class="fas fa-exclamation-circle fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Card 3: Busca Ativa em Andamento -->
+                    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 uppercase">Busca Ativa (Abertos)</p>
+                                <p id="dash-active-absences" class="text-3xl font-bold text-gray-800">--</p>
+                            </div>
+                            <div class="p-3 bg-emerald-100 rounded-full text-emerald-600">
+                                <i class="fas fa-search-location fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráficos Rápidos -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Ocorrências por Tipo</h3>
+                        <canvas id="dash-chart-types"></canvas>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Status da Busca Ativa</h3>
+                        <canvas id="dash-chart-status"></canvas>
+                    </div>
+                </div>
+            </div>
+
             <!-- Conteúdo da Aba de Ocorrências -->
-            <div id="tab-content-occurrences">
+            <div id="tab-content-occurrences" class="hidden">
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <h2 id="occurrences-title" class="text-xl sm:text-2xl font-semibold text-gray-700">Registos de Ocorrências</h2>
                     <div class="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
@@ -601,48 +663,41 @@
 
     <!-- Modal: Configurações -->
     <div id="settings-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
                 <h3 class="text-xl font-semibold">Configurações da Escola</h3>
                 <button id="close-settings-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
-            <div class="overflow-y-auto flex-grow p-6">
-                <form id="settings-form" class="space-y-4">
-                    <div>
-                        <label for="school-name-input" class="block text-sm font-medium text-gray-700">Nome da Escola</label>
-                        <input type="text" id="school-name-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
-                    </div>
-                    <div>
-                        <label for="school-city-input" class="block text-sm font-medium text-gray-700">Cidade</label>
-                        <input type="text" id="school-city-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
-                    </div>
-                    <div>
-                        <label for="school-logo-input" class="block text-sm font-medium text-gray-700">URL do Logo da Escola (Opcional)</label>
-                        <input type="url" id="school-logo-input" placeholder="https://exemplo.com/logo.png" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
-                        <p class="text-xs text-gray-500 mt-1">Insira o link completo da imagem. Deixe em branco para usar apenas o nome.</p>
-                    </div>
-                    
-                    <div>
-                        <label for="admin-emails-input" class="block text-sm font-medium text-gray-700">
-                            Emails dos Administradores (separados por vírgula)
-                        </label>
-                        <textarea id="admin-emails-input" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" placeholder="admin@escola.com, gestor@escola.com"></textarea>
-                        <p class="text-xs text-gray-500 mt-1">
-                            Apenas os emails nesta lista (e o Super Admin) terão acesso a 'Configurações' e 'Gerir Alunos'.
-                        </p>
-                    </div>
-                    
-                    <div class="pt-4 flex justify-between items-center border-t mt-4">
-                        <button type="button" id="btn-generate-fake-data" class="text-red-500 hover:text-red-700 text-xs font-semibold">
-                           <i class="fas fa-database mr-1"></i> Gerar Dados de Teste
-                        </button>
-                        <div class="flex space-x-3">
-                            <button type="button" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg" id="cancel-settings-btn">Cancelar</button>
-                            <button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Configurações</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
+            <form id="settings-form" class="p-6 space-y-4">
+                <div>
+                    <label for="school-name-input" class="block text-sm font-medium text-gray-700">Nome da Escola</label>
+                    <input type="text" id="school-name-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
+                </div>
+                <div>
+                    <label for="school-city-input" class="block text-sm font-medium text-gray-700">Cidade</label>
+                    <input type="text" id="school-city-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
+                </div>
+                <div>
+                    <label for="school-logo-input" class="block text-sm font-medium text-gray-700">URL do Logo da Escola (Opcional)</label>
+                    <input type="url" id="school-logo-input" placeholder="https://exemplo.com/logo.png" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
+                    <p class="text-xs text-gray-500 mt-1">Insira o link completo da imagem. Deixe em branco para usar apenas o nome.</p>
+                </div>
+                
+                <div>
+                    <label for="admin-emails-input" class="block text-sm font-medium text-gray-700">
+                        Emails dos Administradores (separados por vírgula)
+                    </label>
+                    <textarea id="admin-emails-input" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" placeholder="admin@escola.com, gestor@escola.com"></textarea>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Apenas os emails nesta lista (e o Super Admin) terão acesso a 'Configurações' e 'Gerir Alunos'.
+                    </p>
+                </div>
+                
+                <div class="pt-4 flex justify-end space-x-3">
+                    <button type="button" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg" id="cancel-settings-btn">Cancelar</button>
+                    <button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Configurações</button>
+                </div>
+            </form>
         </div>
     </div>
 

@@ -1,3 +1,4 @@
+
 // =================================================================================
 // ARQUIVO: state.js
 
@@ -12,18 +13,18 @@ export const state = {
         schoolName: "Carregando...",
         city: "",
         schoolLogoUrl: null,
-        adminEmails: [] // (ADICIONADO - Híbrida Admin)
+        adminEmails: [] 
     },
 
-    // (NOVO - V2.1) Controle de Paginação de Alunos
+    // Controle de Paginação de Alunos
     pagination: {
-        lastVisible: null, // O cursor do Firestore para a próxima página
-        hasMore: true,     // Se falso, esconde o botão "Carregar Mais"
-        isLoading: false   // Bloqueia múltiplos cliques
+        lastVisible: null, 
+        hasMore: true,     
+        isLoading: false   
     },
 
     // Filtros para a aba de Ocorrências
-    filterOccurrences: '', // Filtro de busca por nome de aluno
+    filterOccurrences: '', 
     filtersOccurrences: {
         startDate: null,
         endDate: null,
@@ -37,32 +38,26 @@ export const state = {
         processStatus: 'all',
         pendingAction: 'all',
         returnStatus: 'all',
-        // --- NOVO (Sugestão 1): Filtros de Data para Busca Ativa ---
         startDate: null, 
         endDate: null    
-        // --- FIM NOVO ---
     },
     
     // Controle de estado da UI
-    activeTab: 'occurrences',
+    activeTab: 'dashboard', // (ALTERADO) Dashboard é o padrão
     recordToDelete: null,
-    selectedStudents: new Map(), // Gerencia os alunos selecionados no modal de ocorrência
+    selectedStudents: new Map(),
 
     // Estado de autenticação e conexão
     db: null,
     userId: null,
     userEmail: null,
-    isAdmin: false, // (ADICIONADO - Híbrida Admin)
+    isAdmin: false, 
     unsubscribeOccurrences: null,
     unsubscribeAbsences: null,
 };
 
-// ATUALIZADO: (CORREÇÃO) Declarado vazio.
-// Será populado pela função initializeDOMReferences() no main.js
-// após o DOM estar completamente carregado.
 export const dom = {};
 
-// NOVO: (CORREÇÃO) Esta função popula o objeto 'dom'
 export const initializeDOMReferences = () => {
     // Telas principais
     dom.loginScreen = document.getElementById('login-screen');
@@ -85,7 +80,6 @@ export const initializeDOMReferences = () => {
     // Modais
     dom.occurrenceModal = document.getElementById('occurrence-modal');
     dom.absenceModal = document.getElementById('absence-modal');
-    // (NOVO - REQUISIÇÃO 2) Referência para o modal de fluxo de busca ativa
     dom.absenceSearchFlowModal = document.getElementById('absence-search-flow-modal'); 
     dom.studentsModal = document.getElementById('students-modal');
     dom.settingsModal = document.getElementById('settings-modal'); 
@@ -116,10 +110,14 @@ export const initializeDOMReferences = () => {
     dom.followUpForm = document.getElementById('follow-up-form');
     
     // Navegação e Filtros
+    dom.tabDashboard = document.getElementById('tab-dashboard'); // (NOVO)
     dom.tabOccurrences = document.getElementById('tab-occurrences');
     dom.tabAbsences = document.getElementById('tab-absences');
+    
+    dom.tabContentDashboard = document.getElementById('tab-content-dashboard'); // (NOVO)
     dom.tabContentOccurrences = document.getElementById('tab-content-occurrences');
     dom.tabContentAbsences = document.getElementById('tab-content-absences');
+    
     dom.searchOccurrences = document.getElementById('search-occurrences');
     dom.searchAbsences = document.getElementById('search-absences');
     dom.occurrencesTitle = document.getElementById('occurrences-title');
@@ -133,11 +131,10 @@ export const initializeDOMReferences = () => {
     dom.generalBaReportBtn = document.getElementById('general-ba-report-btn');
     dom.addAbsenceBtn = document.getElementById('add-absence-btn'); 
 
-    // --- CORREÇÃO CSV: Adicionando referências do modal de alunos ---
+    // Alunos e CSV
     dom.studentForm = document.getElementById('student-form');
     dom.cancelEditStudentBtn = document.getElementById('cancel-edit-student-btn');
     dom.csvFile = document.getElementById('csv-file');
     dom.uploadCsvBtn = document.getElementById('upload-csv-btn');
     dom.csvFeedback = document.getElementById('csv-feedback');
-    // --- Fim da Correção ---
 };
