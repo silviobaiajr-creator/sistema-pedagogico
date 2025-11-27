@@ -2,68 +2,75 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ==========================================================
-    // FUNÇÕES AUXILIARES
-    // ==========================================================
-    
-    // Verifica se o usuário está logado no sistema
+    // --- FUNÇÕES DE SEGURANÇA --- //
+
+    // 1. Verifica se está logado
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Verifica se o email do usuário é o do administrador
+    // 2. Verifica se é o Super Admin (Você)
     function isSuperAdmin() {
       return isSignedIn() && request.auth.token.email == 'silviobaiajr@gmail.com';
     }
 
-    // ==========================================================
-    // REGRAS DA APLICAÇÃO
-    // O caminho base usado no firestore.js é: /artifacts/{appId}/public/data/...
-    // ==========================================================
+    // 3. Verifica se é um Admin Secundário (Diretores/Coordenação)
+    // Lê a lista de emails salva na configuração do banco
+    function isSecondaryAdmin() {
+      let config = get(/databases/$(database)/documents/artifacts/default-app-id/public/data/school-data/config).data;
+      return isSignedIn() && (request.auth.token.email in config.adminEmails);
+    }
+
+    // 4. Combina os dois tipos de Admin
+    function isAdmin() {
+      return isSuperAdmin() || isSecondaryAdmin();
+    }
+
+    // --- REGRAS DE ACESSO --- //
     
+    // Caminho base da sua aplicação (conforme firestore.js)
     match /artifacts/{appId}/public/data {
 
-      // 1. Configurações da Escola
+      // A. Configurações da Escola
       match /school-data/config {
-        // Todos logados podem LER (para ver o logo e nome da escola)
-        allow read: if isSignedIn();
-        // Apenas o e-mail específico pode EDITAR
-        allow write: if isSuperAdmin();
+        allow read: if isSignedIn(); // Todos podem ler (para ver o logo)
+        allow write: if isAdmin();   // Apenas Admins podem mudar o nome da escola
       }
 
-      // 2. Coleção de Alunos (NOVA ESTRUTURA - ESCALÁVEL)
-      // Antes era um documento único em school-data/students. 
-      // Agora é uma coleção separada.
+      // B. Coleção de Alunos
       match /students/{studentId} {
-        allow read, write: if isSignedIn();
+        allow read: if isSignedIn();  // Todos leem
+        allow create, update: if isSignedIn(); // Todos editam
+        allow delete: if isAdmin();   // APENAS ADMIN DELETA
       }
 
-      // 3. Coleção de Ocorrências
+      // C. Ocorrências (Ouro da escola)
       match /occurrences/{document=**} {
-        allow read, write: if isSignedIn();
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn();
+        allow delete: if isAdmin();   // APENAS ADMIN DELETA
       }
 
-      // 4. Coleção de Busca Ativa (Absences)
+      // D. Busca Ativa
       match /absences/{document=**} {
-        allow read, write: if isSignedIn();
+        allow read: if isSignedIn();
+        allow create, update: if isSignedIn();
+        allow delete: if isAdmin();   // APENAS ADMIN DELETA
       }
 
-      // 5. Contadores (Crucial para gerar IDs sequenciais)
+      // E. Contadores (Técnico)
       match /counters/{document=**} {
-        allow read, write: if isSignedIn();
+        allow read, write: if isSignedIn(); // Necessário para gerar IDs
       }
       
-      // (LEGADO) Mantemos esta regra temporariamente para não quebrar leituras antigas,
-      // mas o sistema novo usará a coleção acima (item 2).
+      // F. (Legado) Caminho antigo de alunos
       match /school-data/students {
         allow read, write: if isSignedIn();
       }
     }
 
-    // ==========================================================
-    // BLOQUEIO PADRÃO
-    // Qualquer coisa fora dos caminhos acima será bloqueada
-    // ==========================================================
+    // --- BLOQUEIO TOTAL --- //
+    // Qualquer coisa fora do seu app é proibida
     match /{document=**} {
       allow read, write: if false;
     }
