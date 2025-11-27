@@ -82,14 +82,9 @@
             <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-sky-500 to-teal-600 text-white shadow-lg flex flex-wrap sm:flex-nowrap justify-between items-center gap-4 text-center sm:text-left">
                 <div>
                     <h1 id="header-school-name" class="text-2xl sm:text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
-                    <p class="opacity-90 mt-1 text-sm sm:text-base">Base de dados partilhada entre todos os utilizadores.</p>
+                    <p class="opacity-90 mt-1 text-sm sm:text-base">Painel de Controle</p>
                 </div>
                 <div class="flex items-center flex-wrap justify-center sm:justify-end gap-2 sm:gap-4">
-                     <!-- Botão de Gerar Dados (Movido para cá para facilitar testes) -->
-                     <button id="btn-generate-fake-data" class="bg-red-500/80 hover:bg-red-600 text-white font-bold py-2 px-3 rounded-lg shadow-md text-sm border border-white/20" title="Apenas para Testes">
-                        <i class="fas fa-database mr-2"></i>Gerar Dados
-                    </button>
-
                      <button id="settings-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
                         <i class="fas fa-cog mr-2"></i>Configurações
                     </button>
@@ -105,25 +100,10 @@
                 </div>
             </header>
 
-            <!-- Navegação por Abas -->
-            <div class="mb-6 border-b border-gray-200">
-                <nav class="flex -mb-px space-x-2 sm:space-x-6 overflow-x-auto" aria-label="Tabs">
-                    <button id="tab-dashboard" class="text-center whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm tab-active">
-                        <i class="fas fa-chart-pie mr-2"></i>Visão Geral
-                    </button>
-                    <button id="tab-occurrences" class="text-center whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                        <i class="fas fa-exclamation-triangle mr-2"></i>Ocorrências
-                    </button>
-                    <button id="tab-absences" class="text-center whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                        <i class="fas fa-user-clock mr-2"></i>Busca Ativa
-                    </button>
-                </nav>
-            </div>
-
-            <!-- CONTEÚDO: DASHBOARD (NOVO) -->
+            <!-- CONTEÚDO: DASHBOARD (PRINCIPAL) -->
             <div id="tab-content-dashboard">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <!-- Card 1: Total Alunos -->
+                    <!-- Card 1: Total Alunos (Informativo) -->
                     <div class="bg-white rounded-lg shadow p-6 border-l-4 border-sky-500">
                         <div class="flex items-center justify-between">
                             <div>
@@ -135,26 +115,30 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Card 2: Ocorrências Recentes -->
-                    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
+                    
+                    <!-- Card 2: Ocorrências Recentes (Botão de Navegação) -->
+                    <div id="card-nav-occurrences" class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500 cursor-pointer hover:bg-yellow-50 transition transform hover:scale-105 group">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-sm font-medium text-gray-500 uppercase">Ocorrências (Total)</p>
-                                <p id="dash-total-occurrences" class="text-3xl font-bold text-gray-800">--</p>
+                                <p class="text-sm font-medium text-gray-500 uppercase group-hover:text-yellow-700">Ocorrências (Total)</p>
+                                <p id="dash-total-occurrences" class="text-3xl font-bold text-gray-800 group-hover:text-yellow-900">--</p>
+                                <span class="text-xs text-yellow-600 font-semibold mt-1 inline-block">Clique para gerir <i class="fas fa-arrow-right ml-1"></i></span>
                             </div>
-                            <div class="p-3 bg-yellow-100 rounded-full text-yellow-600">
+                            <div class="p-3 bg-yellow-100 rounded-full text-yellow-600 group-hover:bg-yellow-200">
                                 <i class="fas fa-exclamation-circle fa-2x"></i>
                             </div>
                         </div>
                     </div>
-                    <!-- Card 3: Busca Ativa em Andamento -->
-                    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
+
+                    <!-- Card 3: Busca Ativa em Andamento (Botão de Navegação) -->
+                    <div id="card-nav-absences" class="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500 cursor-pointer hover:bg-emerald-50 transition transform hover:scale-105 group">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-sm font-medium text-gray-500 uppercase">Busca Ativa (Abertos)</p>
-                                <p id="dash-active-absences" class="text-3xl font-bold text-gray-800">--</p>
+                                <p class="text-sm font-medium text-gray-500 uppercase group-hover:text-emerald-700">Busca Ativa (Abertos)</p>
+                                <p id="dash-active-absences" class="text-3xl font-bold text-gray-800 group-hover:text-emerald-900">--</p>
+                                <span class="text-xs text-emerald-600 font-semibold mt-1 inline-block">Clique para gerir <i class="fas fa-arrow-right ml-1"></i></span>
                             </div>
-                            <div class="p-3 bg-emerald-100 rounded-full text-emerald-600">
+                            <div class="p-3 bg-emerald-100 rounded-full text-emerald-600 group-hover:bg-emerald-200">
                                 <i class="fas fa-search-location fa-2x"></i>
                             </div>
                         </div>
@@ -174,10 +158,15 @@
                 </div>
             </div>
 
-            <!-- Conteúdo da Aba de Ocorrências -->
+            <!-- Conteúdo da Aba de Ocorrências (Detalhe) -->
             <div id="tab-content-occurrences" class="hidden">
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
-                    <h2 id="occurrences-title" class="text-xl sm:text-2xl font-semibold text-gray-700">Registos de Ocorrências</h2>
+                    <div class="flex items-center gap-3">
+                        <button id="btn-back-dashboard-occ" class="text-gray-500 hover:text-sky-600 transition" title="Voltar ao Início">
+                            <i class="fas fa-arrow-left fa-lg"></i>
+                        </button>
+                        <h2 id="occurrences-title" class="text-xl sm:text-2xl font-semibold text-gray-700">Ocorrências</h2>
+                    </div>
                     <div class="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
                         <button id="general-report-btn" class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral
@@ -233,10 +222,15 @@
                 </main>
             </div>
 
-            <!-- Conteúdo da Aba de Busca Ativa -->
+            <!-- Conteúdo da Aba de Busca Ativa (Detalhe) -->
             <div id="tab-content-absences" class="hidden">
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
-                    <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Histórico de Ações da Busca Ativa</h2>
+                    <div class="flex items-center gap-3">
+                        <button id="btn-back-dashboard-abs" class="text-gray-500 hover:text-emerald-600 transition" title="Voltar ao Início">
+                            <i class="fas fa-arrow-left fa-lg"></i>
+                        </button>
+                        <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Busca Ativa</h2>
+                    </div>
                     <div class="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
                         <button id="general-ba-report-btn" class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral

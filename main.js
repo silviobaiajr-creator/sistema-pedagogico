@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: main.js
-// VERSÃO: 3.0 (Com Dashboard)
+// VERSÃO: 3.1 (Navegação via Cards)
 
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { onSnapshot, query, writeBatch, doc, where, getDocs, limit, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -15,7 +15,7 @@ import { initSettingsListeners } from './settings.js';
 import { initStudentListeners } from './students.js';
 import { initOccurrenceListeners, renderOccurrences } from './occurrence.js'; 
 import { initAbsenceListeners, renderAbsences } from './absence.js';     
-import { initDashboard } from './dashboard.js'; // (NOVO)
+import { initDashboard } from './dashboard.js'; 
 
 import { occurrenceStepLogic } from './logic.js';
 
@@ -94,8 +94,6 @@ function setupFirestoreListeners() {
     const occurrencesQuery = query(getCollectionRef('occurrence'), orderBy('createdAt', 'desc'), limit(100));
     state.unsubscribeOccurrences = onSnapshot(occurrencesQuery, (snapshot) => {
         state.occurrences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Se estivermos na aba de ocorrências, re-renderiza.
-        // Se estivermos no dashboard, atualiza os contadores também.
         if (state.activeTab === 'occurrences') renderOccurrences();
         if (state.activeTab === 'dashboard') initDashboard();
     });
@@ -119,10 +117,12 @@ function setupEventListeners() {
     initAuthListeners();
     dom.logoutBtn.addEventListener('click', () => signOut(auth));
 
-    // Listeners de Abas
-    dom.tabDashboard.addEventListener('click', () => switchTab('dashboard')); // (NOVO)
-    dom.tabOccurrences.addEventListener('click', () => switchTab('occurrences'));
-    dom.tabAbsences.addEventListener('click', () => switchTab('absences'));
+    // Listeners de Navegação (Cards e Botões Voltar)
+    if (dom.cardNavOccurrences) dom.cardNavOccurrences.addEventListener('click', () => switchTab('occurrences'));
+    if (dom.cardNavAbsences) dom.cardNavAbsences.addEventListener('click', () => switchTab('absences'));
+    
+    if (dom.btnBackDashboardOcc) dom.btnBackDashboardOcc.addEventListener('click', () => switchTab('dashboard'));
+    if (dom.btnBackDashboardAbs) dom.btnBackDashboardAbs.addEventListener('click', () => switchTab('dashboard'));
 
     setupModalCloseButtons();
 
@@ -148,27 +148,17 @@ function setupEventListeners() {
 function switchTab(tabName) {
     state.activeTab = tabName;
     
-    // Reseta classes
-    [dom.tabDashboard, dom.tabOccurrences, dom.tabAbsences].forEach(el => {
-        el.classList.remove('tab-active');
-        el.classList.add('text-gray-500', 'hover:text-gray-700');
-    });
+    // Reseta visualização
     [dom.tabContentDashboard, dom.tabContentOccurrences, dom.tabContentAbsences].forEach(el => el.classList.add('hidden'));
 
     // Ativa a selecionada
     if (tabName === 'dashboard') {
-        dom.tabDashboard.classList.add('tab-active');
-        dom.tabDashboard.classList.remove('text-gray-500');
         dom.tabContentDashboard.classList.remove('hidden');
-        initDashboard(); // Carrega gráficos
+        initDashboard(); // Atualiza gráficos
     } else if (tabName === 'occurrences') {
-        dom.tabOccurrences.classList.add('tab-active');
-        dom.tabOccurrences.classList.remove('text-gray-500');
         dom.tabContentOccurrences.classList.remove('hidden');
         renderOccurrences();
     } else if (tabName === 'absences') {
-        dom.tabAbsences.classList.add('tab-active');
-        dom.tabAbsences.classList.remove('text-gray-500');
         dom.tabContentAbsences.classList.remove('hidden');
         renderAbsences();
     }
@@ -227,8 +217,8 @@ function setupModalCloseButtons() {
         'cancel-follow-up-btn': dom.followUpModal,
         'close-send-ct-modal-btn': dom.sendOccurrenceCtModal,
         'cancel-send-ct-modal-btn': dom.sendOccurrenceCtModal,
-        'close-absence-search-flow-modal-btn': dom.absenceSearchFlowModal, // (NOVO)
-        'cancel-absence-search-flow-btn': dom.absenceSearchFlowModal,      // (NOVO)
+        'close-absence-search-flow-modal-btn': dom.absenceSearchFlowModal, 
+        'cancel-absence-search-flow-btn': dom.absenceSearchFlowModal,      
     };
     
     for (const [id, modal] of Object.entries(modalMap)) {

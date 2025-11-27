@@ -43,7 +43,7 @@ export const state = {
     },
     
     // Controle de estado da UI
-    activeTab: 'dashboard', // (ALTERADO) Dashboard é o padrão
+    activeTab: 'dashboard', 
     recordToDelete: null,
     selectedStudents: new Map(),
 
@@ -109,14 +109,16 @@ export const initializeDOMReferences = () => {
     dom.settingsForm = document.getElementById('settings-form'); 
     dom.followUpForm = document.getElementById('follow-up-form');
     
-    // Navegação e Filtros
-    dom.tabDashboard = document.getElementById('tab-dashboard'); // (NOVO)
-    dom.tabOccurrences = document.getElementById('tab-occurrences');
-    dom.tabAbsences = document.getElementById('tab-absences');
-    
-    dom.tabContentDashboard = document.getElementById('tab-content-dashboard'); // (NOVO)
+    // Navegação (Cards e Botões)
+    dom.tabContentDashboard = document.getElementById('tab-content-dashboard'); 
     dom.tabContentOccurrences = document.getElementById('tab-content-occurrences');
     dom.tabContentAbsences = document.getElementById('tab-content-absences');
+    
+    dom.cardNavOccurrences = document.getElementById('card-nav-occurrences'); // (NOVO)
+    dom.cardNavAbsences = document.getElementById('card-nav-absences');       // (NOVO)
+    
+    dom.btnBackDashboardOcc = document.getElementById('btn-back-dashboard-occ'); // (NOVO)
+    dom.btnBackDashboardAbs = document.getElementById('btn-back-dashboard-abs'); // (NOVO)
     
     dom.searchOccurrences = document.getElementById('search-occurrences');
     dom.searchAbsences = document.getElementById('search-absences');
