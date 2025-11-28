@@ -60,7 +60,6 @@ export const openModal = (modalElement) => {
      if (!modalElement) return console.error("Tentativa de abrir um modal nulo.");
      
      // Limpeza agressiva: Remove a classe ativa de TODOS os modais antes de abrir um novo
-     // Isso previne que dois modais fiquem marcados como 'imprimível' ao mesmo tempo
      document.querySelectorAll('.printable-area-active').forEach(el => {
          el.classList.remove('printable-area-active');
      });
@@ -94,23 +93,60 @@ export const closeModal = (modalElement) => {
     setTimeout(() => modalElement.classList.add('hidden'), 300);
 };
 
+// --- VISUALIZADOR DE IMAGEM (PRINT) ---
+export const openImageModal = (base64Image, title = 'Anexo') => {
+    const modal = document.getElementById('image-view-modal');
+    const imgEl = document.getElementById('image-view-content');
+    const titleEl = document.getElementById('image-view-title');
+    
+    if (modal && imgEl) {
+        imgEl.src = base64Image;
+        if(titleEl) titleEl.textContent = title;
+        openModal(modal);
+    }
+};
+
+// --- COMPRESSOR DE IMAGEM (Para salvar no Firestore sem estourar limite) ---
+export const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                // Redimensiona para max 800px de largura para economizar espaço
+                const MAX_WIDTH = 800;
+                const scaleSize = MAX_WIDTH / img.width;
+                
+                if (img.width > MAX_WIDTH) {
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scaleSize;
+                } else {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                }
+                
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                
+                // Compressa para JPEG qualidade 0.6
+                resolve(canvas.toDataURL('image/jpeg', 0.6)); 
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (error) => reject(error);
+    });
+};
+
 
 // ==============================================================================
 // --- O FISCAL DE IMPRESSÃO (CORREÇÃO NUCLEAR) ---
 // ==============================================================================
-// Este código roda automaticamente no momento em que você clica em "Imprimir" (Ctrl+P)
-// Ele garante que o que você vê na tela é EXATAMENTE o que vai para a impressora,
-// corrigindo qualquer desincronia que tenha ocorrido antes.
-
 window.onbeforeprint = () => {
-    // 1. Encontra todos os modais de impressão
     const allPrintables = document.querySelectorAll('.printable-area');
-    
-    // 2. Remove a classe ativa de todos (Zera o estado)
     allPrintables.forEach(el => el.classList.remove('printable-area-active'));
-    
-    // 3. Encontra qual modal está VISÍVEL na tela agora (não tem a classe 'hidden')
-    // e marca APENAS ELE como ativo para impressão.
     allPrintables.forEach(el => {
         if (!el.classList.contains('hidden')) {
             el.classList.add('printable-area-active');

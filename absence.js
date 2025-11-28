@@ -1,11 +1,11 @@
 
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 5.3 (Correção: Botão Salvar travado por campo oculto obrigatório)
+// VERSÃO: 5.4 (Suporte a Anexo de Print no Contato)
 // =================================================================================
 
 import { state, dom } from './state.js';
-import { showToast, showAlert, openModal, closeModal, formatDate, formatTime, getStatusBadge } from './utils.js';
+import { showToast, showAlert, openModal, closeModal, formatDate, formatTime, getStatusBadge, compressImage, openImageModal } from './utils.js';
 import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js'; 
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
 import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName, getStudentById } from './firestore.js'; 
@@ -14,6 +14,8 @@ import { db } from './firebase.js';
 
 
 // --- Funções Auxiliares ---
+
+let pendingAbsenceImageBase64 = null; // Armazena a imagem comprimida temporariamente
 
 const normalizeText = (text) => {
     if (!text) return '';
@@ -346,6 +348,14 @@ export const renderAbsences = () => {
                         </button>`;
                 }
 
+                // Botão de Ver Print
+                if (abs.contactPrint) {
+                    viewButtonHtml += `
+                        <button type="button" class="text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${abs.contactPrint}', 'Print Anexado')">
+                            [<i class="fas fa-image fa-fw"></i> Ver Print]
+                        </button>`;
+                }
+
                 // Constrói a linha do histórico
                 historyHtml += `
                     <div class="mb-2 pb-2 border-b border-gray-100 last:border-0">
@@ -532,6 +542,7 @@ export const toggleFamilyContactFields = (enable, fieldsContainer) => {
     const returnedRadioGroup = document.querySelectorAll('input[name="contact-returned"]');
 
     detailFields.forEach(input => {
+        if(input.type === 'file') return; // File input always active if visible
         input.disabled = !enable;
         input.required = enable; 
         if (!enable) {
@@ -542,11 +553,9 @@ export const toggleFamilyContactFields = (enable, fieldsContainer) => {
         }
     });
     
-    // CORREÇÃO: Remove obrigatoriedade HTML5 para evitar "not focusable" quando oculto
-    // A validação de obrigatoriedade é feita manualmente em handleAbsenceSubmit
     returnedRadioGroup.forEach(radio => {
-        radio.required = false; // Desativa validação nativa
-        radio.disabled = false; // Mantém habilitado (se visível)
+        radio.required = false; 
+        radio.disabled = false; 
         if (!enable) radio.checked = false; 
     });
 };
@@ -579,6 +588,10 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
  */
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null, preFilledData = null) => {
     dom.absenceForm.reset();
+    pendingAbsenceImageBase64 = null; // Reseta imagem
+    document.getElementById('absence-print-label').textContent = 'Selecionar Imagem';
+    document.getElementById('absence-print-check').classList.add('hidden');
+
     ['meeting-date', 'contact-date', 'visit-date', 'ct-sent-date'].forEach(id => { 
         const input = document.getElementById(id);
         if (input) input.removeAttribute('min');
@@ -659,6 +672,10 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     const groupElement = document.getElementById(finalActionType.startsWith('tentativa') ? 'group-tentativas' : `group-${finalActionType}`);
     if (groupElement) groupElement.classList.remove('hidden');
 
+    // MOSTRA O CONTAINER DE PRINT SOMENTE NAS TENTATIVAS (SE CONTATO SIM)
+    const printContainer = document.getElementById('absence-print-container');
+    if(printContainer) printContainer.classList.add('hidden');
+
     switch (finalActionType) {
         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
             const convocationSection = document.getElementById('convocation-section');
@@ -667,14 +684,12 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
             const hasConvocation = !!(data?.meetingDate);
             const isContactStep = isEditing && hasConvocation && data.contactSucceeded == null;
 
-            // Se for edição de contato ou já tiver convocação (fluxo de botões rápidos)
             if ((isEditing && isContactStep) || (hasConvocation && !isEditing) || (isEditing && hasConvocation)) {
                 convocationSection.classList.add('hidden');
                 familyContactSection.classList.remove('hidden');
                 document.querySelectorAll('input[name="contact-succeeded"]').forEach(r => r.required = true);
-                // CORREÇÃO: Desativa required HTML5 para 'contact-returned' para evitar bloqueio
-                // Validação manual cuida disso
                 document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = false);
+                if(printContainer) printContainer.classList.remove('hidden'); // Exibe anexo
             } else {
                 convocationSection.classList.remove('hidden');
                 familyContactSection.classList.add('hidden');
@@ -757,6 +772,10 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 document.getElementById('contact-date').value = data.contactDate || '';
                 document.getElementById('contact-person').value = data.contactPerson || '';
                 document.getElementById('contact-reason').value = data.contactReason || '';
+                
+                // Print já existente não é mostrado no input, apenas mantido se não alterado
+                // Mas não carregamos base64 de volta para o input file (impossível no browser)
+                
                 const contactReturnedRadio = document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`);
                 if(contactReturnedRadio) contactReturnedRadio.checked = true;
                 else document.querySelectorAll(`input[name="contact-returned"]`).forEach(r => r.checked = false);
@@ -798,7 +817,6 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
         document.querySelectorAll('input[name="contact-succeeded"], input[name="visit-succeeded"], input[name="contact-returned"], input[name="visit-returned"], input[name="ct-returned"]').forEach(r => r.checked = false);
     }
 
-    // APLICA DADOS DE PREENCHIMENTO RÁPIDO (BOTÕES SIM/NÃO)
     if (preFilledData) {
         if (finalActionType.startsWith('tentativa') && preFilledData.succeeded) {
             const radio = document.querySelector(`input[name="contact-succeeded"][value="${preFilledData.succeeded}"]`);
@@ -828,8 +846,8 @@ async function handleAbsenceSubmit(e) {
     
     // Verifica campos explicitamente requeridos
     form.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled])').forEach(el => {
-        // CORREÇÃO: Ignora campos ocultos na validação automática
-        if (el.offsetParent === null) return;
+        if (el.type === 'file') return; // Arquivo não é obrigatório via HTML5
+        if (el.offsetParent === null) return; // Ignora ocultos
 
         if (el.required && !el.value && el.type !== 'radio') {
              if (!firstInvalidField) firstInvalidField = el;
@@ -850,18 +868,14 @@ async function handleAbsenceSubmit(e) {
          return;
     }
 
-    // VALIDAÇÃO MANUAL ESTRITA PARA 'ALUNO RETORNOU?' E 'CONSEGUIU CONTATO?'
     const actionType = document.getElementById('action-type').value;
     if (actionType.startsWith('tentativa')) {
         if (!document.getElementById('family-contact-section').classList.contains('hidden')) {
             const contactSucceededRadio = form.querySelector('input[name="contact-succeeded"]:checked');
-            
             if (!contactSucceededRadio) {
                 showAlert("Por favor, informe se conseguiu contato (Sim/Não).");
                 return;
             }
-
-            // Independente se conseguiu contato ou não, deve informar se retornou
             const contactReturnedRadio = form.querySelector('input[name="contact-returned"]:checked');
             if (!contactReturnedRadio) {
                 showAlert("Por favor, informe se o aluno retornou.");
@@ -873,15 +887,27 @@ async function handleAbsenceSubmit(e) {
     const data = getAbsenceFormData();
     if (!data) return; 
 
+    // Adiciona o print comprimido se houver
+    if (pendingAbsenceImageBase64) {
+        data.contactPrint = pendingAbsenceImageBase64;
+    }
+
     const id = data.id; 
     
     if (id) {
         const existingAction = state.absences.find(a => a.id === id);
         if (existingAction) {
             for (const key in data) {
+                // Preserva dados antigos se o form vier vazio e o antigo tiver valor (exceto print, que só atualiza se tiver novo)
                 if (data[key] === null && existingAction[key] != null) {
-                    data[key] = existingAction[key];
+                    if (key !== 'contactPrint') { // Print é tratado separadamente
+                        data[key] = existingAction[key];
+                    }
                 }
+            }
+            // Se não subiu nova imagem, mantém a antiga se existir
+            if (!pendingAbsenceImageBase64 && existingAction.contactPrint) {
+                data.contactPrint = existingAction.contactPrint;
             }
         }
     }
@@ -1158,6 +1184,9 @@ function handleDeleteAbsence(id) {
 // --- Função Principal de Inicialização ---
 
 export const initAbsenceListeners = () => {
+    // Habilita função global para visualizar imagem
+    window.viewImage = (img, title) => openImageModal(img, title);
+
     if (dom.addAbsenceBtn) {
         dom.addAbsenceBtn.addEventListener('click', openAbsenceSearchFlowModal);
     }
@@ -1190,6 +1219,27 @@ export const initAbsenceListeners = () => {
         dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
     }
     
+    // UPLOAD IMAGE LISTENER
+    const absenceFileInput = document.getElementById('absence-contact-print');
+    if (absenceFileInput) {
+        absenceFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            document.getElementById('absence-print-label').textContent = 'Processando...';
+            try {
+                pendingAbsenceImageBase64 = await compressImage(file);
+                document.getElementById('absence-print-label').textContent = 'Imagem Anexada';
+                document.getElementById('absence-print-check').classList.remove('hidden');
+            } catch (err) {
+                console.error("Erro ao processar imagem:", err);
+                showAlert("Erro ao processar imagem. Tente outra.");
+                pendingAbsenceImageBase64 = null;
+                document.getElementById('absence-print-label').textContent = 'Erro';
+            }
+        });
+    }
+
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
 

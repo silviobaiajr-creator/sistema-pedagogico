@@ -425,6 +425,23 @@
                         <div id="group-contato-fields" class="space-y-4 mt-4 hidden p-3 border rounded-md bg-gray-50">
                             <div><label for="follow-up-contact-type" class="block text-sm font-medium">Tipo de Contato <span class="text-red-500">*</span></label><select id="follow-up-contact-type" class="mt-1 w-full border-gray-300 rounded-md" required disabled><option value="">Selecione...</option><option value="WhatsApp">WhatsApp</option><option value="Ligação">Ligação</option><option value="Pessoalmente">Pessoalmente</option></select></div>
                             <div><label for="follow-up-contact-date" class="block text-sm font-medium">Dia do Contato <span class="text-red-500">*</span></label><input type="date" id="follow-up-contact-date" class="mt-1 w-full border-gray-300 rounded-md" required disabled></div>
+                            
+                            <!-- Campo "Com quem falou" -->
+                            <div><label for="follow-up-contact-person" class="block text-sm font-medium">Com quem falou? <span class="text-red-500">*</span></label><input type="text" id="follow-up-contact-person" class="mt-1 w-full border-gray-300 rounded-md" required disabled placeholder="Ex: Mãe (Maria), Pai, Irmão..."></div>
+                            
+                            <!-- Campo Anexo Print (NOVO) -->
+                            <div id="follow-up-print-container">
+                                <label class="block text-sm font-medium mb-1">Anexar Print (Opcional)</label>
+                                <div class="flex items-center gap-2">
+                                    <label for="follow-up-contact-print" class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-1 px-3 rounded text-sm flex items-center transition">
+                                        <i class="fas fa-paperclip mr-2 text-gray-500"></i> <span id="follow-up-print-label">Selecionar Imagem</span>
+                                    </label>
+                                    <input type="file" id="follow-up-contact-print" accept="image/*" class="hidden">
+                                    <span id="follow-up-print-check" class="hidden text-green-600"><i class="fas fa-check-circle"></i></span>
+                                </div>
+                                <p class="text-xs text-gray-400 mt-1">Imagens serão otimizadas automaticamente.</p>
+                            </div>
+
                             <div><label for="follow-up-family-actions" class="block text-sm font-medium">Providências da Família <span class="text-red-500">*</span></label><textarea id="follow-up-family-actions" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="O que foi combinado com os pais/responsáveis?" required disabled></textarea></div>
                         </div>
                     </fieldset>
@@ -577,7 +594,22 @@
                             <div id="family-contact-fields" class="space-y-4">
                                 <div><label for="absence-contact-type" class="block text-sm font-medium">Tipo de Contato</label><select id="absence-contact-type" class="mt-1 w-full border-gray-300 rounded-md"><option value="">Selecione...</option><option value="WhatsApp">WhatsApp</option><option value="Ligação">Ligação</option><option value="Pessoalmente">Pessoalmente</option></select></div>
                                 <div><label class="block text-sm">Dia do contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                                <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div><div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                                <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                
+                                <!-- CAMPO ANEXO (BUSCA ATIVA) -->
+                                <div id="absence-print-container">
+                                    <label class="block text-sm font-medium mb-1">Anexar Print (Opcional)</label>
+                                    <div class="flex items-center gap-2">
+                                        <label for="absence-contact-print" class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-1 px-3 rounded text-sm flex items-center transition">
+                                            <i class="fas fa-paperclip mr-2 text-gray-500"></i> <span id="absence-print-label">Selecionar Imagem</span>
+                                        </label>
+                                        <input type="file" id="absence-contact-print" accept="image/*" class="hidden">
+                                        <span id="absence-print-check" class="hidden text-green-600"><i class="fas fa-check-circle"></i></span>
+                                    </div>
+                                    <p class="text-xs text-gray-400 mt-1">Imagens serão otimizadas automaticamente.</p>
+                                </div>
+
+                                <div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
                             </div>
                             <div><span class="block text-sm">Aluno retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="contact-returned" value="yes"> Sim</label><label><input type="radio" name="contact-returned" value="no"> Não</label></div></div>
                         </fieldset>
@@ -772,6 +804,19 @@
             <button id="ficha-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
         </div>
     </div></div>
+
+    <!-- Modal de Visualização de Imagem (NOVO) -->
+    <div id="image-view-modal" class="fixed inset-0 z-[70] flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
+            <div class="bg-gray-100 p-3 rounded-t-lg flex justify-between items-center">
+                <h3 id="image-view-title" class="text-lg font-semibold text-gray-700">Anexo</h3>
+                <button onclick="document.getElementById('image-view-modal').classList.add('hidden')" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+            </div>
+            <div class="p-4 overflow-auto flex justify-center bg-black/5">
+                <img id="image-view-content" src="" alt="Anexo" class="max-w-full h-auto rounded shadow-sm">
+            </div>
+        </div>
+    </div>
 
     <!-- Modal: Visualização de Histórico -->
     <div id="history-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">

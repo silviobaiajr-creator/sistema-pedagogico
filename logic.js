@@ -1,7 +1,6 @@
-
 // =================================================================================
 // ARQUIVO: logic.js
-// VERSÃO: 3.2 (Correção Crítica: Dependência Circular e Dados Externos)
+// VERSÃO: 3.3 (Adicionado reset de contactPerson)
 
 import { state } from './state.js';
 import { getStatusBadge } from './utils.js';
@@ -362,16 +361,18 @@ const camposAcao5 = ['ctFeedback', ...camposAcao6];
 const camposAcao4 = ['oficioNumber', 'oficioYear', 'ctSentDate', 'desfechoChoice', ...camposAcao5]; 
 
 // Campos da Convocação 3 (e tudo que vem depois)
-const camposFeedback3 = ['contactSucceeded_3', 'contactType_3', 'contactDate_3', 'providenciasFamilia_3', ...camposAcao4];
+// ** ATUALIZADO: contactPerson_3
+const camposFeedback3 = ['contactSucceeded_3', 'contactType_3', 'contactDate_3', 'contactPerson_3', 'providenciasFamilia_3', ...camposAcao4];
 const camposConvocacao3 = ['meetingDate_3', 'meetingTime_3', ...camposFeedback3];
 
 // Campos da Convocação 2 (e tudo que vem depois)
-// CORREÇÃO: Se reseta Feedback 2, limpa Feedback 2 E Convocação 3 (próxima etapa)
-const camposFeedback2 = ['contactSucceeded_2', 'contactType_2', 'contactDate_2', 'providenciasFamilia_2', ...camposConvocacao3];
+// ** ATUALIZADO: contactPerson_2
+const camposFeedback2 = ['contactSucceeded_2', 'contactType_2', 'contactDate_2', 'contactPerson_2', 'providenciasFamilia_2', ...camposConvocacao3];
 const camposConvocacao2 = ['meetingDate_2', 'meetingTime_2', ...camposFeedback2];
 
 // Campos da Convocação 1 (e tudo que vem depois)
-const camposFeedback1 = ['contactSucceeded_1', 'contactType_1', 'contactDate_1', 'providenciasFamilia_1', ...camposConvocacao2];
+// ** ATUALIZADO: contactPerson_1
+const camposFeedback1 = ['contactSucceeded_1', 'contactType_1', 'contactDate_1', 'contactPerson_1', 'providenciasFamilia_1', ...camposConvocacao2];
 const camposConvocacao1 = ['meetingDate_1', 'meetingTime_1', ...camposFeedback1];
 
 export const occurrenceStepLogic = {

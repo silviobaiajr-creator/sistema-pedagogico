@@ -1,10 +1,10 @@
 
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 4.3 (Correção de UX: Mensagens de Erro no Centro, Sucesso no Canto)
+// VERSÃO: 4.5 (Com suporte a Anexo/Print de WhatsApp)
 
 import { state, dom } from './state.js';
-import { showToast, showAlert, openModal, closeModal, getStatusBadge, formatDate, formatTime } from './utils.js';
+import { showToast, showAlert, openModal, closeModal, getStatusBadge, formatDate, formatTime, compressImage, openImageModal } from './utils.js';
 import { 
     getCollectionRef, 
     getCounterDocRef, 
@@ -37,7 +37,6 @@ import { db } from './firebase.js';
 // CONFIGURAÇÕES E UTILITÁRIOS LOCAIS
 // =================================================================================
 
-// Títulos atualizados para o novo fluxo
 export const occurrenceActionTitles = { 
     'convocacao_1': 'Ação 2: 1ª Convocação',
     'feedback_1':   'Ação 3: Feedback da 1ª Tentativa',
@@ -53,6 +52,8 @@ export const occurrenceActionTitles = {
 let studentPendingRoleSelection = null;
 let editingRoleId = null; 
 let studentSearchTimeout = null;
+// Armazena temporariamente a string Base64 da imagem selecionada
+let pendingImageBase64 = null; 
 
 const normalizeText = (text) => {
     if (!text) return '';
@@ -279,7 +280,7 @@ export const renderOccurrences = () => {
                 let historyHtml = '';
                 
                 // Helper para renderizar bloco de Tentativa
-                const renderAttemptBlock = (index, mDate, mTime, succeeded, contactDate) => {
+                const renderAttemptBlock = (index, mDate, mTime, succeeded, contactDate, contactPerson, contactPrint) => {
                     if (!mDate) return '';
                     
                     const attemptNum = index; // 1, 2 ou 3
@@ -307,7 +308,13 @@ export const renderOccurrences = () => {
                             </div>
                         `;
                     } else if (succeeded === 'yes') {
-                        statusContent = `<span class="text-green-600 font-semibold ml-1">- Contato Realizado (${formatDate(contactDate)})</span>`;
+                        // EXIBIÇÃO DO PRINT (SE HOUVER)
+                        const printButton = contactPrint ? 
+                            `<button type="button" class="view-print-btn text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${contactPrint}', 'Print do Contato')">
+                                [<i class="fas fa-image fa-fw"></i> Ver Print]
+                             </button>` : '';
+
+                        statusContent = `<span class="text-green-600 font-semibold ml-1">- Contato Realizado com <u>${contactPerson || 'Responsável'}</u> em ${formatDate(contactDate)}</span> ${printButton}`;
                     } else {
                         statusContent = `<span class="text-red-600 font-semibold ml-1">- Sem sucesso</span>`;
                     }
@@ -325,9 +332,9 @@ export const renderOccurrences = () => {
 
                 // Renderiza as 3 tentativas possíveis
                 // Nota: meetingDate (legacy) é tratado como meetingDate_1
-                historyHtml += renderAttemptBlock(1, record.meetingDate || record.meetingDate_1, record.meetingTime || record.meetingTime_1, record.contactSucceeded_1, record.contactDate_1);
-                historyHtml += renderAttemptBlock(2, record.meetingDate_2, record.meetingTime_2, record.contactSucceeded_2, record.contactDate_2);
-                historyHtml += renderAttemptBlock(3, record.meetingDate_3, record.meetingTime_3, record.contactSucceeded_3, record.contactDate_3);
+                historyHtml += renderAttemptBlock(1, record.meetingDate || record.meetingDate_1, record.meetingTime || record.meetingTime_1, record.contactSucceeded_1, record.contactDate_1, record.contactPerson_1, record.contactPrint_1);
+                historyHtml += renderAttemptBlock(2, record.meetingDate_2, record.meetingTime_2, record.contactSucceeded_2, record.contactDate_2, record.contactPerson_2, record.contactPrint_2);
+                historyHtml += renderAttemptBlock(3, record.meetingDate_3, record.meetingTime_3, record.contactSucceeded_3, record.contactDate_3, record.contactPerson_3, record.contactPrint_3);
 
                 // Ações Finais (4, 5, 6)
                 if (record?.oficioNumber) {
@@ -514,7 +521,7 @@ const toggleOccurrenceContactFields = (enable) => {
     if (!fieldsContainer) return;
 
     fieldsContainer.classList.toggle('hidden', !enable);
-    const detailFields = fieldsContainer.querySelectorAll('select, input[type="date"], textarea');
+    const detailFields = fieldsContainer.querySelectorAll('select, input[type="date"], input[type="text"], textarea');
 
     detailFields.forEach(input => {
         input.disabled = !enable;
@@ -548,6 +555,10 @@ const toggleDesfechoFields = (choice) => {
 export const openOccurrenceStepModal = (student, record, actionType, preFilledData = null) => {
     const followUpForm = document.getElementById('follow-up-form');
     followUpForm.reset();
+    pendingImageBase64 = null; // Reseta imagem pendente
+    document.getElementById('follow-up-print-label').textContent = 'Selecionar Imagem';
+    document.getElementById('follow-up-print-check').classList.add('hidden');
+
     followUpForm.dataset.recordId = record.id;
     followUpForm.dataset.studentId = student.matricula;
     followUpForm.dataset.actionType = actionType;
@@ -560,7 +571,6 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
     modalTitle.textContent = occurrenceActionTitles[actionType] || 'Acompanhamento Individual';
     statusDisplay.innerHTML = `<strong>Status:</strong> ${getStatusBadge(record.statusIndividual || 'Aguardando Convocação')}`;
 
-    // Ocultar fieldset de identificação do aluno para layout enxuto
     const studentInfoBlock = document.querySelector('#follow-up-form fieldset:first-of-type');
     if (studentInfoBlock) studentInfoBlock.classList.add('hidden');
 
@@ -572,7 +582,7 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
     document.querySelectorAll('.dynamic-occurrence-step').forEach(group => {
         group.classList.add('hidden');
         group.querySelectorAll('input, select, textarea, button').forEach(el => {
-            el.disabled = true;
+            if (el.type !== 'file') el.disabled = true; // Input de arquivo sempre habilitado se visível
             el.required = false;
         });
         group.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
@@ -582,10 +592,7 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
 
     let currentGroup = null;
 
-    // --- LÓGICA DE ABERTURA BASEADA NO TIPO DE AÇÃO ---
-
     if (actionType.startsWith('convocacao_')) { 
-        // Ação 2: Agendar Convocação (1, 2 ou 3)
         const attemptNum = actionType.split('_')[1];
         
         currentGroup = document.getElementById('group-convocacao');
@@ -596,7 +603,6 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
             const dateInput = document.getElementById('follow-up-meeting-date');
             const timeInput = document.getElementById('follow-up-meeting-time');
             
-            // Tenta carregar dados existentes para edição
             const existingDate = record[`meetingDate_${attemptNum}`] || (attemptNum == 1 ? record.meetingDate : null);
             const existingTime = record[`meetingTime_${attemptNum}`] || (attemptNum == 1 ? record.meetingTime : null);
             
@@ -605,7 +611,6 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
             dateInput.disabled = false; dateInput.required = true;
             timeInput.disabled = false; timeInput.required = true;
             
-            // Define data mínima baseada na etapa anterior
             if (attemptNum == 1) {
                 if(record.date) dateInput.min = record.date;
             } else {
@@ -616,7 +621,6 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
         }
 
     } else if (actionType.startsWith('feedback_')) { 
-        // Ação 3: Feedback (1, 2 ou 3)
         const attemptNum = parseInt(actionType.split('_')[1]);
         
         currentGroup = document.getElementById('group-contato');
@@ -628,13 +632,11 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
             const radios = currentGroup.querySelectorAll('input[name="follow-up-contact-succeeded"]');
             radios.forEach(r => { r.disabled = false; r.required = true; });
 
-            // Se vier pré-preenchido do botão rápido
             if (preFilledData && preFilledData.succeeded) {
                 const radio = currentGroup.querySelector(`input[value="${preFilledData.succeeded}"]`);
                 if(radio) radio.checked = true;
                 toggleOccurrenceContactFields(preFilledData.succeeded === 'yes');
             } else {
-                // Carrega do banco para edição
                 const currentSucceededValue = record[`contactSucceeded_${attemptNum}`]; 
                 const radioChecked = document.querySelector(`input[name="follow-up-contact-succeeded"][value="${currentSucceededValue}"]`);
                 if (radioChecked) radioChecked.checked = true;
@@ -644,8 +646,8 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
             document.getElementById('follow-up-contact-type').value = record[`contactType_${attemptNum}`] || '';
             const contactDateInput = document.getElementById('follow-up-contact-date');
             contactDateInput.value = record[`contactDate_${attemptNum}`] || '';
+            document.getElementById('follow-up-contact-person').value = record[`contactPerson_${attemptNum}`] || '';
             
-            // Data mínima = Data da Convocação correspondente
             const meetingDate = record[`meetingDate_${attemptNum}`] || (attemptNum == 1 ? record.meetingDate : null);
             if (meetingDate) contactDateInput.min = meetingDate;
 
@@ -774,9 +776,9 @@ async function handleOccurrenceSubmit(e) {
                         occurrenceGroupId: groupId,
                         statusIndividual: 'Aguardando Convocação 1',
                         meetingDate: null, meetingTime: null, 
-                        contactSucceeded_1: null, contactType_1: null, contactDate_1: null, providenciasFamilia_1: null,
-                        contactSucceeded_2: null, contactType_2: null, contactDate_2: null, providenciasFamilia_2: null,
-                        contactSucceeded_3: null, contactType_3: null, contactDate_3: null, providenciasFamilia_3: null,
+                        contactSucceeded_1: null, contactType_1: null, contactDate_1: null, contactPerson_1: null, providenciasFamilia_1: null,
+                        contactSucceeded_2: null, contactType_2: null, contactDate_2: null, contactPerson_2: null, providenciasFamilia_2: null,
+                        contactSucceeded_3: null, contactType_3: null, contactDate_3: null, contactPerson_3: null, providenciasFamilia_3: null,
                         oficioNumber: null, oficioYear: null, ctSentDate: null,
                         ctFeedback: null, parecerFinal: null,
                         desfechoChoice: null,
@@ -834,9 +836,9 @@ async function handleOccurrenceSubmit(e) {
                     occurrenceGroupId: newGroupId,
                     statusIndividual: 'Aguardando Convocação 1',
                     meetingDate: null, meetingTime: null,
-                    contactSucceeded_1: null, contactType_1: null, contactDate_1: null, providenciasFamilia_1: null,
-                    contactSucceeded_2: null, contactType_2: null, contactDate_2: null, providenciasFamilia_2: null,
-                    contactSucceeded_3: null, contactType_3: null, contactDate_3: null, providenciasFamilia_3: null,
+                    contactSucceeded_1: null, contactType_1: null, contactDate_1: null, contactPerson_1: null, providenciasFamilia_1: null,
+                    contactSucceeded_2: null, contactType_2: null, contactDate_2: null, contactPerson_2: null, providenciasFamilia_2: null,
+                    contactSucceeded_3: null, contactType_3: null, contactDate_3: null, contactPerson_3: null, providenciasFamilia_3: null,
                     oficioNumber: null, oficioYear: null, ctSentDate: null,
                     ctFeedback: null, parecerFinal: null,
                     desfechoChoice: null
@@ -917,8 +919,6 @@ async function handleOccurrenceStepSubmit(e) {
                     });
                     
                     // Adiciona o registro atual ao batch (será executado junto)
-                    // Mas precisamos continuar o fluxo normal para este registro para fechar modal e notificar
-                    // Então faremos o update localmente aqui e deixaremos o fluxo normal cuidar do ATUAL.
                     await batch.commit();
                     showToast(`Agendamento replicado para mais ${otherPendingRecords.length} alunos.`);
                 }
@@ -944,7 +944,9 @@ async function handleOccurrenceStepSubmit(e) {
                 succeeded: `contactSucceeded_${attemptNum}`,
                 type: `contactType_${attemptNum}`,
                 date: `contactDate_${attemptNum}`,
-                providencias: `providenciasFamilia_${attemptNum}`
+                person: `contactPerson_${attemptNum}`, 
+                providencias: `providenciasFamilia_${attemptNum}`,
+                print: `contactPrint_${attemptNum}` // NOVO: Campo de print
             };
 
             if (contactSucceeded === 'yes') {
@@ -952,22 +954,26 @@ async function handleOccurrenceStepSubmit(e) {
                     [fields.succeeded]: 'yes',
                     [fields.type]: document.getElementById('follow-up-contact-type').value,
                     [fields.date]: document.getElementById('follow-up-contact-date').value,
+                    [fields.person]: document.getElementById('follow-up-contact-person').value.trim(),
                     [fields.providencias]: document.getElementById('follow-up-family-actions').value,
+                    [fields.print]: pendingImageBase64 // Salva a imagem base64
                 };
-                if (!dataToUpdate[fields.type] || !dataToUpdate[fields.date] || !dataToUpdate[fields.providencias]) {
-                     return showAlert('Preencha Tipo, Data e Providências.');
+                if (!dataToUpdate[fields.type] || !dataToUpdate[fields.date] || !dataToUpdate[fields.providencias] || !dataToUpdate[fields.person]) {
+                     return showAlert('Preencha Tipo, Data, Com quem falou e Providências.');
                 }
                 
                 const dateCheck = validateOccurrenceChronology(record, actionType, dataToUpdate[fields.date]);
                 if (!dateCheck.isValid) return showAlert(dateCheck.message);
 
-                historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato realizado com sucesso.`;
+                historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato realizado com ${dataToUpdate[fields.person]}.`;
+                if(pendingImageBase64) historyAction += " (Com anexo).";
+                
                 nextStatus = 'Aguardando Desfecho'; 
 
             } else { 
                 dataToUpdate = {
                     [fields.succeeded]: 'no',
-                    [fields.type]: null, [fields.date]: null, [fields.providencias]: null, 
+                    [fields.type]: null, [fields.date]: null, [fields.person]: null, [fields.providencias]: null, [fields.print]: null
                 };
                 historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato sem sucesso.`;
                 
@@ -1047,24 +1053,20 @@ async function handleOccurrenceStepSubmit(e) {
         const studentId = form.dataset.studentId;
         const student = state.students.find(s => s.matricula === studentId);
 
-        // Se foi um encaminhamento ao CT, abrimos o ofício automaticamente
         if (actionType === 'desfecho_ou_ct' && dataToUpdate.desfechoChoice === 'ct') {
              if(student) {
                  generateAndShowOccurrenceOficio({ ...record, ...dataToUpdate }, student, dataToUpdate.oficioNumber, dataToUpdate.oficioYear);
              }
         }
 
-        // Se foi um agendamento de convocação, abre notificação
         if (actionType.startsWith('convocacao_') && student) {
             const incident = await fetchIncidentById(record.occurrenceGroupId);
             const updatedRecordForNotification = { ...record, ...dataToUpdate };
             if (incident) {
-                // Atualiza localmente para notificação imediata
                 const recordIndex = incident.records.findIndex(r => r.id === recordId);
                 if (recordIndex > -1) incident.records[recordIndex] = updatedRecordForNotification;
                 else incident.records.push(updatedRecordForNotification);
                 
-                // Passa o número da tentativa
                 const attemptNum = parseInt(actionType.split('_')[1]) || 1;
                 openIndividualNotificationModal(incident, student, attemptNum);
             }
@@ -1292,6 +1294,28 @@ export const initOccurrenceListeners = () => {
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.followUpForm.addEventListener('submit', handleOccurrenceStepSubmit);
     
+    // LISTENER DE UPLOAD DE ARQUIVO
+    const fileInput = document.getElementById('follow-up-contact-print');
+    if (fileInput) {
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            document.getElementById('follow-up-print-label').textContent = 'Processando...';
+            try {
+                // Compressa a imagem antes de salvar na memória
+                pendingImageBase64 = await compressImage(file);
+                document.getElementById('follow-up-print-label').textContent = 'Imagem Anexada';
+                document.getElementById('follow-up-print-check').classList.remove('hidden');
+            } catch (err) {
+                console.error("Erro ao processar imagem:", err);
+                showAlert("Erro ao processar imagem. Tente outra.");
+                pendingImageBase64 = null;
+                document.getElementById('follow-up-print-label').textContent = 'Erro';
+            }
+        });
+    }
+
     const sendCtForm = document.getElementById('send-occurrence-ct-form');
     if (sendCtForm) {
         const closeSendCtBtn = document.getElementById('close-send-ct-modal-btn');
@@ -1302,6 +1326,9 @@ export const initOccurrenceListeners = () => {
     }
 
     dom.occurrencesListDiv.addEventListener('click', (e) => {
+        // Habilita a função global para o botão de ver imagem (injetado via HTML string)
+        window.viewImage = (img, title) => openImageModal(img, title);
+
         const button = e.target.closest('button');
         if (button) {
             e.stopPropagation(); 
