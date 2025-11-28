@@ -129,10 +129,16 @@ export const compressImage = (file) => {
                 }
                 
                 const ctx = canvas.getContext('2d');
+                
+                // CORREÇÃO CRÍTICA PARA PRINTS DE WHATSAPP (PNG -> JPEG = PRETO)
+                // Preenche o fundo com branco antes de desenhar a imagem
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 
-                // Compressa para JPEG qualidade 0.6
-                resolve(canvas.toDataURL('image/jpeg', 0.6)); 
+                // Compressa para JPEG qualidade 0.7 (Um pouco melhor para texto de print)
+                resolve(canvas.toDataURL('image/jpeg', 0.7)); 
             };
             img.onerror = (err) => reject(err);
         };
