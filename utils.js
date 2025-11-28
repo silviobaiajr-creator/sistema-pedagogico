@@ -106,80 +106,90 @@ export const openImageModal = (base64Image, title = 'Anexo') => {
     }
 };
 
-// --- COMPRESSOR DE IMAGEM OTIMIZADO PARA PRINTS LONGOS ---
+// --- COMPRESSOR DE IMAGEM OTIMIZADO PARA PRINTS LONGOS (TILING) ---
 export const compressImage = (file) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
+        
         reader.onload = (event) => {
             const img = new Image();
             img.src = event.target.result;
+            
             img.onload = () => {
-                // Dimensões originais
                 let width = img.width;
                 let height = img.height;
 
-                // --- ESTRATÉGIA DE REDIMENSIONAMENTO DEFENSIVO ---
-                
-                // 1. Limite de Megapixels (Area)
-                // Evita estouro de memória RAM ao manipular o canvas
-                const MAX_MEGAPIXELS = 3 * 1024 * 1024; // 3MP (aprox. resolução 1500x2000)
-                let currentArea = width * height;
-                
-                if (currentArea > MAX_MEGAPIXELS) {
-                    const scaleArea = Math.sqrt(MAX_MEGAPIXELS / currentArea);
-                    width *= scaleArea;
-                    height *= scaleArea;
-                }
+                // Limites seguros para navegadores móveis (Canvas Limit)
+                // Prints de WhatsApp precisam de largura razoável para leitura (800px)
+                const MAX_WIDTH = 800; 
+                // Altura segura abaixo do limite comum de 4096px do iOS/Android
+                const SAFE_HEIGHT = 4000; 
 
-                // 2. Limite Rígido de Dimensão (Hard Cap)
-                // Navegadores Mobile (iOS Safari / Android Chrome) muitas vezes têm limite de 4096px
-                // Se passar disso, o canvas renderiza EM BRANCO ou PRETO.
-                const MAX_SAFE_DIMENSION = 3800; // Margem de segurança abaixo de 4096
-
-                if (height > MAX_SAFE_DIMENSION) {
-                    const scaleH = MAX_SAFE_DIMENSION / height;
-                    width *= scaleH;
-                    height *= scaleH;
-                }
-                
-                if (width > MAX_SAFE_DIMENSION) {
-                    const scaleW = MAX_SAFE_DIMENSION / width;
+                // 1. Ajusta Largura (Prioridade: Legibilidade)
+                if (width > MAX_WIDTH) {
+                    const scaleW = MAX_WIDTH / width;
                     width *= scaleW;
                     height *= scaleW;
                 }
 
-                // Garante inteiros
+                // 2. Ajusta Altura (Prioridade: Não quebrar o Canvas)
+                // Se ainda estiver muito alto, reduz proporcionalmente
+                if (height > SAFE_HEIGHT) {
+                    const scaleH = SAFE_HEIGHT / height;
+                    width *= scaleH;
+                    height *= scaleH;
+                }
+
                 width = Math.floor(width);
                 height = Math.floor(height);
 
                 const canvas = document.createElement('canvas');
                 canvas.width = width;
                 canvas.height = height;
-                
                 const ctx = canvas.getContext('2d');
-                
-                // 3. Fundo Branco (Correção para PNG transparente)
+
+                // Fundo Branco (Corrige PNGs transparentes)
                 ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                // 4. Desenha a imagem redimensionada
+                ctx.fillRect(0, 0, width, height);
+
+                // --- TÉCNICA DE TILING (Renderização em Blocos) ---
+                // Desenha a imagem em fatias para evitar estouro de memória da GPU em imagens gigantes
+                const tileHeight = 1024; // Tamanho do bloco
+                const totalTiles = Math.ceil(img.height / tileHeight);
+                const scale = width / img.width; // Fator de escala final
+
                 try {
-                    // O redimensionamento ocorre aqui, usando o algoritmo interno do browser
-                    // Como garantimos que width/height estão dentro dos limites seguros, não deve falhar.
-                    ctx.drawImage(img, 0, 0, width, height);
-                    
-                    // 5. Exporta para JPEG com qualidade média
+                    for (let i = 0; i < totalTiles; i++) {
+                        const sy = i * tileHeight; // Y de origem
+                        const sh = Math.min(tileHeight, img.height - sy); // Altura do pedaço origem
+                        
+                        const dy = Math.floor(sy * scale); // Y de destino
+                        const dh = Math.ceil(sh * scale);  // Altura do pedaço destino (ceil evita linhas brancas)
+
+                        // Desenha apenas este pedaço
+                        ctx.drawImage(img, 0, sy, img.width, sh, 0, dy, width, dh);
+                    }
+
+                    // Exporta
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    
+                    // Validação simples
+                    if (dataUrl.length < 100 || dataUrl === 'data:,') {
+                        throw new Error("Canvas gerou imagem vazia.");
+                    }
+                    
                     resolve(dataUrl);
                 } catch (e) {
-                    console.error("Erro crítico ao desenhar imagem no canvas:", e);
-                    reject(new Error("A imagem é muito grande para este dispositivo. Tente recortá-la."));
+                    console.error("Erro crítico na renderização do canvas:", e);
+                    reject(new Error("A imagem é muito complexa para este dispositivo."));
                 }
             };
-            img.onerror = (err) => reject(new Error("Arquivo de imagem inválido."));
+            
+            img.onerror = () => reject(new Error("Arquivo de imagem inválido ou corrompido."));
         };
-        reader.onerror = (error) => reject(error);
+        
+        reader.onerror = () => reject(new Error("Erro ao ler o arquivo."));
     });
 };
 
