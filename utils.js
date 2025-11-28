@@ -116,28 +116,49 @@ export const compressImage = (file) => {
             img.src = event.target.result;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                // Redimensiona para max 800px de largura para economizar espaço
-                const MAX_WIDTH = 800;
-                const scaleSize = MAX_WIDTH / img.width;
                 
-                if (img.width > MAX_WIDTH) {
-                    canvas.width = MAX_WIDTH;
-                    canvas.height = img.height * scaleSize;
+                // CONFIGURAÇÃO DE LIMITES SEGUROS
+                // Max Width 1024px é bom para leitura em telas
+                // Max Height 3500px evita que prints longos "quebrem" o canvas (tela branca)
+                const MAX_WIDTH = 1024;
+                const MAX_HEIGHT = 3500; 
+                
+                let width = img.width;
+                let height = img.height;
+
+                // Redimensionamento Proporcional Inteligente
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height = Math.round(height * (MAX_WIDTH / width));
+                        width = MAX_WIDTH;
+                    }
                 } else {
-                    canvas.width = img.width;
-                    canvas.height = img.height;
+                    if (height > MAX_HEIGHT) {
+                        width = Math.round(width * (MAX_HEIGHT / height));
+                        height = MAX_HEIGHT;
+                    }
+                    // Verificação secundária de largura após ajuste de altura
+                    if (width > MAX_WIDTH) {
+                        height = Math.round(height * (MAX_WIDTH / width));
+                        width = MAX_WIDTH;
+                    }
                 }
+                
+                canvas.width = width;
+                canvas.height = height;
                 
                 const ctx = canvas.getContext('2d');
                 
-                // CORREÇÃO CRÍTICA PARA PRINTS DE WHATSAPP (PNG -> JPEG = PRETO)
-                // Preenche o fundo com branco antes de desenhar a imagem
+                // CORREÇÃO CRÍTICA PARA PRINTS DE WHATSAPP (PNG -> JPEG)
+                // 1. Preenche o fundo com BRANCO (evita fundo preto em transparências)
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
+                // 2. Desenha a imagem redimensionada por cima
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 
-                // Compressa para JPEG qualidade 0.7 (Um pouco melhor para texto de print)
+                // 3. Exporta para JPEG com qualidade otimizada (0.7)
+                // Isso garante que o texto continue legível mas o arquivo fique leve
                 resolve(canvas.toDataURL('image/jpeg', 0.7)); 
             };
             img.onerror = (err) => reject(err);
