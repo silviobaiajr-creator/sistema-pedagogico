@@ -1,7 +1,8 @@
 
+
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 4.0 (Com Exibição de Prints/Anexos nos Relatórios)
+// VERSÃO: 4.1 (Grid de Prints/Anexos nos Relatórios)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -85,14 +86,32 @@ export const getReportHeaderHTML = () => {
 };
 
 /**
- * Helper para renderizar imagem de print no relatório
+ * Helper para renderizar GRUPO de imagens (Grid)
  */
-const getPrintHTML = (base64Image) => {
-    if (!base64Image) return '';
+const getPrintHTML = (prints, singlePrintFallback) => {
+    // Normaliza para array de imagens válidas
+    let images = [];
+    if (Array.isArray(prints) && prints.length > 0) {
+        images = prints;
+    } else if (singlePrintFallback) {
+        images = [singlePrintFallback];
+    }
+
+    if (images.length === 0) return '';
+
+    // Define layout: Grid para múltiplas, Flex centralizado para uma
+    const gridClass = images.length > 1 ? 'grid grid-cols-2 gap-2' : 'flex justify-center';
+
+    const imgsHtml = images.map(src => 
+        `<img src="${src}" class="max-w-full h-auto max-h-[300px] border rounded shadow-sm object-contain bg-white mx-auto" alt="Comprovante">`
+    ).join('');
+
     return `
-        <div class="mt-2 mb-2 p-2 border border-gray-200 rounded bg-gray-50">
-            <p class="text-xs font-bold text-gray-500 mb-1"><i class="fas fa-paperclip"></i> Comprovante de Contato (Anexo):</p>
-            <img src="${base64Image}" class="max-w-full max-h-[300px] border rounded shadow-sm mx-auto block" alt="Comprovante">
+        <div class="mt-2 mb-2 p-2 border border-gray-200 rounded bg-gray-50 break-inside-avoid">
+            <p class="text-xs font-bold text-gray-500 mb-1"><i class="fas fa-paperclip"></i> Comprovantes Anexados (${images.length}):</p>
+            <div class="${gridClass}">
+                ${imgsHtml}
+            </div>
         </div>
     `;
 };
@@ -349,14 +368,15 @@ export const openOccurrenceRecordModal = async (groupId) => {
                     const date = rec[`contactDate_${i}`];
                     const person = rec[`contactPerson_${i}`];
                     const providencias = rec[`providenciasFamilia_${i}`];
-                    const print = rec[`contactPrint_${i}`];
+                    const prints = rec[`contactPrints_${i}`];
+                    const legacyPrint = rec[`contactPrint_${i}`];
                     
                     if (succeeded != null) {
                         // Se teve feedback, houve tentativa. Se sucesso, mostra detalhes. Se não, mostra falha.
                         if (succeeded === 'yes') {
                             textoAcoesAluno += `<li><strong>Ação 3 (Feedback da ${i}ª Tentativa):</strong> Contato Realizado em ${formatDate(date)} com ${person || 'Responsável'}. Providências: ${formatText(providencias)}.</li>`;
-                            // INSERE O PRINT SE HOUVER
-                            textoAcoesAluno += getPrintHTML(print);
+                            // INSERE O BLOCO DE PRINTS (MÚLTIPLOS)
+                            textoAcoesAluno += getPrintHTML(prints, legacyPrint);
                         } else {
                             textoAcoesAluno += `<li><strong>Ação 3 (Feedback da ${i}ª Tentativa):</strong> Sem sucesso.</li>`;
                         }
@@ -652,7 +672,7 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
                 <p><strong>Conseguiu contato?</strong> ${attempt.contactSucceeded === 'yes' ? 'Sim' : attempt.contactSucceeded === 'no' ? 'Não' : ''}</p>
                 <p><strong>Dia do contato:</strong> ${formatDate(attempt.contactDate)}</p>
                 <p><strong>Justificativa:</strong> ${formatText(attempt.contactReason)}</p>
-                ${getPrintHTML(attempt.contactPrint)}
+                ${getPrintHTML(attempt.contactPrints, attempt.contactPrint)}
             </div>`;
     };
 
