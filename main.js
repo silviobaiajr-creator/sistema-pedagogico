@@ -1,13 +1,13 @@
 
 // =================================================================================
 // ARQUIVO: main.js
-// VERSÃO: 3.1 (Navegação via Cards)
+// VERSÃO: 3.2 (Com Verificação de Email Obrigatória)
 
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { onSnapshot, query, writeBatch, doc, where, getDocs, limit, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
-import { showToast, closeModal, shareContent, openModal, loadScript } from './utils.js';
+import { showToast, closeModal, shareContent, openModal, showAlert } from './utils.js'; // Adicionado showAlert
 import { loadStudents, loadSchoolConfig, getCollectionRef, deleteRecord, updateRecordWithHistory } from './firestore.js';
 
 import { initAuthListeners } from './auth.js';
@@ -29,7 +29,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     onAuthStateChanged(auth, async user => {
         detachFirestoreListeners();
+        
         if (user) {
+            // --- BLOQUEIO DE SEGURANÇA: EMAIL NÃO VERIFICADO ---
+            if (!user.emailVerified) {
+                // Se o email não foi verificado, mostramos alerta e deslogamos
+                showAlert("Acesso negado: Seu email ainda não foi verificado. Por favor, cheque sua caixa de entrada.");
+                await signOut(auth);
+                return; // Interrompe o carregamento do app
+            }
+            // ---------------------------------------------------
+
             state.userId = user.uid;
             state.userEmail = user.email;
             dom.userEmail.textContent = user.email || `Utilizador: ${user.uid.substring(0, 8)}`;
@@ -74,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
         } else {
-            // Logout
+            // Logout / Não Autenticado
             state.userId = null; state.userEmail = null; state.students = []; state.occurrences = []; state.absences = [];
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
