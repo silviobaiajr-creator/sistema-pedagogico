@@ -115,58 +115,62 @@ export const compressImage = (file) => {
             const img = new Image();
             img.src = event.target.result;
             img.onload = () => {
-                const canvas = document.createElement('canvas');
-                
-                // Limites de segurança para visualização em tela e banco de dados
-                // 1200px de largura é suficiente para ler texto de chat
-                // 5000px de altura cobre a maioria dos prints longos sem estourar o canvas
-                const MAX_WIDTH = 1200;
-                const MAX_HEIGHT = 5000; 
-                
+                // Dimensões originais
                 let width = img.width;
                 let height = img.height;
 
-                // CÁLCULO DE PROPORÇÃO (ASPECT RATIO) CORRETO
-                // Encontra o fator de escala necessário para caber na caixa limitadora
-                // Math.min garante que respeitamos o lado que "estoura" mais
-                let scale = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
+                // Limites de segurança ajustados para Mobile (iOS/Android Canvas limits)
+                // 3500px é um limite seguro. Acima de 4096px muitos celulares falham.
+                const MAX_WIDTH = 1200;
+                const MAX_HEIGHT = 3500; 
 
-                // Se a imagem for menor que o limite, não aumentamos (scale seria > 1)
-                // Mantemos o tamanho original (scale = 1)
-                if (scale > 1) {
-                    scale = 1;
+                // Cálculo de Proporção (Aspect Ratio) Seguro
+                // Determina quanto precisamos reduzir em cada dimensão
+                let ratioWidth = 1;
+                let ratioHeight = 1;
+
+                if (width > MAX_WIDTH) {
+                    ratioWidth = MAX_WIDTH / width;
+                }
+                if (height > MAX_HEIGHT) {
+                    ratioHeight = MAX_HEIGHT / height;
                 }
 
-                // Calcula novas dimensões
+                // Usa o menor ratio para garantir que a imagem caiba inteira nas duas dimensões
+                // sem distorcer e sem exceder os limites do dispositivo
+                let scale = Math.min(ratioWidth, ratioHeight);
+
+                // Calcula novas dimensões inteiras
                 const newWidth = Math.floor(width * scale);
                 const newHeight = Math.floor(height * scale);
 
-                // Define tamanho do canvas
+                const canvas = document.createElement('canvas');
                 canvas.width = newWidth;
                 canvas.height = newHeight;
                 
                 const ctx = canvas.getContext('2d');
                 
-                // 1. Pinta o fundo de BRANCO
-                // Isso resolve o problema de prints PNG transparentes ficarem pretos ao converter para JPEG
+                // 1. Pinta o fundo de BRANCO (Resolve transparência PNG -> Preto)
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
                 // 2. Desenha a imagem redimensionada
-                // Usa os 9 parâmetros para garantir mapeamento explícito de origem -> destino
-                // (img, x_fonte, y_fonte, w_fonte, h_fonte, x_dest, y_dest, w_dest, h_dest)
                 try {
-                    ctx.drawImage(img, 0, 0, width, height, 0, 0, newWidth, newHeight);
+                    // Usamos drawImage com dimensões explícitas para forçar o navegador a fazer o trabalho pesado
+                    // de reamostragem dentro dos limites seguros do canvas que acabamos de criar.
+                    ctx.drawImage(img, 0, 0, newWidth, newHeight);
                     
-                    // 3. Exporta para JPEG com qualidade 0.8 (Bom equilíbrio tamanho/qualidade)
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                    // 3. Exporta para JPEG
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
                     resolve(dataUrl);
                 } catch (e) {
-                    console.error("Erro ao desenhar no canvas:", e);
-                    reject(new Error("Falha ao processar imagem (tamanho ou formato incompatível)."));
+                    console.error("Erro ao processar imagem (provavelmente muito grande):", e);
+                    // Em caso de falha catastrófica, tenta retornar sem compressão (arriscado, mas fallback) 
+                    // ou rejeita para o usuário tentar outra.
+                    reject(new Error("A imagem é muito grande para ser processada pelo navegador. Tente cortá-la."));
                 }
             };
-            img.onerror = (err) => reject(err);
+            img.onerror = (err) => reject(new Error("Arquivo de imagem inválido ou corrompido."));
         };
         reader.onerror = (error) => reject(error);
     });
