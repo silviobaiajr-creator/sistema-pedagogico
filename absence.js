@@ -1,8 +1,7 @@
 
-
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 5.5 (Suporte a Múltiplos Anexos de Print no Contato)
+// VERSÃO: 5.4 (Suporte a Anexo de Print no Contato)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -16,7 +15,7 @@ import { db } from './firebase.js';
 
 // --- Funções Auxiliares ---
 
-let pendingAbsenceImagesBase64 = []; // Armazena o Array de imagens comprimidas temporariamente
+let pendingAbsenceImageBase64 = null; // Armazena a imagem comprimida temporariamente
 
 const normalizeText = (text) => {
     if (!text) return '';
@@ -350,17 +349,10 @@ export const renderAbsences = () => {
                 }
 
                 // Botão de Ver Print
-                let prints = [];
-                if (abs.contactPrints && Array.isArray(abs.contactPrints) && abs.contactPrints.length > 0) {
-                    prints = abs.contactPrints;
-                } else if (abs.contactPrint) {
-                    prints = [abs.contactPrint]; // Legado
-                }
-
-                if (prints.length > 0) {
+                if (abs.contactPrint) {
                     viewButtonHtml += `
-                        <button type="button" class="text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${prints[0]}', 'Print Anexado (${prints.length} imagens)')">
-                            [<i class="fas fa-images fa-fw"></i> Ver ${prints.length > 1 ? prints.length + ' Prints' : 'Print'}]
+                        <button type="button" class="text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${abs.contactPrint}', 'Print Anexado')">
+                            [<i class="fas fa-image fa-fw"></i> Ver Print]
                         </button>`;
                 }
 
@@ -596,13 +588,8 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
  */
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null, preFilledData = null) => {
     dom.absenceForm.reset();
-    
-    pendingAbsenceImagesBase64 = []; // Reseta array de imagens
-    const previewContainer = document.getElementById('absence-print-preview');
-    if (previewContainer) {
-        previewContainer.innerHTML = '<p class="text-xs text-gray-400 m-auto">Nenhuma imagem selecionada</p>';
-    }
-    document.getElementById('absence-print-label').textContent = 'Selecionar Imagens';
+    pendingAbsenceImageBase64 = null; // Reseta imagem
+    document.getElementById('absence-print-label').textContent = 'Selecionar Imagem';
     document.getElementById('absence-print-check').classList.add('hidden');
 
     ['meeting-date', 'contact-date', 'visit-date', 'ct-sent-date'].forEach(id => { 
@@ -786,7 +773,8 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 document.getElementById('contact-person').value = data.contactPerson || '';
                 document.getElementById('contact-reason').value = data.contactReason || '';
                 
-                // Nota: Edição de imagens não é exibida no input, apenas mantida internamente se não alterada
+                // Print já existente não é mostrado no input, apenas mantido se não alterado
+                // Mas não carregamos base64 de volta para o input file (impossível no browser)
                 
                 const contactReturnedRadio = document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`);
                 if(contactReturnedRadio) contactReturnedRadio.checked = true;
@@ -899,9 +887,9 @@ async function handleAbsenceSubmit(e) {
     const data = getAbsenceFormData();
     if (!data) return; 
 
-    // Adiciona os prints comprimidos se houver
-    if (pendingAbsenceImagesBase64.length > 0) {
-        data.contactPrints = pendingAbsenceImagesBase64; // Plural e Array
+    // Adiciona o print comprimido se houver
+    if (pendingAbsenceImageBase64) {
+        data.contactPrint = pendingAbsenceImageBase64;
     }
 
     const id = data.id; 
@@ -910,21 +898,16 @@ async function handleAbsenceSubmit(e) {
         const existingAction = state.absences.find(a => a.id === id);
         if (existingAction) {
             for (const key in data) {
-                // Preserva dados antigos se o form vier vazio e o antigo tiver valor
+                // Preserva dados antigos se o form vier vazio e o antigo tiver valor (exceto print, que só atualiza se tiver novo)
                 if (data[key] === null && existingAction[key] != null) {
-                    if (key !== 'contactPrints') { 
+                    if (key !== 'contactPrint') { // Print é tratado separadamente
                         data[key] = existingAction[key];
                     }
                 }
             }
             // Se não subiu nova imagem, mantém a antiga se existir
-            if (pendingAbsenceImagesBase64.length === 0) {
-                // Tenta recuperar do array novo ou do campo legado
-                if (existingAction.contactPrints) {
-                    data.contactPrints = existingAction.contactPrints;
-                } else if (existingAction.contactPrint) {
-                    data.contactPrints = [existingAction.contactPrint];
-                }
+            if (!pendingAbsenceImageBase64 && existingAction.contactPrint) {
+                data.contactPrint = existingAction.contactPrint;
             }
         }
     }
@@ -1236,41 +1219,23 @@ export const initAbsenceListeners = () => {
         dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
     }
     
-    // UPLOAD IMAGE LISTENER (MÚLTIPLO)
+    // UPLOAD IMAGE LISTENER
     const absenceFileInput = document.getElementById('absence-contact-print');
     if (absenceFileInput) {
         absenceFileInput.addEventListener('change', async (e) => {
-            const files = e.target.files;
-            if (!files || files.length === 0) return;
+            const file = e.target.files[0];
+            if (!file) return;
             
-            const label = document.getElementById('absence-print-label');
-            const previewContainer = document.getElementById('absence-print-preview');
-            const check = document.getElementById('absence-print-check');
-            
-            label.textContent = 'Processando...';
-            previewContainer.innerHTML = '';
-            pendingAbsenceImagesBase64 = []; // Reset
-
+            document.getElementById('absence-print-label').textContent = 'Processando...';
             try {
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    const base64 = await compressImage(file);
-                    pendingAbsenceImagesBase64.push(base64);
-
-                    const imgThumb = document.createElement('img');
-                    imgThumb.src = base64;
-                    imgThumb.className = 'h-10 w-auto border rounded shadow-sm';
-                    previewContainer.appendChild(imgThumb);
-                }
-
-                label.textContent = `${files.length} Imagens Anexadas`;
-                check.classList.remove('hidden');
+                pendingAbsenceImageBase64 = await compressImage(file);
+                document.getElementById('absence-print-label').textContent = 'Imagem Anexada';
+                document.getElementById('absence-print-check').classList.remove('hidden');
             } catch (err) {
-                console.error("Erro ao processar imagens:", err);
-                showAlert("Erro ao processar imagens. Tente novamente.");
-                pendingAbsenceImagesBase64 = [];
-                label.textContent = 'Erro';
-                previewContainer.innerHTML = '<p class="text-xs text-red-400 m-auto">Erro no upload</p>';
+                console.error("Erro ao processar imagem:", err);
+                showAlert("Erro ao processar imagem. Tente outra.");
+                pendingAbsenceImageBase64 = null;
+                document.getElementById('absence-print-label').textContent = 'Erro';
             }
         });
     }

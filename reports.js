@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 4.2 (Correção Completa: Galeria de Prints em Grade)
+// VERSÃO: 4.0 (Com Exibição de Prints/Anexos nos Relatórios)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -85,30 +85,14 @@ export const getReportHeaderHTML = () => {
 };
 
 /**
- * Helper para renderizar imagens de print no relatório (Suporte a Grid/Múltiplos)
+ * Helper para renderizar imagem de print no relatório
  */
-const getPrintHTML = (singlePrint, printsArray) => {
-    // Normaliza para array
-    let images = [];
-    if (printsArray && Array.isArray(printsArray)) {
-        images = printsArray;
-    } else if (singlePrint) {
-        images = [singlePrint];
-    }
-
-    if (images.length === 0) return '';
-
-    // Gera o HTML da grid (lado a lado)
-    const imagesHTML = images.map(src => 
-        `<img src="${src}" style="width: 100%; object-fit: contain; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); display: block;" alt="Comprovante">`
-    ).join('');
-
+const getPrintHTML = (base64Image) => {
+    if (!base64Image) return '';
     return `
-        <div class="mt-2 mb-2 p-2 border border-gray-200 rounded bg-gray-50 page-break-inside-avoid">
-            <p class="text-xs font-bold text-gray-500 mb-2"><i class="fas fa-paperclip"></i> Comprovantes de Contato (${images.length}):</p>
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; align-items: start;">
-                ${imagesHTML}
-            </div>
+        <div class="mt-2 mb-2 p-2 border border-gray-200 rounded bg-gray-50">
+            <p class="text-xs font-bold text-gray-500 mb-1"><i class="fas fa-paperclip"></i> Comprovante de Contato (Anexo):</p>
+            <img src="${base64Image}" class="max-w-full max-h-[300px] border rounded shadow-sm mx-auto block" alt="Comprovante">
         </div>
     `;
 };
@@ -366,17 +350,19 @@ export const openOccurrenceRecordModal = async (groupId) => {
                     const person = rec[`contactPerson_${i}`];
                     const providencias = rec[`providenciasFamilia_${i}`];
                     const print = rec[`contactPrint_${i}`];
-                    const prints = rec[`contactPrints_${i}`];
                     
                     if (succeeded != null) {
+                        // Se teve feedback, houve tentativa. Se sucesso, mostra detalhes. Se não, mostra falha.
                         if (succeeded === 'yes') {
                             textoAcoesAluno += `<li><strong>Ação 3 (Feedback da ${i}ª Tentativa):</strong> Contato Realizado em ${formatDate(date)} com ${person || 'Responsável'}. Providências: ${formatText(providencias)}.</li>`;
-                            textoAcoesAluno += getPrintHTML(print, prints);
+                            // INSERE O PRINT SE HOUVER
+                            textoAcoesAluno += getPrintHTML(print);
                         } else {
                             textoAcoesAluno += `<li><strong>Ação 3 (Feedback da ${i}ª Tentativa):</strong> Sem sucesso.</li>`;
                         }
                     }
                     
+                    // Verifica se houve agendamento da próxima convocação (exceto para a 3ª tentativa que vai para desfecho)
                     if (i < 3) {
                         const nextMeetingDate = rec['meetingDate_' + (i+1)];
                         const nextMeetingTime = rec['meetingTime_' + (i+1)];
@@ -630,7 +616,7 @@ export const openFichaViewModal = async (id) => {
 
 /**
  * Gera a Ficha Consolidada de Busca Ativa.
- * ATUALIZADO: "Parecer BAE" sempre visível. Ofício/Devolutiva condicionais.
+ * ATUALIZADO: Inclui prints de contato (se houver).
  */
 export const generateAndShowConsolidatedFicha = async (studentId, processId = null) => {
     let studentActions = state.absences.filter(action => action.studentId === studentId);
@@ -659,11 +645,6 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
     // Helper interno para renderizar o bloco da tentativa somente se existir ID
     const renderAttemptBlock = (attempt, label, addBorder) => {
         if (!attempt || !attempt.id) return ''; // Se não tem ID, retorna string vazia
-        // Check for prints
-        let prints = [];
-        if (attempt.contactPrints && Array.isArray(attempt.contactPrints)) prints = attempt.contactPrints;
-        else if (attempt.contactPrint) prints = [attempt.contactPrint];
-
         return `
             <div class="pl-4 ${addBorder ? 'border-t pt-2' : ''}">
                 <p class="font-medium underline">${label}:</p>
@@ -671,7 +652,7 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
                 <p><strong>Conseguiu contato?</strong> ${attempt.contactSucceeded === 'yes' ? 'Sim' : attempt.contactSucceeded === 'no' ? 'Não' : ''}</p>
                 <p><strong>Dia do contato:</strong> ${formatDate(attempt.contactDate)}</p>
                 <p><strong>Justificativa:</strong> ${formatText(attempt.contactReason)}</p>
-                ${getPrintHTML(null, prints)}
+                ${getPrintHTML(attempt.contactPrint)}
             </div>`;
     };
 
@@ -791,20 +772,12 @@ export const generateAndShowOficio = async (action, oficioNumber = null) => {
 
     let attemptsSummary = contactAttempts.map((attempt, index) => {
         const attemptDate = attempt.contactDate || attempt.createdAt?.toDate();
-        // Prints
-        let prints = [];
-        if (attempt.contactPrints && Array.isArray(attempt.contactPrints)) prints = attempt.contactPrints;
-        else if (attempt.contactPrint) prints = [attempt.contactPrint];
-
         return `
-            <div class="ml-4 mb-2">
-                <p>- <strong>${index + 1}ª Tentativa (${formatDate(attemptDate)}):</strong>
-                ${attempt.contactSucceeded === 'yes'
-                    ? `Contato realizado com ${formatText(attempt.contactPerson)}. Justificativa: ${formatText(attempt.contactReason)}.`
-                    : 'Não foi possível estabelecer contato.'}
-                </p>
-                ${getPrintHTML(null, prints)}
-            </div>
+            <p class="ml-4">- <strong>${index + 1}ª Tentativa (${formatDate(attemptDate)}):</strong>
+            ${attempt.contactSucceeded === 'yes'
+                ? `Contato realizado com ${formatText(attempt.contactPerson)}. Justificativa: ${formatText(attempt.contactReason)}.`
+                : 'Não foi possível estabelecer contato.'}
+            </p>
         `;
     }).join('');
     if (!attemptsSummary) attemptsSummary = "<p class='ml-4'>Nenhuma tentativa de contato registrada.</p>";
@@ -882,9 +855,6 @@ export const generateAndShowOccurrenceOficio = async (record, studentObj, oficio
         const succeeded = record['contactSucceeded_' + i];
         const contactDate = record['contactDate_' + i];
         const providencias = record['providenciasFamilia_' + i];
-        // Prints
-        const print = record['contactPrint_' + i];
-        const prints = record['contactPrints_' + i];
 
         if (mDate) {
             let statusText = "Aguardando retorno.";
@@ -894,7 +864,7 @@ export const generateAndShowOccurrenceOficio = async (record, studentObj, oficio
                 statusText = "Responsável não compareceu / Sem sucesso no contato.";
             }
 
-            attemptsSummary += `<div class="ml-4 mt-2"><p>- <strong>${i}ª Convocação (${formatDate(mDate)}):</strong> ${statusText}</p>${getPrintHTML(print, prints)}</div>`;
+            attemptsSummary += `<p class="ml-4 mt-1">- <strong>${i}ª Convocação (${formatDate(mDate)}):</strong> ${statusText}</p>`;
         }
     }
     if (!attemptsSummary) attemptsSummary = "<p class='ml-4'>Nenhuma tentativa de convocação registrada até o momento.</p>";
