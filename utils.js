@@ -119,58 +119,65 @@ export const compressImage = (file) => {
                 let width = img.width;
                 let height = img.height;
 
-                // Limites de segurança ajustados para Mobile (iOS/Android Canvas limits)
-                // 3500px é um limite seguro. Acima de 4096px muitos celulares falham.
-                const MAX_WIDTH = 1200;
-                const MAX_HEIGHT = 3500; 
-
-                // Cálculo de Proporção (Aspect Ratio) Seguro
-                // Determina quanto precisamos reduzir em cada dimensão
-                let ratioWidth = 1;
-                let ratioHeight = 1;
-
-                if (width > MAX_WIDTH) {
-                    ratioWidth = MAX_WIDTH / width;
-                }
-                if (height > MAX_HEIGHT) {
-                    ratioHeight = MAX_HEIGHT / height;
+                // --- ESTRATÉGIA DE REDIMENSIONAMENTO DEFENSIVO ---
+                
+                // 1. Limite de Megapixels (Area)
+                // Evita estouro de memória RAM ao manipular o canvas
+                const MAX_MEGAPIXELS = 3 * 1024 * 1024; // 3MP (aprox. resolução 1500x2000)
+                let currentArea = width * height;
+                
+                if (currentArea > MAX_MEGAPIXELS) {
+                    const scaleArea = Math.sqrt(MAX_MEGAPIXELS / currentArea);
+                    width *= scaleArea;
+                    height *= scaleArea;
                 }
 
-                // Usa o menor ratio para garantir que a imagem caiba inteira nas duas dimensões
-                // sem distorcer e sem exceder os limites do dispositivo
-                let scale = Math.min(ratioWidth, ratioHeight);
+                // 2. Limite Rígido de Dimensão (Hard Cap)
+                // Navegadores Mobile (iOS Safari / Android Chrome) muitas vezes têm limite de 4096px
+                // Se passar disso, o canvas renderiza EM BRANCO ou PRETO.
+                const MAX_SAFE_DIMENSION = 3800; // Margem de segurança abaixo de 4096
 
-                // Calcula novas dimensões inteiras
-                const newWidth = Math.floor(width * scale);
-                const newHeight = Math.floor(height * scale);
+                if (height > MAX_SAFE_DIMENSION) {
+                    const scaleH = MAX_SAFE_DIMENSION / height;
+                    width *= scaleH;
+                    height *= scaleH;
+                }
+                
+                if (width > MAX_SAFE_DIMENSION) {
+                    const scaleW = MAX_SAFE_DIMENSION / width;
+                    width *= scaleW;
+                    height *= scaleW;
+                }
+
+                // Garante inteiros
+                width = Math.floor(width);
+                height = Math.floor(height);
 
                 const canvas = document.createElement('canvas');
-                canvas.width = newWidth;
-                canvas.height = newHeight;
+                canvas.width = width;
+                canvas.height = height;
                 
                 const ctx = canvas.getContext('2d');
                 
-                // 1. Pinta o fundo de BRANCO (Resolve transparência PNG -> Preto)
+                // 3. Fundo Branco (Correção para PNG transparente)
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
-                // 2. Desenha a imagem redimensionada
+                // 4. Desenha a imagem redimensionada
                 try {
-                    // Usamos drawImage com dimensões explícitas para forçar o navegador a fazer o trabalho pesado
-                    // de reamostragem dentro dos limites seguros do canvas que acabamos de criar.
-                    ctx.drawImage(img, 0, 0, newWidth, newHeight);
+                    // O redimensionamento ocorre aqui, usando o algoritmo interno do browser
+                    // Como garantimos que width/height estão dentro dos limites seguros, não deve falhar.
+                    ctx.drawImage(img, 0, 0, width, height);
                     
-                    // 3. Exporta para JPEG
+                    // 5. Exporta para JPEG com qualidade média
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
                     resolve(dataUrl);
                 } catch (e) {
-                    console.error("Erro ao processar imagem (provavelmente muito grande):", e);
-                    // Em caso de falha catastrófica, tenta retornar sem compressão (arriscado, mas fallback) 
-                    // ou rejeita para o usuário tentar outra.
-                    reject(new Error("A imagem é muito grande para ser processada pelo navegador. Tente cortá-la."));
+                    console.error("Erro crítico ao desenhar imagem no canvas:", e);
+                    reject(new Error("A imagem é muito grande para este dispositivo. Tente recortá-la."));
                 }
             };
-            img.onerror = (err) => reject(new Error("Arquivo de imagem inválido ou corrompido."));
+            img.onerror = (err) => reject(new Error("Arquivo de imagem inválido."));
         };
         reader.onerror = (error) => reject(error);
     });
