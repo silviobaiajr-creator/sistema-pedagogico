@@ -107,61 +107,73 @@ export const openImageModal = (base64Image, title = 'Anexo') => {
 };
 
 // ==============================================================================
-// --- PROCESSADOR DE IMAGEM (MÉTODO CLÁSSICO E SEGURO) ---
+// --- PROCESSADOR DE IMAGEM (MÉTODO BLINDADO PARA WHATSAPP) ---
 // ==============================================================================
 export const compressImage = (file) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
         
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
             const img = new Image();
             img.src = event.target.result;
             
-            img.onload = () => {
-                // Dimensões originais
-                let width = img.width;
-                let height = img.height;
-
-                // LIMITES DE SEGURANÇA (CRÍTICO PARA CELULAR)
-                // 3500px é o limite seguro para Canvas em iOS mais antigos/Androids com pouca RAM
-                const MAX_DIMENSION = 3500; 
-
-                // Redimensionamento Proporcional
-                if (width > height) {
-                    if (width > MAX_DIMENSION) {
-                        height *= MAX_DIMENSION / width;
-                        width = MAX_DIMENSION;
-                    }
-                } else {
-                    if (height > MAX_DIMENSION) {
-                        width *= MAX_DIMENSION / height;
-                        height = MAX_DIMENSION;
-                    }
-                }
-
-                // Cria o canvas com as dimensões seguras
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-
-                // 1. Pinta o fundo de BRANCO (Corrige prints pretos/PNGs transparentes)
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, width, height);
-
-                // 2. Desenha a imagem redimensionada
-                ctx.drawImage(img, 0, 0, width, height);
-
-                // 3. Exporta como JPEG (Mais leve e compatível)
-                // Qualidade 0.7 é suficiente para leitura de texto
-                resolve(canvas.toDataURL('image/jpeg', 0.7));
-            };
+            try {
+                // Tenta decodificar a imagem antes de usar (evita bugs de carregamento)
+                await img.decode();
+            } catch (e) {
+                console.warn("Erro ao decodificar imagem, tentando prosseguir mesmo assim...", e);
+            }
             
-            img.onerror = (err) => {
-                console.error("Erro ao carregar imagem para processamento:", err);
-                reject(new Error("Falha ao ler o arquivo de imagem."));
-            };
+            // Dimensões originais
+            let width = img.width;
+            let height = img.height;
+
+            // --- TRAVA DE SEGURANÇA EXTREMA ---
+            // 2500px é o limite ABSOLUTO de segurança para garantir que:
+            // 1. O Canvas do celular não "exploda" (tela branca).
+            // 2. A imagem caiba no limite de 1MB do Firestore.
+            // Se o print for maior que isso, ele será reduzido proporcionalmente.
+            const MAX_HEIGHT = 2500; 
+            const MAX_WIDTH = 1200;
+
+            // Lógica de Redimensionamento (Mantendo Aspect Ratio)
+            if (width > height) {
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+            } else {
+                if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+
+            // 1. FUNDO BRANCO OBRIGATÓRIO (Corrige prints pretos de PNG transparente)
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
+
+            // 2. Desenha a imagem redimensionada
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // 3. Compressão Iterativa (Para garantir < 1MB)
+            let quality = 0.7; // Começa com qualidade média/alta
+            let dataUrl = canvas.toDataURL('image/jpeg', quality);
+            
+            // Loop de segurança: Se ficar maior que 800KB, reduz qualidade
+            // Isso impede o erro de "Document too large" do Firestore
+            while (dataUrl.length > 800 * 1024 && quality > 0.1) {
+                quality -= 0.1;
+                dataUrl = canvas.toDataURL('image/jpeg', quality);
+            }
+
+            resolve(dataUrl);
         };
         
         reader.onerror = (err) => {
