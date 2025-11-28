@@ -107,7 +107,7 @@ export const openImageModal = (base64Image, title = 'Anexo') => {
 };
 
 // ==============================================================================
-// --- PROCESSADOR DE IMAGEM (MÉTODO BLINDADO PARA WHATSAPP) ---
+// --- PROCESSADOR DE IMAGEM (MÉTODO OTIMIZADO PARA BANCO NOSQL) ---
 // ==============================================================================
 export const compressImage = (file) => {
     return new Promise((resolve, reject) => {
@@ -119,7 +119,7 @@ export const compressImage = (file) => {
             img.src = event.target.result;
             
             try {
-                // Tenta decodificar a imagem antes de usar (evita bugs de carregamento)
+                // Tenta decodificar a imagem antes de usar
                 await img.decode();
             } catch (e) {
                 console.warn("Erro ao decodificar imagem, tentando prosseguir mesmo assim...", e);
@@ -129,24 +129,21 @@ export const compressImage = (file) => {
             let width = img.width;
             let height = img.height;
 
-            // --- TRAVA DE SEGURANÇA EXTREMA ---
-            // 2500px é o limite ABSOLUTO de segurança para garantir que:
-            // 1. O Canvas do celular não "exploda" (tela branca).
-            // 2. A imagem caiba no limite de 1MB do Firestore.
-            // Se o print for maior que isso, ele será reduzido proporcionalmente.
-            const MAX_HEIGHT = 2500; 
-            const MAX_WIDTH = 1200;
+            // --- TRAVA DE SEGURANÇA E OTIMIZAÇÃO ---
+            // Reduzido para 1024px para garantir que o tamanho final fique pequeno.
+            // Isso permite salvar múltiplos prints sem estourar o limite de 1MB do documento.
+            const MAX_DIMENSION = 1024;
 
             // Lógica de Redimensionamento (Mantendo Aspect Ratio)
             if (width > height) {
-                if (width > MAX_WIDTH) {
-                    height *= MAX_WIDTH / width;
-                    width = MAX_WIDTH;
+                if (width > MAX_DIMENSION) {
+                    height *= MAX_DIMENSION / width;
+                    width = MAX_DIMENSION;
                 }
             } else {
-                if (height > MAX_HEIGHT) {
-                    width *= MAX_HEIGHT / height;
-                    height = MAX_HEIGHT;
+                if (height > MAX_DIMENSION) {
+                    width *= MAX_DIMENSION / height;
+                    height = MAX_DIMENSION;
                 }
             }
 
@@ -162,13 +159,14 @@ export const compressImage = (file) => {
             // 2. Desenha a imagem redimensionada
             ctx.drawImage(img, 0, 0, width, height);
 
-            // 3. Compressão Iterativa (Para garantir < 1MB)
-            let quality = 0.7; // Começa com qualidade média/alta
+            // 3. Compressão Iterativa Agressiva
+            // Meta: Ficar abaixo de ~150KB (aprox 200.000 chars base64) para permitir 5-6 fotos.
+            let quality = 0.7; 
             let dataUrl = canvas.toDataURL('image/jpeg', quality);
             
-            // Loop de segurança: Se ficar maior que 800KB, reduz qualidade
-            // Isso impede o erro de "Document too large" do Firestore
-            while (dataUrl.length > 800 * 1024 && quality > 0.1) {
+            // Loop de segurança: Se ficar maior que ~150KB, reduz qualidade drasticamente
+            // Base64 overhead ~33%, então 180000 chars ~= 135KB reais.
+            while (dataUrl.length > 180000 && quality > 0.2) {
                 quality -= 0.1;
                 dataUrl = canvas.toDataURL('image/jpeg', quality);
             }
