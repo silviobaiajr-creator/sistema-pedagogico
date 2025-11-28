@@ -107,105 +107,67 @@ export const openImageModal = (base64Image, title = 'Anexo') => {
 };
 
 // ==============================================================================
-// --- PROCESSADOR DE IMAGEM PROFISSIONAL (createImageBitmap) ---
+// --- PROCESSADOR DE IMAGEM (MÉTODO CLÁSSICO E SEGURO) ---
 // ==============================================================================
-export const compressImage = async (file) => {
-    // Definições de Limites Seguros
-    const MAX_WIDTH = 900;  // Largura suficiente para ler texto de WhatsApp
-    const MAX_HEIGHT = 3800; // Limite seguro para evitar crash do Canvas no iOS/Android
-    const MAX_FILE_SIZE_BYTES = 950 * 1024; // ~950KB (Firestore limita a 1MB o documento todo)
-
-    try {
-        // 1. Usa createImageBitmap para ler dimensões SEM carregar a imagem full na RAM
-        // Esta é a chave: decodifica apenas o cabeçalho inicialmente ou de forma otimizada
-        let bitmap = await createImageBitmap(file);
-        let width = bitmap.width;
-        let height = bitmap.height;
-        
-        // Fecha o bitmap original para economizar memória
-        bitmap.close();
-
-        // 2. Calcula as novas dimensões mantendo a proporção (Aspect Ratio)
-        if (width > MAX_WIDTH) {
-            height = Math.round(height * (MAX_WIDTH / width));
-            width = MAX_WIDTH;
-        }
-        
-        // Se ainda estiver muito alta (print longo), reduz baseada na altura
-        if (height > MAX_HEIGHT) {
-            width = Math.round(width * (MAX_HEIGHT / height));
-            height = MAX_HEIGHT;
-        }
-
-        // 3. Cria um novo bitmap JÁ REDIMENSIONADO pelo motor do browser
-        // Isso evita criar uma textura de 20.000px na memória
-        const scaledBitmap = await createImageBitmap(file, {
-            resizeWidth: width,
-            resizeHeight: height,
-            resizeQuality: 'high'
-        });
-
-        // 4. Desenha no Canvas
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-
-        // Fundo branco para garantir que PNGs transparentes não fiquem pretos
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, width, height);
-
-        // Desenha o bitmap otimizado
-        ctx.drawImage(scaledBitmap, 0, 0);
-        scaledBitmap.close(); // Limpa memória da GPU
-
-        // 5. Compressão Progressiva para caber no Firestore
-        // Tenta qualidade alta, se ficar grande, reduz
-        let quality = 0.8;
-        let dataUrl = canvas.toDataURL('image/jpeg', quality);
-
-        while (dataUrl.length > MAX_FILE_SIZE_BYTES && quality > 0.3) {
-            quality -= 0.15;
-            dataUrl = canvas.toDataURL('image/jpeg', quality);
-        }
-
-        return dataUrl;
-
-    } catch (error) {
-        console.error("Falha no método moderno, tentando fallback:", error);
-        return compressImageLegacy(file);
-    }
-};
-
-// Método Fallback (Legado) para navegadores muito antigos que não suportam createImageBitmap
-const compressImageLegacy = (file) => {
+export const compressImage = (file) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
+        
         reader.onload = (event) => {
             const img = new Image();
             img.src = event.target.result;
+            
             img.onload = () => {
-                const MAX_W = 800;
-                const MAX_H = 3000; // Limite mais conservador para método legado
-                let w = img.width;
-                let h = img.height;
+                // Dimensões originais
+                let width = img.width;
+                let height = img.height;
 
-                if (w > MAX_W) { h *= MAX_W / w; w = MAX_W; }
-                if (h > MAX_H) { w *= MAX_H / h; h = MAX_H; }
+                // LIMITES DE SEGURANÇA (CRÍTICO PARA CELULAR)
+                // 3500px é o limite seguro para Canvas em iOS mais antigos/Androids com pouca RAM
+                const MAX_DIMENSION = 3500; 
 
+                // Redimensionamento Proporcional
+                if (width > height) {
+                    if (width > MAX_DIMENSION) {
+                        height *= MAX_DIMENSION / width;
+                        width = MAX_DIMENSION;
+                    }
+                } else {
+                    if (height > MAX_DIMENSION) {
+                        width *= MAX_DIMENSION / height;
+                        height = MAX_DIMENSION;
+                    }
+                }
+
+                // Cria o canvas com as dimensões seguras
                 const canvas = document.createElement('canvas');
-                canvas.width = w;
-                canvas.height = h;
+                canvas.width = width;
+                canvas.height = height;
                 const ctx = canvas.getContext('2d');
+
+                // 1. Pinta o fundo de BRANCO (Corrige prints pretos/PNGs transparentes)
                 ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, w, h);
-                ctx.drawImage(img, 0, 0, w, h);
-                resolve(canvas.toDataURL('image/jpeg', 0.6));
+                ctx.fillRect(0, 0, width, height);
+
+                // 2. Desenha a imagem redimensionada
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // 3. Exporta como JPEG (Mais leve e compatível)
+                // Qualidade 0.7 é suficiente para leitura de texto
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
             };
-            img.onerror = (e) => reject(e);
+            
+            img.onerror = (err) => {
+                console.error("Erro ao carregar imagem para processamento:", err);
+                reject(new Error("Falha ao ler o arquivo de imagem."));
+            };
         };
-        reader.onerror = (e) => reject(e);
+        
+        reader.onerror = (err) => {
+            console.error("Erro no FileReader:", err);
+            reject(new Error("Falha ao ler o arquivo."));
+        };
     });
 };
 
