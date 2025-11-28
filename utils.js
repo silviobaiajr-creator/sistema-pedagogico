@@ -106,7 +106,7 @@ export const openImageModal = (base64Image, title = 'Anexo') => {
     }
 };
 
-// --- COMPRESSOR DE IMAGEM OTIMIZADO PARA PRINTS LONGOS (TILING) ---
+// --- COMPRESSOR DE IMAGEM OTIMIZADO (HARDWARE LIMIT SAFE) ---
 export const compressImage = (file) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -117,72 +117,61 @@ export const compressImage = (file) => {
             img.src = event.target.result;
             
             img.onload = () => {
+                // Dimensões originais
                 let width = img.width;
                 let height = img.height;
 
-                // Limites seguros para navegadores móveis (Canvas Limit)
-                // Prints de WhatsApp precisam de largura razoável para leitura (800px)
-                const MAX_WIDTH = 800; 
-                // Altura segura abaixo do limite comum de 4096px do iOS/Android
-                const SAFE_HEIGHT = 4000; 
+                // --- LIMITES DE HARDWARE DO NAVEGADOR ---
+                // A maioria dos navegadores móveis (iOS Safari / Android Chrome) tem um limite
+                // de altura para o Canvas em torno de 4096px. Acima disso, a imagem fica branca ou preta.
+                const MAX_CANVAS_HEIGHT = 4096; 
+                const MAX_WIDTH = 1200; // Largura boa para leitura em desktop
 
-                // 1. Ajusta Largura (Prioridade: Legibilidade)
+                // 1. Redimensionamento baseado na Altura (Crítico para Prints Longos)
+                if (height > MAX_CANVAS_HEIGHT) {
+                    const ratio = MAX_CANVAS_HEIGHT / height;
+                    width = width * ratio;
+                    height = MAX_CANVAS_HEIGHT;
+                }
+
+                // 2. Redimensionamento baseado na Largura (Otimização de tamanho)
                 if (width > MAX_WIDTH) {
-                    const scaleW = MAX_WIDTH / width;
-                    width *= scaleW;
-                    height *= scaleW;
+                    const ratio = MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                    height = height * ratio;
                 }
 
-                // 2. Ajusta Altura (Prioridade: Não quebrar o Canvas)
-                // Se ainda estiver muito alto, reduz proporcionalmente
-                if (height > SAFE_HEIGHT) {
-                    const scaleH = SAFE_HEIGHT / height;
-                    width *= scaleH;
-                    height *= scaleH;
-                }
-
+                // Arredonda para inteiros
                 width = Math.floor(width);
                 height = Math.floor(height);
 
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-
-                // Fundo Branco (Corrige PNGs transparentes)
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, width, height);
-
-                // --- TÉCNICA DE TILING (Renderização em Blocos) ---
-                // Desenha a imagem em fatias para evitar estouro de memória da GPU em imagens gigantes
-                const tileHeight = 1024; // Tamanho do bloco
-                const totalTiles = Math.ceil(img.height / tileHeight);
-                const scale = width / img.width; // Fator de escala final
-
                 try {
-                    for (let i = 0; i < totalTiles; i++) {
-                        const sy = i * tileHeight; // Y de origem
-                        const sh = Math.min(tileHeight, img.height - sy); // Altura do pedaço origem
-                        
-                        const dy = Math.floor(sy * scale); // Y de destino
-                        const dh = Math.ceil(sh * scale);  // Altura do pedaço destino (ceil evita linhas brancas)
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
 
-                        // Desenha apenas este pedaço
-                        ctx.drawImage(img, 0, sy, img.width, sh, 0, dy, width, dh);
-                    }
+                    // --- CORREÇÃO DE FUNDO TRANSPARENTE/PRETO ---
+                    // Prints PNG podem ter fundo transparente que vira preto no JPEG.
+                    // Pintamos o canvas de branco primeiro.
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, width, height);
 
-                    // Exporta
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    // Desenha a imagem redimensionada
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Exporta para JPEG com qualidade média (0.7) para economizar dados
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
                     
-                    // Validação simples
+                    // Validação final
                     if (dataUrl.length < 100 || dataUrl === 'data:,') {
-                        throw new Error("Canvas gerou imagem vazia.");
+                        throw new Error("O navegador não conseguiu processar esta imagem.");
                     }
                     
                     resolve(dataUrl);
                 } catch (e) {
                     console.error("Erro crítico na renderização do canvas:", e);
-                    reject(new Error("A imagem é muito complexa para este dispositivo."));
+                    reject(new Error("A imagem é muito grande para este dispositivo. Tente cortá-la."));
                 }
             };
             
