@@ -1,7 +1,8 @@
 
+
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 5.4 (Suporte a Anexo de Print no Contato)
+// VERSÃO: 5.5 (Suporte a Múltiplos Anexos de Print no Contato)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -15,7 +16,7 @@ import { db } from './firebase.js';
 
 // --- Funções Auxiliares ---
 
-let pendingAbsenceImageBase64 = null; // Armazena a imagem comprimida temporariamente
+let pendingAbsenceImagesBase64 = []; // Armazena o Array de imagens comprimidas temporariamente
 
 const normalizeText = (text) => {
     if (!text) return '';
@@ -349,10 +350,17 @@ export const renderAbsences = () => {
                 }
 
                 // Botão de Ver Print
-                if (abs.contactPrint) {
+                let prints = [];
+                if (abs.contactPrints && Array.isArray(abs.contactPrints) && abs.contactPrints.length > 0) {
+                    prints = abs.contactPrints;
+                } else if (abs.contactPrint) {
+                    prints = [abs.contactPrint]; // Legado
+                }
+
+                if (prints.length > 0) {
                     viewButtonHtml += `
-                        <button type="button" class="text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${abs.contactPrint}', 'Print Anexado')">
-                            [<i class="fas fa-image fa-fw"></i> Ver Print]
+                        <button type="button" class="text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${prints[0]}', 'Print Anexado (${prints.length} imagens)')">
+                            [<i class="fas fa-images fa-fw"></i> Ver ${prints.length > 1 ? prints.length + ' Prints' : 'Print'}]
                         </button>`;
                 }
 
@@ -588,8 +596,13 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
  */
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null, preFilledData = null) => {
     dom.absenceForm.reset();
-    pendingAbsenceImageBase64 = null; // Reseta imagem
-    document.getElementById('absence-print-label').textContent = 'Selecionar Imagem';
+    
+    pendingAbsenceImagesBase64 = []; // Reseta array de imagens
+    const previewContainer = document.getElementById('absence-print-preview');
+    if (previewContainer) {
+        previewContainer.innerHTML = '<p class="text-xs text-gray-400 m-auto">Nenhuma imagem selecionada</p>';
+    }
+    document.getElementById('absence-print-label').textContent = 'Selecionar Imagens';
     document.getElementById('absence-print-check').classList.add('hidden');
 
     ['meeting-date', 'contact-date', 'visit-date', 'ct-sent-date'].forEach(id => { 
@@ -773,8 +786,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 document.getElementById('contact-person').value = data.contactPerson || '';
                 document.getElementById('contact-reason').value = data.contactReason || '';
                 
-                // Print já existente não é mostrado no input, apenas mantido se não alterado
-                // Mas não carregamos base64 de volta para o input file (impossível no browser)
+                // Nota: Edição de imagens não é exibida no input, apenas mantida internamente se não alterada
                 
                 const contactReturnedRadio = document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`);
                 if(contactReturnedRadio) contactReturnedRadio.checked = true;
@@ -887,9 +899,9 @@ async function handleAbsenceSubmit(e) {
     const data = getAbsenceFormData();
     if (!data) return; 
 
-    // Adiciona o print comprimido se houver
-    if (pendingAbsenceImageBase64) {
-        data.contactPrint = pendingAbsenceImageBase64;
+    // Adiciona os prints comprimidos se houver
+    if (pendingAbsenceImagesBase64.length > 0) {
+        data.contactPrints = pendingAbsenceImagesBase64; // Plural e Array
     }
 
     const id = data.id; 
@@ -898,16 +910,21 @@ async function handleAbsenceSubmit(e) {
         const existingAction = state.absences.find(a => a.id === id);
         if (existingAction) {
             for (const key in data) {
-                // Preserva dados antigos se o form vier vazio e o antigo tiver valor (exceto print, que só atualiza se tiver novo)
+                // Preserva dados antigos se o form vier vazio e o antigo tiver valor
                 if (data[key] === null && existingAction[key] != null) {
-                    if (key !== 'contactPrint') { // Print é tratado separadamente
+                    if (key !== 'contactPrints') { 
                         data[key] = existingAction[key];
                     }
                 }
             }
             // Se não subiu nova imagem, mantém a antiga se existir
-            if (!pendingAbsenceImageBase64 && existingAction.contactPrint) {
-                data.contactPrint = existingAction.contactPrint;
+            if (pendingAbsenceImagesBase64.length === 0) {
+                // Tenta recuperar do array novo ou do campo legado
+                if (existingAction.contactPrints) {
+                    data.contactPrints = existingAction.contactPrints;
+                } else if (existingAction.contactPrint) {
+                    data.contactPrints = [existingAction.contactPrint];
+                }
             }
         }
     }
@@ -1219,23 +1236,41 @@ export const initAbsenceListeners = () => {
         dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
     }
     
-    // UPLOAD IMAGE LISTENER
+    // UPLOAD IMAGE LISTENER (MÚLTIPLO)
     const absenceFileInput = document.getElementById('absence-contact-print');
     if (absenceFileInput) {
         absenceFileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
             
-            document.getElementById('absence-print-label').textContent = 'Processando...';
+            const label = document.getElementById('absence-print-label');
+            const previewContainer = document.getElementById('absence-print-preview');
+            const check = document.getElementById('absence-print-check');
+            
+            label.textContent = 'Processando...';
+            previewContainer.innerHTML = '';
+            pendingAbsenceImagesBase64 = []; // Reset
+
             try {
-                pendingAbsenceImageBase64 = await compressImage(file);
-                document.getElementById('absence-print-label').textContent = 'Imagem Anexada';
-                document.getElementById('absence-print-check').classList.remove('hidden');
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const base64 = await compressImage(file);
+                    pendingAbsenceImagesBase64.push(base64);
+
+                    const imgThumb = document.createElement('img');
+                    imgThumb.src = base64;
+                    imgThumb.className = 'h-10 w-auto border rounded shadow-sm';
+                    previewContainer.appendChild(imgThumb);
+                }
+
+                label.textContent = `${files.length} Imagens Anexadas`;
+                check.classList.remove('hidden');
             } catch (err) {
-                console.error("Erro ao processar imagem:", err);
-                showAlert("Erro ao processar imagem. Tente outra.");
-                pendingAbsenceImageBase64 = null;
-                document.getElementById('absence-print-label').textContent = 'Erro';
+                console.error("Erro ao processar imagens:", err);
+                showAlert("Erro ao processar imagens. Tente novamente.");
+                pendingAbsenceImagesBase64 = [];
+                label.textContent = 'Erro';
+                previewContainer.innerHTML = '<p class="text-xs text-red-400 m-auto">Erro no upload</p>';
             }
         });
     }

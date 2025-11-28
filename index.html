@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -429,15 +428,18 @@
                             <!-- Campo "Com quem falou" -->
                             <div><label for="follow-up-contact-person" class="block text-sm font-medium">Com quem falou? <span class="text-red-500">*</span></label><input type="text" id="follow-up-contact-person" class="mt-1 w-full border-gray-300 rounded-md" required disabled placeholder="Ex: Mãe (Maria), Pai, Irmão..."></div>
                             
-                            <!-- Campo Anexo Print (NOVO) -->
+                            <!-- Campo Anexo Print (MÚLTIPLO) -->
                             <div id="follow-up-print-container">
-                                <label class="block text-sm font-medium mb-1">Anexar Print (Opcional)</label>
-                                <div class="flex items-center gap-2">
+                                <label class="block text-sm font-medium mb-1">Anexar Prints (Opcional)</label>
+                                <div class="flex items-center gap-2 mb-2">
                                     <label for="follow-up-contact-print" class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-1 px-3 rounded text-sm flex items-center transition">
-                                        <i class="fas fa-paperclip mr-2 text-gray-500"></i> <span id="follow-up-print-label">Selecionar Imagem</span>
+                                        <i class="fas fa-paperclip mr-2 text-gray-500"></i> <span id="follow-up-print-label">Selecionar Imagens</span>
                                     </label>
-                                    <input type="file" id="follow-up-contact-print" accept="image/*" class="hidden">
-                                    <span id="follow-up-print-check" class="hidden text-green-600"><i class="fas fa-check-circle"></i></span>
+                                    <input type="file" id="follow-up-contact-print" accept="image/*" multiple class="hidden">
+                                </div>
+                                <!-- Container de Preview -->
+                                <div id="follow-up-print-preview" class="flex gap-2 overflow-x-auto p-1 min-h-[50px] bg-gray-50 rounded border border-dashed border-gray-300">
+                                    <p class="text-xs text-gray-400 m-auto">Nenhuma imagem selecionada</p>
                                 </div>
                                 <p class="text-xs text-gray-400 mt-1">Imagens serão otimizadas automaticamente.</p>
                             </div>
@@ -596,15 +598,18 @@
                                 <div><label class="block text-sm">Dia do contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
                                 <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
                                 
-                                <!-- CAMPO ANEXO (BUSCA ATIVA) -->
+                                <!-- CAMPO ANEXO (BUSCA ATIVA - MÚLTIPLO) -->
                                 <div id="absence-print-container">
-                                    <label class="block text-sm font-medium mb-1">Anexar Print (Opcional)</label>
-                                    <div class="flex items-center gap-2">
+                                    <label class="block text-sm font-medium mb-1">Anexar Prints (Opcional)</label>
+                                    <div class="flex items-center gap-2 mb-2">
                                         <label for="absence-contact-print" class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-1 px-3 rounded text-sm flex items-center transition">
-                                            <i class="fas fa-paperclip mr-2 text-gray-500"></i> <span id="absence-print-label">Selecionar Imagem</span>
+                                            <i class="fas fa-paperclip mr-2 text-gray-500"></i> <span id="absence-print-label">Selecionar Imagens</span>
                                         </label>
-                                        <input type="file" id="absence-contact-print" accept="image/*" class="hidden">
-                                        <span id="absence-print-check" class="hidden text-green-600"><i class="fas fa-check-circle"></i></span>
+                                        <input type="file" id="absence-contact-print" accept="image/*" multiple class="hidden">
+                                    </div>
+                                    <!-- Container de Preview -->
+                                    <div id="absence-print-preview" class="flex gap-2 overflow-x-auto p-1 min-h-[50px] bg-gray-50 rounded border border-dashed border-gray-300">
+                                        <p class="text-xs text-gray-400 m-auto">Nenhuma imagem selecionada</p>
                                     </div>
                                     <p class="text-xs text-gray-400 mt-1">Imagens serão otimizadas automaticamente.</p>
                                 </div>

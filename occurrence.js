@@ -1,7 +1,8 @@
 
+
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 4.5 (Com suporte a Anexo/Print de WhatsApp)
+// VERSÃO: 4.6 (Com suporte a Múltiplos Anexos/Prints de WhatsApp)
 
 import { state, dom } from './state.js';
 import { showToast, showAlert, openModal, closeModal, getStatusBadge, formatDate, formatTime, compressImage, openImageModal } from './utils.js';
@@ -52,8 +53,8 @@ export const occurrenceActionTitles = {
 let studentPendingRoleSelection = null;
 let editingRoleId = null; 
 let studentSearchTimeout = null;
-// Armazena temporariamente a string Base64 da imagem selecionada
-let pendingImageBase64 = null; 
+// Armazena temporariamente o Array de strings Base64 das imagens selecionadas
+let pendingImagesBase64 = []; 
 
 const normalizeText = (text) => {
     if (!text) return '';
@@ -280,7 +281,7 @@ export const renderOccurrences = () => {
                 let historyHtml = '';
                 
                 // Helper para renderizar bloco de Tentativa
-                const renderAttemptBlock = (index, mDate, mTime, succeeded, contactDate, contactPerson, contactPrint) => {
+                const renderAttemptBlock = (index, mDate, mTime, succeeded, contactDate, contactPerson, contactPrintsLegacy, contactPrintsArray) => {
                     if (!mDate) return '';
                     
                     const attemptNum = index; // 1, 2 ou 3
@@ -309,10 +310,22 @@ export const renderOccurrences = () => {
                         `;
                     } else if (succeeded === 'yes') {
                         // EXIBIÇÃO DO PRINT (SE HOUVER)
-                        const printButton = contactPrint ? 
-                            `<button type="button" class="view-print-btn text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${contactPrint}', 'Print do Contato')">
-                                [<i class="fas fa-image fa-fw"></i> Ver Print]
-                             </button>` : '';
+                        let prints = [];
+                        if (contactPrintsArray && Array.isArray(contactPrintsArray) && contactPrintsArray.length > 0) {
+                            prints = contactPrintsArray;
+                        } else if (contactPrintsLegacy) {
+                            prints = [contactPrintsLegacy];
+                        }
+
+                        let printButton = '';
+                        if (prints.length > 0) {
+                            // Mostra apenas o primeiro para clicar, mas a função viewImage poderia ser adaptada para galeria
+                            // Por enquanto, mostra botão para visualizar o primeiro (ou abre modal específico no futuro)
+                            printButton = `
+                            <button type="button" class="view-print-btn text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${prints[0]}', 'Print Anexado (${prints.length} imagens)')">
+                                [<i class="fas fa-images fa-fw"></i> Ver ${prints.length > 1 ? prints.length + ' Prints' : 'Print'}]
+                             </button>`;
+                        }
 
                         statusContent = `<span class="text-green-600 font-semibold ml-1">- Contato Realizado com <u>${contactPerson || 'Responsável'}</u> em ${formatDate(contactDate)}</span> ${printButton}`;
                     } else {
@@ -331,10 +344,10 @@ export const renderOccurrences = () => {
                 };
 
                 // Renderiza as 3 tentativas possíveis
-                // Nota: meetingDate (legacy) é tratado como meetingDate_1
-                historyHtml += renderAttemptBlock(1, record.meetingDate || record.meetingDate_1, record.meetingTime || record.meetingTime_1, record.contactSucceeded_1, record.contactDate_1, record.contactPerson_1, record.contactPrint_1);
-                historyHtml += renderAttemptBlock(2, record.meetingDate_2, record.meetingTime_2, record.contactSucceeded_2, record.contactDate_2, record.contactPerson_2, record.contactPrint_2);
-                historyHtml += renderAttemptBlock(3, record.meetingDate_3, record.meetingTime_3, record.contactSucceeded_3, record.contactDate_3, record.contactPerson_3, record.contactPrint_3);
+                // Nota: Passamos tanto o campo legado (singular) quanto o novo (plural)
+                historyHtml += renderAttemptBlock(1, record.meetingDate || record.meetingDate_1, record.meetingTime || record.meetingTime_1, record.contactSucceeded_1, record.contactDate_1, record.contactPerson_1, record.contactPrint_1, record.contactPrints_1);
+                historyHtml += renderAttemptBlock(2, record.meetingDate_2, record.meetingTime_2, record.contactSucceeded_2, record.contactDate_2, record.contactPerson_2, record.contactPrint_2, record.contactPrints_2);
+                historyHtml += renderAttemptBlock(3, record.meetingDate_3, record.meetingTime_3, record.contactSucceeded_3, record.contactDate_3, record.contactPerson_3, record.contactPrint_3, record.contactPrints_3);
 
                 // Ações Finais (4, 5, 6)
                 if (record?.oficioNumber) {
@@ -555,8 +568,13 @@ const toggleDesfechoFields = (choice) => {
 export const openOccurrenceStepModal = (student, record, actionType, preFilledData = null) => {
     const followUpForm = document.getElementById('follow-up-form');
     followUpForm.reset();
-    pendingImageBase64 = null; // Reseta imagem pendente
-    document.getElementById('follow-up-print-label').textContent = 'Selecionar Imagem';
+    
+    pendingImagesBase64 = []; // Reseta array de imagens
+    const previewContainer = document.getElementById('follow-up-print-preview');
+    if (previewContainer) {
+        previewContainer.innerHTML = '<p class="text-xs text-gray-400 m-auto">Nenhuma imagem selecionada</p>';
+    }
+    document.getElementById('follow-up-print-label').textContent = 'Selecionar Imagens';
     document.getElementById('follow-up-print-check').classList.add('hidden');
 
     followUpForm.dataset.recordId = record.id;
@@ -946,7 +964,7 @@ async function handleOccurrenceStepSubmit(e) {
                 date: `contactDate_${attemptNum}`,
                 person: `contactPerson_${attemptNum}`, 
                 providencias: `providenciasFamilia_${attemptNum}`,
-                print: `contactPrint_${attemptNum}` // NOVO: Campo de print
+                prints: `contactPrints_${attemptNum}` // NOVO: Campo de prints (plural/Array)
             };
 
             if (contactSucceeded === 'yes') {
@@ -956,7 +974,7 @@ async function handleOccurrenceStepSubmit(e) {
                     [fields.date]: document.getElementById('follow-up-contact-date').value,
                     [fields.person]: document.getElementById('follow-up-contact-person').value.trim(),
                     [fields.providencias]: document.getElementById('follow-up-family-actions').value,
-                    [fields.print]: pendingImageBase64 // Salva a imagem base64
+                    [fields.prints]: pendingImagesBase64.length > 0 ? pendingImagesBase64 : null // Salva array de imagens
                 };
                 if (!dataToUpdate[fields.type] || !dataToUpdate[fields.date] || !dataToUpdate[fields.providencias] || !dataToUpdate[fields.person]) {
                      return showAlert('Preencha Tipo, Data, Com quem falou e Providências.');
@@ -966,14 +984,14 @@ async function handleOccurrenceStepSubmit(e) {
                 if (!dateCheck.isValid) return showAlert(dateCheck.message);
 
                 historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato realizado com ${dataToUpdate[fields.person]}.`;
-                if(pendingImageBase64) historyAction += " (Com anexo).";
+                if(pendingImagesBase64.length > 0) historyAction += ` (${pendingImagesBase64.length} anexo(s)).`;
                 
                 nextStatus = 'Aguardando Desfecho'; 
 
             } else { 
                 dataToUpdate = {
                     [fields.succeeded]: 'no',
-                    [fields.type]: null, [fields.date]: null, [fields.person]: null, [fields.providencias]: null, [fields.print]: null
+                    [fields.type]: null, [fields.date]: null, [fields.person]: null, [fields.providencias]: null, [fields.prints]: null
                 };
                 historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato sem sucesso.`;
                 
@@ -1294,24 +1312,44 @@ export const initOccurrenceListeners = () => {
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.followUpForm.addEventListener('submit', handleOccurrenceStepSubmit);
     
-    // LISTENER DE UPLOAD DE ARQUIVO
+    // LISTENER DE UPLOAD DE ARQUIVO (MÚLTIPLO)
     const fileInput = document.getElementById('follow-up-contact-print');
     if (fileInput) {
         fileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
             
-            document.getElementById('follow-up-print-label').textContent = 'Processando...';
+            const label = document.getElementById('follow-up-print-label');
+            const previewContainer = document.getElementById('follow-up-print-preview');
+            const check = document.getElementById('follow-up-print-check');
+            
+            label.textContent = 'Processando...';
+            previewContainer.innerHTML = ''; // Limpa preview anterior
+            pendingImagesBase64 = []; // Limpa array anterior
+
             try {
-                // Compressa a imagem antes de salvar na memória
-                pendingImageBase64 = await compressImage(file);
-                document.getElementById('follow-up-print-label').textContent = 'Imagem Anexada';
-                document.getElementById('follow-up-print-check').classList.remove('hidden');
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    // Compressa cada imagem
+                    const base64 = await compressImage(file);
+                    pendingImagesBase64.push(base64);
+
+                    // Cria miniatura no preview
+                    const imgThumb = document.createElement('img');
+                    imgThumb.src = base64;
+                    imgThumb.className = 'h-10 w-auto border rounded shadow-sm';
+                    previewContainer.appendChild(imgThumb);
+                }
+
+                label.textContent = `${files.length} Imagens Anexadas`;
+                check.classList.remove('hidden');
+                
             } catch (err) {
-                console.error("Erro ao processar imagem:", err);
-                showAlert("Erro ao processar imagem. Tente outra.");
-                pendingImageBase64 = null;
-                document.getElementById('follow-up-print-label').textContent = 'Erro';
+                console.error("Erro ao processar imagens:", err);
+                showAlert("Erro ao processar imagens. Tente novamente.");
+                pendingImagesBase64 = [];
+                label.textContent = 'Erro';
+                previewContainer.innerHTML = '<p class="text-xs text-red-400 m-auto">Erro no upload</p>';
             }
         });
     }
