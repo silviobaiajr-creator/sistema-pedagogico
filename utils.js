@@ -106,79 +106,106 @@ export const openImageModal = (base64Image, title = 'Anexo') => {
     }
 };
 
-// --- COMPRESSOR DE IMAGEM OTIMIZADO (HARDWARE LIMIT SAFE) ---
-export const compressImage = (file) => {
+// ==============================================================================
+// --- PROCESSADOR DE IMAGEM PROFISSIONAL (createImageBitmap) ---
+// ==============================================================================
+export const compressImage = async (file) => {
+    // Definições de Limites Seguros
+    const MAX_WIDTH = 900;  // Largura suficiente para ler texto de WhatsApp
+    const MAX_HEIGHT = 3800; // Limite seguro para evitar crash do Canvas no iOS/Android
+    const MAX_FILE_SIZE_BYTES = 950 * 1024; // ~950KB (Firestore limita a 1MB o documento todo)
+
+    try {
+        // 1. Usa createImageBitmap para ler dimensões SEM carregar a imagem full na RAM
+        // Esta é a chave: decodifica apenas o cabeçalho inicialmente ou de forma otimizada
+        let bitmap = await createImageBitmap(file);
+        let width = bitmap.width;
+        let height = bitmap.height;
+        
+        // Fecha o bitmap original para economizar memória
+        bitmap.close();
+
+        // 2. Calcula as novas dimensões mantendo a proporção (Aspect Ratio)
+        if (width > MAX_WIDTH) {
+            height = Math.round(height * (MAX_WIDTH / width));
+            width = MAX_WIDTH;
+        }
+        
+        // Se ainda estiver muito alta (print longo), reduz baseada na altura
+        if (height > MAX_HEIGHT) {
+            width = Math.round(width * (MAX_HEIGHT / height));
+            height = MAX_HEIGHT;
+        }
+
+        // 3. Cria um novo bitmap JÁ REDIMENSIONADO pelo motor do browser
+        // Isso evita criar uma textura de 20.000px na memória
+        const scaledBitmap = await createImageBitmap(file, {
+            resizeWidth: width,
+            resizeHeight: height,
+            resizeQuality: 'high'
+        });
+
+        // 4. Desenha no Canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+
+        // Fundo branco para garantir que PNGs transparentes não fiquem pretos
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+
+        // Desenha o bitmap otimizado
+        ctx.drawImage(scaledBitmap, 0, 0);
+        scaledBitmap.close(); // Limpa memória da GPU
+
+        // 5. Compressão Progressiva para caber no Firestore
+        // Tenta qualidade alta, se ficar grande, reduz
+        let quality = 0.8;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+        while (dataUrl.length > MAX_FILE_SIZE_BYTES && quality > 0.3) {
+            quality -= 0.15;
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+
+        return dataUrl;
+
+    } catch (error) {
+        console.error("Falha no método moderno, tentando fallback:", error);
+        return compressImageLegacy(file);
+    }
+};
+
+// Método Fallback (Legado) para navegadores muito antigos que não suportam createImageBitmap
+const compressImageLegacy = (file) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
-        
         reader.onload = (event) => {
             const img = new Image();
             img.src = event.target.result;
-            
             img.onload = () => {
-                // Dimensões originais
-                let width = img.width;
-                let height = img.height;
+                const MAX_W = 800;
+                const MAX_H = 3000; // Limite mais conservador para método legado
+                let w = img.width;
+                let h = img.height;
 
-                // --- LIMITES DE HARDWARE DO NAVEGADOR ---
-                // A maioria dos navegadores móveis (iOS Safari / Android Chrome) tem um limite
-                // de altura para o Canvas em torno de 4096px. Acima disso, a imagem fica branca ou preta.
-                const MAX_CANVAS_HEIGHT = 4096; 
-                const MAX_WIDTH = 1200; // Largura boa para leitura em desktop
+                if (w > MAX_W) { h *= MAX_W / w; w = MAX_W; }
+                if (h > MAX_H) { w *= MAX_H / h; h = MAX_H; }
 
-                // 1. Redimensionamento baseado na Altura (Crítico para Prints Longos)
-                if (height > MAX_CANVAS_HEIGHT) {
-                    const ratio = MAX_CANVAS_HEIGHT / height;
-                    width = width * ratio;
-                    height = MAX_CANVAS_HEIGHT;
-                }
-
-                // 2. Redimensionamento baseado na Largura (Otimização de tamanho)
-                if (width > MAX_WIDTH) {
-                    const ratio = MAX_WIDTH / width;
-                    width = MAX_WIDTH;
-                    height = height * ratio;
-                }
-
-                // Arredonda para inteiros
-                width = Math.floor(width);
-                height = Math.floor(height);
-
-                try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-
-                    // --- CORREÇÃO DE FUNDO TRANSPARENTE/PRETO ---
-                    // Prints PNG podem ter fundo transparente que vira preto no JPEG.
-                    // Pintamos o canvas de branco primeiro.
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.fillRect(0, 0, width, height);
-
-                    // Desenha a imagem redimensionada
-                    ctx.drawImage(img, 0, 0, width, height);
-
-                    // Exporta para JPEG com qualidade média (0.7) para economizar dados
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                    
-                    // Validação final
-                    if (dataUrl.length < 100 || dataUrl === 'data:,') {
-                        throw new Error("O navegador não conseguiu processar esta imagem.");
-                    }
-                    
-                    resolve(dataUrl);
-                } catch (e) {
-                    console.error("Erro crítico na renderização do canvas:", e);
-                    reject(new Error("A imagem é muito grande para este dispositivo. Tente cortá-la."));
-                }
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', 0.6));
             };
-            
-            img.onerror = () => reject(new Error("Arquivo de imagem inválido ou corrompido."));
+            img.onerror = (e) => reject(e);
         };
-        
-        reader.onerror = () => reject(new Error("Erro ao ler o arquivo."));
+        reader.onerror = (e) => reject(e);
     });
 };
 
