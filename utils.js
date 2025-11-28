@@ -106,7 +106,7 @@ export const openImageModal = (base64Image, title = 'Anexo') => {
     }
 };
 
-// --- COMPRESSOR DE IMAGEM (Para salvar no Firestore sem estourar limite) ---
+// --- COMPRESSOR DE IMAGEM OTIMIZADO PARA PRINTS LONGOS ---
 export const compressImage = (file) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -117,49 +117,54 @@ export const compressImage = (file) => {
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 
-                // CONFIGURAÇÃO DE LIMITES SEGUROS
-                // Max Width 1024px é bom para leitura em telas
-                // Max Height 3500px evita que prints longos "quebrem" o canvas (tela branca)
-                const MAX_WIDTH = 1024;
-                const MAX_HEIGHT = 3500; 
+                // Limites de segurança para visualização em tela e banco de dados
+                // 1200px de largura é suficiente para ler texto de chat
+                // 5000px de altura cobre a maioria dos prints longos sem estourar o canvas
+                const MAX_WIDTH = 1200;
+                const MAX_HEIGHT = 5000; 
                 
                 let width = img.width;
                 let height = img.height;
 
-                // Redimensionamento Proporcional Inteligente
-                if (width > height) {
-                    if (width > MAX_WIDTH) {
-                        height = Math.round(height * (MAX_WIDTH / width));
-                        width = MAX_WIDTH;
-                    }
-                } else {
-                    if (height > MAX_HEIGHT) {
-                        width = Math.round(width * (MAX_HEIGHT / height));
-                        height = MAX_HEIGHT;
-                    }
-                    // Verificação secundária de largura após ajuste de altura
-                    if (width > MAX_WIDTH) {
-                        height = Math.round(height * (MAX_WIDTH / width));
-                        width = MAX_WIDTH;
-                    }
+                // CÁLCULO DE PROPORÇÃO (ASPECT RATIO) CORRETO
+                // Encontra o fator de escala necessário para caber na caixa limitadora
+                // Math.min garante que respeitamos o lado que "estoura" mais
+                let scale = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
+
+                // Se a imagem for menor que o limite, não aumentamos (scale seria > 1)
+                // Mantemos o tamanho original (scale = 1)
+                if (scale > 1) {
+                    scale = 1;
                 }
-                
-                canvas.width = width;
-                canvas.height = height;
+
+                // Calcula novas dimensões
+                const newWidth = Math.floor(width * scale);
+                const newHeight = Math.floor(height * scale);
+
+                // Define tamanho do canvas
+                canvas.width = newWidth;
+                canvas.height = newHeight;
                 
                 const ctx = canvas.getContext('2d');
                 
-                // CORREÇÃO CRÍTICA PARA PRINTS DE WHATSAPP (PNG -> JPEG)
-                // 1. Preenche o fundo com BRANCO (evita fundo preto em transparências)
+                // 1. Pinta o fundo de BRANCO
+                // Isso resolve o problema de prints PNG transparentes ficarem pretos ao converter para JPEG
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
-                // 2. Desenha a imagem redimensionada por cima
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                
-                // 3. Exporta para JPEG com qualidade otimizada (0.7)
-                // Isso garante que o texto continue legível mas o arquivo fique leve
-                resolve(canvas.toDataURL('image/jpeg', 0.7)); 
+                // 2. Desenha a imagem redimensionada
+                // Usa os 9 parâmetros para garantir mapeamento explícito de origem -> destino
+                // (img, x_fonte, y_fonte, w_fonte, h_fonte, x_dest, y_dest, w_dest, h_dest)
+                try {
+                    ctx.drawImage(img, 0, 0, width, height, 0, 0, newWidth, newHeight);
+                    
+                    // 3. Exporta para JPEG com qualidade 0.8 (Bom equilíbrio tamanho/qualidade)
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                    resolve(dataUrl);
+                } catch (e) {
+                    console.error("Erro ao desenhar no canvas:", e);
+                    reject(new Error("Falha ao processar imagem (tamanho ou formato incompatível)."));
+                }
             };
             img.onerror = (err) => reject(err);
         };
