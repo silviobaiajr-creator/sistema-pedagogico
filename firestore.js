@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: firestore.js
-// VERSÃO: 2.6 (Adicionado getCountFromServer para Dashboard)
+// VERSÃO: 2.8 (Correção Completa)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
@@ -346,7 +346,7 @@ export const getAbsencesForReport = async (startDate, endDate) => {
     }
 };
 
-// --- NOVO: FUNÇÃO PARA DASHBOARD (CONTADOR RÁPIDO) ---
+// --- NOVO: FUNÇÃO PARA DASHBOARD (CONTADORES E TAXAS) ---
 export const getDashboardStats = async () => {
     try {
         const studentColl = getStudentsCollectionRef();
@@ -359,12 +359,14 @@ export const getDashboardStats = async () => {
         // Conta Total de Ocorrências
         const snapOccurrences = await getCountFromServer(occurrenceColl);
 
-        // Conta Busca Ativa (Ex: Processos em aberto, sem 'analise' concluída)
-        // Como o filtro é complexo, para o dashboard vamos contar o total de ações 
-        // ou fazer uma query mais simples. Para performance máxima, contaremos total de ações hoje.
-        const snapAbsences = await getCountFromServer(absenceColl);
+        // Conta Total de Ações de Busca Ativa
+        const snapAbsencesTotal = await getCountFromServer(absenceColl);
+        
+        // Conta Busca Ativa Concluídas (Taxa de Sucesso)
+        const qConcluded = query(absenceColl, where('actionType', '==', 'analise'));
+        const snapAbsencesConcluded = await getCountFromServer(qConcluded);
 
-        // Para os gráficos, precisamos de alguns dados reais.
+        // Para os gráficos e "Alertas Urgentes", precisamos de alguns dados reais.
         // Vamos buscar os últimos 50 registros de cada para popular os gráficos de "Tendência"
         const recentOccurrences = await getDocs(query(occurrenceColl, orderBy('date', 'desc'), limit(50)));
         const recentAbsences = await getDocs(query(absenceColl, orderBy('createdAt', 'desc'), limit(50)));
@@ -372,7 +374,8 @@ export const getDashboardStats = async () => {
         return {
             totalStudents: snapStudents.data().count,
             totalOccurrences: snapOccurrences.data().count,
-            totalAbsences: snapAbsences.data().count, // Total de Ações, não processos únicos (aproximação rápida)
+            totalAbsences: snapAbsencesTotal.data().count, 
+            concludedAbsences: snapAbsencesConcluded.data().count,
             chartDataOccurrences: recentOccurrences.docs.map(d => d.data()),
             chartDataAbsences: recentAbsences.docs.map(d => d.data())
         };

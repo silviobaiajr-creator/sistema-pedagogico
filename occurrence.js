@@ -1,8 +1,7 @@
 
-
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 4.6 (Suporte a Múltiplos Prints/Anexos no Contato)
+// VERSÃO: 5.0 (Design Visual Melhorado + Bordas Coloridas)
 
 import { state, dom } from './state.js';
 import { showToast, showAlert, openModal, closeModal, getStatusBadge, formatDate, formatTime, compressImage, openImageModal } from './utils.js';
@@ -53,8 +52,6 @@ export const occurrenceActionTitles = {
 let studentPendingRoleSelection = null;
 let editingRoleId = null; 
 let studentSearchTimeout = null;
-
-// Armazena LISTA de strings Base64 das imagens selecionadas
 let pendingImagesBase64 = []; 
 
 const normalizeText = (text) => {
@@ -232,10 +229,6 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
     renderTags();
 };
 
-// =================================================================================
-// FUNÇÃO AUXILIAR: RENDERIZAR PREVIEW DE IMAGENS
-// =================================================================================
-
 const renderImagePreviews = (containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -267,11 +260,9 @@ const renderImagePreviews = (containerId) => {
             e.stopPropagation();
             pendingImagesBase64.splice(index, 1);
             
-            // Atualiza Label
             const labelEl = document.getElementById(containerId.replace('-preview', '-label'));
             if(labelEl) labelEl.textContent = pendingImagesBase64.length > 0 ? `${pendingImagesBase64.length} Imagens` : 'Selecionar Imagens';
             
-            // Atualiza Check
             const checkEl = document.getElementById(containerId.replace('-preview', '-check'));
             if(checkEl && pendingImagesBase64.length === 0) checkEl.classList.add('hidden');
 
@@ -285,8 +276,38 @@ const renderImagePreviews = (containerId) => {
 };
 
 // =================================================================================
-// RENDERIZAÇÃO (LISTA DE OCORRÊNCIAS)
+// RENDERIZAÇÃO MELHORADA (LISTA DE OCORRÊNCIAS)
 // =================================================================================
+
+const getTypeColorClass = (type) => {
+    if (!type) return 'border-gray-200';
+    const lowerType = type.toLowerCase();
+    if (lowerType.includes('agressão') || lowerType.includes('bullying')) return 'border-red-500';
+    if (lowerType.includes('indisciplina') || lowerType.includes('comportamento') || lowerType.includes('telemóvel')) return 'border-yellow-500';
+    if (lowerType.includes('dano')) return 'border-orange-500';
+    return 'border-sky-500'; // Padrão/Outros
+};
+
+const getStepIndicator = (status) => {
+    // Mapeamento simples de passos
+    const steps = {
+        'Aguardando Convocação 1': '1/6',
+        'Aguardando Feedback 1': '2/6',
+        'Aguardando Convocação 2': '3/6',
+        'Aguardando Feedback 2': '4/6',
+        'Aguardando Convocação 3': '5/6',
+        'Aguardando Desfecho': '5/6',
+        'Aguardando Devolutiva CT': '6/6',
+        'Aguardando Parecer Final': '6/6',
+        'Resolvido': 'Concluído',
+        'Finalizada': 'Concluído'
+    };
+    
+    // Tratamento para status genéricos ou iniciais
+    if (!status || status === 'Aguardando Convocação') return '1/6';
+    
+    return steps[status] || '-';
+};
 
 export const renderOccurrences = () => {
     dom.loadingOccurrences.classList.add('hidden');
@@ -311,6 +332,9 @@ export const renderOccurrences = () => {
 
         const studentSearch = normalizeText(state.filterOccurrences);
         const isFinalizada = incident.overallStatus === 'Finalizada';
+        
+        // COR DA BORDA LATERAL (Classificação de Risco)
+        const borderColorClass = getTypeColorClass(mainRecord.occurrenceType);
 
         const studentAccordionsHTML = [...incident.participantsInvolved.values()]
             .filter(participant => {
@@ -327,16 +351,17 @@ export const renderOccurrences = () => {
                 const status = record?.statusIndividual || 'Aguardando Convocação';
                 
                 const isMatch = studentSearch && normalizeText(student.name).includes(studentSearch);
-                const nameClass = isMatch ? 'font-bold text-yellow-800 bg-yellow-100 px-1 rounded' : 'font-medium text-gray-700';
                 const iconClass = roleIcons[role] || roleIcons[defaultRole];
                 const isIndividualResolvido = record?.statusIndividual === 'Resolvido';
+                
+                // STEP INDICATOR
+                const step = getStepIndicator(status);
 
                 let historyHtml = '';
                 
                 // Helper para renderizar bloco de Tentativa
                 const renderAttemptBlock = (index, mDate, mTime, succeeded, contactDate, contactPerson, contactPrints, legacyContactPrint) => {
                     if (!mDate) return '';
-                    
                     const attemptNum = index; // 1, 2 ou 3
                     const notificationBtn = `
                         <button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2 cursor-pointer" 
@@ -374,15 +399,7 @@ export const renderOccurrences = () => {
                         }
 
                         if (imagesToShow.length > 0) {
-                            // Se tiver só 1, abre direto. Se tiver mais, mostra botão com contagem ou apenas o botão "Ver Prints"
                             const btnLabel = imagesToShow.length > 1 ? `[<i class="fas fa-images fa-fw"></i> Ver ${imagesToShow.length} Prints]` : `[<i class="fas fa-image fa-fw"></i> Ver Print]`;
-                            
-                            // Para simplificar, o clique abre o primeiro, mas no modal de relatório mostra todos.
-                            // Ou podemos fazer um mini modal de galeria.
-                            // Por enquanto, abre a primeira imagem no modal simples, mas o relatório mostra tudo.
-                            // Melhor UX: Botão que apenas indica presença. A visualização completa é no relatório ou editar.
-                            // Mas o usuário quer ver. Vamos usar o primeiro como gatilho ou um alerta simples se tiver muitos.
-                            
                             printsHtml = `
                                 <button type="button" class="view-print-btn text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${imagesToShow[0]}', 'Anexo 1 de ${imagesToShow.length}')">
                                     ${btnLabel}
@@ -406,7 +423,6 @@ export const renderOccurrences = () => {
                 };
 
                 // Renderiza as 3 tentativas possíveis
-                // Nota: meetingDate (legacy) é tratado como meetingDate_1
                 historyHtml += renderAttemptBlock(1, record.meetingDate || record.meetingDate_1, record.meetingTime || record.meetingTime_1, record.contactSucceeded_1, record.contactDate_1, record.contactPerson_1, record.contactPrints_1, record.contactPrint_1);
                 historyHtml += renderAttemptBlock(2, record.meetingDate_2, record.meetingTime_2, record.contactSucceeded_2, record.contactDate_2, record.contactPerson_2, record.contactPrints_2, record.contactPrint_2);
                 historyHtml += renderAttemptBlock(3, record.meetingDate_3, record.meetingTime_3, record.contactSucceeded_3, record.contactDate_3, record.contactPerson_3, record.contactPrints_3, record.contactPrint_3);
@@ -473,16 +489,22 @@ export const renderOccurrences = () => {
                 
                 const contentId = `occ-content-${recordId || student.matricula}`; 
                 
+                // DESIGN HIERÁRQUICO
                 return `
-                    <div class="bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="bg-gray-50 rounded-lg border border-gray-200 mt-2">
                         <div class="occurrence-summary p-3 cursor-pointer hover:bg-sky-50 flex justify-between items-center"
                              data-content-id="${contentId}">
                             
-                            <div class="flex items-center gap-2">
-                                <i class="${iconClass} fa-fw w-4 text-center" title="${role}"></i>
-                                <span class="${nameClass}">${student.name}</span>
-                                <span class="text-xs text-gray-500">(${role})</span>
-                                ${getStatusBadge(status)}
+                            <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
+                                <div class="flex items-center gap-2">
+                                    <i class="${iconClass} fa-fw w-4 text-center text-gray-500" title="${role}"></i>
+                                    <span class="text-lg font-bold text-gray-800 ${isMatch ? 'bg-yellow-200 px-1' : ''}">${student.name}</span>
+                                    <span class="text-sm text-gray-500 font-semibold bg-gray-200 px-2 rounded-full">${student.class || 'Turma?'}</span>
+                                </div>
+                                <div class="flex items-center gap-2 sm:ml-auto mr-4">
+                                     <span class="text-xs font-mono bg-white border border-gray-300 px-2 py-0.5 rounded text-gray-600" title="Etapa atual">Passo: ${step}</span>
+                                     ${getStatusBadge(status)}
+                                </div>
                             </div>
                             <i class="fas fa-chevron-down transition-transform duration-300 text-gray-400"></i>
                         </div>
@@ -506,38 +528,32 @@ export const renderOccurrences = () => {
                 `;
             }).join('');
 
+        // HEADER DO CARD DE OCORRÊNCIA
         return `
-            <div class="border rounded-lg bg-white shadow-sm">
+            <div class="border-l-4 ${borderColorClass} rounded-lg bg-white shadow-sm mb-4">
                 <div class="p-4 flex flex-col sm:flex-row justify-between items-start gap-3">
-                    <div class="flex-grow">
-                        <div class="flex items-center gap-3 mb-2">
-                            <span class="font-semibold text-gray-800">${mainRecord.occurrenceType || 'N/A'}</span>
-                            ${getStatusBadge(incident.overallStatus)}
+                    <div class="flex-grow w-full">
+                        <div class="flex justify-between items-start">
+                             <div>
+                                <h3 class="font-bold text-gray-800 text-base uppercase tracking-wide">${mainRecord.occurrenceType || 'Tipo não informado'}</h3>
+                                <p class="text-xs text-gray-500 mt-0.5"><i class="far fa-calendar-alt"></i> ${formatDate(mainRecord.date)} <span class="mx-1">|</span> <span class="font-mono">ID: ${incident.id}</span></p>
+                             </div>
+                             ${getStatusBadge(incident.overallStatus)}
                         </div>
-                        <div class="text-sm text-gray-600 mt-2">
-                            <strong class="block text-gray-500 text-xs font-bold uppercase mb-1.5">Alunos Envolvidos:</strong>
-                            <div class="space-y-2">${studentAccordionsHTML}</div>
+                        
+                        <div class="mt-4">
+                            <div class="space-y-0">${studentAccordionsHTML}</div>
                         </div>
-                        <p class="text-xs text-gray-400 mt-2">Data: ${formatDate(mainRecord.date)} | ID: ${incident.id}</p>
                     </div>
-                    <div class="flex-shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-stretch sm:self-center">
-                        <button class="kebab-action-btn text-gray-600 hover:text-gray-900 text-xs font-semibold py-2 px-3 rounded-md bg-gray-50 hover:bg-gray-100 border border-gray-300 text-center ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}"
-                                data-action="edit" data-group-id="${incident.id}" title="Editar Fato (Ação 1)" ${isFinalizada ? 'disabled' : ''}>
-                           <i class="fas fa-pencil-alt mr-1"></i> Editar Fato
-                        </button>
-                        <button class="record-btn text-gray-600 hover:text-gray-900 text-xs font-semibold py-2 px-3 rounded-md bg-gray-50 hover:bg-gray-100 border border-gray-300 text-center" data-group-id="${incident.id}" title="Gerar Ata de Ocorrência">
-                            <i class="fas fa-file-invoice mr-1"></i> Gerar Ata
-                        </button>
-                        <div class="relative kebab-menu-container self-center">
-                            <button class="kebab-menu-btn text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100" data-group-id="${incident.id}" title="Mais Opções">
-                                <i class="fas fa-ellipsis-v"></i>
-                            </button>
+                    
+                    <div class="flex-shrink-0 flex flex-col items-end gap-2 mt-2 sm:mt-0">
+                         <div class="relative kebab-menu-container">
+                            <button class="kebab-menu-btn text-gray-400 hover:text-gray-700 p-1" data-group-id="${incident.id}"><i class="fas fa-ellipsis-v fa-lg"></i></button>
                             <div class="kebab-menu-dropdown hidden absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border z-10">
+                                <button class="kebab-action-btn menu-item w-full text-left" data-action="edit" data-group-id="${incident.id}"><i class="fas fa-pencil-alt mr-2 w-4"></i>Editar Fato</button>
+                                <button class="record-btn menu-item w-full text-left" data-group-id="${incident.id}"><i class="fas fa-file-invoice mr-2 w-4"></i>Gerar Ata</button>
                                 <button class="kebab-action-btn menu-item w-full text-left" data-action="history" data-group-id="${incident.id}"><i class="fas fa-history mr-2 w-4"></i>Histórico</button>
-                                <button class="kebab-action-btn menu-item menu-item-danger w-full text-left ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}"
-                                        data-action="delete" data-group-id="${incident.id}" ${isFinalizada ? 'disabled' : ''}>
-                                    <i class="fas fa-trash mr-2 w-4"></i>Excluir
-                                </button>
+                                <button class="kebab-action-btn menu-item menu-item-danger w-full text-left" data-action="delete" data-group-id="${incident.id}"><i class="fas fa-trash mr-2 w-4"></i>Excluir</button>
                             </div>
                         </div>
                     </div>
