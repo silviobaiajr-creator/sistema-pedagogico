@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 6.0 (Design Premium + Ícones Narrativos + Cronômetro)
+// VERSÃO: 6.1 (Botões Inteligentes + Ver Ofício Explícito)
 
 import { state, dom } from './state.js';
 import { showToast, showAlert, openModal, closeModal, getStatusBadge, formatDate, formatTime, compressImage, openImageModal } from './utils.js';
@@ -47,6 +47,18 @@ export const occurrenceActionTitles = {
     'desfecho_ou_ct': 'Ação 4 ou 6: Encaminhar ao CT ou Dar Parecer',
     'devolutiva_ct': 'Ação 5: Registrar Devolutiva do CT',
     'parecer_final': 'Ação 6: Dar Parecer Final'
+};
+
+const nextStepLabels = {
+    'convocacao_1': 'Agendar 1ª Conv.',
+    'feedback_1': 'Reg. Contato',
+    'convocacao_2': 'Agendar 2ª Conv.',
+    'feedback_2': 'Reg. Contato (2ª)',
+    'convocacao_3': 'Agendar 3ª Conv.',
+    'feedback_3': 'Reg. Contato (3ª)',
+    'desfecho_ou_ct': 'Definir Desfecho',
+    'devolutiva_ct': 'Reg. Devolutiva',
+    'parecer_final': 'Finalizar'
 };
 
 let studentPendingRoleSelection = null;
@@ -362,6 +374,10 @@ export const renderOccurrences = () => {
                 
                 const stepInfo = getStepIndicator(status);
                 const timeInfo = getTimeSinceUpdate(null, record?.updatedAt || record?.createdAt);
+                
+                // Determina o texto do próximo botão
+                const nextStepKey = determineNextOccurrenceStep(status);
+                const nextActionText = nextStepLabels[nextStepKey] || 'Avançar / Agendar';
 
                 let historyHtml = '';
                 
@@ -428,8 +444,11 @@ export const renderOccurrences = () => {
                 
                 if (historyHtml === '') historyHtml = `<p class="text-xs text-gray-400 italic pl-2">Aguardando início do acompanhamento.</p>`;
                 
-                const avancarBtn = `<button type="button" class="avancar-etapa-btn flex-1 bg-sky-600 text-white hover:bg-sky-700 text-xs font-semibold py-2 px-2 rounded transition shadow-sm ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}" ${isIndividualResolvido ? 'disabled' : ''} data-group-id="${incident.id}" data-student-id="${student.matricula}" data-record-id="${recordId}"><i class="fas fa-forward mr-1"></i> Avançar / Agendar</button>`;
-                const viewOficioBtn = record?.oficioNumber ? `<button type="button" class="view-occurrence-oficio-btn bg-green-50 text-green-600 hover:bg-green-100 text-xs font-semibold py-2 px-3 rounded border border-green-200 transition" data-record-id="${recordId}" title="Ver Ofício"><i class="fas fa-file-alt"></i></button>` : '';
+                const avancarBtn = `<button type="button" class="avancar-etapa-btn flex-1 bg-sky-600 text-white hover:bg-sky-700 text-xs font-semibold py-2 px-2 rounded transition shadow-sm ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}" ${isIndividualResolvido ? 'disabled' : ''} data-group-id="${incident.id}" data-student-id="${student.matricula}" data-record-id="${recordId}"><i class="fas fa-forward mr-1"></i> ${nextActionText}</button>`;
+                
+                // Botão "Ver Ofício" agora explícito com Texto
+                const viewOficioBtn = record?.oficioNumber ? `<button type="button" class="view-occurrence-oficio-btn bg-green-50 text-green-700 hover:bg-green-100 text-xs font-semibold py-2 px-3 rounded border border-green-200 transition flex items-center gap-1" data-record-id="${recordId}" title="Ver Ofício"><i class="fas fa-file-alt"></i> Ver Ofício</button>` : '';
+                
                 const editActionBtn = `<button type="button" class="edit-occurrence-action-btn bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs font-semibold py-2 px-3 rounded transition ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}" data-group-id="${incident.id}" data-student-id="${student.matricula}" data-record-id="${recordId}" ${isFinalizada ? 'disabled' : ''} title="Editar"><i class="fas fa-pencil-alt"></i></button>`;
                 const resetActionBtn = `<button type="button" class="reset-occurrence-action-btn bg-gray-100 text-red-500 hover:bg-red-100 text-xs font-semibold py-2 px-3 rounded transition ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}" data-group-id="${incident.id}" data-student-id="${student.matricula}" data-record-id="${recordId}" ${isFinalizada ? 'disabled' : ''} title="Limpar"><i class="fas fa-undo-alt"></i></button>`;
                 
