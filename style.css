@@ -1,4 +1,6 @@
 
+
+
 /* ============================================================================== */
 /* ARQUIVO: style.css                                                             */
 
@@ -7,6 +9,18 @@ body {
     font-family: 'Inter', sans-serif; /* Define a fonte padrão da página */
     background-color: #f3f4f6; /* Cor de fundo suave */
 }
+
+/* --- CLASSES DE CORES PERSONALIZADAS (FALLBACK/AJUSTE FINO) --- */
+.border-l-4 {
+    border-left-width: 4px;
+}
+/* Tailwind já cobre essas cores, mas definimos explícito caso necessário para impressão ou fallback */
+.border-red-500 { border-color: #ef4444 !important; }
+.border-red-600 { border-color: #dc2626 !important; }
+.border-yellow-500 { border-color: #eab308 !important; }
+.border-orange-500 { border-color: #f97316 !important; }
+.border-emerald-500 { border-color: #10b981 !important; }
+.border-sky-500 { border-color: #0ea5e9 !important; }
 
 /* --- EFEITOS DE TRANSIÇÃO PARA MODAIS --- */
 .modal-backdrop {
