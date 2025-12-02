@@ -1,6 +1,5 @@
 
 
-
 /* ============================================================================== */
 /* ARQUIVO: style.css                                                             */
 
@@ -177,9 +176,81 @@ tbody tr:nth-child(even) {
 }
 
 /* ============================================================================== */
-/* (CORREÇÃO DEFINITIVA) SEÇÃO 2: ESTILOS PARA IMPRESSÃO                          */
+/* SEÇÃO 2: ESTILOS PARA RELATÓRIOS E IMPRESSÃO                                   */
 /* ============================================================================== */
 
+/* --- CANHOTO DE ASSINATURA (TEAR-OFF) --- */
+.tear-off-slip {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 2px dashed #9ca3af;
+    page-break-inside: avoid;
+}
+.tear-off-title {
+    text-align: center;
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* --- TABELAS FORMAIS (OFÍCIOS) --- */
+.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    font-family: 'Inter', sans-serif;
+}
+.report-table th, .report-table td {
+    border: 1px solid #d1d5db;
+    padding: 0.5rem;
+    text-align: left;
+}
+.report-table th {
+    background-color: #f3f4f6;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+/* --- CARTÃO DE IDENTIDADE DO ALUNO --- */
+.student-id-card {
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+}
+.student-id-card strong {
+    color: #374151;
+}
+
+/* --- TIMELINE DE OCORRÊNCIAS --- */
+.report-timeline-item {
+    position: relative;
+    padding-left: 1rem;
+    border-left: 2px solid #e5e7eb;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+.report-timeline-item:last-child {
+    border-left-color: transparent;
+}
+.report-timeline-dot {
+    position: absolute;
+    left: -5px;
+    top: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #9ca3af;
+}
+
+/* --- CONFIGURAÇÃO DE IMPRESSÃO --- */
 @media print {
     /* 1. Reseta a página base */
     html, body {
@@ -188,6 +259,7 @@ tbody tr:nth-child(even) {
         height: auto !important;
         overflow: visible !important;
         background: #fff !important;
+        font-size: 11pt; /* Tamanho de fonte otimizado para leitura em papel */
     }
 
     /* 2. Esconde TUDO que não seja a área ativa */
@@ -196,7 +268,6 @@ tbody tr:nth-child(even) {
     }
     
     /* 3. Força a exibição da área ativa */
-    /* O seletor é bem específico para garantir que sobrescreva o 'hidden' do Tailwind */
     .printable-area-active {
         display: block !important;
         position: static !important;
@@ -211,14 +282,13 @@ tbody tr:nth-child(even) {
         visibility: visible !important;
     }
     
-    /* 4. (CORREÇÃO PÁGINA BRANCA) Remove Flexbox e Scroll do Modal Content */
-    /* Isso evita que o conteúdo fique "preso" dentro de um container flexível na impressão */
+    /* 4. Remove Flexbox e Scroll do Modal Content */
     .printable-area-active .modal-content {
-        display: block !important; /* Mata o flex */
+        display: block !important;
         position: static !important;
         width: 100% !important;
         height: auto !important;
-        max-height: none !important; /* Remove limite de altura */
+        max-height: none !important;
         overflow: visible !important;
         box-shadow: none !important;
         border: none !important;
@@ -232,12 +302,12 @@ tbody tr:nth-child(even) {
         max-height: none !important;
     }
     
-    /* 6. Esconde elementos de UI (botões) */
+    /* 6. Esconde elementos de UI */
     .no-print {
         display: none !important;
     }
 
-    /* 7. Zera margens e paddings internos para aproveitar o papel */
+    /* 7. Zera margens internas */
     .printable-area-active #notification-content,
     .printable-area-active #report-view-content,
     .printable-area-active #ficha-view-content {
@@ -245,41 +315,25 @@ tbody tr:nth-child(even) {
         margin: 0 !important;
     }
 
-    /* --- ESTILOS DE CONTEÚDO --- */
+    /* --- ESTILOS DE CONTEÚDO IMPRESSO --- */
     
-    /* Assinaturas */
     .signature-block {
         display: block !important;
         page-break-inside: avoid;
+        margin-top: 3rem;
     }
     
-    .signature-line {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 60%;
-        margin-left: auto;
-        margin-right: auto;
-    }
-
-    .signature-text {
-        border-top: 1px solid #374151;
-        width: 100%;
-        padding-top: 0.25rem;
-        text-align: center;
-        font-weight: 600;
-    }
-
-    .signature-role {
-        font-size: 0.75rem;
-        color: #4b5563;
-    }
-
     .break-inside-avoid {
         page-break-inside: avoid;
     }
+    
+    /* Força cores de background (para tabelas e boxes) */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
 
     @page {
-        margin: 1.5cm; /* Margem segura para impressão */
+        margin: 1.5cm;
     }
 }
