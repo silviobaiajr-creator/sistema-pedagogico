@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 6.0 (Layout Profissional + Funcionalidade Completa Restaurada)
+// VERSÃO: 6.2 (Histórico de Busca Ativa Padronizado com Ata)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -565,30 +565,79 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
         ? `<div class="absolute top-0 right-0 border-2 border-green-600 text-green-600 font-bold px-2 py-1 transform rotate-12 text-xs uppercase rounded">CONCLUÍDO</div>`
         : `<div class="absolute top-0 right-0 border-2 border-yellow-600 text-yellow-600 font-bold px-2 py-1 transform rotate-12 text-xs uppercase rounded">EM ACOMPANHAMENTO</div>`;
 
-    let timelineHTML = actions.map(act => {
-        let desc = "";
-        let imgs = "";
-        
-        if (act.actionType.startsWith('tentativa')) {
-            desc = `Agendado: ${formatDate(act.meetingDate)}. `;
-            if (act.contactSucceeded) desc += `Status: ${act.contactSucceeded === 'yes' ? 'Sucesso' : 'Falha'}. Obs: ${formatText(act.contactReason)}.`;
-            imgs = getPrintHTML(act.contactPrints, act.contactPrint);
-        } else if (act.actionType === 'visita') {
-            desc = `Agente: ${act.visitAgent}. Status: ${act.visitSucceeded === 'yes' ? 'Sucesso' : 'Falha'}. Obs: ${formatText(act.visitReason)}.`;
-        } else if (act.actionType === 'encaminhamento_ct') {
-            desc = `Ofício: ${act.oficioNumber}/${act.oficioYear}. Devolutiva: ${formatText(act.ctFeedback)}`;
-        } else if (act.actionType === 'analise') {
-            desc = `Parecer Final: ${formatText(act.ctParecer)}`;
+    // --- CONSTRUÇÃO DO HISTÓRICO PADRONIZADO (TIMELINE) ---
+    let timelineHTML = '';
+
+    actions.forEach(act => {
+        // 1. Bloco de Agendamento (Se houver meetingDate na tentativa)
+        if (act.meetingDate) {
+            timelineHTML += `
+                <div class="report-timeline-item ml-2 break-inside-avoid">
+                    <div class="report-timeline-dot"></div>
+                    <p class="text-sm font-bold text-gray-800">Convocação Agendada <span class="font-normal text-xs text-gray-500">(${actionDisplayTitles[act.actionType]})</span></p>
+                    <p class="text-xs text-gray-600 mt-1">
+                        Para: <strong>${formatDate(act.meetingDate)}</strong> às <strong>${formatTime(act.meetingTime)}</strong>.
+                    </p>
+                </div>`;
         }
 
-        return `
-            <div class="report-timeline-item ml-2 break-inside-avoid">
-                <div class="report-timeline-dot"></div>
-                <p class="text-sm font-bold text-gray-800">${actionDisplayTitles[act.actionType]} <span class="font-normal text-xs text-gray-500">(${formatDate(act.createdAt?.toDate())})</span></p>
-                <p class="text-xs text-gray-600 mt-1">${desc}</p>
-                ${imgs}
-            </div>`;
-    }).join('');
+        // 2. Bloco de Execução/Resultado
+        let title = "";
+        let desc = "";
+        let dateRef = act.createdAt?.toDate(); 
+        let imgs = "";
+
+        if (act.actionType.startsWith('tentativa')) {
+            // Só exibe se houve feedback registrado
+            if (act.contactSucceeded) {
+                title = `Registro de Contato (${formatText(actionDisplayTitles[act.actionType])})`;
+                dateRef = act.contactDate;
+                const status = act.contactSucceeded === 'yes' ? "Contato Realizado" : "Sem Sucesso/Não Compareceu";
+                
+                desc = `<strong>Status:</strong> ${status}.<br>`;
+                if(act.contactSucceeded === 'yes') {
+                    desc += `<strong>Com quem falou:</strong> ${formatText(act.contactPerson)}.<br>`;
+                    desc += `<strong>Justificativa/Combinado:</strong> ${formatText(act.contactReason)}.`;
+                    imgs = getPrintHTML(act.contactPrints, act.contactPrint);
+                }
+            }
+        } else if (act.actionType === 'visita') {
+            title = "Visita Domiciliar Realizada";
+            dateRef = act.visitDate;
+            const status = act.visitSucceeded === 'yes' ? "Contato Realizado" : "Sem contato/Não atendido";
+            
+            desc = `<strong>Agente:</strong> ${formatText(act.visitAgent)}.<br>`;
+            desc += `<strong>Status:</strong> ${status}.<br>`;
+            desc += `<strong>Obs:</strong> ${formatText(act.visitReason)} ${formatText(act.visitObs)}.`;
+
+        } else if (act.actionType === 'encaminhamento_ct') {
+            title = "Encaminhamento ao Conselho Tutelar";
+            dateRef = act.ctSentDate;
+            desc = `<strong>Ofício Nº:</strong> ${formatText(act.oficioNumber)}/${formatText(act.oficioYear)}.<br>`;
+            
+            if (act.ctFeedback) {
+                 desc += `<div class="mt-2 pt-2 border-t border-gray-200"><strong>Devolutiva CT:</strong> ${formatText(act.ctFeedback)}</div>`;
+            }
+
+        } else if (act.actionType === 'analise') {
+            title = "Parecer Final / Conclusão";
+            desc = formatText(act.ctParecer);
+        }
+
+        if (title) {
+             timelineHTML += `
+                <div class="report-timeline-item ml-2 break-inside-avoid">
+                    <div class="report-timeline-dot" style="background-color: #4b5563;"></div>
+                    <p class="text-sm font-bold text-gray-800">${title} <span class="font-normal text-xs text-gray-500">(${formatDate(dateRef)})</span></p>
+                    <div class="text-xs text-gray-600 mt-1 leading-relaxed">${desc}</div>
+                    ${imgs}
+                </div>`;
+        }
+    });
+
+    if (!timelineHTML) {
+        timelineHTML = '<p class="text-sm text-gray-500 italic pl-4">Nenhuma ação detalhada registrada.</p>';
+    }
 
     const html = `
         <div class="space-y-6 text-sm font-sans relative">
@@ -603,7 +652,7 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
                 <div><p class="text-xs font-bold text-gray-500 uppercase">Fim Período</p><p class="font-semibold">${formatDate(faltasData.periodoFaltasEnd)}</p></div>
             </div>
 
-            <h4 class="font-bold border-b mt-6 mb-4 uppercase text-xs text-gray-500">Histórico de Ações</h4>
+            <h4 class="font-bold border-b mt-6 mb-4 uppercase text-xs text-gray-500">Histórico de Acompanhamento (Cronologia)</h4>
             <div class="pl-2 border-l-2 border-gray-100">${timelineHTML}</div>
 
             <div class="signature-block mt-12 grid grid-cols-2 gap-8">
