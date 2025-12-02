@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 5.0 (Design Visual Melhorado + Bordas Coloridas)
+// VERSÃO: 6.0 (Design Premium + Ícones Narrativos + Cronômetro)
 
 import { state, dom } from './state.js';
 import { showToast, showAlert, openModal, closeModal, getStatusBadge, formatDate, formatTime, compressImage, openImageModal } from './utils.js';
@@ -289,24 +289,34 @@ const getTypeColorClass = (type) => {
 };
 
 const getStepIndicator = (status) => {
-    // Mapeamento simples de passos
     const steps = {
-        'Aguardando Convocação 1': '1/6',
-        'Aguardando Feedback 1': '2/6',
-        'Aguardando Convocação 2': '3/6',
-        'Aguardando Feedback 2': '4/6',
-        'Aguardando Convocação 3': '5/6',
-        'Aguardando Desfecho': '5/6',
-        'Aguardando Devolutiva CT': '6/6',
-        'Aguardando Parecer Final': '6/6',
-        'Resolvido': 'Concluído',
-        'Finalizada': 'Concluído'
+        'Aguardando Convocação 1': { text: 'Passo 1/6', color: 'bg-blue-100 text-blue-700' },
+        'Aguardando Feedback 1': { text: 'Passo 2/6', color: 'bg-blue-100 text-blue-700' },
+        'Aguardando Convocação 2': { text: 'Passo 3/6', color: 'bg-indigo-100 text-indigo-700' },
+        'Aguardando Feedback 2': { text: 'Passo 4/6', color: 'bg-indigo-100 text-indigo-700' },
+        'Aguardando Convocação 3': { text: 'Passo 5/6', color: 'bg-purple-100 text-purple-700' },
+        'Aguardando Desfecho': { text: 'Passo 5/6', color: 'bg-purple-100 text-purple-700' },
+        'Aguardando Devolutiva CT': { text: 'Passo 6/6', color: 'bg-pink-100 text-pink-700' },
+        'Aguardando Parecer Final': { text: 'Finalizando', color: 'bg-pink-100 text-pink-700' },
+        'Resolvido': { text: 'Concluído', color: 'bg-green-100 text-green-700' },
+        'Finalizada': { text: 'Concluído', color: 'bg-green-100 text-green-700' }
     };
+    return steps[status] || { text: 'Início', color: 'bg-gray-100 text-gray-700' };
+};
+
+const getTimeSinceUpdate = (dateString, updateDate) => {
+    // Usa data de atualização do registro se disponível, senão data de criação, senão hoje
+    const refDate = updateDate ? (updateDate.toDate ? updateDate.toDate() : new Date(updateDate)) : new Date();
+    const now = new Date();
+    const diffTime = Math.abs(now - refDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    // Tratamento para status genéricos ou iniciais
-    if (!status || status === 'Aguardando Convocação') return '1/6';
+    let color = 'text-gray-400';
+    if (diffDays > 7) color = 'text-red-500 font-bold';
+    else if (diffDays > 4) color = 'text-orange-500';
     
-    return steps[status] || '-';
+    if (diffDays <= 1) return { text: 'Hoje', class: 'text-green-600' };
+    return { text: `${diffDays}d parado`, class: color };
 };
 
 export const renderOccurrences = () => {
@@ -332,15 +342,11 @@ export const renderOccurrences = () => {
 
         const studentSearch = normalizeText(state.filterOccurrences);
         const isFinalizada = incident.overallStatus === 'Finalizada';
-        
-        // COR DA BORDA LATERAL (Classificação de Risco)
         const borderColorClass = getTypeColorClass(mainRecord.occurrenceType);
 
         const studentAccordionsHTML = [...incident.participantsInvolved.values()]
             .filter(participant => {
-                if (studentSearch && !normalizeText(participant.student.name).includes(studentSearch)) {
-                    return false;
-                }
+                if (studentSearch && !normalizeText(participant.student.name).includes(studentSearch)) return false;
                 return true; 
             })
             .map(participant => {
@@ -354,155 +360,94 @@ export const renderOccurrences = () => {
                 const iconClass = roleIcons[role] || roleIcons[defaultRole];
                 const isIndividualResolvido = record?.statusIndividual === 'Resolvido';
                 
-                // STEP INDICATOR
-                const step = getStepIndicator(status);
+                const stepInfo = getStepIndicator(status);
+                const timeInfo = getTimeSinceUpdate(null, record?.updatedAt || record?.createdAt);
 
                 let historyHtml = '';
                 
                 // Helper para renderizar bloco de Tentativa
                 const renderAttemptBlock = (index, mDate, mTime, succeeded, contactDate, contactPerson, contactPrints, legacyContactPrint) => {
                     if (!mDate) return '';
-                    const attemptNum = index; // 1, 2 ou 3
+                    const attemptNum = index; 
                     const notificationBtn = `
-                        <button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-900 text-xs font-semibold ml-2 cursor-pointer" 
+                        <button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-800 ml-2" 
                                 data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" data-attempt="${attemptNum}" title="Ver Notificação">
-                            [<i class="fas fa-eye fa-fw"></i> Ver Notificação]
+                            <i class="fas fa-eye"></i>
                         </button>`;
                     
                     let statusContent = '';
-                    
+                    let statusIcon = '<i class="fas fa-bullhorn text-gray-400"></i>';
+                    let statusClass = 'text-gray-500';
+
                     if (succeeded === null) {
-                        // LÓGICA DO BOTÃO INTERATIVO: Pendente de Feedback
                         statusContent = `
-                            <div class="mt-1 flex items-center gap-2">
-                                <span class="text-xs text-yellow-700 font-medium">Conseguiu contato?</span>
-                                <button type="button" class="quick-feedback-btn bg-green-100 text-green-700 hover:bg-green-200 text-xs px-2 py-0.5 rounded border border-green-300 transition"
-                                        data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" data-action="feedback_${attemptNum}" data-value="yes">
-                                    Sim
-                                </button>
-                                <button type="button" class="quick-feedback-btn bg-red-100 text-red-700 hover:bg-red-200 text-xs px-2 py-0.5 rounded border border-red-300 transition"
-                                        data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" data-action="feedback_${attemptNum}" data-value="no">
-                                    Não
-                                </button>
-                            </div>
-                        `;
+                            <div class="mt-1 flex items-center gap-2 ml-7">
+                                <span class="text-[10px] text-yellow-700 font-medium uppercase">Registro Rápido:</span>
+                                <button type="button" class="quick-feedback-btn bg-green-50 text-green-700 hover:bg-green-100 text-xs px-2 py-0.5 rounded border border-green-200 transition"
+                                        data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" data-action="feedback_${attemptNum}" data-value="yes">Sim</button>
+                                <button type="button" class="quick-feedback-btn bg-red-50 text-red-700 hover:bg-red-100 text-xs px-2 py-0.5 rounded border border-red-200 transition"
+                                        data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" data-action="feedback_${attemptNum}" data-value="no">Não</button>
+                            </div>`;
                     } else if (succeeded === 'yes') {
-                        // EXIBIÇÃO DE PRINTS (ARRAY OU ÚNICO)
                         let printsHtml = '';
-                        
-                        // Normaliza para array de visualização
                         let imagesToShow = [];
-                        if (contactPrints && Array.isArray(contactPrints) && contactPrints.length > 0) {
-                            imagesToShow = contactPrints;
-                        } else if (legacyContactPrint) {
-                            imagesToShow = [legacyContactPrint];
-                        }
+                        if (contactPrints && Array.isArray(contactPrints) && contactPrints.length > 0) imagesToShow = contactPrints;
+                        else if (legacyContactPrint) imagesToShow = [legacyContactPrint];
 
                         if (imagesToShow.length > 0) {
-                            const btnLabel = imagesToShow.length > 1 ? `[<i class="fas fa-images fa-fw"></i> Ver ${imagesToShow.length} Prints]` : `[<i class="fas fa-image fa-fw"></i> Ver Print]`;
-                            printsHtml = `
-                                <button type="button" class="view-print-btn text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${imagesToShow[0]}', 'Anexo 1 de ${imagesToShow.length}')">
-                                    ${btnLabel}
-                                </button>`;
+                            const btnLabel = imagesToShow.length > 1 ? `[${imagesToShow.length} Prints]` : `[Print]`;
+                            printsHtml = `<button type="button" class="view-print-btn text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${imagesToShow[0]}', 'Anexo')"><i class="fas fa-image"></i> ${btnLabel}</button>`;
                         }
-
-                        statusContent = `<span class="text-green-600 font-semibold ml-1">- Contato Realizado com <u>${contactPerson || 'Responsável'}</u> em ${formatDate(contactDate)}</span> ${printsHtml}`;
+                        statusContent = `<div class="ml-7 text-xs"><span class="text-green-600 font-bold"><i class="fas fa-check"></i> Contato OK</span> <span class="text-gray-500">(${contactPerson || 'Resp.'} em ${formatDate(contactDate)})</span> ${printsHtml}</div>`;
+                        statusIcon = '<i class="fas fa-phone-alt text-green-500"></i>';
                     } else {
-                        statusContent = `<span class="text-red-600 font-semibold ml-1">- Sem sucesso</span>`;
+                        statusContent = `<div class="ml-7 text-xs"><span class="text-red-600 font-bold"><i class="fas fa-times"></i> Sem sucesso</span></div>`;
+                        statusIcon = '<i class="fas fa-phone-slash text-red-500"></i>';
                     }
 
                     return `
-                        <div class="mb-2 pb-2 border-b border-gray-100 last:border-0">
-                            <p class="text-xs text-gray-700 flex items-center flex-wrap">
-                                <i class="fas fa-bullhorn text-gray-400 fa-fw mr-1"></i> 
-                                <strong>${attemptNum}ª Convocação:</strong> Agendada p/ ${formatDate(mDate)} às ${formatTime(mTime)}.
+                        <div class="mb-2 pb-2 border-b border-gray-100 last:border-0 last:pb-0">
+                            <div class="flex items-center gap-2">
+                                <div class="w-5 text-center">${statusIcon}</div>
+                                <div class="text-xs text-gray-700 font-medium">
+                                    ${attemptNum}ª Convocação <span class="text-gray-400 font-normal">(${formatDate(mDate)})</span>
+                                </div>
                                 ${notificationBtn}
-                            </p>
+                            </div>
                             ${statusContent}
                         </div>`;
                 };
 
-                // Renderiza as 3 tentativas possíveis
                 historyHtml += renderAttemptBlock(1, record.meetingDate || record.meetingDate_1, record.meetingTime || record.meetingTime_1, record.contactSucceeded_1, record.contactDate_1, record.contactPerson_1, record.contactPrints_1, record.contactPrint_1);
                 historyHtml += renderAttemptBlock(2, record.meetingDate_2, record.meetingTime_2, record.contactSucceeded_2, record.contactDate_2, record.contactPerson_2, record.contactPrints_2, record.contactPrint_2);
                 historyHtml += renderAttemptBlock(3, record.meetingDate_3, record.meetingTime_3, record.contactSucceeded_3, record.contactDate_3, record.contactPerson_3, record.contactPrints_3, record.contactPrint_3);
 
-                // Ações Finais (4, 5, 6)
-                if (record?.oficioNumber) {
-                     historyHtml += `<p class="text-xs text-gray-600 mt-1"><i class="fas fa-file-export text-blue-500 fa-fw mr-1"></i> <strong>Ação 4 (Enc. CT):</strong> Enviado Ofício Nº ${record.oficioNumber}/${record.oficioYear}.</p>`;
-                }
-                if (record?.ctFeedback) {
-                     historyHtml += `<p class="text-xs text-gray-600 mt-1"><i class="fas fa-reply text-purple-500 fa-fw mr-1"></i> <strong>Ação 5 (Devolutiva):</strong> Recebida.</p>`;
-                }
-                if (record?.parecerFinal) {
-                     historyHtml += `<p class="text-xs text-gray-600 mt-1"><i class="fas fa-flag-checkered text-green-600 fa-fw mr-1"></i> <strong>Ação 6 (Parecer Final):</strong> Processo finalizado.</p>`;
-                }
+                if (record?.oficioNumber) historyHtml += `<div class="flex items-center gap-2 mb-2"><div class="w-5 text-center"><i class="fas fa-landmark text-blue-500"></i></div><div class="text-xs text-gray-600"><strong>Encaminhado CT:</strong> Ofício ${record.oficioNumber}/${record.oficioYear}</div></div>`;
+                if (record?.ctFeedback) historyHtml += `<div class="flex items-center gap-2 mb-2"><div class="w-5 text-center"><i class="fas fa-reply text-purple-500"></i></div><div class="text-xs text-gray-600"><strong>Devolutiva:</strong> Recebida</div></div>`;
+                if (record?.parecerFinal) historyHtml += `<div class="flex items-center gap-2 mb-2"><div class="w-5 text-center"><i class="fas fa-gavel text-green-600"></i></div><div class="text-xs text-gray-600"><strong>Parecer Final:</strong> Registrado</div></div>`;
                 
-                if (historyHtml === '') {
-                     historyHtml = `<p class="text-xs text-gray-400 italic">Aguardando início do acompanhamento.</p>`;
-                }
+                if (historyHtml === '') historyHtml = `<p class="text-xs text-gray-400 italic pl-2">Aguardando início do acompanhamento.</p>`;
                 
-                const avancarBtn = `
-                    <button type="button"
-                            class="avancar-etapa-btn text-sky-600 hover:text-sky-900 text-xs font-semibold py-1 px-2 rounded-md bg-sky-50 hover:bg-sky-100 ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}"
-                            title="${isIndividualResolvido ? 'Processo individual finalizado' : `Agendar próxima etapa`}"
-                            ${isIndividualResolvido ? 'disabled' : ''}
-                            data-group-id="${incident.id}"
-                            data-student-id="${student.matricula}"
-                            data-record-id="${recordId}">
-                        <i class="fas fa-plus"></i> Avançar / Agendar
-                    </button>
-                `;
-
-                const viewOficioBtn = record?.oficioNumber ? `
-                    <button type="button"
-                            class="view-occurrence-oficio-btn text-green-600 hover:text-green-900 text-xs font-semibold py-1 px-2 rounded-md bg-green-50 hover:bg-green-100"
-                            data-record-id="${recordId}"
-                            title="Ver Ofício Nº ${record.oficioNumber}/${record.oficioYear || ''}">
-                        <i class="fas fa-file-alt"></i> Ver Ofício
-                    </button>
-                ` : '';
-
-                const editActionBtn = `
-                    <button type="button"
-                            class="edit-occurrence-action-btn text-yellow-600 hover:text-yellow-900 text-xs font-semibold py-1 px-2 rounded-md bg-yellow-50 hover:bg-yellow-100 ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}"
-                            data-group-id="${incident.id}"
-                            data-student-id="${student.matricula}"
-                            data-record-id="${recordId}"
-                            ${isFinalizada ? 'disabled' : ''}
-                            title="Editar a última ação salva">
-                        <i class="fas fa-pencil-alt"></i> Editar Última
-                    </button>
-                `;
-                
-                const resetActionBtn = `
-                     <button type="button"
-                            class="reset-occurrence-action-btn text-red-600 hover:text-red-900 text-xs font-semibold py-1 px-2 rounded-md bg-red-50 hover:bg-red-100 ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}"
-                            data-group-id="${incident.id}"
-                            data-student-id="${student.matricula}"
-                            data-record-id="${recordId}"
-                            ${isFinalizada ? 'disabled' : ''}
-                            title="Limpar a última ação (desfazer)">
-                        <i class="fas fa-undo-alt"></i> Limpar
-                    </button>
-                `;
+                const avancarBtn = `<button type="button" class="avancar-etapa-btn flex-1 bg-sky-600 text-white hover:bg-sky-700 text-xs font-semibold py-2 px-2 rounded transition shadow-sm ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}" ${isIndividualResolvido ? 'disabled' : ''} data-group-id="${incident.id}" data-student-id="${student.matricula}" data-record-id="${recordId}"><i class="fas fa-forward mr-1"></i> Avançar / Agendar</button>`;
+                const viewOficioBtn = record?.oficioNumber ? `<button type="button" class="view-occurrence-oficio-btn bg-green-50 text-green-600 hover:bg-green-100 text-xs font-semibold py-2 px-3 rounded border border-green-200 transition" data-record-id="${recordId}" title="Ver Ofício"><i class="fas fa-file-alt"></i></button>` : '';
+                const editActionBtn = `<button type="button" class="edit-occurrence-action-btn bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs font-semibold py-2 px-3 rounded transition ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}" data-group-id="${incident.id}" data-student-id="${student.matricula}" data-record-id="${recordId}" ${isFinalizada ? 'disabled' : ''} title="Editar"><i class="fas fa-pencil-alt"></i></button>`;
+                const resetActionBtn = `<button type="button" class="reset-occurrence-action-btn bg-gray-100 text-red-500 hover:bg-red-100 text-xs font-semibold py-2 px-3 rounded transition ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}" data-group-id="${incident.id}" data-student-id="${student.matricula}" data-record-id="${recordId}" ${isFinalizada ? 'disabled' : ''} title="Limpar"><i class="fas fa-undo-alt"></i></button>`;
                 
                 const contentId = `occ-content-${recordId || student.matricula}`; 
                 
-                // DESIGN HIERÁRQUICO
                 return `
-                    <div class="bg-gray-50 rounded-lg border border-gray-200 mt-2">
-                        <div class="occurrence-summary p-3 cursor-pointer hover:bg-sky-50 flex justify-between items-center"
-                             data-content-id="${contentId}">
-                            
+                    <div class="bg-gray-50 rounded-lg border border-gray-200 mt-2 hover:shadow-sm transition-shadow">
+                        <div class="occurrence-summary p-3 cursor-pointer hover:bg-gray-100 flex justify-between items-center" data-content-id="${contentId}">
                             <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
                                 <div class="flex items-center gap-2">
-                                    <i class="${iconClass} fa-fw w-4 text-center text-gray-500" title="${role}"></i>
-                                    <span class="text-lg font-bold text-gray-800 ${isMatch ? 'bg-yellow-200 px-1' : ''}">${student.name}</span>
-                                    <span class="text-sm text-gray-500 font-semibold bg-gray-200 px-2 rounded-full">${student.class || 'Turma?'}</span>
+                                    <i class="${iconClass} fa-fw w-4 text-center text-gray-400" title="${role}"></i>
+                                    <div>
+                                        <div class="text-sm font-bold text-gray-800 ${isMatch ? 'bg-yellow-200 px-1' : ''}">${student.name}</div>
+                                        <div class="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">${student.class || 'Turma?'} • <span class="${timeInfo.class}">${timeInfo.text}</span></div>
+                                    </div>
                                 </div>
                                 <div class="flex items-center gap-2 sm:ml-auto mr-4">
-                                     <span class="text-xs font-mono bg-white border border-gray-300 px-2 py-0.5 rounded text-gray-600" title="Etapa atual">Passo: ${step}</span>
+                                     <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${stepInfo.color}">${stepInfo.text}</span>
                                      ${getStatusBadge(status)}
                                 </div>
                             </div>
@@ -511,16 +456,14 @@ export const renderOccurrences = () => {
                         
                         <div id="${contentId}" class="process-content" style="max-height: 0px; overflow: hidden;">
                             <div class="p-3 border-t border-gray-200 bg-white">
-                                <h5 class="text-xs font-bold uppercase text-gray-500 mb-2">Histórico de Ações</h5>
-                                <div class="space-y-2 mb-3">
+                                <div class="space-y-1 mb-3 bg-gray-50 p-2 rounded border border-gray-100">
                                     ${historyHtml}
                                 </div>
-                                <h5 class="text-xs font-bold uppercase text-gray-500 mb-2 mt-4">Gestão</h5>
-                                <div class="flex items-center flex-wrap gap-2">
-                                    ${avancarBtn}
+                                <div class="flex items-center gap-2 mt-3">
+                                    ${viewOficioBtn}
                                     ${editActionBtn}
                                     ${resetActionBtn}
-                                    ${viewOficioBtn}
+                                    ${avancarBtn}
                                 </div>
                             </div>
                         </div>
@@ -528,34 +471,40 @@ export const renderOccurrences = () => {
                 `;
             }).join('');
 
-        // HEADER DO CARD DE OCORRÊNCIA
         return `
-            <div class="border-l-4 ${borderColorClass} rounded-lg bg-white shadow-sm mb-4">
-                <div class="p-4 flex flex-col sm:flex-row justify-between items-start gap-3">
-                    <div class="flex-grow w-full">
-                        <div class="flex justify-between items-start">
-                             <div>
-                                <h3 class="font-bold text-gray-800 text-base uppercase tracking-wide">${mainRecord.occurrenceType || 'Tipo não informado'}</h3>
-                                <p class="text-xs text-gray-500 mt-0.5"><i class="far fa-calendar-alt"></i> ${formatDate(mainRecord.date)} <span class="mx-1">|</span> <span class="font-mono">ID: ${incident.id}</span></p>
-                             </div>
-                             ${getStatusBadge(incident.overallStatus)}
-                        </div>
-                        
-                        <div class="mt-4">
-                            <div class="space-y-0">${studentAccordionsHTML}</div>
-                        </div>
-                    </div>
-                    
-                    <div class="flex-shrink-0 flex flex-col items-end gap-2 mt-2 sm:mt-0">
-                         <div class="relative kebab-menu-container">
-                            <button class="kebab-menu-btn text-gray-400 hover:text-gray-700 p-1" data-group-id="${incident.id}"><i class="fas fa-ellipsis-v fa-lg"></i></button>
-                            <div class="kebab-menu-dropdown hidden absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border z-10">
-                                <button class="kebab-action-btn menu-item w-full text-left" data-action="edit" data-group-id="${incident.id}"><i class="fas fa-pencil-alt mr-2 w-4"></i>Editar Fato</button>
-                                <button class="record-btn menu-item w-full text-left" data-group-id="${incident.id}"><i class="fas fa-file-invoice mr-2 w-4"></i>Gerar Ata</button>
-                                <button class="kebab-action-btn menu-item w-full text-left" data-action="history" data-group-id="${incident.id}"><i class="fas fa-history mr-2 w-4"></i>Histórico</button>
-                                <button class="kebab-action-btn menu-item menu-item-danger w-full text-left" data-action="delete" data-group-id="${incident.id}"><i class="fas fa-trash mr-2 w-4"></i>Excluir</button>
+            <div class="border-l-4 ${borderColorClass} rounded-lg bg-white shadow-sm mb-4 transition hover:shadow-md">
+                <div class="p-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start gap-3 border-b border-gray-100 pb-3 mb-3">
+                         <div class="w-full">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h3 class="font-bold text-gray-800 text-base uppercase tracking-wide flex items-center gap-2">
+                                        ${mainRecord.occurrenceType || 'Tipo não informado'}
+                                    </h3>
+                                    <p class="text-[10px] text-gray-400 mt-1 font-mono uppercase">
+                                        <i class="far fa-calendar-alt"></i> ${formatDate(mainRecord.date)} • ID: ${incident.id}
+                                    </p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    ${getStatusBadge(incident.overallStatus)}
+                                    <div class="relative kebab-menu-container">
+                                        <button class="kebab-menu-btn text-gray-400 hover:text-gray-700 p-1 rounded hover:bg-gray-100 transition" data-group-id="${incident.id}"><i class="fas fa-ellipsis-v"></i></button>
+                                        <div class="kebab-menu-dropdown hidden absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border z-10">
+                                            <button class="kebab-action-btn menu-item w-full text-left" data-action="edit" data-group-id="${incident.id}"><i class="fas fa-pencil-alt mr-2 w-4"></i>Editar Fato</button>
+                                            <button class="record-btn menu-item w-full text-left" data-group-id="${incident.id}"><i class="fas fa-file-invoice mr-2 w-4"></i>Gerar Ata</button>
+                                            <button class="kebab-action-btn menu-item w-full text-left" data-action="history" data-group-id="${incident.id}"><i class="fas fa-history mr-2 w-4"></i>Histórico</button>
+                                            <button class="kebab-action-btn menu-item menu-item-danger w-full text-left" data-action="delete" data-group-id="${incident.id}"><i class="fas fa-trash mr-2 w-4"></i>Excluir</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                            <div class="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 line-clamp-2" title="${mainRecord.description}">
+                                <span class="font-bold text-gray-500 uppercase text-[10px]">Fato:</span> ${mainRecord.description}
+                            </div>
+                         </div>
+                    </div>
+                    <div class="space-y-0">
+                        ${studentAccordionsHTML}
                     </div>
                 </div>
             </div>`;
