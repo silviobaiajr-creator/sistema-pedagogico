@@ -1,7 +1,8 @@
 
+
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 6.2 (Histórico de Busca Ativa Padronizado com Ata)
+// VERSÃO: 6.4 (Remoção de Canhotos + Espaçamento de Assinatura)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -201,34 +202,6 @@ const getAttemptsTableHTML = (records, type = 'occurrence') => {
     `;
 };
 
-/**
- * Helper: Canhoto de Retorno (Tear-off slip)
- */
-const getTearOffSlipHTML = (title, studentName, returnDate, returnTime) => {
-    return `
-        <div class="tear-off-slip">
-            <p class="tear-off-title"><i class="fas fa-cut"></i> Corte Aqui - Devolver à Escola <i class="fas fa-cut"></i></p>
-            <div class="border border-gray-400 p-4 bg-white">
-                <p class="text-center font-bold mb-4 uppercase">Comprovante de Ciência - ${title}</p>
-                <p class="text-sm text-justify mb-4">
-                    Eu, responsável pelo(a) aluno(a) <strong>${formatText(studentName)}</strong>, declaro estar ciente da notificação recebida
-                    e comprometo-me a comparecer à escola na data estipulada (${formatDate(returnDate)} às ${formatTime(returnTime)}) para tratar do assunto.
-                </p>
-                <div class="flex justify-between items-end mt-8">
-                    <div class="text-center w-1/3">
-                        <div class="border-t border-black"></div>
-                        <p class="text-xs mt-1">Data</p>
-                    </div>
-                    <div class="text-center w-1/2">
-                        <div class="border-t border-black"></div>
-                        <p class="text-xs mt-1">Assinatura do Responsável</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-};
-
 
 // =================================================================================
 // FUNÇÕES PRINCIPAIS DE GERAÇÃO
@@ -333,16 +306,18 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
                 <div class="text-xl font-semibold text-gray-700 mt-1">${formatTime(meetingTime)}</div>
             </div>
 
-            <div class="signature-block mt-12 mb-8">
+            <div class="signature-block mt-24 pt-8 mb-8 break-inside-avoid">
                 <div class="flex justify-around items-end">
                     <div class="text-center w-5/12">
                         <div class="border-t border-black mb-1"></div>
                         <p class="text-xs font-bold">Gestão Escolar</p>
                     </div>
+                    <div class="text-center w-5/12">
+                        <div class="border-t border-black mb-1"></div>
+                        <p class="text-xs font-bold">Responsável pelo Aluno(a)</p>
+                    </div>
                 </div>
             </div>
-
-            ${getTearOffSlipHTML("Notificação de Ocorrência", student.name, meetingDate, meetingTime)}
         </div>`;
 
     document.getElementById('notification-title').innerText = 'Notificação';
@@ -450,7 +425,7 @@ export const openOccurrenceRecordModal = async (groupId) => {
                 <p class="text-center text-sm mt-2">${city}, ${new Date().toLocaleDateString('pt-BR')}.</p>
             </div>
 
-            <div class="signature-block mt-12 grid grid-cols-2 gap-8">
+            <div class="signature-block mt-24 pt-8 grid grid-cols-2 gap-8 break-inside-avoid">
                 <div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Gestão Escolar</p></div>
                 <div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Responsável/Aluno (se presente)</p></div>
             </div>
@@ -533,14 +508,12 @@ export const openFichaViewModal = async (id) => {
             ${getStudentIdentityCardHTML(student)}
             ${bodyContent}
             
-            <div class="signature-block mt-12 mb-8">
+            <div class="signature-block mt-24 pt-8 mb-8 break-inside-avoid">
                 <div class="flex justify-around items-end">
                     <div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Gestão Escolar</p></div>
-                    ${record.actionType === 'visita' ? `<div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Responsável (Se houve contato)</p></div>` : ''}
+                    <div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Responsável</p></div>
                 </div>
             </div>
-
-            ${(record.actionType.startsWith('tentativa') && record.meetingDate) ? getTearOffSlipHTML(title, student.name, record.meetingDate, record.meetingTime) : ''}
         </div>`;
 
     document.getElementById('ficha-view-title').textContent = title;
@@ -567,6 +540,13 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
 
     // --- CONSTRUÇÃO DO HISTÓRICO PADRONIZADO (TIMELINE) ---
     let timelineHTML = '';
+
+    // Helper Visual para Status de Retorno
+    const formatReturnStatus = (val) => {
+        if (val === 'yes') return `<span class="text-green-700 font-bold uppercase">Sim</span>`;
+        if (val === 'no') return `<span class="text-red-700 font-bold uppercase">Não</span>`;
+        return `<span class="text-gray-400">Pendente</span>`;
+    };
 
     actions.forEach(act => {
         // 1. Bloco de Agendamento (Se houver meetingDate na tentativa)
@@ -600,6 +580,8 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
                     desc += `<strong>Justificativa/Combinado:</strong> ${formatText(act.contactReason)}.`;
                     imgs = getPrintHTML(act.contactPrints, act.contactPrint);
                 }
+                // Adiciona status de retorno explícito
+                desc += `<br><span class="bg-gray-100 px-1 rounded border border-gray-300 mt-1 inline-block"><strong>Retorno à Escola:</strong> ${formatReturnStatus(act.contactReturned)}</span>`;
             }
         } else if (act.actionType === 'visita') {
             title = "Visita Domiciliar Realizada";
@@ -609,6 +591,9 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
             desc = `<strong>Agente:</strong> ${formatText(act.visitAgent)}.<br>`;
             desc += `<strong>Status:</strong> ${status}.<br>`;
             desc += `<strong>Obs:</strong> ${formatText(act.visitReason)} ${formatText(act.visitObs)}.`;
+            
+            // Adiciona status de retorno explícito
+            desc += `<br><span class="bg-gray-100 px-1 rounded border border-gray-300 mt-1 inline-block"><strong>Retorno à Escola:</strong> ${formatReturnStatus(act.visitReturned)}</span>`;
 
         } else if (act.actionType === 'encaminhamento_ct') {
             title = "Encaminhamento ao Conselho Tutelar";
@@ -617,6 +602,11 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
             
             if (act.ctFeedback) {
                  desc += `<div class="mt-2 pt-2 border-t border-gray-200"><strong>Devolutiva CT:</strong> ${formatText(act.ctFeedback)}</div>`;
+            }
+            
+            // Adiciona status de retorno explícito se existir (CT geralmente é a ultima medida antes do retorno ou evasão)
+            if (act.ctReturned) {
+                desc += `<br><span class="bg-gray-100 px-1 rounded border border-gray-300 mt-1 inline-block"><strong>Retorno à Escola:</strong> ${formatReturnStatus(act.ctReturned)}</span>`;
             }
 
         } else if (act.actionType === 'analise') {
@@ -655,7 +645,7 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
             <h4 class="font-bold border-b mt-6 mb-4 uppercase text-xs text-gray-500">Histórico de Acompanhamento (Cronologia)</h4>
             <div class="pl-2 border-l-2 border-gray-100">${timelineHTML}</div>
 
-            <div class="signature-block mt-12 grid grid-cols-2 gap-8">
+            <div class="signature-block mt-24 pt-8 grid grid-cols-2 gap-8 break-inside-avoid">
                 <div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Direção</p></div>
                 <div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Coordenação</p></div>
             </div>
@@ -747,7 +737,7 @@ const generateAndShowGenericOficio = async (data, oficioNum, type, studentObjOve
                 Diante do exposto e com base no Art. 56 do Estatuto da Criança e do Adolescente (ECA), submetemos o caso para as devidas providências.
             </p>
 
-            <div class="mt-12 text-center space-y-12">
+            <div class="mt-24 pt-8 text-center space-y-12 break-inside-avoid">
                 <p>Atenciosamente,</p>
                 <div class="signature-block w-2/3 mx-auto">
                     <div class="border-t border-black mb-1"></div>
@@ -846,6 +836,11 @@ export const generateAndShowGeneralReport = async () => {
                     `).join('')}
                 </tbody>
             </table>
+            <div class="signature-block mt-24 pt-8 text-center break-inside-avoid">
+                <div class="w-2/3 mx-auto border-t border-black pt-2">
+                    <p class="text-sm">Assinatura da Gestão Escolar</p>
+                </div>
+            </div>
             <p class="text-center text-xs text-gray-500 mt-4">Fim do Relatório.</p>
         </div>
     `;
@@ -929,6 +924,12 @@ export const generateAndShowBuscaAtivaReport = async () => {
                     }).join('')}
                 </tbody>
             </table>
+            
+            <div class="signature-block mt-24 pt-8 text-center break-inside-avoid">
+                <div class="w-2/3 mx-auto border-t border-black pt-2">
+                    <p class="text-sm">Assinatura da Gestão Escolar</p>
+                </div>
+            </div>
         </div>`;
         
     document.getElementById('report-view-title').textContent = "Relatório Busca Ativa";

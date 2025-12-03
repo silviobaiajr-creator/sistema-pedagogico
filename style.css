@@ -1,5 +1,4 @@
 
-
 /* ============================================================================== */
 /* ARQUIVO: style.css                                                             */
 
@@ -179,22 +178,6 @@ tbody tr:nth-child(even) {
 /* SEÇÃO 2: ESTILOS PARA RELATÓRIOS E IMPRESSÃO                                   */
 /* ============================================================================== */
 
-/* --- CANHOTO DE ASSINATURA (TEAR-OFF) --- */
-.tear-off-slip {
-    margin-top: 2rem;
-    padding-top: 1rem;
-    border-top: 2px dashed #9ca3af;
-    page-break-inside: avoid;
-}
-.tear-off-title {
-    text-align: center;
-    font-size: 0.75rem;
-    color: #6b7280;
-    margin-bottom: 1rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
 /* --- TABELAS FORMAIS (OFÍCIOS) --- */
 .report-table {
     width: 100%;
@@ -320,7 +303,6 @@ tbody tr:nth-child(even) {
     .signature-block {
         display: block !important;
         page-break-inside: avoid;
-        margin-top: 3rem;
     }
     
     .break-inside-avoid {
