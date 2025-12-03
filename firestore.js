@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: firestore.js
-// VERSÃO: 2.8 (Correção Completa)
+// VERSÃO: 3.2 (Correção: Adicionadas funções de Arquivo Digital)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
@@ -24,6 +24,9 @@ export const getSchoolConfigDocRef = () => {
 
 export const getCollectionRef = (type) => {
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    // Mapeamento correto para documentos legais
+    if (type === 'documents') return collection(db, `/artifacts/${appId}/public/data/legal_documents`);
+    
     const collectionName = type === 'occurrence' ? 'occurrences' : 'absences';
     return collection(db, `/artifacts/${appId}/public/data/${collectionName}`);
 };
@@ -168,9 +171,6 @@ export const loadStudents = async () => {
         console.log(`Inicialização: ${students.length} alunos carregados.`);
     } catch (error) {
         console.error("Erro ao carregar lista inicial:", error);
-        if (error.code === 'permission-denied') {
-            throw new Error("Permissão negada. Atualize o firestore.rules.");
-        }
         throw new Error("Erro ao carregar alunos.");
     }
 };
@@ -290,7 +290,7 @@ export const getIncidentByGroupId = async (groupId) => {
     }
 };
 
-// --- NOVO: FUNÇÕES DE RELATÓRIO SERVER-SIDE (ESCALABILIDADE) ---
+// --- RELATÓRIOS E DASHBOARD ---
 
 export const getOccurrencesForReport = async (startDate, endDate, type) => {
     try {
@@ -346,28 +346,19 @@ export const getAbsencesForReport = async (startDate, endDate) => {
     }
 };
 
-// --- NOVO: FUNÇÃO PARA DASHBOARD (CONTADORES E TAXAS) ---
 export const getDashboardStats = async () => {
     try {
         const studentColl = getStudentsCollectionRef();
         const occurrenceColl = getCollectionRef('occurrence');
         const absenceColl = getCollectionRef('absence');
 
-        // Conta Total de Alunos
         const snapStudents = await getCountFromServer(studentColl);
-        
-        // Conta Total de Ocorrências
         const snapOccurrences = await getCountFromServer(occurrenceColl);
-
-        // Conta Total de Ações de Busca Ativa
         const snapAbsencesTotal = await getCountFromServer(absenceColl);
         
-        // Conta Busca Ativa Concluídas (Taxa de Sucesso)
         const qConcluded = query(absenceColl, where('actionType', '==', 'analise'));
         const snapAbsencesConcluded = await getCountFromServer(qConcluded);
 
-        // Para os gráficos e "Alertas Urgentes", precisamos de alguns dados reais.
-        // Vamos buscar os últimos 50 registros de cada para popular os gráficos de "Tendência"
         const recentOccurrences = await getDocs(query(occurrenceColl, orderBy('date', 'desc'), limit(50)));
         const recentAbsences = await getDocs(query(absenceColl, orderBy('createdAt', 'desc'), limit(50)));
 
@@ -383,5 +374,42 @@ export const getDashboardStats = async () => {
     } catch (error) {
         console.error("Erro ao buscar stats do dashboard:", error);
         return null;
+    }
+};
+
+// --- ARQUIVO DIGITAL / SNAPSHOTS (NOVAS FUNÇÕES) ---
+
+export const saveDocumentSnapshot = async (docType, title, htmlContent, studentId, metadata = {}) => {
+    try {
+        const docData = {
+            type: docType, // 'ata', 'oficio', 'notificacao', 'relatorio'
+            title: title,
+            htmlContent: htmlContent, // O HTML congelado
+            studentId: studentId || null,
+            studentName: metadata.studentName || null,
+            refId: metadata.refId || null, // ID da ocorrência ou processo
+            createdAt: new Date(),
+            createdBy: state.userEmail || 'Sistema'
+        };
+        
+        // Salva na coleção separada 'legal_documents'
+        return addDoc(getCollectionRef('documents'), docData);
+    } catch (error) {
+        console.error("Erro ao salvar snapshot do documento:", error);
+    }
+};
+
+export const loadDocuments = async (filters = {}) => {
+    try {
+        let q = query(getCollectionRef('documents'), orderBy('createdAt', 'desc'), limit(50));
+        
+        // Filtros podem ser expandidos aqui se adicionarmos índices no Firestore
+        // Por enquanto, faremos a filtragem fina no client-side para simplificar
+
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Erro ao carregar documentos:", error);
+        return [];
     }
 };
