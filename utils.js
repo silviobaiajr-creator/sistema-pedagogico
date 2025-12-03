@@ -86,17 +86,15 @@ export const closeModal = (modalElement) => {
 // --- VISUALIZADOR DE MÍDIA (Imagem/Video) ---
 export const openImageModal = (src, title = 'Anexo') => {
     const modal = document.getElementById('image-view-modal');
-    const container = document.querySelector('#image-view-modal .p-4'); // Container do conteúdo
+    const container = document.querySelector('#image-view-modal .p-4'); 
     const titleEl = document.getElementById('image-view-title');
     
     if (modal && container) {
         if(titleEl) titleEl.textContent = title;
         
-        // Limpa conteúdo anterior
         container.innerHTML = '';
         container.className = "p-4 overflow-auto flex justify-center bg-black/5 items-center min-h-[200px]";
 
-        // Verifica tipo de arquivo pela extensão ou se é base64 de imagem
         const isVideo = src.includes('.mp4') || src.includes('.webm') || src.includes('.mov');
         const isAudio = src.includes('.mp3') || src.includes('.wav') || src.includes('.ogg');
         
@@ -125,13 +123,12 @@ export const openImageModal = (src, title = 'Anexo') => {
 };
 
 // ==============================================================================
-// --- UPLOAD PARA FIREBASE STORAGE (NOVO) ---
+// --- UPLOAD PARA FIREBASE STORAGE ---
 // ==============================================================================
 
 export const uploadToStorage = async (file, folder = 'uploads') => {
     if (!storage) throw new Error("Serviço de Armazenamento não configurado.");
     
-    // Cria um nome único: timestamp_nome-limpo
     const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
     const fileName = `${Date.now()}_${cleanName}`;
     const storageRef = ref(storage, `${folder}/${fileName}`);
@@ -141,12 +138,20 @@ export const uploadToStorage = async (file, folder = 'uploads') => {
         const downloadURL = await getDownloadURL(snapshot.ref);
         return downloadURL;
     } catch (error) {
-        console.error("Erro no upload:", error);
-        throw new Error("Falha ao enviar arquivo para a nuvem.");
+        console.error("Erro no upload (Detalhes):", error);
+        
+        // Detecção amigável de erro de CORS
+        if (error.message && (error.message.includes('CORS') || error.message.includes('network') || error.code === 'storage/unknown')) {
+            throw new Error("Bloqueio de Segurança (CORS): O Firebase impediu o upload. Configure o CORS no console do Google Cloud conforme as instruções.");
+        } else if (error.code === 'storage/unauthorized') {
+            throw new Error("Permissão Negada: Verifique as regras (Rules) do Storage no console do Firebase.");
+        }
+        
+        throw new Error("Falha ao enviar arquivo para a nuvem. Verifique sua conexão.");
     }
 };
 
-// Mantido para compatibilidade com código antigo, mas idealmente deve ser substituído pelo uploadToStorage
+// Mantido para compatibilidade, mas idealmente deve ser substituído pelo uploadToStorage
 export const compressImage = (file) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();

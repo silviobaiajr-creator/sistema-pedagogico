@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 6.2 (Com Upload para Firebase Storage e Multimídia)
+// VERSÃO: 6.3 (Correção Preview Arquivos + Fallback)
 
 import { state, dom } from './state.js';
 import { showToast, showAlert, openModal, closeModal, getStatusBadge, formatDate, formatTime, openImageModal, uploadToStorage } from './utils.js';
@@ -33,10 +33,6 @@ import {
 import { writeBatch, doc, collection, query, where, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 
-// =================================================================================
-// CONFIGURAÇÕES E UTILITÁRIOS LOCAIS
-// =================================================================================
-
 export const occurrenceActionTitles = { 
     'convocacao_1': 'Ação 2: 1ª Convocação',
     'feedback_1':   'Ação 3: Feedback da 1ª Tentativa',
@@ -64,14 +60,13 @@ const nextStepLabels = {
 let studentPendingRoleSelection = null;
 let editingRoleId = null; 
 let studentSearchTimeout = null;
-let pendingFiles = []; // AGORA ARMAZENA OBJETOS FILE, NÃO BASE64
+let pendingFiles = [];
 
 const normalizeText = (text) => {
     if (!text) return '';
     return text.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 };
 
-// ... (renderTags, openRoleEditDropdown, setupStudentTagInput mantidos iguais) ...
 const renderTags = () => {
     const tagsContainerElement = document.getElementById('student-tags-container');
     tagsContainerElement.innerHTML = '';
@@ -238,6 +233,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
     renderTags();
 };
 
+// FUNÇÃO ATUALIZADA PARA RENDERIZAR PREVIEW CORRETAMENTE
 const renderFilePreviews = (containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -256,7 +252,8 @@ const renderFilePreviews = (containerId) => {
         const wrapper = document.createElement('div');
         wrapper.className = "relative group w-16 h-16 border rounded bg-gray-100 overflow-hidden";
         
-        let mediaElement;
+        let mediaElement = document.createElement('div');
+        mediaElement.className = "w-full h-full flex items-center justify-center bg-gray-200 text-gray-500 cursor-pointer";
         const objectUrl = URL.createObjectURL(file);
 
         if (file.type.startsWith('image/')) {
@@ -265,15 +262,17 @@ const renderFilePreviews = (containerId) => {
             mediaElement.className = "w-full h-full object-cover cursor-pointer";
             mediaElement.onclick = () => window.viewImage(objectUrl, file.name);
         } else if (file.type.startsWith('video/')) {
-            mediaElement = document.createElement('div');
             mediaElement.className = "w-full h-full flex items-center justify-center bg-black text-white cursor-pointer";
             mediaElement.innerHTML = '<i class="fas fa-video"></i>';
             mediaElement.onclick = () => window.viewImage(objectUrl, file.name);
         } else if (file.type.startsWith('audio/')) {
-            mediaElement = document.createElement('div');
             mediaElement.className = "w-full h-full flex items-center justify-center bg-purple-600 text-white cursor-pointer";
             mediaElement.innerHTML = '<i class="fas fa-music"></i>';
             mediaElement.onclick = () => window.viewImage(objectUrl, file.name);
+        } else {
+            // Fallback para arquivos genéricos
+            mediaElement.innerHTML = '<i class="fas fa-file-alt"></i>';
+            mediaElement.title = file.name;
         }
 
         const removeBtn = document.createElement('button');
@@ -299,7 +298,6 @@ const renderFilePreviews = (containerId) => {
     });
 };
 
-// ... (getTypeColorClass, getStepIndicator, getTimeSinceUpdate mantidos) ...
 const getTypeColorClass = (type) => {
     if (!type) return 'border-gray-200';
     const lowerType = type.toLowerCase();
@@ -535,11 +533,6 @@ export const renderOccurrences = () => {
     dom.occurrencesListDiv.innerHTML = html;
 };
 
-
-// =================================================================================
-// MODAIS - AÇÃO 1 (FATO COLETIVO)
-// =================================================================================
-
 export const openOccurrenceModal = (incidentToEdit = null) => {
     dom.occurrenceForm.reset();
     state.selectedStudents.clear(); 
@@ -574,10 +567,6 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
 
     openModal(dom.occurrenceModal);
 };
-
-// =================================================================================
-// MODAIS - AÇÕES 2-6 (ACOMPANHAMENTO INDIVIDUAL)
-// =================================================================================
 
 const toggleOccurrenceContactFields = (enable) => {
     const fieldsContainer = document.getElementById('group-contato-fields');
@@ -614,12 +603,10 @@ const toggleDesfechoFields = (choice) => {
     if (parecerInput) { parecerInput.disabled = !showParecer; parecerInput.required = showParecer; }
 };
 
-
 export const openOccurrenceStepModal = (student, record, actionType, preFilledData = null) => {
     const followUpForm = document.getElementById('follow-up-form');
     followUpForm.reset();
     
-    // Reseta arquivos
     pendingFiles = []; 
     document.getElementById('follow-up-print-label').textContent = 'Selecionar Arquivos';
     document.getElementById('follow-up-print-check').classList.add('hidden');
@@ -662,7 +649,7 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
     document.querySelectorAll('.dynamic-occurrence-step').forEach(group => {
         group.classList.add('hidden');
         group.querySelectorAll('input, select, textarea, button').forEach(el => {
-            if (el.type !== 'file') el.disabled = true; // Input de arquivo sempre habilitado
+            if (el.type !== 'file') el.disabled = true; 
             el.required = false;
         });
         group.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
@@ -784,13 +771,7 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
     openModal(dom.followUpModal);
 };
 
-
-// =================================================================================
-// HANDLERS DE SUBMISSÃO (SALVAR)
-// =================================================================================
-
 async function handleOccurrenceSubmit(e) {
-    // ... (Mantido igual)
     e.preventDefault();
     const form = e.target;
     if (!form.checkValidity()) {
@@ -933,7 +914,6 @@ async function handleOccurrenceSubmit(e) {
     }
 }
 
-
 async function handleOccurrenceStepSubmit(e) {
     e.preventDefault();
     const form = e.target;
@@ -949,7 +929,6 @@ async function handleOccurrenceStepSubmit(e) {
     const record = state.occurrences.find(r => r.id === recordId);
     if (!record) return showAlert("Erro: Registro original não encontrado.");
 
-    // --- UPLOAD ASSÍNCRONO DE ARQUIVOS (MULTIMÍDIA) ---
     const submitBtn = form.querySelector('button[type="submit"]');
     const originalBtnText = submitBtn.innerText;
     let uploadedUrls = [];
@@ -959,16 +938,16 @@ async function handleOccurrenceStepSubmit(e) {
         submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Enviando arquivos...`;
         
         try {
-            // Upload paralelo
             const uploadPromises = pendingFiles.map(file => uploadToStorage(file));
             uploadedUrls = await Promise.all(uploadPromises);
         } catch (uploadError) {
             submitBtn.disabled = false;
             submitBtn.innerText = originalBtnText;
-            return showAlert("Erro ao enviar anexos. Tente novamente.");
+            
+            // O erro já vem tratado do utils.js, então mostramos direto
+            return showAlert(uploadError.message);
         }
     }
-    // --------------------------------------------------
 
     let dataToUpdate = {};
     let historyAction = "";
@@ -1034,7 +1013,7 @@ async function handleOccurrenceStepSubmit(e) {
                 date: `contactDate_${attemptNum}`,
                 person: `contactPerson_${attemptNum}`, 
                 providencias: `providenciasFamilia_${attemptNum}`,
-                prints: `contactPrints_${attemptNum}` // Agora armazena URLs
+                prints: `contactPrints_${attemptNum}`
             };
 
             if (contactSucceeded === 'yes') {
@@ -1046,8 +1025,6 @@ async function handleOccurrenceStepSubmit(e) {
                     [fields.providencias]: document.getElementById('follow-up-family-actions').value,
                 };
 
-                // Se houver novos uploads, mescla ou substitui (aqui estamos substituindo para simplificar o array, ou podemos fazer push)
-                // Vamos manter o comportamento anterior: se tem novos, salva.
                 if (uploadedUrls.length > 0) {
                     dataToUpdate[fields.prints] = uploadedUrls;
                 }
@@ -1133,7 +1110,6 @@ async function handleOccurrenceStepSubmit(e) {
         await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
         showToast("Etapa salva com sucesso!");
 
-        // ... (restante da lógica de ofício e notificação)
         const studentId = form.dataset.studentId;
         const student = state.students.find(s => s.matricula === studentId);
         if (actionType === 'desfecho_ou_ct' && dataToUpdate.desfechoChoice === 'ct' && student) {
@@ -1162,7 +1138,6 @@ async function handleOccurrenceStepSubmit(e) {
     }
 }
 
-// ... (restante das funções: handleEditOccurrence, handleResetActionConfirmation, etc. inalteradas) ...
 async function handleEditOccurrence(groupId) {
     const incident = await fetchIncidentById(groupId);
     if (incident) {
@@ -1364,14 +1339,13 @@ export const initOccurrenceListeners = () => {
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.followUpForm.addEventListener('submit', handleOccurrenceStepSubmit);
     
-    // LISTENER DE ARQUIVOS (ATUALIZADO PARA SUPORTAR MÚLTIPLOS TIPOS)
+    // LISTENER DE ARQUIVOS
     const fileInput = document.getElementById('follow-up-contact-print');
     if (fileInput) {
         fileInput.addEventListener('change', (e) => {
             const files = e.target.files;
             if (!files || files.length === 0) return;
             
-            // Armazena arquivos brutos (File Objects)
             for (let i = 0; i < files.length; i++) {
                 pendingFiles.push(files[i]);
             }
@@ -1379,15 +1353,12 @@ export const initOccurrenceListeners = () => {
             document.getElementById('follow-up-print-label').textContent = `${pendingFiles.length} Arq.`;
             document.getElementById('follow-up-print-check').classList.remove('hidden');
             
-            // Renderiza Preview (Local)
             renderFilePreviews('follow-up-print-preview');
             
-            // Limpa o input para permitir selecionar o mesmo arquivo novamente se necessário
             fileInput.value = '';
         });
     }
 
-    // ... (Listeners de botões e modais mantidos)
     const sendCtForm = document.getElementById('send-occurrence-ct-form');
     if (sendCtForm) {
         const closeSendCtBtn = document.getElementById('close-send-ct-modal-btn');
@@ -1398,7 +1369,7 @@ export const initOccurrenceListeners = () => {
     }
 
     dom.occurrencesListDiv.addEventListener('click', (e) => {
-        window.viewImage = (src, title) => openImageModal(src, title); // Globalizar para HTML injetado
+        window.viewImage = (src, title) => openImageModal(src, title); 
 
         const button = e.target.closest('button');
         if (button) {
