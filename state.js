@@ -7,6 +7,7 @@ export const state = {
     students: [],
     occurrences: [],
     absences: [],
+    documents: [], // Lista de documentos emitidos (Arquivo Digital)
     
     // Configurações da escola
     config: {
@@ -97,10 +98,16 @@ export const initializeDOMReferences = () => {
     // Listas e estados de carregamento
     dom.occurrencesListDiv = document.getElementById('occurrences-list');
     dom.absencesListDiv = document.getElementById('absences-list');
+    dom.documentsListDiv = document.getElementById('documents-list'); 
+    
     dom.emptyStateOccurrences = document.getElementById('empty-state-occurrences');
     dom.emptyStateAbsences = document.getElementById('empty-state-absences');
+    dom.emptyStateDocuments = document.getElementById('empty-state-documents');
+    
     dom.loadingOccurrences = document.getElementById('loading-occurrences');
     dom.loadingAbsences = document.getElementById('loading-absences');
+    dom.loadingDocuments = document.getElementById('loading-documents');
+    
     dom.studentsListTable = document.getElementById('students-list-table');
     
     // Formulários
@@ -113,15 +120,18 @@ export const initializeDOMReferences = () => {
     dom.tabContentDashboard = document.getElementById('tab-content-dashboard'); 
     dom.tabContentOccurrences = document.getElementById('tab-content-occurrences');
     dom.tabContentAbsences = document.getElementById('tab-content-absences');
+    dom.tabContentDocuments = document.getElementById('tab-content-documents');
     
-    dom.cardNavOccurrences = document.getElementById('card-nav-occurrences'); // (NOVO)
-    dom.cardNavAbsences = document.getElementById('card-nav-absences');       // (NOVO)
+    dom.cardNavOccurrences = document.getElementById('card-nav-occurrences');
+    dom.cardNavAbsences = document.getElementById('card-nav-absences');
     
-    dom.btnBackDashboardOcc = document.getElementById('btn-back-dashboard-occ'); // (NOVO)
-    dom.btnBackDashboardAbs = document.getElementById('btn-back-dashboard-abs'); // (NOVO)
+    dom.btnBackDashboardOcc = document.getElementById('btn-back-dashboard-occ');
+    dom.btnBackDashboardAbs = document.getElementById('btn-back-dashboard-abs');
     
     dom.searchOccurrences = document.getElementById('search-occurrences');
     dom.searchAbsences = document.getElementById('search-absences');
+    dom.searchDocuments = document.getElementById('search-documents');
+    
     dom.occurrencesTitle = document.getElementById('occurrences-title');
     dom.occurrenceStartDate = document.getElementById('occurrence-start-date');
     dom.occurrenceEndDate = document.getElementById('occurrence-end-date');
@@ -129,6 +139,7 @@ export const initializeDOMReferences = () => {
     // Botões de Ação Principais
     dom.settingsBtn = document.getElementById('settings-btn');
     dom.manageStudentsBtn = document.getElementById('manage-students-btn'); 
+    dom.documentsBtn = document.getElementById('documents-btn');
     dom.generalReportBtn = document.getElementById('general-report-btn');
     dom.generalBaReportBtn = document.getElementById('general-ba-report-btn');
     dom.addAbsenceBtn = document.getElementById('add-absence-btn'); 

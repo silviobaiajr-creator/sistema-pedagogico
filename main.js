@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: main.js
-// VERSÃO: 3.4 (Com Arquivo Digital)
+// VERSÃO: 3.5 (Suporte Completo ao Arquivo Digital)
 
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { onSnapshot, query, limit, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -16,9 +16,10 @@ import { initStudentListeners } from './students.js';
 import { initOccurrenceListeners, renderOccurrences } from './occurrence.js'; 
 import { initAbsenceListeners, renderAbsences } from './absence.js';     
 import { initDashboard } from './dashboard.js'; 
-import { initDocumentListeners, renderDocuments } from './documents.js'; // NOVO
+import { initDocumentListeners, renderDocuments } from './documents.js';
 
 import { occurrenceStepLogic } from './logic.js';
+import { writeBatch, query as firestoreQuery, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const SUPER_ADMIN_EMAILS = [
     'silviobaiajr@gmail.com' 
@@ -124,8 +125,10 @@ function setupEventListeners() {
     if (dom.btnBackDashboardOcc) dom.btnBackDashboardOcc.addEventListener('click', () => switchTab('dashboard'));
     if (dom.btnBackDashboardAbs) dom.btnBackDashboardAbs.addEventListener('click', () => switchTab('dashboard'));
 
-    // NOVO: Listener da Aba Documentos
-    if (dom.documentsBtn) dom.documentsBtn.addEventListener('click', () => switchTab('documents'));
+    // Listener para o botão de Documentos
+    if (dom.documentsBtn) {
+        dom.documentsBtn.addEventListener('click', () => switchTab('documents'));
+    }
 
     setupModalCloseButtons();
 
@@ -133,7 +136,7 @@ function setupEventListeners() {
     initStudentListeners();
     initOccurrenceListeners(); 
     initAbsenceListeners();
-    initDocumentListeners(); // NOVO
+    initDocumentListeners();
 
     document.getElementById('confirm-delete-btn').addEventListener('click', handleDeleteConfirmation);
 
@@ -191,7 +194,7 @@ function switchTab(tabName) {
         renderAbsences();
     } else if (tabName === 'documents') {
         dom.tabContentDocuments.classList.remove('hidden');
-        renderDocuments(); // Carrega a lista
+        renderDocuments();
     }
 }
 
@@ -201,7 +204,7 @@ async function handleDeleteConfirmation() {
     
     try {
         if (type === 'occurrence') {
-            const q = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', id));
+            const q = firestoreQuery(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', id));
             const querySnapshot = await getDocs(q);
             const batch = writeBatch(db);
             querySnapshot.forEach(doc => batch.delete(doc.ref));
