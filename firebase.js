@@ -1,3 +1,4 @@
+
 // ARQUIVO: firebase.js
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -10,7 +11,8 @@ const firebaseConfig = {
     apiKey: "AIzaSyCDWtwnD_3V9En9qEEYtlP_dpOTvt-P9ks",
     authDomain: "acompanhamento-vida-escolar.firebaseapp.com",
     projectId: "acompanhamento-vida-escolar",
-    storageBucket: "acompanhamento-vida-escolar.appspot.com",
+    // CORREÇÃO: O bucket criado no console usa o domínio .firebasestorage.app
+    storageBucket: "acompanhamento-vida-escolar.firebasestorage.app", 
     messagingSenderId: "315669308837",
     appId: "1:315669308837:web:053497df9ceea4df5c4c9c"
 };
