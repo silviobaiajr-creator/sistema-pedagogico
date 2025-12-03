@@ -1,17 +1,15 @@
 
-
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 6.4 (Remoção de Canhotos + Espaçamento de Assinatura)
+// VERSÃO: 7.0 (Auto-Salvamento no Arquivo Digital)
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
 import { roleIcons, defaultRole, getFilteredOccurrences } from './logic.js';
-import { getIncidentByGroupId as fetchIncidentById, getStudentById, getOccurrencesForReport, getAbsencesForReport } from './firestore.js';
+import { getIncidentByGroupId as fetchIncidentById, getStudentById, getOccurrencesForReport, getAbsencesForReport, saveDocumentSnapshot } from './firestore.js';
 
 
-// Mapeamento de títulos para Busca Ativa
 export const actionDisplayTitles = {
     tentativa_1: "1ª Tentativa de Contato",
     tentativa_2: "2ª Tentativa de Contato",
@@ -21,7 +19,6 @@ export const actionDisplayTitles = {
     analise: "Análise"
 };
 
-// --- HELPER DE DADOS DE ALUNO (ASSÍNCRONO E ROBUSTO) ---
 const resolveStudentData = async (studentId, recordSource = null) => {
     let memoryStudent = state.students.find(s => s.matricula === studentId);
     
@@ -54,12 +51,9 @@ const resolveStudentData = async (studentId, recordSource = null) => {
 };
 
 // =================================================================================
-// HELPERS DE LAYOUT (DESIGN SYSTEM PARA IMPRESSÃO)
+// HELPERS DE LAYOUT
 // =================================================================================
 
-/**
- * Helper: Cabeçalho Unificado e Profissional
- */
 export const getReportHeaderHTML = () => {
     const logoUrl = state.config?.schoolLogoUrl || null;
     const schoolName = state.config?.schoolName || "Nome da Escola";
@@ -92,9 +86,6 @@ export const getReportHeaderHTML = () => {
     return headerContent;
 };
 
-/**
- * Helper: Cartão de Identidade do Aluno (Padronizado)
- */
 const getStudentIdentityCardHTML = (student) => {
     const responsaveis = [student.resp1, student.resp2].filter(Boolean).join(' e ') || 'Não informados';
     return `
@@ -111,9 +102,6 @@ const getStudentIdentityCardHTML = (student) => {
     `;
 };
 
-/**
- * Helper: Renderiza Imagens em Grid
- */
 const getPrintHTML = (prints, singlePrintFallback) => {
     let images = [];
     if (Array.isArray(prints) && prints.length > 0) {
@@ -124,13 +112,21 @@ const getPrintHTML = (prints, singlePrintFallback) => {
 
     if (images.length === 0) return '';
 
+    // Verifica se é video ou audio
+    const isVideo = (src) => src.includes('.mp4') || src.includes('.webm');
+    const isAudio = (src) => src.includes('.mp3') || src.includes('.wav');
+
     const gridClass = images.length > 1 ? 'grid grid-cols-2 gap-2' : 'flex justify-center';
-    const imgsHtml = images.map((src, idx) => 
-        `<div class="text-center">
+    
+    const imgsHtml = images.map((src, idx) => {
+        if (isVideo(src)) return `<div class="text-center border rounded p-2"><p class="text-xs mb-1">Vídeo ${idx+1}</p><video src="${src}" controls class="max-w-full h-auto max-h-[250px]"></video></div>`;
+        if (isAudio(src)) return `<div class="text-center border rounded p-2"><p class="text-xs mb-1">Áudio ${idx+1}</p><audio src="${src}" controls class="w-full"></audio></div>`;
+        
+        return `<div class="text-center">
             <img src="${src}" class="max-w-full h-auto max-h-[250px] border rounded shadow-sm object-contain bg-white mx-auto" alt="Anexo ${idx+1}">
             <p class="text-[10px] text-gray-500 mt-1">Anexo ${idx+1}</p>
-        </div>`
-    ).join('');
+        </div>`;
+    }).join('');
 
     return `
         <div class="mt-3 mb-3 p-3 border border-gray-200 rounded bg-white break-inside-avoid">
@@ -142,9 +138,6 @@ const getPrintHTML = (prints, singlePrintFallback) => {
     `;
 };
 
-/**
- * Helper: Tabela de Tentativas (Para Ofícios)
- */
 const getAttemptsTableHTML = (records, type = 'occurrence') => {
     let attempts = [];
 
@@ -243,7 +236,6 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
     if (!state.students.find(s => s.matricula === studentObj.matricula)) showToast('Carregando dados...');
     const student = await resolveStudentData(studentObj.matricula, data.studentName ? data : studentObj);
 
-    // Lógica de Tentativa
     let attemptCount = 1;
     if (specificAttempt) attemptCount = parseInt(specificAttempt);
     else {
@@ -268,61 +260,35 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const attemptText = `Esta é a <strong>${attemptCount}ª tentativa</strong> de contato formal realizada pela escola.`;
 
-    const body = `
+    const html = `
         <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
             ${getReportHeaderHTML()}
-            
             <p class="text-right text-sm italic mb-8">${state.config?.city || "Cidade"}, ${currentDate}</p>
-
             <h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">Notificação de Ocorrência Escolar</h3>
-
             ${getStudentIdentityCardHTML(student)}
-            
-            <p class="text-justify indent-8">
-                Prezados Senhores Pais ou Responsáveis,
-            </p>
-            <p class="text-justify indent-8 mt-2">
-                Vimos por meio desta notificá-los sobre um registro disciplinar referente ao(à) aluno(a) acima identificado(a),
-                classificado como <strong>"${formatText(data.occurrenceType)}"</strong>, ocorrido na data de <strong>${formatDate(data.date)}</strong>.
-                ${attemptText}
-            </p>
-
-            <div class="my-6 p-4 bg-gray-50 border-l-4 border-red-500 rounded text-sm font-sans">
-                <p class="font-bold text-red-700 mb-1"><i class="fas fa-exclamation-triangle"></i> Atenção:</p>
-                <p class="text-justify text-gray-700">
-                    Conforme a Lei de Diretrizes e Bases da Educação (LDB) e o Estatuto da Criança e do Adolescente (ECA), 
-                    a parceria família-escola é fundamental. O não comparecimento após as tentativas formais de contato poderá 
-                    acarretar no encaminhamento do caso aos órgãos de proteção (Conselho Tutelar) para as medidas cabíveis.
-                </p>
-            </div>
-
-            <p class="text-justify mt-4">
-                Solicitamos o comparecimento urgente de um responsável na coordenação pedagógica para tratar deste assunto na seguinte data:
-            </p>
-
+            <p class="text-justify indent-8">Prezados Senhores Pais ou Responsáveis,</p>
+            <p class="text-justify indent-8 mt-2">Vimos por meio desta notificá-los sobre um registro disciplinar referente ao(à) aluno(a) acima identificado(a), classificado como <strong>"${formatText(data.occurrenceType)}"</strong>, ocorrido na data de <strong>${formatDate(data.date)}</strong>. ${attemptText}</p>
+            <div class="my-6 p-4 bg-gray-50 border-l-4 border-red-500 rounded text-sm font-sans"><p class="font-bold text-red-700 mb-1"><i class="fas fa-exclamation-triangle"></i> Atenção:</p><p class="text-justify text-gray-700">Conforme a Lei de Diretrizes e Bases da Educação (LDB) e o Estatuto da Criança e do Adolescente (ECA), a parceria família-escola é fundamental. O não comparecimento após as tentativas formais de contato poderá acarretar no encaminhamento do caso aos órgãos de proteção.</p></div>
+            <p class="text-justify mt-4">Solicitamos o comparecimento urgente de um responsável na coordenação pedagógica para tratar deste assunto na seguinte data:</p>
             <div class="my-6 mx-auto max-w-sm border-2 border-gray-800 rounded-lg p-4 text-center bg-white shadow-sm break-inside-avoid">
                 <p class="text-xs uppercase tracking-wide text-gray-500 font-bold mb-1">Agendamento</p>
                 <div class="text-2xl font-bold text-gray-900">${formatDate(meetingDate)}</div>
                 <div class="text-xl font-semibold text-gray-700 mt-1">${formatTime(meetingTime)}</div>
             </div>
-
             <div class="signature-block mt-24 pt-8 mb-8 break-inside-avoid">
                 <div class="flex justify-around items-end">
-                    <div class="text-center w-5/12">
-                        <div class="border-t border-black mb-1"></div>
-                        <p class="text-xs font-bold">Gestão Escolar</p>
-                    </div>
-                    <div class="text-center w-5/12">
-                        <div class="border-t border-black mb-1"></div>
-                        <p class="text-xs font-bold">Responsável pelo Aluno(a)</p>
-                    </div>
+                    <div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Gestão Escolar</p></div>
+                    <div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Responsável pelo Aluno(a)</p></div>
                 </div>
             </div>
         </div>`;
 
     document.getElementById('notification-title').innerText = 'Notificação';
-    document.getElementById('notification-content').innerHTML = body;
+    document.getElementById('notification-content').innerHTML = html;
     openModal(dom.notificationModalBackdrop);
+
+    // AUTO-SAVE SNAPSHOT
+    saveDocumentSnapshot('notificacao', `Notificação ${attemptCount}ª Tentativa - ${student.name}`, html, student.matricula, { studentName: student.name, refId: incident.id });
 };
 
 export const openOccurrenceRecordModal = async (groupId) => {
@@ -332,7 +298,6 @@ export const openOccurrenceRecordModal = async (groupId) => {
     const mainRecord = incident.records[0]; 
     const city = state.config?.city || "Cidade";
     
-    // Abertura
     let html = `
         <div class="space-y-4 text-sm font-serif leading-relaxed text-gray-900">
             ${getReportHeaderHTML()}
@@ -434,6 +399,9 @@ export const openOccurrenceRecordModal = async (groupId) => {
     document.getElementById('report-view-title').textContent = `Ata Nº ${incident.id}`;
     document.getElementById('report-view-content').innerHTML = html;
     openModal(dom.reportViewModalBackdrop);
+
+    // AUTO-SAVE SNAPSHOT
+    saveDocumentSnapshot('ata', `Ata de Ocorrência Nº ${incident.id}`, html, null, { refId: incident.id });
 };
 
 export const openFichaViewModal = async (id) => {
@@ -519,6 +487,9 @@ export const openFichaViewModal = async (id) => {
     document.getElementById('ficha-view-title').textContent = title;
     document.getElementById('ficha-view-content').innerHTML = html;
     openModal(dom.fichaViewModalBackdrop);
+
+    // AUTO-SAVE SNAPSHOT
+    saveDocumentSnapshot('notificacao', `${title} - ${student.name}`, html, student.matricula, { studentName: student.name, refId: record.id });
 };
 
 export const generateAndShowConsolidatedFicha = async (studentId, processId = null) => {
@@ -538,10 +509,8 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
         ? `<div class="absolute top-0 right-0 border-2 border-green-600 text-green-600 font-bold px-2 py-1 transform rotate-12 text-xs uppercase rounded">CONCLUÍDO</div>`
         : `<div class="absolute top-0 right-0 border-2 border-yellow-600 text-yellow-600 font-bold px-2 py-1 transform rotate-12 text-xs uppercase rounded">EM ACOMPANHAMENTO</div>`;
 
-    // --- CONSTRUÇÃO DO HISTÓRICO PADRONIZADO (TIMELINE) ---
     let timelineHTML = '';
 
-    // Helper Visual para Status de Retorno
     const formatReturnStatus = (val) => {
         if (val === 'yes') return `<span class="text-green-700 font-bold uppercase">Sim</span>`;
         if (val === 'no') return `<span class="text-red-700 font-bold uppercase">Não</span>`;
@@ -549,7 +518,6 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
     };
 
     actions.forEach(act => {
-        // 1. Bloco de Agendamento (Se houver meetingDate na tentativa)
         if (act.meetingDate) {
             timelineHTML += `
                 <div class="report-timeline-item ml-2 break-inside-avoid">
@@ -561,14 +529,12 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
                 </div>`;
         }
 
-        // 2. Bloco de Execução/Resultado
         let title = "";
         let desc = "";
         let dateRef = act.createdAt?.toDate(); 
         let imgs = "";
 
         if (act.actionType.startsWith('tentativa')) {
-            // Só exibe se houve feedback registrado
             if (act.contactSucceeded) {
                 title = `Registro de Contato (${formatText(actionDisplayTitles[act.actionType])})`;
                 dateRef = act.contactDate;
@@ -580,7 +546,6 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
                     desc += `<strong>Justificativa/Combinado:</strong> ${formatText(act.contactReason)}.`;
                     imgs = getPrintHTML(act.contactPrints, act.contactPrint);
                 }
-                // Adiciona status de retorno explícito
                 desc += `<br><span class="bg-gray-100 px-1 rounded border border-gray-300 mt-1 inline-block"><strong>Retorno à Escola:</strong> ${formatReturnStatus(act.contactReturned)}</span>`;
             }
         } else if (act.actionType === 'visita') {
@@ -591,23 +556,14 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
             desc = `<strong>Agente:</strong> ${formatText(act.visitAgent)}.<br>`;
             desc += `<strong>Status:</strong> ${status}.<br>`;
             desc += `<strong>Obs:</strong> ${formatText(act.visitReason)} ${formatText(act.visitObs)}.`;
-            
-            // Adiciona status de retorno explícito
             desc += `<br><span class="bg-gray-100 px-1 rounded border border-gray-300 mt-1 inline-block"><strong>Retorno à Escola:</strong> ${formatReturnStatus(act.visitReturned)}</span>`;
 
         } else if (act.actionType === 'encaminhamento_ct') {
             title = "Encaminhamento ao Conselho Tutelar";
             dateRef = act.ctSentDate;
             desc = `<strong>Ofício Nº:</strong> ${formatText(act.oficioNumber)}/${formatText(act.oficioYear)}.<br>`;
-            
-            if (act.ctFeedback) {
-                 desc += `<div class="mt-2 pt-2 border-t border-gray-200"><strong>Devolutiva CT:</strong> ${formatText(act.ctFeedback)}</div>`;
-            }
-            
-            // Adiciona status de retorno explícito se existir (CT geralmente é a ultima medida antes do retorno ou evasão)
-            if (act.ctReturned) {
-                desc += `<br><span class="bg-gray-100 px-1 rounded border border-gray-300 mt-1 inline-block"><strong>Retorno à Escola:</strong> ${formatReturnStatus(act.ctReturned)}</span>`;
-            }
+            if (act.ctFeedback) desc += `<div class="mt-2 pt-2 border-t border-gray-200"><strong>Devolutiva CT:</strong> ${formatText(act.ctFeedback)}</div>`;
+            if (act.ctReturned) desc += `<br><span class="bg-gray-100 px-1 rounded border border-gray-300 mt-1 inline-block"><strong>Retorno à Escola:</strong> ${formatReturnStatus(act.ctReturned)}</span>`;
 
         } else if (act.actionType === 'analise') {
             title = "Parecer Final / Conclusão";
@@ -625,9 +581,7 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
         }
     });
 
-    if (!timelineHTML) {
-        timelineHTML = '<p class="text-sm text-gray-500 italic pl-4">Nenhuma ação detalhada registrada.</p>';
-    }
+    if (!timelineHTML) timelineHTML = '<p class="text-sm text-gray-500 italic pl-4">Nenhuma ação detalhada registrada.</p>';
 
     const html = `
         <div class="space-y-6 text-sm font-sans relative">
@@ -654,14 +608,9 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
     document.getElementById('report-view-title').textContent = "Ficha Consolidada";
     document.getElementById('report-view-content').innerHTML = html;
     openModal(dom.reportViewModalBackdrop);
-};
 
-export const generateAndShowOficio = async (action, oficioNumber) => {
-    return generateAndShowGenericOficio(action, oficioNumber, 'busca_ativa');
-};
-
-export const generateAndShowOccurrenceOficio = async (record, studentObj, oficioNumber, oficioYear) => {
-    return generateAndShowGenericOficio({ ...record, oficioNumber, oficioYear }, oficioNumber, 'ocorrencia', studentObj);
+    // AUTO-SAVE SNAPSHOT
+    saveDocumentSnapshot('ficha_busca_ativa', `Ficha Individual - ${student.name}`, html, student.matricula, { studentName: student.name, refId: processId });
 };
 
 // FUNÇÃO MESTRE DE OFÍCIO
@@ -706,96 +655,48 @@ const generateAndShowGenericOficio = async (data, oficioNum, type, studentObjOve
     const html = `
         <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
             <div>${getReportHeaderHTML()}<p class="text-right mt-4">${city}, ${currentDate}.</p></div>
-            
             <div class="mt-8 font-bold text-lg">OFÍCIO Nº ${String(oficioNum).padStart(3, '0')}/${oficioYear}</div>
-            
-            <div class="mt-4">
-                <p><strong>Ao Ilustríssimo(a) Senhor(a) Conselheiro(a) Tutelar</strong></p>
-                <p>Conselho Tutelar de ${city}</p>
-            </div>
-            
-            <div class="bg-gray-100 p-2 border rounded mt-4 mb-6">
-                <p><strong>Assunto:</strong> ${subject}</p>
-            </div>
-            
-            <div class="text-justify indent-8">
-                <p>Prezados Senhores,</p>
-                <p class="mt-4">
-                    Pelo presente, encaminhamos a situação do(a) aluno(a) abaixo qualificado(a), solicitando a intervenção deste órgão 
-                    para garantia dos direitos da criança/adolescente, visto que os recursos escolares foram esgotados.
-                </p>
-            </div>
-
+            <div class="mt-4"><p><strong>Ao Ilustríssimo(a) Senhor(a) Conselheiro(a) Tutelar</strong></p><p>Conselho Tutelar de ${city}</p></div>
+            <div class="bg-gray-100 p-2 border rounded mt-4 mb-6"><p><strong>Assunto:</strong> ${subject}</p></div>
+            <div class="text-justify indent-8"><p>Prezados Senhores,</p><p class="mt-4">Pelo presente, encaminhamos a situação do(a) aluno(a) abaixo qualificado(a), solicitando a intervenção deste órgão para garantia dos direitos da criança/adolescente, visto que os recursos escolares foram esgotados.</p></div>
             ${getStudentIdentityCardHTML(student)}
-
             <div class="text-justify indent-8 mt-4">${contextParagraph}</div>
-
             <p class="mt-4 mb-2 font-bold text-gray-700">Histórico de Tentativas de Solução pela Escola:</p>
             ${tableHTML}
-
-            <p class="text-justify indent-8 mt-6">
-                Diante do exposto e com base no Art. 56 do Estatuto da Criança e do Adolescente (ECA), submetemos o caso para as devidas providências.
-            </p>
-
-            <div class="mt-24 pt-8 text-center space-y-12 break-inside-avoid">
-                <p>Atenciosamente,</p>
-                <div class="signature-block w-2/3 mx-auto">
-                    <div class="border-t border-black mb-1"></div>
-                    <p class="font-bold">Direção / Coordenação Pedagógica</p>
-                    <p class="text-xs">${state.config?.schoolName}</p>
-                </div>
-            </div>
-            
-            <div class="mt-8 pt-4 border-t text-xs text-gray-500">
-                <p><strong>Anexos:</strong> ${anexosText}</p>
-            </div>
+            <p class="text-justify indent-8 mt-6">Diante do exposto e com base no Art. 56 do Estatuto da Criança e do Adolescente (ECA), submetemos o caso para as devidas providências.</p>
+            <div class="mt-24 pt-8 text-center space-y-12 break-inside-avoid"><p>Atenciosamente,</p><div class="signature-block w-2/3 mx-auto"><div class="border-t border-black mb-1"></div><p class="font-bold">Direção / Coordenação Pedagógica</p><p class="text-xs">${state.config?.schoolName}</p></div></div>
+            <div class="mt-8 pt-4 border-t text-xs text-gray-500"><p><strong>Anexos:</strong> ${anexosText}</p></div>
         </div>
     `;
 
     document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNum}/${oficioYear}`;
     document.getElementById('report-view-content').innerHTML = html;
     openModal(dom.reportViewModalBackdrop);
+
+    // AUTO-SAVE SNAPSHOT
+    saveDocumentSnapshot('oficio', `Ofício Nº ${oficioNum}/${oficioYear} - ${student.name}`, html, student.matricula, { studentName: student.name, refId: data.id });
 };
 
-// =================================================================================
-// GRÁFICOS E RELATÓRIOS GERAIS (RESTAURADO E PADRONIZADO)
-// =================================================================================
+export const generateAndShowOficio = async (action, oficioNumber) => {
+    return generateAndShowGenericOficio(action, oficioNumber, 'busca_ativa');
+};
+
+export const generateAndShowOccurrenceOficio = async (record, studentObj, oficioNumber, oficioYear) => {
+    return generateAndShowGenericOficio({ ...record, oficioNumber, oficioYear }, oficioNumber, 'ocorrencia', studentObj);
+};
 
 export const generateAndShowGeneralReport = async () => { 
     showToast("Gerando relatório...");
-    
     const { startDate, endDate, status, type } = state.filtersOccurrences;
-    const studentFilter = state.filterOccurrences; 
-
     let rawData = [];
-    try {
-        rawData = await getOccurrencesForReport(startDate, endDate, type);
-    } catch (e) {
-        showToast("Erro ao baixar dados. Tentando versão local...");
-        rawData = state.occurrences; 
-    }
-
+    try { rawData = await getOccurrencesForReport(startDate, endDate, type); } catch (e) { rawData = state.occurrences; }
     const filteredIncidentsMap = getFilteredOccurrences(rawData, state.filtersOccurrences);
     const filteredIncidents = [...filteredIncidentsMap.values()]; 
-
     if (filteredIncidents.length === 0) return showToast('Nenhum dado para exibir.');
-
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-
-    // Estatísticas para Gráficos
-    const occurrencesByType = filteredIncidents.reduce((acc, incident) => {
-        const t = incident.records?.[0]?.occurrenceType || 'Outros';
-        acc[t] = (acc[t] || 0) + 1;
-        return acc;
-    }, {});
+    const occurrencesByType = filteredIncidents.reduce((acc, incident) => { const t = incident.records?.[0]?.occurrenceType || 'Outros'; acc[t] = (acc[t] || 0) + 1; return acc; }, {});
     const sortedTypes = Object.entries(occurrencesByType).sort((a, b) => b[1] - a[1]);
-
-    const occurrencesByStatus = filteredIncidents.reduce((acc, incident) => {
-        const s = incident.overallStatus || 'Pendente';
-        acc[s] = (acc[s] || 0) + 1;
-        return acc;
-    }, {});
-
+    const occurrencesByStatus = filteredIncidents.reduce((acc, incident) => { const s = incident.overallStatus || 'Pendente'; acc[s] = (acc[s] || 0) + 1; return acc; }, {});
     const chartDataByType = { labels: sortedTypes.map(i => i[0]), data: sortedTypes.map(i => i[1]) };
     const chartDataByStatus = { labels: Object.keys(occurrencesByStatus), data: Object.values(occurrencesByStatus) };
 
@@ -804,66 +705,31 @@ export const generateAndShowGeneralReport = async () => {
             ${getReportHeaderHTML()}
             <h3 class="text-xl font-bold text-center uppercase">Relatório Gerencial de Ocorrências</h3>
             <p class="text-center text-xs text-gray-500">Gerado em: ${currentDate}</p>
-            
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center my-6">
                 <div class="p-3 bg-gray-50 rounded border"><p class="text-2xl font-bold text-sky-600">${filteredIncidents.length}</p><p class="text-xs uppercase text-gray-500">Total</p></div>
                 <div class="p-3 bg-gray-50 rounded border"><p class="text-2xl font-bold text-green-600">${filteredIncidents.filter(i => i.overallStatus === 'Finalizada').length}</p><p class="text-xs uppercase text-gray-500">Resolvidas</p></div>
                 <div class="p-3 bg-gray-50 rounded border"><p class="text-2xl font-bold text-yellow-600">${filteredIncidents.filter(i => i.overallStatus !== 'Finalizada').length}</p><p class="text-xs uppercase text-gray-500">Pendentes</p></div>
             </div>
-
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 break-inside-avoid">
-                <div class="border rounded-lg p-4 shadow-sm bg-white">
-                    <h5 class="font-semibold text-center mb-2">Por Tipo</h5>
-                    <canvas id="report-chart-by-type"></canvas>
-                </div>
-                <div class="border rounded-lg p-4 shadow-sm bg-white">
-                    <h5 class="font-semibold text-center mb-2">Por Status</h5>
-                    <canvas id="report-chart-by-status"></canvas>
-                </div>
+                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Por Tipo</h5><canvas id="report-chart-by-type"></canvas></div>
+                <div class="border rounded-lg p-4 shadow-sm bg-white"><h5 class="font-semibold text-center mb-2">Por Status</h5><canvas id="report-chart-by-status"></canvas></div>
             </div>
-
             <h4 class="font-bold border-b mt-6 mb-4 uppercase text-xs text-gray-500">Detalhamento</h4>
-            <table class="report-table">
-                <thead><tr><th>Data</th><th>Tipo</th><th>Status</th><th>Envolvidos</th></tr></thead>
-                <tbody>
-                    ${filteredIncidents.map(inc => `
-                        <tr>
-                            <td>${formatDate(inc.records[0].date)}</td>
-                            <td>${inc.records[0].occurrenceType}</td>
-                            <td>${inc.overallStatus}</td>
-                            <td>${[...inc.participantsInvolved.values()].map(p => p.student.name).join(', ')}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-            <div class="signature-block mt-24 pt-8 text-center break-inside-avoid">
-                <div class="w-2/3 mx-auto border-t border-black pt-2">
-                    <p class="text-sm">Assinatura da Gestão Escolar</p>
-                </div>
-            </div>
-            <p class="text-center text-xs text-gray-500 mt-4">Fim do Relatório.</p>
-        </div>
-    `;
+            <table class="report-table"><thead><tr><th>Data</th><th>Tipo</th><th>Status</th><th>Envolvidos</th></tr></thead><tbody>
+                    ${filteredIncidents.map(inc => `<tr><td>${formatDate(inc.records[0].date)}</td><td>${inc.records[0].occurrenceType}</td><td>${inc.overallStatus}</td><td>${[...inc.participantsInvolved.values()].map(p => p.student.name).join(', ')}</td></tr>`).join('')}
+                </tbody></table>
+            <div class="signature-block mt-24 pt-8 text-center break-inside-avoid"><div class="w-2/3 mx-auto border-t border-black pt-2"><p class="text-sm">Assinatura da Gestão Escolar</p></div></div>
+        </div>`;
     
     document.getElementById('report-view-title').textContent = "Relatório Gerencial";
     document.getElementById('report-view-content').innerHTML = html;
     openModal(dom.reportViewModalBackdrop);
 
-    // Renderiza Gráficos (RESTORED)
     setTimeout(() => {
         try {
             if (typeof Chart === 'undefined') return;
-            
-            new Chart(document.getElementById('report-chart-by-type'), {
-                type: 'bar',
-                data: { labels: chartDataByType.labels, datasets: [{ label: 'Qtd', data: chartDataByType.data, backgroundColor: '#0284c7' }] },
-                options: { indexAxis: 'y', plugins: { legend: { display: false } } }
-            });
-
-            new Chart(document.getElementById('report-chart-by-status'), {
-                type: 'doughnut',
-                data: { labels: chartDataByStatus.labels, datasets: [{ data: chartDataByStatus.data, backgroundColor: ['#f59e0b', '#10b981', '#6b7280'] }] }
-            });
+            new Chart(document.getElementById('report-chart-by-type'), { type: 'bar', data: { labels: chartDataByType.labels, datasets: [{ label: 'Qtd', data: chartDataByType.data, backgroundColor: '#0284c7' }] }, options: { indexAxis: 'y', plugins: { legend: { display: false } } } });
+            new Chart(document.getElementById('report-chart-by-status'), { type: 'doughnut', data: { labels: chartDataByStatus.labels, datasets: [{ data: chartDataByStatus.data, backgroundColor: ['#f59e0b', '#10b981', '#6b7280'] }] } });
         } catch(e) { console.error(e); }
     }, 100);
 };
@@ -871,29 +737,12 @@ export const generateAndShowGeneralReport = async () => {
 export const generateAndShowBuscaAtivaReport = async () => {
     showToast("Gerando relatório...");
     let rawData = [];
-    try {
-        rawData = await getAbsencesForReport(state.filtersAbsences.startDate, state.filtersAbsences.endDate);
-    } catch (e) {
-        rawData = state.absences;
-    }
-
-    const grouped = rawData.reduce((acc, a) => {
-        const pid = a.processId || `temp-${a.id}`;
-        if (!acc[pid]) acc[pid] = { id: pid, actions: [], studentName: a.studentName || 'Aluno' };
-        acc[pid].actions.push(a);
-        return acc;
-    }, {});
-    
+    try { rawData = await getAbsencesForReport(state.filtersAbsences.startDate, state.filtersAbsences.endDate); } catch (e) { rawData = state.absences; }
+    const grouped = rawData.reduce((acc, a) => { const pid = a.processId || `temp-${a.id}`; if (!acc[pid]) acc[pid] = { id: pid, actions: [], studentName: a.studentName || 'Aluno' }; acc[pid].actions.push(a); return acc; }, {});
     const processes = Object.values(grouped);
     if (processes.length === 0) return showToast('Nenhum processo encontrado.');
-
-    // Stats
     let concluded = 0, active = 0;
-    processes.forEach(p => {
-        const isConcluded = p.actions.some(a => a.actionType === 'analise');
-        isConcluded ? concluded++ : active++;
-    });
-
+    processes.forEach(p => { const isConcluded = p.actions.some(a => a.actionType === 'analise'); isConcluded ? concluded++ : active++; });
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
     const html = `
@@ -901,54 +750,30 @@ export const generateAndShowBuscaAtivaReport = async () => {
             ${getReportHeaderHTML()}
             <h3 class="text-xl font-bold text-center uppercase">Relatório de Busca Ativa</h3>
             <p class="text-center text-xs text-gray-500">Gerado em: ${currentDate}</p>
-
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center my-6">
                 <div class="p-3 bg-gray-50 rounded border"><p class="text-2xl font-bold text-sky-600">${processes.length}</p><p class="text-xs uppercase text-gray-500">Total Processos</p></div>
                 <div class="p-3 bg-gray-50 rounded border"><p class="text-2xl font-bold text-green-600">${concluded}</p><p class="text-xs uppercase text-gray-500">Concluídos</p></div>
                 <div class="p-3 bg-gray-50 rounded border"><p class="text-2xl font-bold text-yellow-600">${active}</p><p class="text-xs uppercase text-gray-500">Em Andamento</p></div>
             </div>
-
-            <div class="border rounded-lg p-4 shadow-sm bg-white max-w-md mx-auto break-inside-avoid">
-                <h5 class="font-semibold text-center mb-2">Status dos Processos</h5>
-                <canvas id="ba-chart-status"></canvas>
-            </div>
-
-            <table class="report-table mt-6">
-                <thead><tr><th>Aluno</th><th>Ações</th><th>Última Ação</th><th>Status</th></tr></thead>
-                <tbody>
-                    ${processes.map(p => {
-                        p.actions.sort((a,b) => (a.createdAt?.toDate()||0) - (b.createdAt?.toDate()||0));
-                        const last = p.actions[p.actions.length-1];
-                        const status = p.actions.some(x => x.actionType === 'analise') ? 'Concluído' : 'Em andamento';
-                        return `<tr><td>${p.studentName}</td><td>${p.actions.length}</td><td>${actionDisplayTitles[last.actionType]}</td><td>${status}</td></tr>`;
-                    }).join('')}
-                </tbody>
-            </table>
-            
-            <div class="signature-block mt-24 pt-8 text-center break-inside-avoid">
-                <div class="w-2/3 mx-auto border-t border-black pt-2">
-                    <p class="text-sm">Assinatura da Gestão Escolar</p>
-                </div>
-            </div>
+            <div class="border rounded-lg p-4 shadow-sm bg-white max-w-md mx-auto break-inside-avoid"><h5 class="font-semibold text-center mb-2">Status dos Processos</h5><canvas id="ba-chart-status"></canvas></div>
+            <table class="report-table mt-6"><thead><tr><th>Aluno</th><th>Ações</th><th>Última Ação</th><th>Status</th></tr></thead><tbody>
+                    ${processes.map(p => { p.actions.sort((a,b) => (a.createdAt?.toDate()||0) - (b.createdAt?.toDate()||0)); const last = p.actions[p.actions.length-1]; const status = p.actions.some(x => x.actionType === 'analise') ? 'Concluído' : 'Em andamento'; return `<tr><td>${p.studentName}</td><td>${p.actions.length}</td><td>${actionDisplayTitles[last.actionType]}</td><td>${status}</td></tr>`; }).join('')}
+                </tbody></table>
+            <div class="signature-block mt-24 pt-8 text-center break-inside-avoid"><div class="w-2/3 mx-auto border-t border-black pt-2"><p class="text-sm">Assinatura da Gestão Escolar</p></div></div>
         </div>`;
         
     document.getElementById('report-view-title').textContent = "Relatório Busca Ativa";
     document.getElementById('report-view-content').innerHTML = html;
     openModal(dom.reportViewModalBackdrop);
 
-    // Renderiza Gráfico (RESTORED)
     setTimeout(() => {
         try {
             if (typeof Chart === 'undefined') return;
-            new Chart(document.getElementById('ba-chart-status'), {
-                type: 'pie',
-                data: { labels: ['Concluído', 'Em Andamento'], datasets: [{ data: [concluded, active], backgroundColor: ['#10b981', '#f59e0b'] }] }
-            });
+            new Chart(document.getElementById('ba-chart-status'), { type: 'pie', data: { labels: ['Concluído', 'Em Andamento'], datasets: [{ data: [concluded, active], backgroundColor: ['#10b981', '#f59e0b'] }] } });
         } catch(e) { console.error(e); }
     }, 100);
 };
 
-// Históricos Simples (Restaurados)
 export const openHistoryModal = async (groupId) => {
      const incident = await fetchIncidentById(groupId);
     if (!incident) return showToast('Incidente não encontrado.');

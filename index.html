@@ -86,10 +86,13 @@
                 </div>
                 <div class="flex items-center flex-wrap justify-center sm:justify-end gap-2 sm:gap-4">
                      <button id="settings-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
-                        <i class="fas fa-cog mr-2"></i>Configurações
+                        <i class="fas fa-cog mr-2"></i>Config.
                     </button>
                     <button id="manage-students-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
-                        <i class="fas fa-users-cog mr-2"></i>Gerir Alunos
+                        <i class="fas fa-users-cog mr-2"></i>Alunos
+                    </button>
+                    <button id="documents-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hover:bg-white/40 transition">
+                        <i class="fas fa-folder-open mr-2"></i>Documentos
                     </button>
                     <div id="user-profile" class="flex items-center space-x-4 hidden self-center sm:self-auto">
                         <div class="text-right">
@@ -103,7 +106,7 @@
             <!-- CONTEÚDO: DASHBOARD (PRINCIPAL) -->
             <div id="tab-content-dashboard">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <!-- Card 1: Total Alunos (Informativo) -->
+                    <!-- Card 1: Total Alunos -->
                     <div class="bg-white rounded-lg shadow p-6 border-l-4 border-sky-500">
                         <div class="flex items-center justify-between">
                             <div>
@@ -116,7 +119,7 @@
                         </div>
                     </div>
                     
-                    <!-- Card 2: Ocorrências Recentes (Botão de Navegação) -->
+                    <!-- Card 2: Ocorrências Recentes -->
                     <div id="card-nav-occurrences" class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500 cursor-pointer hover:bg-yellow-50 transition transform hover:scale-105 group">
                         <div class="flex items-center justify-between">
                             <div>
@@ -130,7 +133,7 @@
                         </div>
                     </div>
 
-                    <!-- Card 3: Busca Ativa em Andamento (Botão de Navegação) -->
+                    <!-- Card 3: Busca Ativa -->
                     <div id="card-nav-absences" class="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500 cursor-pointer hover:bg-emerald-50 transition transform hover:scale-105 group">
                         <div class="flex items-center justify-between">
                             <div>
@@ -292,6 +295,41 @@
                 </main>
             </div>
 
+            <!-- CONTEÚDO: ABA DE DOCUMENTOS (ARQUIVO DIGITAL) -->
+            <div id="tab-content-documents" class="hidden">
+                <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <button onclick="document.getElementById('btn-back-dashboard-occ').click()" class="text-gray-500 hover:text-sky-600 transition" title="Voltar">
+                            <i class="fas fa-arrow-left fa-lg"></i>
+                        </button>
+                        <div>
+                            <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Arquivo Digital</h2>
+                            <p class="text-sm text-gray-500">Histórico de documentos emitidos (Atas, Ofícios, Notificações)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-md p-4 sm:p-6">
+                    <div class="mb-6">
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
+                            <input type="text" id="search-documents" class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent sm:text-sm shadow-sm transition" placeholder="Pesquisar por Título, Aluno ou Tipo...">
+                        </div>
+                    </div>
+
+                    <div id="loading-documents" class="text-center p-8 hidden"><i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i><p class="mt-2 text-gray-500">A carregar arquivo digital...</p></div>
+                    <div id="empty-state-documents" class="text-center p-12 bg-gray-50 rounded-lg border border-dashed border-gray-300 hidden">
+                        <div class="bg-white p-4 rounded-full inline-block mb-4 shadow-sm"><i class="fas fa-folder-open fa-3x text-gray-300"></i></div>
+                        <h3 class="text-lg font-semibold text-gray-600">Nenhum documento encontrado</h3>
+                        <p class="text-gray-500 mt-1">Os documentos gerados no sistema aparecerão automaticamente aqui.</p>
+                    </div>
+                    
+                    <div id="documents-list" class="space-y-3">
+                        <!-- Lista injetada via JS -->
+                    </div>
+                </div>
+            </div>
+
             <footer class="text-center text-sm text-gray-400 mt-8"><p>Desenvolvido para Gestão Pedagógica</p></footer>
         </div>
     </div>
@@ -429,17 +467,19 @@
                             <!-- Campo "Com quem falou" -->
                             <div><label for="follow-up-contact-person" class="block text-sm font-medium">Com quem falou? <span class="text-red-500">*</span></label><input type="text" id="follow-up-contact-person" class="mt-1 w-full border-gray-300 rounded-md" required disabled placeholder="Ex: Mãe (Maria), Pai, Irmão..."></div>
                             
-                            <!-- Campo Anexo Print (NOVO - MULTIMÍDIA) -->
+                            <!-- Campo Anexo Arquivos (NOVO - MULTIMIDIA) -->
                             <div id="follow-up-print-container">
                                 <label class="block text-sm font-medium mb-1">Anexar Provas (Fotos/Vídeos/Áudios) (Opcional)</label>
                                 <div class="flex items-center gap-2">
                                     <label for="follow-up-contact-print" class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-1 px-3 rounded text-sm flex items-center transition">
                                         <i class="fas fa-paperclip mr-2 text-gray-500"></i> <span id="follow-up-print-label">Selecionar Arquivos</span>
                                     </label>
-                                    <input type="file" id="follow-up-contact-print" accept="image/*,video/*,audio/*" class="hidden" multiple>
+                                    <!-- Alterado para aceitar video e audio -->
+                                    <input type="file" id="follow-up-contact-print" accept="image/*,video/*,audio/*" class="hidden">
                                     <span id="follow-up-print-check" class="hidden text-green-600"><i class="fas fa-check-circle"></i></span>
                                 </div>
                                 <p class="text-xs text-gray-400 mt-1">Imagens, vídeos e áudios são suportados.</p>
+                                <div id="follow-up-print-preview" class="hidden mt-2"></div>
                             </div>
 
                             <div><label for="follow-up-family-actions" class="block text-sm font-medium">Providências da Família <span class="text-red-500">*</span></label><textarea id="follow-up-family-actions" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="O que foi combinado com os pais/responsáveis?" required disabled></textarea></div>
@@ -596,17 +636,18 @@
                                 <div><label class="block text-sm">Dia do contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
                                 <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
                                 
-                                <!-- CAMPO ANEXO (BUSCA ATIVA) - MULTIMÍDIA -->
+                                <!-- CAMPO ANEXO (BUSCA ATIVA) -->
                                 <div id="absence-print-container">
                                     <label class="block text-sm font-medium mb-1">Anexar Provas (Opcional)</label>
                                     <div class="flex items-center gap-2">
                                         <label for="absence-contact-print" class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-1 px-3 rounded text-sm flex items-center transition">
                                             <i class="fas fa-paperclip mr-2 text-gray-500"></i> <span id="absence-print-label">Selecionar Arquivos</span>
                                         </label>
-                                        <input type="file" id="absence-contact-print" accept="image/*,video/*,audio/*" class="hidden" multiple>
+                                        <input type="file" id="absence-contact-print" accept="image/*,video/*,audio/*" class="hidden">
                                         <span id="absence-print-check" class="hidden text-green-600"><i class="fas fa-check-circle"></i></span>
                                     </div>
-                                    <p class="text-xs text-gray-400 mt-1">Imagens, vídeos e áudios suportados.</p>
+                                    <p class="text-xs text-gray-400 mt-1">Imagens, vídeos e áudios são suportados.</p>
+                                    <div id="absence-print-preview" class="hidden mt-2"></div>
                                 </div>
 
                                 <div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
@@ -805,15 +846,16 @@
         </div>
     </div></div>
 
-    <!-- Modal de Visualização de Mídia (ATUALIZADO) -->
+    <!-- Modal de Visualização de Imagem (NOVO) -->
     <div id="image-view-modal" class="fixed inset-0 z-[70] flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
             <div class="bg-gray-100 p-3 rounded-t-lg flex justify-between items-center">
                 <h3 id="image-view-title" class="text-lg font-semibold text-gray-700">Anexo</h3>
                 <button onclick="document.getElementById('image-view-modal').classList.add('hidden')" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
-            <div class="p-4 overflow-auto flex justify-center bg-black/5 items-center min-h-[200px]">
-                <!-- Conteúdo injetado via JS (img, video ou audio) -->
+            <!-- Container dinâmico para Imagem/Video/Audio -->
+            <div class="p-4 overflow-auto flex justify-center bg-black/5 items-center min-h-[200px]" id="image-view-content">
+                <!-- Conteúdo injetado via JS -->
             </div>
         </div>
     </div>

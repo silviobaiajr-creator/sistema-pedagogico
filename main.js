@@ -1,15 +1,13 @@
 
-
-
 // =================================================================================
 // ARQUIVO: main.js
-// VERSÃO: 3.3 (Com Navegação Rápida do Dashboard)
+// VERSÃO: 3.4 (Com Arquivo Digital)
 
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { onSnapshot, query, writeBatch, doc, where, getDocs, limit, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { onSnapshot, query, limit, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
-import { showToast, closeModal, shareContent, openModal, showAlert } from './utils.js'; // Adicionado showAlert
+import { showToast, closeModal, showAlert } from './utils.js';
 import { loadStudents, loadSchoolConfig, getCollectionRef, deleteRecord, updateRecordWithHistory } from './firestore.js';
 
 import { initAuthListeners } from './auth.js';
@@ -18,6 +16,7 @@ import { initStudentListeners } from './students.js';
 import { initOccurrenceListeners, renderOccurrences } from './occurrence.js'; 
 import { initAbsenceListeners, renderAbsences } from './absence.js';     
 import { initDashboard } from './dashboard.js'; 
+import { initDocumentListeners, renderDocuments } from './documents.js'; // NOVO
 
 import { occurrenceStepLogic } from './logic.js';
 
@@ -33,13 +32,11 @@ document.addEventListener('DOMContentLoaded', () => {
         detachFirestoreListeners();
         
         if (user) {
-            // --- BLOQUEIO DE SEGURANÇA: EMAIL NÃO VERIFICADO ---
             if (!user.emailVerified) {
                 showAlert("Acesso negado: Seu email ainda não foi verificado. Por favor, cheque sua caixa de entrada.");
                 await signOut(auth);
                 return; 
             }
-            // ---------------------------------------------------
 
             state.userId = user.uid;
             state.userEmail = user.email;
@@ -127,16 +124,19 @@ function setupEventListeners() {
     if (dom.btnBackDashboardOcc) dom.btnBackDashboardOcc.addEventListener('click', () => switchTab('dashboard'));
     if (dom.btnBackDashboardAbs) dom.btnBackDashboardAbs.addEventListener('click', () => switchTab('dashboard'));
 
+    // NOVO: Listener da Aba Documentos
+    if (dom.documentsBtn) dom.documentsBtn.addEventListener('click', () => switchTab('documents'));
+
     setupModalCloseButtons();
 
     initSettingsListeners();
     initStudentListeners();
     initOccurrenceListeners(); 
-    initAbsenceListeners();    
+    initAbsenceListeners();
+    initDocumentListeners(); // NOVO
 
     document.getElementById('confirm-delete-btn').addEventListener('click', handleDeleteConfirmation);
 
-    // DELEGAÇÃO DE EVENTOS PARA LINKS DO DASHBOARD
     document.addEventListener('click', (e) => {
         const jumpLink = e.target.closest('.dashboard-jump-link');
         if (jumpLink) {
@@ -154,7 +154,6 @@ function setupEventListeners() {
                 } else if (tab === 'absences') {
                     state.filterAbsences = studentName;
                     dom.searchAbsences.value = studentName;
-                    // Força filtro 'todos' para garantir que apareça mesmo se concluído
                     state.filtersAbsences.processStatus = 'all'; 
                     renderAbsences();
                 }
@@ -176,7 +175,10 @@ function setupEventListeners() {
 function switchTab(tabName) {
     state.activeTab = tabName;
     
-    [dom.tabContentDashboard, dom.tabContentOccurrences, dom.tabContentAbsences].forEach(el => el.classList.add('hidden'));
+    // Oculta todas as abas
+    [dom.tabContentDashboard, dom.tabContentOccurrences, dom.tabContentAbsences, dom.tabContentDocuments].forEach(el => {
+        if(el) el.classList.add('hidden');
+    });
 
     if (tabName === 'dashboard') {
         dom.tabContentDashboard.classList.remove('hidden');
@@ -187,6 +189,9 @@ function switchTab(tabName) {
     } else if (tabName === 'absences') {
         dom.tabContentAbsences.classList.remove('hidden');
         renderAbsences();
+    } else if (tabName === 'documents') {
+        dom.tabContentDocuments.classList.remove('hidden');
+        renderDocuments(); // Carrega a lista
     }
 }
 
