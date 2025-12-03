@@ -1,7 +1,9 @@
 
+
+
 // =================================================================================
 // ARQUIVO: main.js
-// VERSÃO: 3.2 (Com Verificação de Email Obrigatória)
+// VERSÃO: 3.3 (Com Navegação Rápida do Dashboard)
 
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { onSnapshot, query, writeBatch, doc, where, getDocs, limit, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -33,10 +35,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user) {
             // --- BLOQUEIO DE SEGURANÇA: EMAIL NÃO VERIFICADO ---
             if (!user.emailVerified) {
-                // Se o email não foi verificado, mostramos alerta e deslogamos
                 showAlert("Acesso negado: Seu email ainda não foi verificado. Por favor, cheque sua caixa de entrada.");
                 await signOut(auth);
-                return; // Interrompe o carregamento do app
+                return; 
             }
             // ---------------------------------------------------
 
@@ -47,7 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.mainContent.classList.remove('hidden');
             dom.userProfile.classList.remove('hidden');
 
-            // 1. Permissões
             state.isAdmin = SUPER_ADMIN_EMAILS.includes(user.email);
 
             try {
@@ -61,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn("Aviso: Configurações não carregadas.", configError);
             }
 
-            // Exibe botões admin
             if (state.isAdmin) {
                 if(dom.settingsBtn) dom.settingsBtn.classList.remove('hidden');
                 if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.remove('hidden');
@@ -70,12 +69,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
             }
 
-            // 2. Carrega Dados Iniciais
             try {
                 await loadStudents(); 
                 setupFirestoreListeners(); 
-                
-                // 3. Inicia no Dashboard
                 switchTab('dashboard'); 
                 
             } catch (error) {
@@ -84,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
         } else {
-            // Logout / Não Autenticado
             state.userId = null; state.userEmail = null; state.students = []; state.occurrences = []; state.absences = [];
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
@@ -100,7 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupFirestoreListeners() {
     if (!state.userId) return;
 
-    // Listeners limitados a 100 para UI
     const occurrencesQuery = query(getCollectionRef('occurrence'), orderBy('createdAt', 'desc'), limit(100));
     state.unsubscribeOccurrences = onSnapshot(occurrencesQuery, (snapshot) => {
         state.occurrences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -127,7 +121,6 @@ function setupEventListeners() {
     initAuthListeners();
     dom.logoutBtn.addEventListener('click', () => signOut(auth));
 
-    // Listeners de Navegação (Cards e Botões Voltar)
     if (dom.cardNavOccurrences) dom.cardNavOccurrences.addEventListener('click', () => switchTab('occurrences'));
     if (dom.cardNavAbsences) dom.cardNavAbsences.addEventListener('click', () => switchTab('absences'));
     
@@ -143,7 +136,32 @@ function setupEventListeners() {
 
     document.getElementById('confirm-delete-btn').addEventListener('click', handleDeleteConfirmation);
 
+    // DELEGAÇÃO DE EVENTOS PARA LINKS DO DASHBOARD
     document.addEventListener('click', (e) => {
+        const jumpLink = e.target.closest('.dashboard-jump-link');
+        if (jumpLink) {
+            e.stopPropagation();
+            const tab = jumpLink.dataset.tab;
+            const studentName = jumpLink.dataset.studentName;
+            
+            if (tab && studentName) {
+                switchTab(tab);
+                
+                if (tab === 'occurrences') {
+                    state.filterOccurrences = studentName;
+                    dom.searchOccurrences.value = studentName;
+                    renderOccurrences();
+                } else if (tab === 'absences') {
+                    state.filterAbsences = studentName;
+                    dom.searchAbsences.value = studentName;
+                    // Força filtro 'todos' para garantir que apareça mesmo se concluído
+                    state.filtersAbsences.processStatus = 'all'; 
+                    renderAbsences();
+                }
+            }
+            return;
+        }
+
         if (!e.target.closest('.kebab-menu-container')) {
             document.querySelectorAll('.kebab-menu-dropdown').forEach(d => d.classList.add('hidden'));
             document.querySelectorAll('.process-content').forEach(c => {
@@ -158,13 +176,11 @@ function setupEventListeners() {
 function switchTab(tabName) {
     state.activeTab = tabName;
     
-    // Reseta visualização
     [dom.tabContentDashboard, dom.tabContentOccurrences, dom.tabContentAbsences].forEach(el => el.classList.add('hidden'));
 
-    // Ativa a selecionada
     if (tabName === 'dashboard') {
         dom.tabContentDashboard.classList.remove('hidden');
-        initDashboard(); // Atualiza gráficos
+        initDashboard(); 
     } else if (tabName === 'occurrences') {
         dom.tabContentOccurrences.classList.remove('hidden');
         renderOccurrences();

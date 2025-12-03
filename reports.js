@@ -694,7 +694,7 @@ const generateAndShowGenericOficio = async (data, oficioNum, type, studentObjOve
         anexosText = "Seguem anexos: Ficha de Matrícula e Ficha de Acompanhamento de Frequência.";
 
     } else {
-        subject = "Encaminhamento por Ocorrência Disciplinar Grave/Reincidente";
+        subject = "Encaminhamento por Ocorrência Disciplinar";
         contextParagraph = `
             Encaminhamos o relatório referente ao incidente ocorrido em <strong>${formatDate(data.date)}</strong>, classificado como <strong>"${formatText(data.occurrenceType)}"</strong>.
             A escola esgotou suas instâncias pedagógicas de resolução de conflito conforme demonstrado abaixo.

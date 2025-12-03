@@ -1,4 +1,5 @@
 
+
 /* ============================================================================== */
 /* ARQUIVO: style.css                                                             */
 
@@ -265,7 +266,7 @@ tbody tr:nth-child(even) {
         visibility: visible !important;
     }
     
-    /* 4. Remove Flexbox e Scroll do Modal Content */
+    /* 4. Remove Flexbox e Scroll do Modal Content (EXCETO PARA ASSINATURAS) */
     .printable-area-active .modal-content {
         display: block !important;
         position: static !important;
@@ -300,9 +301,18 @@ tbody tr:nth-child(even) {
 
     /* --- ESTILOS DE CONTEÚDO IMPRESSO --- */
     
+    /* Garante que o bloco de assinatura use Flexbox para ficar lado a lado */
     .signature-block {
-        display: block !important;
+        display: flex !important; /* Força flex na impressão */
+        justify-content: space-around !important;
+        width: 100% !important;
+        margin-top: 3cm !important; /* Espaço generoso */
         page-break-inside: avoid;
+    }
+    
+    .signature-block > div {
+        flex: 1;
+        padding: 0 1rem;
     }
     
     .break-inside-avoid {

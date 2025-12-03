@@ -1,7 +1,9 @@
 
+
+
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 6.0 (Design Visual Premium + Urgência Temporal)
+// VERSÃO: 6.2 (Ordenação Corrigida: Em Andamento Primeiro)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -209,7 +211,6 @@ const getNextActionDisplay = (actionType) => {
     return titles[actionType] || 'Próxima';
 };
 
-// FUNÇÃO NOVA: Define a cor da borda baseada em Urgência
 const getUrgencyBorderClass = (isConcluded, didNotReturn, stalledDays) => {
     if (isConcluded) return 'border-emerald-500'; // Sucesso/Fim
     if (didNotReturn) return 'border-red-600';    // Crítico (Não retornou)
@@ -247,21 +248,14 @@ export const renderAbsences = () => {
     }, {});
 
     const filteredGroupKeys = Object.keys(groupedByProcess).filter(processId => {
-        // ... (Filtros de data e status mantidos) ...
         const actions = groupedByProcess[processId];
         if (!actions || actions.length === 0) return false;
         
+        // Ordena ações para determinar status
         actions.sort((a, b) => {
-            const dateA = getActionMainDate(a) || a.createdAt?.seconds || 0;
-            const dateB = getActionMainDate(b) || b.createdAt?.seconds || 0;
-            const timeA = typeof dateA === 'string' ? new Date(dateA+'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
-            const timeB = typeof dateB === 'string' ? new Date(dateB+'T00:00:00Z').getTime() : (dateB instanceof Date ? dateB.getTime() : (dateB || 0) * 1000);
-            if (timeA === timeB) {
-                const createA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
-                const createB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
-                return (createA || 0) - (createB || 0);
-            }
-            return (timeA || 0) - (timeB || 0); 
+            const timeA = (a.createdAt?.seconds || new Date(a.createdAt).getTime());
+            const timeB = (b.createdAt?.seconds || new Date(b.createdAt).getTime());
+            return timeA - timeB; // Ascendente para lógica
         });
 
         const { startDate, endDate, processStatus, pendingAction, returnStatus } = state.filtersAbsences;
@@ -316,6 +310,7 @@ export const renderAbsences = () => {
     });
 
     if (filteredGroupKeys.length === 0) {
+        // ... (empty state logic mantida)
         const hasActiveFilters = state.filterAbsences !== '' || state.filtersAbsences.processStatus !== 'all' || state.filtersAbsences.pendingAction !== 'all' || state.filtersAbsences.returnStatus !== 'all' || state.filtersAbsences.startDate || state.filtersAbsences.endDate;
         if (hasActiveFilters) {
             dom.emptyStateAbsences.classList.remove('hidden');
@@ -330,19 +325,28 @@ export const renderAbsences = () => {
     } else {
         dom.emptyStateAbsences.classList.add('hidden');
 
+        // --- ORDENAÇÃO CORRIGIDA ---
         const sortedGroupKeys = filteredGroupKeys.sort((a, b) => {
             const actionsA = groupedByProcess[a];
             const actionsB = groupedByProcess[b];
-            const lastActionA = actionsA?.length > 0 ? actionsA[actionsA.length - 1] : null;
-            const lastActionB = actionsB?.length > 0 ? actionsB[actionsB.length - 1] : null;
+            
+            // Verifica se está concluído
+            const isConcludedA = actionsA.some(action => action.actionType === 'analise');
+            const isConcludedB = actionsB.some(action => action.actionType === 'analise');
 
-            const timeA = getActionMainDate(lastActionA) || lastActionA?.createdAt;
-            const timeB = getActionMainDate(lastActionB) || lastActionB?.createdAt;
+            // 1. Prioridade: Em Andamento vem antes de Concluído
+            if (isConcludedA !== isConcludedB) {
+                return isConcludedA ? 1 : -1; // Se A é concluído, vai pro fim (positivo). Se B é concluído, A vem antes.
+            }
 
-            const timestampA = timeA instanceof Date ? timeA.getTime() : (typeof timeA === 'string' ? new Date(timeA+'T00:00:00Z').getTime() : (timeA?.seconds || 0) * 1000);
-            const timestampB = timeB instanceof Date ? timeB.getTime() : (typeof timeB === 'string' ? new Date(timeB+'T00:00:00Z').getTime() : (timeB?.seconds || 0) * 1000);
+            // 2. Prioridade: Data da última ação (Mais recente primeiro)
+            const lastActionA = actionsA[actionsA.length - 1];
+            const lastActionB = actionsB[actionsB.length - 1];
 
-            return (timestampB || 0) - (timestampA || 0); 
+            const timeA = lastActionA.createdAt?.seconds || 0;
+            const timeB = lastActionB.createdAt?.seconds || 0;
+
+            return timeB - timeA; 
         });
 
         let html = '';
@@ -501,6 +505,7 @@ export const renderAbsences = () => {
 };
 
 export const handleNewAbsenceAction = (student) => {
+    // ... (restante da função inalterada)
     const { currentCycleActions } = getStudentProcessInfo(student.matricula);
     currentCycleActions.sort((a, b) => { 
         const dateA = getActionMainDate(a) || a.createdAt?.seconds || 0;
@@ -565,6 +570,7 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
 };
 
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null, preFilledData = null) => {
+    // ... (restante da função mantida como estava)
     dom.absenceForm.reset();
     pendingAbsenceImagesBase64 = []; 
     document.getElementById('absence-print-label').textContent = 'Selecionar Imagens';
@@ -768,6 +774,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 };
 
 async function handleAbsenceSubmit(e) {
+    // ... (restante da função mantida)
     e.preventDefault(); 
     const form = e.target;
     let firstInvalidField = null;
@@ -843,6 +850,7 @@ async function handleAbsenceSubmit(e) {
 }
 
 function getAbsenceFormData() {
+    // ... (função inalterada)
     const studentId = dom.absenceForm.dataset.selectedStudentId;
     if (!studentId) { showAlert("Erro: Aluno não identificado."); return null; }
     const studentName = document.getElementById('absence-student-name').value;

@@ -1,7 +1,9 @@
 
+
+
 // =================================================================================
 // ARQUIVO: dashboard.js
-// VERSÃO: 2.0 (Com Alertas Urgentes e Métricas Contextuais)
+// VERSÃO: 2.1 (Alertas Clicáveis e Porcentagens)
 
 import { getDashboardStats } from './firestore.js';
 import { dom, state } from './state.js';
@@ -69,7 +71,6 @@ export const initDashboard = async () => {
 };
 
 const renderUrgentAlerts = () => {
-    // Filtra ocorrências pendentes antigas (> 7 dias)
     const today = new Date();
     const urgentOccurrences = state.occurrences
         .filter(o => o.statusIndividual !== 'Resolvido' && o.statusIndividual !== 'Finalizada')
@@ -79,11 +80,10 @@ const renderUrgentAlerts = () => {
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             return diffDays > 7;
         })
-        .slice(0, 3); // Top 3
+        .slice(0, 3); 
 
-    // Filtra busca ativa parada (> 5 dias sem update)
     const urgentAbsences = state.absences
-        .filter(a => a.actionType !== 'analise') // Em aberto
+        .filter(a => a.actionType !== 'analise') 
         .filter(a => {
             const date = a.createdAt ? (a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt)) : new Date();
             const diffTime = Math.abs(today - date);
@@ -94,8 +94,7 @@ const renderUrgentAlerts = () => {
 
     if (urgentOccurrences.length === 0 && urgentAbsences.length === 0) return;
 
-    // Cria Container de Alertas
-    const dashboardContainer = document.getElementById('tab-content-dashboard');
+    const cardsRow = document.querySelector('#tab-content-dashboard > .grid:first-child');
     const existingContainer = document.getElementById('urgent-alerts-container');
     if(existingContainer) existingContainer.remove();
 
@@ -111,7 +110,8 @@ const renderUrgentAlerts = () => {
                 <h4 class="text-xs font-semibold text-red-700 mb-2">Ocorrências Pendentes (+7 dias)</h4>
                 <ul class="space-y-2">
                     ${urgentOccurrences.map(o => `
-                        <li class="bg-white p-2 rounded border border-red-100 shadow-sm text-xs flex justify-between items-center cursor-pointer hover:bg-red-50" onclick="document.getElementById('card-nav-occurrences').click()">
+                        <li class="bg-white p-2 rounded border border-red-100 shadow-sm text-xs flex justify-between items-center cursor-pointer hover:bg-red-50 dashboard-jump-link" 
+                            data-tab="occurrences" data-student-name="${o.studentName}">
                             <span><strong>${o.studentName}</strong>: ${o.statusIndividual}</span>
                             <span class="text-gray-400">${formatDate(o.date)}</span>
                         </li>
@@ -128,7 +128,8 @@ const renderUrgentAlerts = () => {
                     ${urgentAbsences.map(a => {
                          const date = a.createdAt?.toDate ? a.createdAt.toDate() : new Date();
                          return `
-                        <li class="bg-white p-2 rounded border border-red-100 shadow-sm text-xs flex justify-between items-center cursor-pointer hover:bg-red-50" onclick="document.getElementById('card-nav-absences').click()">
+                        <li class="bg-white p-2 rounded border border-red-100 shadow-sm text-xs flex justify-between items-center cursor-pointer hover:bg-red-50 dashboard-jump-link" 
+                            data-tab="absences" data-student-name="${a.studentName}">
                             <span><strong>${a.studentName || 'Aluno'}</strong>: Aguardando ação</span>
                             <span class="text-gray-400">${formatDate(date)}</span>
                         </li>
@@ -140,8 +141,6 @@ const renderUrgentAlerts = () => {
     alertsHtml += `</div>`;
     alertSection.innerHTML = alertsHtml;
     
-    // Insere logo após os cards principais
-    const cardsRow = document.querySelector('#tab-content-dashboard > .grid:first-child');
     if(cardsRow) cardsRow.parentNode.insertBefore(alertSection, cardsRow.nextSibling);
 }
 
@@ -168,13 +167,14 @@ const renderCharts = (occurrences, absences) => {
         typesCount[type] = (typesCount[type] || 0) + 1;
     });
     
-    // Ordena e pega Top 5
     const sortedTypes = Object.entries(typesCount)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5);
 
     const ctxTypes = document.getElementById('dash-chart-types').getContext('2d');
     if (chartTypes) chartTypes.destroy();
+
+    const totalTypes = sortedTypes.reduce((acc, curr) => acc + curr[1], 0);
 
     chartTypes = new Chart(ctxTypes, {
         type: 'doughnut',
@@ -189,7 +189,17 @@ const renderCharts = (occurrences, absences) => {
         options: {
             responsive: true,
             plugins: {
-                legend: { position: 'right' }
+                legend: { position: 'right' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.raw || 0;
+                            const percentage = totalTypes > 0 ? ((value / totalTypes) * 100).toFixed(1) + '%' : '0%';
+                            return `${label}: ${value} (${percentage})`;
+                        }
+                    }
+                }
             }
         }
     });
@@ -220,7 +230,20 @@ const renderCharts = (occurrences, absences) => {
             scales: {
                 y: { beginAtZero: true, ticks: { stepSize: 1 } }
             },
-            plugins: { legend: { display: false } }
+            plugins: { 
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.dataset.label || '';
+                            const value = context.raw || 0;
+                            const total = statusCount['Em Andamento'] + statusCount['Concluído'];
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
+                            return `${label}: ${value} (${percentage})`;
+                        }
+                    }
+                }
+            }
         }
     });
 };
