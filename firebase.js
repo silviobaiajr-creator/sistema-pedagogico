@@ -3,6 +3,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 // Configuração padrão que serve como fallback caso a configuração dinâmica não seja fornecida.
 const firebaseConfig = {
@@ -18,6 +19,7 @@ const firebaseConfig = {
 let app = null;
 let auth = null;
 let db = null;
+let storage = null;
 
 try {
     // Tenta obter a configuração injetada (dinâmica). Se não existir ou for inválida, usa a configuração padrão (fallback).
@@ -26,11 +28,11 @@ try {
         : firebaseConfig;
 
     // Verifica se a configuração final é válida antes de tentar inicializar o Firebase.
-    // Uma verificação simples por 'apiKey' é suficiente para garantir que o objeto de configuração não está vazio.
     if (finalConfig && finalConfig.apiKey) {
         app = initializeApp(finalConfig);
         auth = getAuth(app);
         db = getFirestore(app);
+        storage = getStorage(app);
     } else {
         // Se a configuração for inválida, lança um erro para ser capturado pelo bloco 'catch'.
         throw new Error("A configuração do Firebase é inválida ou está em falta.");
@@ -39,8 +41,7 @@ try {
     // Se qualquer parte da inicialização falhar, este bloco será executado.
     console.error("Falha ao inicializar o Firebase:", error);
     
-    // Exibe uma mensagem de erro clara e visível para o utilizador, substituindo o conteúdo da página.
-    // Isto evita que a aplicação fique numa tela em branco ou com erros parciais.
+    // Exibe uma mensagem de erro clara e visível para o utilizador.
     document.body.innerHTML = `<div style="padding: 2rem; text-align: center; color: #b91c1c; background-color: #fee2e2; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
         <h1 style="font-size: 1.5rem; font-weight: bold;">Erro Crítico na Aplicação</h1>
         <p style="margin-top: 0.5rem;">Não foi possível conectar aos serviços necessários (Firebase).</p>
@@ -49,6 +50,5 @@ try {
     </div>`;
 }
 
-// Exporta as instâncias do Firebase. Em caso de erro, os valores exportados serão 'null'.
-// O restante do código da aplicação deve ser capaz de lidar com essa possibilidade.
-export { app, auth, db };
+// Exporta as instâncias do Firebase.
+export { app, auth, db, storage };

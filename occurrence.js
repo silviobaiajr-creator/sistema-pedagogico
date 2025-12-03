@@ -1,10 +1,10 @@
 
 // =================================================================================
 // ARQUIVO: occurrence.js 
-// VERSÃO: 6.1 (Botões Inteligentes + Ver Ofício Explícito)
+// VERSÃO: 6.2 (Com Upload para Firebase Storage e Multimídia)
 
 import { state, dom } from './state.js';
-import { showToast, showAlert, openModal, closeModal, getStatusBadge, formatDate, formatTime, compressImage, openImageModal } from './utils.js';
+import { showToast, showAlert, openModal, closeModal, getStatusBadge, formatDate, formatTime, openImageModal, uploadToStorage } from './utils.js';
 import { 
     getCollectionRef, 
     getCounterDocRef, 
@@ -64,17 +64,14 @@ const nextStepLabels = {
 let studentPendingRoleSelection = null;
 let editingRoleId = null; 
 let studentSearchTimeout = null;
-let pendingImagesBase64 = []; 
+let pendingFiles = []; // AGORA ARMAZENA OBJETOS FILE, NÃO BASE64
 
 const normalizeText = (text) => {
     if (!text) return '';
     return text.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 };
 
-// =================================================================================
-// FUNÇÕES DE INTERFACE (UI) - TAGS E SELEÇÃO
-// =================================================================================
-
+// ... (renderTags, openRoleEditDropdown, setupStudentTagInput mantidos iguais) ...
 const renderTags = () => {
     const tagsContainerElement = document.getElementById('student-tags-container');
     tagsContainerElement.innerHTML = '';
@@ -165,7 +162,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 
             try {
                 const results = await searchStudentsByName(value);
-                suggestionsElement.innerHTML = '';
+                suggestionsContainer.innerHTML = '';
                 
                 const filteredResults = results.filter(s => !state.selectedStudents.has(s.matricula));
 
@@ -194,7 +191,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
                 }
             } catch (error) {
                 console.error("Erro na busca de alunos:", error);
-                suggestionsElement.innerHTML = '<div class="p-2 text-red-500 text-xs">Erro na busca.</div>';
+                suggestionsContainer.innerHTML = '<div class="p-2 text-red-500 text-xs">Erro na busca.</div>';
             }
         }, 400);
     });
@@ -241,13 +238,13 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
     renderTags();
 };
 
-const renderImagePreviews = (containerId) => {
+const renderFilePreviews = (containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
     
     container.innerHTML = '';
     
-    if (pendingImagesBase64.length === 0) {
+    if (pendingFiles.length === 0) {
         container.classList.add('hidden');
         return;
     }
@@ -255,49 +252,61 @@ const renderImagePreviews = (containerId) => {
     container.classList.remove('hidden');
     container.className = "flex flex-wrap gap-2 mt-2";
 
-    pendingImagesBase64.forEach((imgSrc, index) => {
+    pendingFiles.forEach((file, index) => {
         const wrapper = document.createElement('div');
         wrapper.className = "relative group w-16 h-16 border rounded bg-gray-100 overflow-hidden";
         
-        const img = document.createElement('img');
-        img.src = imgSrc;
-        img.className = "w-full h-full object-cover cursor-pointer";
-        img.onclick = () => window.viewImage(imgSrc, `Anexo ${index + 1}`);
-        
+        let mediaElement;
+        const objectUrl = URL.createObjectURL(file);
+
+        if (file.type.startsWith('image/')) {
+            mediaElement = document.createElement('img');
+            mediaElement.src = objectUrl;
+            mediaElement.className = "w-full h-full object-cover cursor-pointer";
+            mediaElement.onclick = () => window.viewImage(objectUrl, file.name);
+        } else if (file.type.startsWith('video/')) {
+            mediaElement = document.createElement('div');
+            mediaElement.className = "w-full h-full flex items-center justify-center bg-black text-white cursor-pointer";
+            mediaElement.innerHTML = '<i class="fas fa-video"></i>';
+            mediaElement.onclick = () => window.viewImage(objectUrl, file.name);
+        } else if (file.type.startsWith('audio/')) {
+            mediaElement = document.createElement('div');
+            mediaElement.className = "w-full h-full flex items-center justify-center bg-purple-600 text-white cursor-pointer";
+            mediaElement.innerHTML = '<i class="fas fa-music"></i>';
+            mediaElement.onclick = () => window.viewImage(objectUrl, file.name);
+        }
+
         const removeBtn = document.createElement('button');
-        removeBtn.className = "absolute top-0 right-0 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center opacity-80 hover:opacity-100";
+        removeBtn.className = "absolute top-0 right-0 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center opacity-80 hover:opacity-100 z-10";
         removeBtn.innerHTML = "&times;";
         removeBtn.type = "button";
         removeBtn.onclick = (e) => {
             e.stopPropagation();
-            pendingImagesBase64.splice(index, 1);
+            pendingFiles.splice(index, 1);
             
             const labelEl = document.getElementById(containerId.replace('-preview', '-label'));
-            if(labelEl) labelEl.textContent = pendingImagesBase64.length > 0 ? `${pendingImagesBase64.length} Imagens` : 'Selecionar Imagens';
+            if(labelEl) labelEl.textContent = pendingFiles.length > 0 ? `${pendingFiles.length} Arq.` : 'Selecionar';
             
             const checkEl = document.getElementById(containerId.replace('-preview', '-check'));
-            if(checkEl && pendingImagesBase64.length === 0) checkEl.classList.add('hidden');
+            if(checkEl && pendingFiles.length === 0) checkEl.classList.add('hidden');
 
-            renderImagePreviews(containerId);
+            renderFilePreviews(containerId);
         };
         
-        wrapper.appendChild(img);
+        wrapper.appendChild(mediaElement);
         wrapper.appendChild(removeBtn);
         container.appendChild(wrapper);
     });
 };
 
-// =================================================================================
-// RENDERIZAÇÃO MELHORADA (LISTA DE OCORRÊNCIAS)
-// =================================================================================
-
+// ... (getTypeColorClass, getStepIndicator, getTimeSinceUpdate mantidos) ...
 const getTypeColorClass = (type) => {
     if (!type) return 'border-gray-200';
     const lowerType = type.toLowerCase();
     if (lowerType.includes('agressão') || lowerType.includes('bullying')) return 'border-red-500';
     if (lowerType.includes('indisciplina') || lowerType.includes('comportamento') || lowerType.includes('telemóvel')) return 'border-yellow-500';
     if (lowerType.includes('dano')) return 'border-orange-500';
-    return 'border-sky-500'; // Padrão/Outros
+    return 'border-sky-500'; 
 };
 
 const getStepIndicator = (status) => {
@@ -317,7 +326,6 @@ const getStepIndicator = (status) => {
 };
 
 const getTimeSinceUpdate = (dateString, updateDate) => {
-    // Usa data de atualização do registro se disponível, senão data de criação, senão hoje
     const refDate = updateDate ? (updateDate.toDate ? updateDate.toDate() : new Date(updateDate)) : new Date();
     const now = new Date();
     const diffTime = Math.abs(now - refDate);
@@ -375,13 +383,11 @@ export const renderOccurrences = () => {
                 const stepInfo = getStepIndicator(status);
                 const timeInfo = getTimeSinceUpdate(null, record?.updatedAt || record?.createdAt);
                 
-                // Determina o texto do próximo botão
                 const nextStepKey = determineNextOccurrenceStep(status);
                 const nextActionText = nextStepLabels[nextStepKey] || 'Avançar / Agendar';
 
                 let historyHtml = '';
                 
-                // Helper para renderizar bloco de Tentativa
                 const renderAttemptBlock = (index, mDate, mTime, succeeded, contactDate, contactPerson, contactPrints, legacyContactPrint) => {
                     if (!mDate) return '';
                     const attemptNum = index; 
@@ -393,7 +399,6 @@ export const renderOccurrences = () => {
                     
                     let statusContent = '';
                     let statusIcon = '<i class="fas fa-bullhorn text-gray-400"></i>';
-                    let statusClass = 'text-gray-500';
 
                     if (succeeded === null) {
                         statusContent = `
@@ -411,8 +416,8 @@ export const renderOccurrences = () => {
                         else if (legacyContactPrint) imagesToShow = [legacyContactPrint];
 
                         if (imagesToShow.length > 0) {
-                            const btnLabel = imagesToShow.length > 1 ? `[${imagesToShow.length} Prints]` : `[Print]`;
-                            printsHtml = `<button type="button" class="view-print-btn text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${imagesToShow[0]}', 'Anexo')"><i class="fas fa-image"></i> ${btnLabel}</button>`;
+                            const btnLabel = imagesToShow.length > 1 ? `[${imagesToShow.length} Anexos]` : `[Anexo]`;
+                            printsHtml = `<button type="button" class="view-print-btn text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${imagesToShow[0]}', 'Anexo')"><i class="fas fa-paperclip"></i> ${btnLabel}</button>`;
                         }
                         statusContent = `<div class="ml-7 text-xs"><span class="text-green-600 font-bold"><i class="fas fa-check"></i> Contato OK</span> <span class="text-gray-500">(${contactPerson || 'Resp.'} em ${formatDate(contactDate)})</span> ${printsHtml}</div>`;
                         statusIcon = '<i class="fas fa-phone-alt text-green-500"></i>';
@@ -446,7 +451,6 @@ export const renderOccurrences = () => {
                 
                 const avancarBtn = `<button type="button" class="avancar-etapa-btn flex-1 bg-sky-600 text-white hover:bg-sky-700 text-xs font-semibold py-2 px-2 rounded transition shadow-sm ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}" ${isIndividualResolvido ? 'disabled' : ''} data-group-id="${incident.id}" data-student-id="${student.matricula}" data-record-id="${recordId}"><i class="fas fa-forward mr-1"></i> ${nextActionText}</button>`;
                 
-                // Botão "Ver Ofício" agora explícito com Texto
                 const viewOficioBtn = record?.oficioNumber ? `<button type="button" class="view-occurrence-oficio-btn bg-green-50 text-green-700 hover:bg-green-100 text-xs font-semibold py-2 px-3 rounded border border-green-200 transition flex items-center gap-1" data-record-id="${recordId}" title="Ver Ofício"><i class="fas fa-file-alt"></i> Ver Ofício</button>` : '';
                 
                 const editActionBtn = `<button type="button" class="edit-occurrence-action-btn bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs font-semibold py-2 px-3 rounded transition ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}" data-group-id="${incident.id}" data-student-id="${student.matricula}" data-record-id="${recordId}" ${isFinalizada ? 'disabled' : ''} title="Editar"><i class="fas fa-pencil-alt"></i></button>`;
@@ -615,17 +619,15 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
     const followUpForm = document.getElementById('follow-up-form');
     followUpForm.reset();
     
-    // Reseta imagens
-    pendingImagesBase64 = []; 
-    document.getElementById('follow-up-print-label').textContent = 'Selecionar Imagens';
+    // Reseta arquivos
+    pendingFiles = []; 
+    document.getElementById('follow-up-print-label').textContent = 'Selecionar Arquivos';
     document.getElementById('follow-up-print-check').classList.add('hidden');
     
-    // INJETA O CONTAINER DE PREVIEW SE NÃO EXISTIR
     let previewContainer = document.getElementById('follow-up-print-preview');
     if (!previewContainer) {
         const fileInput = document.getElementById('follow-up-contact-print');
         if (fileInput) {
-            // Habilita seleção múltipla
             fileInput.setAttribute('multiple', 'multiple');
             previewContainer = document.createElement('div');
             previewContainer.id = 'follow-up-print-preview';
@@ -660,7 +662,7 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
     document.querySelectorAll('.dynamic-occurrence-step').forEach(group => {
         group.classList.add('hidden');
         group.querySelectorAll('input, select, textarea, button').forEach(el => {
-            if (el.type !== 'file') el.disabled = true; // Input de arquivo sempre habilitado se visível
+            if (el.type !== 'file') el.disabled = true; // Input de arquivo sempre habilitado
             el.required = false;
         });
         group.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
@@ -672,7 +674,6 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
 
     if (actionType.startsWith('convocacao_')) { 
         const attemptNum = actionType.split('_')[1];
-        
         currentGroup = document.getElementById('group-convocacao');
         if (currentGroup) {
             currentGroup.classList.remove('hidden');
@@ -700,7 +701,6 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
 
     } else if (actionType.startsWith('feedback_')) { 
         const attemptNum = parseInt(actionType.split('_')[1]);
-        
         currentGroup = document.getElementById('group-contato');
         if (currentGroup) {
             currentGroup.classList.remove('hidden');
@@ -730,12 +730,6 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
             if (meetingDate) contactDateInput.min = meetingDate;
 
             document.getElementById('follow-up-family-actions').value = record[`providenciasFamilia_${attemptNum}`] || '';
-
-            // CARREGA IMAGENS EXISTENTES SE HOUVER (Para edição)
-            // Se estiver editando, não vamos baixar e converter para base64 para preencher o input file (impossível).
-            // Apenas mantemos o array vazio e se o usuário não adicionar nada, o backend mantém o antigo.
-            // Se adicionar, substitui ou adiciona (depende da lógica de backend, aqui substituiremos se houver novo upload).
-            // Visualmente, poderíamos mostrar "X imagens anexadas", mas para simplificar, reseta.
         }
 
     } else if (actionType === 'desfecho_ou_ct') { 
@@ -796,6 +790,7 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
 // =================================================================================
 
 async function handleOccurrenceSubmit(e) {
+    // ... (Mantido igual)
     e.preventDefault();
     const form = e.target;
     if (!form.checkValidity()) {
@@ -954,6 +949,27 @@ async function handleOccurrenceStepSubmit(e) {
     const record = state.occurrences.find(r => r.id === recordId);
     if (!record) return showAlert("Erro: Registro original não encontrado.");
 
+    // --- UPLOAD ASSÍNCRONO DE ARQUIVOS (MULTIMÍDIA) ---
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn.innerText;
+    let uploadedUrls = [];
+
+    if (pendingFiles.length > 0) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Enviando arquivos...`;
+        
+        try {
+            // Upload paralelo
+            const uploadPromises = pendingFiles.map(file => uploadToStorage(file));
+            uploadedUrls = await Promise.all(uploadPromises);
+        } catch (uploadError) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = originalBtnText;
+            return showAlert("Erro ao enviar anexos. Tente novamente.");
+        }
+    }
+    // --------------------------------------------------
+
     let dataToUpdate = {};
     let historyAction = "";
     let nextStatus = record.statusIndividual; 
@@ -961,25 +977,21 @@ async function handleOccurrenceStepSubmit(e) {
     try {
         if (actionType.startsWith('convocacao_')) {
             const attemptNum = actionType.split('_')[1];
-            // Mapeia para campos do banco (1 usa meetingDate legacy, outros usam sufixo)
             const dateField = attemptNum == 1 ? 'meetingDate' : `meetingDate_${attemptNum}`;
             const timeField = attemptNum == 1 ? 'meetingTime' : `meetingTime_${attemptNum}`;
 
             const inputDate = document.getElementById('follow-up-meeting-date').value;
             const inputTime = document.getElementById('follow-up-meeting-time').value;
 
-            if (!inputDate || !inputTime) return showAlert('Data e Horário obrigatórios.');
+            if (!inputDate || !inputTime) throw new Error('Data e Horário obrigatórios.');
             
             const dateCheck = validateOccurrenceChronology(record, actionType, inputDate);
-            if (!dateCheck.isValid) return showAlert(dateCheck.message);
+            if (!dateCheck.isValid) throw new Error(dateCheck.message);
 
-            // --- AGENDAMENTO EM LOTE PARA 1ª CONVOCAÇÃO ---
             if (attemptNum == 1) {
                 const incident = await fetchIncidentById(record.occurrenceGroupId);
-                // Filtra outros alunos no mesmo grupo que ainda estão na etapa 1
                 const otherPendingRecords = incident.records.filter(r => 
-                    r.id !== recordId && 
-                    r.statusIndividual === 'Aguardando Convocação 1'
+                    r.id !== recordId && r.statusIndividual === 'Aguardando Convocação 1'
                 );
 
                 if (otherPendingRecords.length > 0 && confirm(`Existem outros ${otherPendingRecords.length} alunos neste incidente aguardando a 1ª convocação. Deseja agendar para todos na mesma data e horário?`)) {
@@ -993,7 +1005,6 @@ async function handleOccurrenceStepSubmit(e) {
                     };
                     const batchHistoryAction = `Ação 2 (1ª Convocação) agendada em lote para ${formatDate(inputDate)} às ${formatTime(inputTime)}.`;
 
-                    // Atualiza os outros
                     otherPendingRecords.forEach(otherRec => {
                         const ref = doc(getCollectionRef('occurrence'), otherRec.id);
                         batch.update(ref, {
@@ -1001,19 +1012,12 @@ async function handleOccurrenceStepSubmit(e) {
                             history: [...(otherRec.history||[]), { action: batchHistoryAction, user: state.userEmail, timestamp: new Date() }]
                         });
                     });
-                    
-                    // Adiciona o registro atual ao batch (será executado junto)
                     await batch.commit();
                     showToast(`Agendamento replicado para mais ${otherPendingRecords.length} alunos.`);
                 }
             }
-            // --- FIM AGENDAMENTO EM LOTE ---
 
-            dataToUpdate = {
-                [dateField]: inputDate,
-                [timeField]: inputTime
-            };
-
+            dataToUpdate = { [dateField]: inputDate, [timeField]: inputTime };
             historyAction = `Ação 2 (${attemptNum}ª Convocação) agendada para ${formatDate(inputDate)} às ${formatTime(inputTime)}.`;
             nextStatus = `Aguardando Feedback ${attemptNum}`; 
 
@@ -1022,7 +1026,7 @@ async function handleOccurrenceStepSubmit(e) {
             const contactSucceededRadio = document.querySelector('input[name="follow-up-contact-succeeded"]:checked');
             const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
 
-            if (!contactSucceeded) return showAlert('Selecione se conseguiu contato.');
+            if (!contactSucceeded) throw new Error('Selecione se conseguiu contato.');
 
             const fields = {
                 succeeded: `contactSucceeded_${attemptNum}`,
@@ -1030,7 +1034,7 @@ async function handleOccurrenceStepSubmit(e) {
                 date: `contactDate_${attemptNum}`,
                 person: `contactPerson_${attemptNum}`, 
                 providencias: `providenciasFamilia_${attemptNum}`,
-                prints: `contactPrints_${attemptNum}` // SALVA LISTA DE PRINTS
+                prints: `contactPrints_${attemptNum}` // Agora armazena URLs
             };
 
             if (contactSucceeded === 'yes') {
@@ -1042,20 +1046,21 @@ async function handleOccurrenceStepSubmit(e) {
                     [fields.providencias]: document.getElementById('follow-up-family-actions').value,
                 };
 
-                // Se houver novas imagens, salva o array. Se não, não envia o campo (mantém antigo se existir)
-                if (pendingImagesBase64.length > 0) {
-                    dataToUpdate[fields.prints] = pendingImagesBase64;
+                // Se houver novos uploads, mescla ou substitui (aqui estamos substituindo para simplificar o array, ou podemos fazer push)
+                // Vamos manter o comportamento anterior: se tem novos, salva.
+                if (uploadedUrls.length > 0) {
+                    dataToUpdate[fields.prints] = uploadedUrls;
                 }
 
                 if (!dataToUpdate[fields.type] || !dataToUpdate[fields.date] || !dataToUpdate[fields.providencias] || !dataToUpdate[fields.person]) {
-                     return showAlert('Preencha Tipo, Data, Com quem falou e Providências.');
+                     throw new Error('Preencha Tipo, Data, Com quem falou e Providências.');
                 }
                 
                 const dateCheck = validateOccurrenceChronology(record, actionType, dataToUpdate[fields.date]);
-                if (!dateCheck.isValid) return showAlert(dateCheck.message);
+                if (!dateCheck.isValid) throw new Error(dateCheck.message);
 
                 historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato realizado com ${dataToUpdate[fields.person]}.`;
-                if(pendingImagesBase64.length > 0) historyAction += ` (${pendingImagesBase64.length} anexos).`;
+                if(uploadedUrls.length > 0) historyAction += ` (${uploadedUrls.length} anexos enviados).`;
                 
                 nextStatus = 'Aguardando Desfecho'; 
 
@@ -1066,26 +1071,25 @@ async function handleOccurrenceStepSubmit(e) {
                 };
                 historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato sem sucesso.`;
                 
-                // Define próxima etapa baseada na tentativa atual
                 if (attemptNum === 1) nextStatus = 'Aguardando Convocação 2';
                 else if (attemptNum === 2) nextStatus = 'Aguardando Convocação 3';
-                else nextStatus = 'Aguardando Desfecho'; // Esgotou tentativas, vai para desfecho
+                else nextStatus = 'Aguardando Desfecho'; 
             }
 
         } else if (actionType === 'desfecho_ou_ct') {
             const desfechoChoiceRadio = document.querySelector('input[name="follow-up-desfecho-choice"]:checked');
             const desfechoChoice = desfechoChoiceRadio ? desfechoChoiceRadio.value : null;
 
-            if (!desfechoChoice) return showAlert("Erro: Escolha uma opção.");
+            if (!desfechoChoice) throw new Error("Erro: Escolha uma opção.");
 
             if (desfechoChoice === 'ct') {
                 const oficioNumber = document.getElementById('follow-up-oficio-number').value.trim();
                 const ctSentDate = document.getElementById('follow-up-ct-sent-date').value;
 
-                if (!oficioNumber || !ctSentDate) return showAlert("Erro: Preencha o Ofício e Data.");
+                if (!oficioNumber || !ctSentDate) throw new Error("Erro: Preencha o Ofício e Data.");
 
                 const dateCheck = validateOccurrenceChronology(record, 'desfecho_ou_ct', ctSentDate);
-                if (!dateCheck.isValid) return showAlert(dateCheck.message);
+                if (!dateCheck.isValid) throw new Error(dateCheck.message);
 
                 dataToUpdate = {
                     oficioNumber, ctSentDate,
@@ -1093,14 +1097,12 @@ async function handleOccurrenceStepSubmit(e) {
                     parecerFinal: null,
                     desfechoChoice: 'ct'
                 };
-                
                 historyAction = `Ação 4 (Encaminhamento ao CT) registrada. Ofício: ${oficioNumber}/${dataToUpdate.oficioYear}.`;
                 nextStatus = 'Aguardando Devolutiva CT';
                 
             } else { 
                  const parecerFinal = document.getElementById('follow-up-parecer-final').value.trim();
-                 if (!parecerFinal) return showAlert("Erro: Preencha o Parecer.");
-                 
+                 if (!parecerFinal) throw new Error("Erro: Preencha o Parecer.");
                  dataToUpdate = {
                     parecerFinal,
                     oficioNumber: null, ctSentDate: null, oficioYear: null, ctFeedback: null,
@@ -1114,7 +1116,7 @@ async function handleOccurrenceStepSubmit(e) {
             dataToUpdate = {
                 ctFeedback: document.getElementById('follow-up-ct-feedback').value.trim(),
             };
-             if (!dataToUpdate.ctFeedback) return showAlert("Erro: Preencha a Devolutiva.");
+             if (!dataToUpdate.ctFeedback) throw new Error("Erro: Preencha a Devolutiva.");
             historyAction = `Ação 5 (Devolutiva do CT) registrada.`;
             nextStatus = 'Aguardando Parecer Final';
 
@@ -1122,32 +1124,21 @@ async function handleOccurrenceStepSubmit(e) {
             dataToUpdate = {
                 parecerFinal: document.getElementById('follow-up-parecer-final').value.trim(),
             };
-             if (!dataToUpdate.parecerFinal) return showAlert("Erro: Preencha o Parecer final.");
+             if (!dataToUpdate.parecerFinal) throw new Error("Erro: Preencha o Parecer final.");
             historyAction = `Ação 6 (Parecer Final) registrada após devolutiva do CT.`;
             nextStatus = 'Resolvido'; 
         }
 
-    } catch (collectError) {
-        console.error("Erro ao coletar dados:", collectError);
-        showAlert("Erro ao processar dados.");
-        return;
-    }
-
-    dataToUpdate.statusIndividual = nextStatus;
-
-    try {
+        dataToUpdate.statusIndividual = nextStatus;
         await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
         showToast("Etapa salva com sucesso!");
 
+        // ... (restante da lógica de ofício e notificação)
         const studentId = form.dataset.studentId;
         const student = state.students.find(s => s.matricula === studentId);
-
-        if (actionType === 'desfecho_ou_ct' && dataToUpdate.desfechoChoice === 'ct') {
-             if(student) {
-                 generateAndShowOccurrenceOficio({ ...record, ...dataToUpdate }, student, dataToUpdate.oficioNumber, dataToUpdate.oficioYear);
-             }
+        if (actionType === 'desfecho_ou_ct' && dataToUpdate.desfechoChoice === 'ct' && student) {
+             generateAndShowOccurrenceOficio({ ...record, ...dataToUpdate }, student, dataToUpdate.oficioNumber, dataToUpdate.oficioYear);
         }
-
         if (actionType.startsWith('convocacao_') && student) {
             const incident = await fetchIncidentById(record.occurrenceGroupId);
             const updatedRecordForNotification = { ...record, ...dataToUpdate };
@@ -1155,7 +1146,6 @@ async function handleOccurrenceStepSubmit(e) {
                 const recordIndex = incident.records.findIndex(r => r.id === recordId);
                 if (recordIndex > -1) incident.records[recordIndex] = updatedRecordForNotification;
                 else incident.records.push(updatedRecordForNotification);
-                
                 const attemptNum = parseInt(actionType.split('_')[1]) || 1;
                 openIndividualNotificationModal(incident, student, attemptNum);
             }
@@ -1163,13 +1153,16 @@ async function handleOccurrenceStepSubmit(e) {
         
         closeModal(dom.followUpModal);
 
-    } catch (error) {
-        console.error("Erro ao salvar etapa:", error);
-        showAlert('Erro ao salvar a etapa.');
+    } catch (collectError) {
+        console.error("Erro ao processar etapa:", collectError);
+        showAlert(collectError.message || "Erro desconhecido.");
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = originalBtnText;
     }
 }
 
-
+// ... (restante das funções: handleEditOccurrence, handleResetActionConfirmation, etc. inalteradas) ...
 async function handleEditOccurrence(groupId) {
     const incident = await fetchIncidentById(groupId);
     if (incident) {
@@ -1239,7 +1232,6 @@ function handleDelete(type, id) {
     openModal(dom.deleteConfirmModal);
 }
 
-// Handler para o botão "Avançar"
 async function handleNewOccurrenceAction(studentId, groupId, recordId) {
     const incident = await fetchIncidentById(groupId); 
     if (!incident) return showAlert('Erro: Incidente não encontrado.');
@@ -1260,13 +1252,10 @@ async function handleNewOccurrenceAction(studentId, groupId, recordId) {
     openOccurrenceStepModal(student, record, nextAction);
 }
 
-// Handler para botões rápidos de feedback (Sim/Não) na lista
 async function handleQuickFeedback(studentId, groupId, recordId, actionType, value) {
-    // LÓGICA DE SALVAMENTO IMEDIATO PARA "NÃO"
     if (value === 'no') {
         const incident = await fetchIncidentById(groupId); 
         const record = incident ? incident.records.find(r => r.id === recordId) : null;
-        
         if (!record) return showAlert('Erro: Registro não encontrado.');
 
         const attemptNum = parseInt(actionType.split('_')[1]);
@@ -1289,10 +1278,9 @@ async function handleQuickFeedback(studentId, groupId, recordId, actionType, val
             console.error(e);
             showAlert('Erro ao salvar feedback.');
         }
-        return; // Não abre modal
+        return; 
     }
 
-    // SE FOR "SIM", SEGUE FLUXO NORMAL (ABRE MODAL)
     const incident = await fetchIncidentById(groupId); 
     if (!incident) return showAlert('Erro: Incidente não encontrado.');
 
@@ -1303,10 +1291,8 @@ async function handleQuickFeedback(studentId, groupId, recordId, actionType, val
     const record = incident.records.find(r => r.id === recordId);
     if (!record) return showAlert('Erro: Registro não encontrado.');
 
-    // Abre o modal de feedback pre-preenchido
     openOccurrenceStepModal(student, record, actionType, { succeeded: value });
 }
-
 
 async function handleGenerateNotification(recordId, studentId, groupId, attemptNum) {
     const incident = await fetchIncidentById(groupId); 
@@ -1364,11 +1350,6 @@ async function handleViewOccurrenceOficio(recordId) {
     }
 }
 
-
-// =================================================================================
-// INICIALIZAÇÃO DOS LISTENERS
-// =================================================================================
-
 export const initOccurrenceListeners = () => {
     document.getElementById('add-occurrence-btn').addEventListener('click', () => openOccurrenceModal());
 
@@ -1383,37 +1364,30 @@ export const initOccurrenceListeners = () => {
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.followUpForm.addEventListener('submit', handleOccurrenceStepSubmit);
     
-    // LISTENER DE UPLOAD DE ARQUIVO (MÚLTIPLOS)
+    // LISTENER DE ARQUIVOS (ATUALIZADO PARA SUPORTAR MÚLTIPLOS TIPOS)
     const fileInput = document.getElementById('follow-up-contact-print');
     if (fileInput) {
-        fileInput.addEventListener('change', async (e) => {
+        fileInput.addEventListener('change', (e) => {
             const files = e.target.files;
             if (!files || files.length === 0) return;
             
-            document.getElementById('follow-up-print-label').textContent = 'Processando...';
-            try {
-                // Loop para processar múltiplos arquivos
-                for (let i = 0; i < files.length; i++) {
-                    const compressedBase64 = await compressImage(files[i]);
-                    pendingImagesBase64.push(compressedBase64);
-                }
-                
-                document.getElementById('follow-up-print-label').textContent = `${pendingImagesBase64.length} Imagens`;
-                document.getElementById('follow-up-print-check').classList.remove('hidden');
-                
-                // Renderiza Preview
-                renderImagePreviews('follow-up-print-preview');
-                
-            } catch (err) {
-                console.error("Erro ao processar imagem:", err);
-                showAlert("Erro ao processar uma ou mais imagens.");
-                document.getElementById('follow-up-print-label').textContent = 'Erro';
+            // Armazena arquivos brutos (File Objects)
+            for (let i = 0; i < files.length; i++) {
+                pendingFiles.push(files[i]);
             }
+            
+            document.getElementById('follow-up-print-label').textContent = `${pendingFiles.length} Arq.`;
+            document.getElementById('follow-up-print-check').classList.remove('hidden');
+            
+            // Renderiza Preview (Local)
+            renderFilePreviews('follow-up-print-preview');
+            
             // Limpa o input para permitir selecionar o mesmo arquivo novamente se necessário
             fileInput.value = '';
         });
     }
 
+    // ... (Listeners de botões e modais mantidos)
     const sendCtForm = document.getElementById('send-occurrence-ct-form');
     if (sendCtForm) {
         const closeSendCtBtn = document.getElementById('close-send-ct-modal-btn');
@@ -1424,8 +1398,7 @@ export const initOccurrenceListeners = () => {
     }
 
     dom.occurrencesListDiv.addEventListener('click', (e) => {
-        // Habilita a função global para o botão de ver imagem (injetado via HTML string)
-        window.viewImage = (img, title) => openImageModal(img, title);
+        window.viewImage = (src, title) => openImageModal(src, title); // Globalizar para HTML injetado
 
         const button = e.target.closest('button');
         if (button) {
@@ -1448,7 +1421,6 @@ export const initOccurrenceListeners = () => {
                     handleResetActionConfirmation(studentIdBtn, groupIdBtn, recordIdBtn);
                     return;
                 }
-                // Handler para os novos botões rápidos de feedback
                 if (button.classList.contains('quick-feedback-btn')) {
                     const action = button.dataset.action;
                     const value = button.dataset.value;

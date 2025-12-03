@@ -1,13 +1,10 @@
 
-
-
 // =================================================================================
 // ARQUIVO: absence.js 
-// VERSÃO: 6.2 (Ordenação Corrigida: Em Andamento Primeiro)
-// =================================================================================
+// VERSÃO: 6.3 (Com Upload para Firebase Storage e Multimídia)
 
 import { state, dom } from './state.js';
-import { showToast, showAlert, openModal, closeModal, formatDate, formatTime, getStatusBadge, compressImage, openImageModal } from './utils.js';
+import { showToast, showAlert, openModal, closeModal, formatDate, formatTime, getStatusBadge, openImageModal, uploadToStorage } from './utils.js';
 import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js'; 
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
 import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName, getStudentById } from './firestore.js'; 
@@ -17,14 +14,15 @@ import { db } from './firebase.js';
 
 // --- Funções Auxiliares ---
 
-// Lista de strings Base64
-let pendingAbsenceImagesBase64 = []; 
+// Lista de ARQUIVOS BRUTOS (não mais Base64)
+let pendingAbsenceFiles = []; 
 
 const normalizeText = (text) => {
     if (!text) return '';
     return text.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 };
 
+// ... (getActionMainDate e getDateInputForActionType mantidos) ...
 const getActionMainDate = (action) => {
     if (!action) return null;
     switch (action.actionType) {
@@ -55,16 +53,16 @@ const getDateInputForActionType = (actionType) => {
 };
 
 // =================================================================================
-// FUNÇÃO AUXILIAR: RENDERIZAR PREVIEW DE IMAGENS
+// FUNÇÃO AUXILIAR: RENDERIZAR PREVIEW DE ARQUIVOS (LOCAL)
 // =================================================================================
 
-const renderImagePreviews = (containerId) => {
+const renderFilePreviews = (containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
     
     container.innerHTML = '';
     
-    if (pendingAbsenceImagesBase64.length === 0) {
+    if (pendingAbsenceFiles.length === 0) {
         container.classList.add('hidden');
         return;
     }
@@ -72,43 +70,54 @@ const renderImagePreviews = (containerId) => {
     container.classList.remove('hidden');
     container.className = "flex flex-wrap gap-2 mt-2";
 
-    pendingAbsenceImagesBase64.forEach((imgSrc, index) => {
+    pendingAbsenceFiles.forEach((file, index) => {
         const wrapper = document.createElement('div');
         wrapper.className = "relative group w-16 h-16 border rounded bg-gray-100 overflow-hidden";
         
-        const img = document.createElement('img');
-        img.src = imgSrc;
-        img.className = "w-full h-full object-cover cursor-pointer";
-        img.onclick = () => window.viewImage(imgSrc, `Anexo ${index + 1}`);
+        let mediaElement;
+        const objectUrl = URL.createObjectURL(file);
+
+        if (file.type.startsWith('image/')) {
+            mediaElement = document.createElement('img');
+            mediaElement.src = objectUrl;
+            mediaElement.className = "w-full h-full object-cover cursor-pointer";
+            mediaElement.onclick = () => window.viewImage(objectUrl, file.name);
+        } else if (file.type.startsWith('video/')) {
+            mediaElement = document.createElement('div');
+            mediaElement.className = "w-full h-full flex items-center justify-center bg-black text-white cursor-pointer";
+            mediaElement.innerHTML = '<i class="fas fa-video"></i>';
+            mediaElement.onclick = () => window.viewImage(objectUrl, file.name);
+        } else if (file.type.startsWith('audio/')) {
+            mediaElement = document.createElement('div');
+            mediaElement.className = "w-full h-full flex items-center justify-center bg-purple-600 text-white cursor-pointer";
+            mediaElement.innerHTML = '<i class="fas fa-music"></i>';
+            mediaElement.onclick = () => window.viewImage(objectUrl, file.name);
+        }
         
         const removeBtn = document.createElement('button');
-        removeBtn.className = "absolute top-0 right-0 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center opacity-80 hover:opacity-100";
+        removeBtn.className = "absolute top-0 right-0 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center opacity-80 hover:opacity-100 z-10";
         removeBtn.innerHTML = "&times;";
         removeBtn.type = "button";
         removeBtn.onclick = (e) => {
             e.stopPropagation();
-            pendingAbsenceImagesBase64.splice(index, 1);
+            pendingAbsenceFiles.splice(index, 1);
             
-            // Atualiza Label e Check (Reutiliza lógica do evento)
             const labelEl = document.getElementById('absence-print-label');
-            if(labelEl) labelEl.textContent = pendingAbsenceImagesBase64.length > 0 ? `${pendingAbsenceImagesBase64.length} Imagens` : 'Selecionar Imagens';
+            if(labelEl) labelEl.textContent = pendingAbsenceFiles.length > 0 ? `${pendingAbsenceFiles.length} Arq.` : 'Selecionar';
             
             const checkEl = document.getElementById('absence-print-check');
-            if(checkEl && pendingAbsenceImagesBase64.length === 0) checkEl.classList.add('hidden');
+            if(checkEl && pendingAbsenceFiles.length === 0) checkEl.classList.add('hidden');
 
-            renderImagePreviews(containerId);
+            renderFilePreviews(containerId);
         };
         
-        wrapper.appendChild(img);
+        wrapper.appendChild(mediaElement);
         wrapper.appendChild(removeBtn);
         container.appendChild(wrapper);
     });
 };
 
-// =================================================================================
-// FUNÇÕES DE FLUXO DE BUSCA
-// =================================================================================
-
+// ... (openAbsenceSearchFlowModal, setupAbsenceSearchFlowAutocomplete mantidos) ...
 let absenceSearchTimeout = null;
 
 export const openAbsenceSearchFlowModal = () => {
@@ -187,11 +196,7 @@ const setupAbsenceSearchFlowAutocomplete = (input, suggestionsContainer) => {
     });
 };
 
-
-// =================================================================================
-// RENDERIZAÇÃO (Render Absences)
-// =================================================================================
-
+// ... (renderAbsences e helpers associados mantidos, apenas ajustes menores de UI se precisar) ...
 const getTimeSinceUpdate = (dateString) => {
     if (!dateString) return { text: 'Novo', days: 0 };
     const date = new Date(dateString);
@@ -251,11 +256,10 @@ export const renderAbsences = () => {
         const actions = groupedByProcess[processId];
         if (!actions || actions.length === 0) return false;
         
-        // Ordena ações para determinar status
         actions.sort((a, b) => {
             const timeA = (a.createdAt?.seconds || new Date(a.createdAt).getTime());
             const timeB = (b.createdAt?.seconds || new Date(b.createdAt).getTime());
-            return timeA - timeB; // Ascendente para lógica
+            return timeA - timeB; 
         });
 
         const { startDate, endDate, processStatus, pendingAction, returnStatus } = state.filtersAbsences;
@@ -310,7 +314,6 @@ export const renderAbsences = () => {
     });
 
     if (filteredGroupKeys.length === 0) {
-        // ... (empty state logic mantida)
         const hasActiveFilters = state.filterAbsences !== '' || state.filtersAbsences.processStatus !== 'all' || state.filtersAbsences.pendingAction !== 'all' || state.filtersAbsences.returnStatus !== 'all' || state.filtersAbsences.startDate || state.filtersAbsences.endDate;
         if (hasActiveFilters) {
             dom.emptyStateAbsences.classList.remove('hidden');
@@ -325,21 +328,17 @@ export const renderAbsences = () => {
     } else {
         dom.emptyStateAbsences.classList.add('hidden');
 
-        // --- ORDENAÇÃO CORRIGIDA ---
         const sortedGroupKeys = filteredGroupKeys.sort((a, b) => {
             const actionsA = groupedByProcess[a];
             const actionsB = groupedByProcess[b];
             
-            // Verifica se está concluído
             const isConcludedA = actionsA.some(action => action.actionType === 'analise');
             const isConcludedB = actionsB.some(action => action.actionType === 'analise');
 
-            // 1. Prioridade: Em Andamento vem antes de Concluído
             if (isConcludedA !== isConcludedB) {
-                return isConcludedA ? 1 : -1; // Se A é concluído, vai pro fim (positivo). Se B é concluído, A vem antes.
+                return isConcludedA ? 1 : -1; 
             }
 
-            // 2. Prioridade: Data da última ação (Mais recente primeiro)
             const lastActionA = actionsA[actionsA.length - 1];
             const lastActionB = actionsB[actionsB.length - 1];
 
@@ -362,23 +361,18 @@ export const renderAbsences = () => {
             const studentClass = firstAction.studentClass || (student ? student.class : 'N/A');
             const isConcluded = actions.some(a => a.actionType === 'analise');
 
-            // --- LÓGICA DE ALERTA E TEMPO ---
             const lastUpdateDate = lastProcessAction.createdAt?.toDate ? lastProcessAction.createdAt.toDate() : (new Date(lastProcessAction.createdAt) || new Date());
             const { text: timeText, days: stalledDays } = getTimeSinceUpdate(lastUpdateDate);
             
-            // Lógica de "Não Retornou"
             const lastReturnAction = [...actions].reverse().find(a => a.contactReturned != null || a.visitReturned != null || a.ctReturned != null);
             const didNotReturn = lastReturnAction && (lastReturnAction.contactReturned === 'no' || lastReturnAction.visitReturned === 'no' || lastReturnAction.ctReturned === 'no');
 
-            // 1. Cor da Borda (Principal Indicador)
             const borderClass = getUrgencyBorderClass(isConcluded, didNotReturn, stalledDays);
 
-            // 2. Cor do Badge de Tempo
             let timeBadgeColor = 'bg-gray-100 text-gray-600';
             if (stalledDays > 7 && !isConcluded) timeBadgeColor = 'bg-red-100 text-red-800 font-bold';
             else if (stalledDays > 3 && !isConcluded) timeBadgeColor = 'bg-orange-100 text-orange-800';
 
-            // 3. Próxima Ação
             const nextActionType = determineNextActionForStudent(firstAction.studentId);
             const nextActionText = isConcluded ? "Finalizado" : `Ir para: ${getNextActionDisplay(nextActionType)}`;
             
@@ -392,7 +386,6 @@ export const renderAbsences = () => {
                 let statusHtml = '';
                 let showQuickButtons = false;
 
-                // --- TENTATIVAS (Lógica de Botões) ---
                 if (abs.actionType.startsWith('tentativa')) {
                     if (abs.contactSucceeded === 'yes') statusHtml = `<span class="text-green-600 font-bold text-xs"><i class="fas fa-check"></i> Contato OK</span>`;
                     else if (abs.contactSucceeded === 'no') statusHtml = `<span class="text-red-600 font-bold text-xs"><i class="fas fa-times"></i> Sem Contato</span>`;
@@ -409,7 +402,6 @@ export const renderAbsences = () => {
                     statusHtml = `<span class="text-green-700 font-bold text-xs">Concluído</span>`;
                 }
 
-                // Botão Olho e Print
                 let viewButtonHtml = '';
                 if (abs.actionType.startsWith('tentativa') && abs.meetingDate && abs.meetingTime) viewButtonHtml = `<button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-800 ml-2" data-id="${abs.id}" title="Ver Notificação"><i class="fas fa-eye"></i></button>`; 
                 if (abs.actionType === 'encaminhamento_ct' && abs.oficioNumber) viewButtonHtml = `<button type="button" class="view-oficio-btn-hist text-green-600 hover:text-green-800 ml-2" data-id="${abs.id}" title="Ver Ofício"><i class="fas fa-file-alt"></i></button>`;
@@ -418,11 +410,10 @@ export const renderAbsences = () => {
                 if (abs.contactPrints && Array.isArray(abs.contactPrints) && abs.contactPrints.length > 0) imagesToShow = abs.contactPrints;
                 else if (abs.contactPrint) imagesToShow = [abs.contactPrint];
                 if (imagesToShow.length > 0) {
-                     const btnLabel = imagesToShow.length > 1 ? `[${imagesToShow.length} Prints]` : `[Print]`;
-                     viewButtonHtml += `<button type="button" class="text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${imagesToShow[0]}', 'Anexo')"><i class="fas fa-image"></i> ${btnLabel}</button>`;
+                     const btnLabel = imagesToShow.length > 1 ? `[${imagesToShow.length} Anexos]` : `[Anexo]`;
+                     viewButtonHtml += `<button type="button" class="text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${imagesToShow[0]}', 'Anexo')"><i class="fas fa-paperclip"></i> ${btnLabel}</button>`;
                 }
 
-                // Ícone da Ação
                 const iconClass = getActionIcon(abs.actionType);
 
                 historyHtml += `
@@ -505,7 +496,7 @@ export const renderAbsences = () => {
 };
 
 export const handleNewAbsenceAction = (student) => {
-    // ... (restante da função inalterada)
+    // ... (Mantido igual)
     const { currentCycleActions } = getStudentProcessInfo(student.matricula);
     currentCycleActions.sort((a, b) => { 
         const dateA = getActionMainDate(a) || a.createdAt?.seconds || 0;
@@ -570,10 +561,11 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
 };
 
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null, preFilledData = null) => {
-    // ... (restante da função mantida como estava)
     dom.absenceForm.reset();
-    pendingAbsenceImagesBase64 = []; 
-    document.getElementById('absence-print-label').textContent = 'Selecionar Imagens';
+    
+    // Reseta arquivos
+    pendingAbsenceFiles = []; 
+    document.getElementById('absence-print-label').textContent = 'Selecionar Arquivos';
     document.getElementById('absence-print-check').classList.add('hidden');
     
     let previewContainer = document.getElementById('absence-print-preview');
@@ -588,6 +580,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
         }
     } else { previewContainer.innerHTML = ''; previewContainer.classList.add('hidden'); }
 
+    // ... (restante do setup do modal mantido)
     ['meeting-date', 'contact-date', 'visit-date', 'ct-sent-date'].forEach(id => { 
         const input = document.getElementById(id); if (input) input.removeAttribute('min');
     });
@@ -774,7 +767,6 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 };
 
 async function handleAbsenceSubmit(e) {
-    // ... (restante da função mantida)
     e.preventDefault(); 
     const form = e.target;
     let firstInvalidField = null;
@@ -801,17 +793,48 @@ async function handleAbsenceSubmit(e) {
         }
     }
 
+    // --- UPLOAD ASSÍNCRONO DE ARQUIVOS ---
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn.innerText;
+    let uploadedUrls = [];
+
+    if (pendingAbsenceFiles.length > 0) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Enviando arquivos...`;
+        
+        try {
+            const uploadPromises = pendingAbsenceFiles.map(file => uploadToStorage(file, 'absences'));
+            uploadedUrls = await Promise.all(uploadPromises);
+        } catch (uploadError) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = originalBtnText;
+            return showAlert("Erro ao enviar anexos. Tente novamente.");
+        }
+    }
+    // -------------------------------------
+
     const data = getAbsenceFormData();
-    if (!data) return; 
-    if (pendingAbsenceImagesBase64.length > 0) { data.contactPrints = pendingAbsenceImagesBase64; }
+    if (!data) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = originalBtnText;
+        return;
+    }
+
+    // Salva URLs em vez de base64
+    if (uploadedUrls.length > 0) { 
+        data.contactPrints = uploadedUrls; 
+    }
+
     const id = data.id; 
+    // ... (lógica de mesclagem mantida para updates parciais se necessário)
     if (id) {
         const existingAction = state.absences.find(a => a.id === id);
         if (existingAction) {
             for (const key in data) {
                 if (data[key] === null && existingAction[key] != null) { if (key !== 'contactPrints') { data[key] = existingAction[key]; } }
             }
-            if (pendingAbsenceImagesBase64.length === 0) {
+            // Se não subiu novos, mantém os antigos
+            if (uploadedUrls.length === 0) {
                 if(existingAction.contactPrints) data.contactPrints = existingAction.contactPrints;
                 else if(existingAction.contactPrint) data.contactPrints = [existingAction.contactPrint]; 
             }
@@ -820,7 +843,11 @@ async function handleAbsenceSubmit(e) {
 
     const { currentCycleActions } = getStudentProcessInfo(data.studentId);
     const dateCheck = validateAbsenceChronology(currentCycleActions, data);
-    if (!dateCheck.isValid) return showAlert(dateCheck.message);
+    if (!dateCheck.isValid) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = originalBtnText;
+        return showAlert(dateCheck.message);
+    }
 
     try {
         const historyAction = id ? "Dados da ação atualizados." : `Ação de Busca Ativa registada (${actionDisplayTitles[data.actionType]}).`;
@@ -846,11 +873,15 @@ async function handleAbsenceSubmit(e) {
     } catch (error) {
         console.error("Erro ao salvar ação de BA:", error);
         showAlert('Erro ao salvar ação.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = originalBtnText;
     }
 }
 
+// ... (Restante do arquivo inalterado)
 function getAbsenceFormData() {
-    // ... (função inalterada)
+    // ... (código existente)
     const studentId = dom.absenceForm.dataset.selectedStudentId;
     if (!studentId) { showAlert("Erro: Aluno não identificado."); return null; }
     const studentName = document.getElementById('absence-student-name').value;
@@ -961,21 +992,28 @@ export const initAbsenceListeners = () => {
     document.getElementById('absence-start-date-filter').addEventListener('change', (e) => { state.filtersAbsences.startDate = e.target.value; renderAbsences(); });
     document.getElementById('absence-end-date-filter').addEventListener('change', (e) => { state.filtersAbsences.endDate = e.target.value; renderAbsences(); });
     if (dom.absenceForm) dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
+    
+    // LISTENER DE UPLOAD (ATUALIZADO)
     const absenceFileInput = document.getElementById('absence-contact-print');
     if (absenceFileInput) {
         absenceFileInput.addEventListener('change', async (e) => {
             const files = e.target.files; if (!files || files.length === 0) return;
-            document.getElementById('absence-print-label').textContent = 'Processando...';
-            try { for (let i = 0; i < files.length; i++) { const compressedBase64 = await compressImage(files[i]); pendingAbsenceImagesBase64.push(compressedBase64); }
-                document.getElementById('absence-print-label').textContent = `${pendingAbsenceImagesBase64.length} Imagens`;
-                document.getElementById('absence-print-check').classList.remove('hidden'); renderImagePreviews('absence-print-preview');
-            } catch (err) { console.error("Erro ao processar imagem:", err); showAlert("Erro ao processar uma ou mais imagens."); document.getElementById('absence-print-label').textContent = 'Erro'; }
+            // Armazena File Objects
+            for (let i = 0; i < files.length; i++) {
+                pendingAbsenceFiles.push(files[i]);
+            }
+            document.getElementById('absence-print-label').textContent = `${pendingAbsenceFiles.length} Arq.`;
+            document.getElementById('absence-print-check').classList.remove('hidden');
+            renderFilePreviews('absence-print-preview');
             absenceFileInput.value = '';
         });
     }
+    
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
+    
     dom.absencesListDiv.addEventListener('click', (e) => {
+        // ... (Listener inalterado)
         const button = e.target.closest('button');
         if (button) {
             e.stopPropagation(); 

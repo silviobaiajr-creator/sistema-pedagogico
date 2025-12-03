@@ -2,6 +2,9 @@
 // =================================================================================
 // ARQUIVO: utils.js 
 
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { storage } from './firebase.js';
+
 export const formatDate = (dateString) => dateString ? new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '';
 export const formatTime = (timeString) => timeString || '';
 
@@ -21,7 +24,6 @@ export const formatPeriodo = (start, end) => {
 
 // --- SISTEMA HÍBRIDO DE NOTIFICAÇÃO ---
 
-// 1. TOAST (Para Sucesso/Info) - Canto inferior direito
 export const showToast = (message) => {
     const toastMessage = document.getElementById('toast-message');
     const toastEl = document.getElementById('toast-notification');
@@ -33,7 +35,6 @@ export const showToast = (message) => {
     }
 };
 
-// 2. ALERT (Para Erros/Validação) - Modal Centralizado
 export const showAlert = (message) => {
     const alertModal = document.getElementById('alert-modal');
     const messageEl = document.getElementById('alert-modal-message');
@@ -41,34 +42,26 @@ export const showAlert = (message) => {
 
     if (alertModal && messageEl) {
         messageEl.textContent = message;
-        
-        // Garante que o listener não se acumule
         const closeAlert = () => closeModal(alertModal);
         okBtn.onclick = closeAlert;
-        
         openModal(alertModal);
     } else {
-        alert(message); // Fallback
+        alert(message); 
     }
 };
 
 // ==============================================================================
-// --- LÓGICA DE MODAIS E IMPRESSÃO ROBUSTA ---
+// --- LÓGICA DE MODAIS E IMPRESSÃO ---
 // ==============================================================================
 
 export const openModal = (modalElement) => {
      if (!modalElement) return console.error("Tentativa de abrir um modal nulo.");
-     
-     // Limpeza agressiva: Remove a classe ativa de TODOS os modais antes de abrir um novo
      document.querySelectorAll('.printable-area-active').forEach(el => {
          el.classList.remove('printable-area-active');
      });
-     
-     // Se o modal atual for de impressão, marca ele
      if (modalElement.classList.contains('printable-area')) {
          modalElement.classList.add('printable-area-active');
      }
-
     modalElement.classList.remove('hidden');
     setTimeout(() => {
         modalElement.classList.remove('opacity-0');
@@ -80,12 +73,9 @@ export const openModal = (modalElement) => {
 
 export const closeModal = (modalElement) => {
     if (!modalElement) return;
-
-    // Ao fechar, remove imediatamente a marcação de impressão
     if (modalElement.classList.contains('printable-area')) {
          modalElement.classList.remove('printable-area-active');
     }
-    
     modalElement.classList.add('opacity-0');
     if (modalElement.firstElementChild) {
         modalElement.firstElementChild.classList.add('scale-95', 'opacity-0');
@@ -93,98 +83,100 @@ export const closeModal = (modalElement) => {
     setTimeout(() => modalElement.classList.add('hidden'), 300);
 };
 
-// --- VISUALIZADOR DE IMAGEM (PRINT) ---
-export const openImageModal = (base64Image, title = 'Anexo') => {
+// --- VISUALIZADOR DE MÍDIA (Imagem/Video) ---
+export const openImageModal = (src, title = 'Anexo') => {
     const modal = document.getElementById('image-view-modal');
-    const imgEl = document.getElementById('image-view-content');
+    const container = document.querySelector('#image-view-modal .p-4'); // Container do conteúdo
     const titleEl = document.getElementById('image-view-title');
     
-    if (modal && imgEl) {
-        imgEl.src = base64Image;
+    if (modal && container) {
         if(titleEl) titleEl.textContent = title;
+        
+        // Limpa conteúdo anterior
+        container.innerHTML = '';
+        container.className = "p-4 overflow-auto flex justify-center bg-black/5 items-center min-h-[200px]";
+
+        // Verifica tipo de arquivo pela extensão ou se é base64 de imagem
+        const isVideo = src.includes('.mp4') || src.includes('.webm') || src.includes('.mov');
+        const isAudio = src.includes('.mp3') || src.includes('.wav') || src.includes('.ogg');
+        
+        if (isVideo) {
+            const video = document.createElement('video');
+            video.src = src;
+            video.controls = true;
+            video.className = "max-w-full h-auto max-h-[80vh] rounded shadow-sm";
+            container.appendChild(video);
+        } else if (isAudio) {
+            const audio = document.createElement('audio');
+            audio.src = src;
+            audio.controls = true;
+            audio.className = "w-full max-w-md mt-4";
+            container.appendChild(audio);
+        } else {
+            const img = document.createElement('img');
+            img.src = src;
+            img.className = "max-w-full h-auto max-h-[80vh] rounded shadow-sm";
+            img.alt = "Anexo";
+            container.appendChild(img);
+        }
+        
         openModal(modal);
     }
 };
 
 // ==============================================================================
-// --- PROCESSADOR DE IMAGEM (MÉTODO OTIMIZADO PARA BANCO NOSQL) ---
+// --- UPLOAD PARA FIREBASE STORAGE (NOVO) ---
 // ==============================================================================
+
+export const uploadToStorage = async (file, folder = 'uploads') => {
+    if (!storage) throw new Error("Serviço de Armazenamento não configurado.");
+    
+    // Cria um nome único: timestamp_nome-limpo
+    const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
+    const fileName = `${Date.now()}_${cleanName}`;
+    const storageRef = ref(storage, `${folder}/${fileName}`);
+    
+    try {
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        return downloadURL;
+    } catch (error) {
+        console.error("Erro no upload:", error);
+        throw new Error("Falha ao enviar arquivo para a nuvem.");
+    }
+};
+
+// Mantido para compatibilidade com código antigo, mas idealmente deve ser substituído pelo uploadToStorage
 export const compressImage = (file) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
-        
         reader.onload = async (event) => {
             const img = new Image();
             img.src = event.target.result;
-            
-            try {
-                // Tenta decodificar a imagem antes de usar
-                await img.decode();
-            } catch (e) {
-                console.warn("Erro ao decodificar imagem, tentando prosseguir mesmo assim...", e);
-            }
-            
-            // Dimensões originais
-            let width = img.width;
-            let height = img.height;
-
-            // --- TRAVA DE SEGURANÇA E OTIMIZAÇÃO ---
-            // Reduzido para 1024px para garantir que o tamanho final fique pequeno.
-            // Isso permite salvar múltiplos prints sem estourar o limite de 1MB do documento.
-            const MAX_DIMENSION = 1024;
-
-            // Lógica de Redimensionamento (Mantendo Aspect Ratio)
-            if (width > height) {
-                if (width > MAX_DIMENSION) {
-                    height *= MAX_DIMENSION / width;
-                    width = MAX_DIMENSION;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const MAX_DIMENSION = 1024;
+                if (width > height) {
+                    if (width > MAX_DIMENSION) { height *= MAX_DIMENSION / width; width = MAX_DIMENSION; }
+                } else {
+                    if (height > MAX_DIMENSION) { width *= MAX_DIMENSION / height; height = MAX_DIMENSION; }
                 }
-            } else {
-                if (height > MAX_DIMENSION) {
-                    width *= MAX_DIMENSION / height;
-                    height = MAX_DIMENSION;
-                }
-            }
-
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-
-            // 1. FUNDO BRANCO OBRIGATÓRIO (Corrige prints pretos de PNG transparente)
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, width, height);
-
-            // 2. Desenha a imagem redimensionada
-            ctx.drawImage(img, 0, 0, width, height);
-
-            // 3. Compressão Iterativa Agressiva
-            // Meta: Ficar abaixo de ~150KB (aprox 200.000 chars base64) para permitir 5-6 fotos.
-            let quality = 0.7; 
-            let dataUrl = canvas.toDataURL('image/jpeg', quality);
-            
-            // Loop de segurança: Se ficar maior que ~150KB, reduz qualidade drasticamente
-            // Base64 overhead ~33%, então 180000 chars ~= 135KB reais.
-            while (dataUrl.length > 180000 && quality > 0.2) {
-                quality -= 0.1;
-                dataUrl = canvas.toDataURL('image/jpeg', quality);
-            }
-
-            resolve(dataUrl);
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
         };
-        
-        reader.onerror = (err) => {
-            console.error("Erro no FileReader:", err);
-            reject(new Error("Falha ao ler o arquivo."));
-        };
+        reader.onerror = (err) => reject(err);
     });
 };
 
-
-// ==============================================================================
-// --- O FISCAL DE IMPRESSÃO (CORREÇÃO NUCLEAR) ---
-// ==============================================================================
 window.onbeforeprint = () => {
     const allPrintables = document.querySelectorAll('.printable-area');
     allPrintables.forEach(el => el.classList.remove('printable-area-active'));
@@ -194,8 +186,6 @@ window.onbeforeprint = () => {
         }
     });
 };
-// ==============================================================================
-
 
 export const getStatusBadge = (status) => {
     const statusMap = {
@@ -220,8 +210,6 @@ export const enhanceTextForSharing = (title, text) => {
     enhancedText = enhancedText.replace(/Data:/g, '🗓️ Data:');
     enhancedText = enhancedText.replace(/Horário:/g, '⏰ Horário:');
     enhancedText = enhancedText.replace(/Descrição:/g, '📝 Descrição:');
-    enhancedText = enhancedText.replace(/Providências da Escola:/g, '🏛️ Providências da Escola:');
-    enhancedText = enhancedText.replace(/Providências da Família:/g, '👨‍👩‍👧‍👦 Providências da Família:');
     enhancedText += `\n\n-------------\n_Mensagem enviada pelo Sistema de Acompanhamento Pedagógico._`;
     return enhancedText;
 };
