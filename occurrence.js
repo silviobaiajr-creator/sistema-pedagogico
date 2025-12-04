@@ -157,7 +157,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 
             try {
                 const results = await searchStudentsByName(value);
-                suggestionsContainer.innerHTML = '';
+                suggestionsElement.innerHTML = '';
                 
                 const filteredResults = results.filter(s => !state.selectedStudents.has(s.matricula));
 
@@ -186,7 +186,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
                 }
             } catch (error) {
                 console.error("Erro na busca de alunos:", error);
-                suggestionsContainer.innerHTML = '<div class="p-2 text-red-500 text-xs">Erro na busca.</div>';
+                suggestionsElement.innerHTML = '<div class="p-2 text-red-500 text-xs">Erro na busca.</div>';
             }
         }, 400);
     });

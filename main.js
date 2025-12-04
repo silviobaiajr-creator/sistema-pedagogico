@@ -194,6 +194,8 @@ function switchTab(tabName) {
         renderAbsences();
     } else if (tabName === 'documents') {
         dom.tabContentDocuments.classList.remove('hidden');
+        // Força a recarga dos documentos do zero ao abrir a aba
+        state.documents = []; 
         renderDocuments();
     }
 }
