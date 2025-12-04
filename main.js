@@ -193,10 +193,12 @@ function switchTab(tabName) {
         dom.tabContentAbsences.classList.remove('hidden');
         renderAbsences();
     } else if (tabName === 'documents') {
+        dom.loadingDocuments.classList.remove('hidden'); // Mostra o loading
+        dom.emptyStateDocuments.classList.add('hidden');
         dom.tabContentDocuments.classList.remove('hidden');
         // Força a recarga dos documentos do zero ao abrir a aba
         state.documents = []; 
-        renderDocuments();
+        renderDocuments().finally(() => dom.loadingDocuments.classList.add('hidden')); // Renderiza e garante que o loading será escondido
     }
 }
 
