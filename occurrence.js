@@ -1113,17 +1113,15 @@ async function handleOccurrenceStepSubmit(e) {
         const studentId = form.dataset.studentId;
         const student = state.students.find(s => s.matricula === studentId);
         if (actionType === 'desfecho_ou_ct' && dataToUpdate.desfechoChoice === 'ct' && student) {
-             generateAndShowOccurrenceOficio({ ...record, ...dataToUpdate }, student, dataToUpdate.oficioNumber, dataToUpdate.oficioYear);
+            generateAndShowOccurrenceOficio({ ...record, ...dataToUpdate }, student, dataToUpdate.oficioNumber, dataToUpdate.oficioYear);
         }
         if (actionType.startsWith('convocacao_') && student) {
-            const incident = await fetchIncidentById(record.occurrenceGroupId);
-            const updatedRecordForNotification = { ...record, ...dataToUpdate };
-            if (incident) {
-                const recordIndex = incident.records.findIndex(r => r.id === recordId);
-                if (recordIndex > -1) incident.records[recordIndex] = updatedRecordForNotification;
-                else incident.records.push(updatedRecordForNotification);
+            // Busca o incidente ATUALIZADO após o update para garantir que a notificação tenha os dados corretos.
+            const updatedIncident = await fetchIncidentById(record.occurrenceGroupId);
+            if (updatedIncident) {
                 const attemptNum = parseInt(actionType.split('_')[1]) || 1;
-                openIndividualNotificationModal(incident, student, attemptNum);
+                // A função openIndividualNotificationModal agora lida com a busca do registro correto e o salvamento.
+                openIndividualNotificationModal(updatedIncident, student, attemptNum);
             }
         } 
         

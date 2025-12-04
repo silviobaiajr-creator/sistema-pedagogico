@@ -231,11 +231,11 @@ export const openStudentSelectionModal = async (groupId) => {
 
 export const openIndividualNotificationModal = async (incident, studentObj, specificAttempt = null) => {
     const data = incident.records.find(r => r.studentId === studentObj.matricula);
-    if (!data) return showToast(`Erro: Registro não encontrado.`);
+    if (!data) return showAlert(`Erro: Registro de acompanhamento para ${studentObj.name} não encontrado neste incidente.`);
 
     if (!state.students.find(s => s.matricula === studentObj.matricula)) showToast('Carregando dados...');
     const student = await resolveStudentData(studentObj.matricula, data.studentName ? data : studentObj);
-
+    
     let attemptCount = 1;
     if (specificAttempt) attemptCount = parseInt(specificAttempt);
     else {
@@ -243,18 +243,18 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
         if (data.contactSucceeded_2 != null) attemptCount = 3;
     }
 
-    let meetingDate = data.meetingDate;
-    let meetingTime = data.meetingTime;
+    // Usa os campos específicos da tentativa (ex: meetingDate_1, meetingDate_2)
+    let meetingDate = data[`meetingDate_${attemptCount}`];
+    let meetingTime = data[`meetingTime_${attemptCount}`];
 
-    if (attemptCount === 2) { meetingDate = data.meetingDate_2; meetingTime = data.meetingTime_2; }
-    else if (attemptCount === 3) { meetingDate = data.meetingDate_3; meetingTime = data.meetingTime_3; }
+    // Fallback para o campo legado (meetingDate) se for a 1ª tentativa
+    if (attemptCount === 1 && !meetingDate) {
+        meetingDate = data.meetingDate;
+        meetingTime = data.meetingTime;
+    }
 
     if (!meetingDate) {
-        if (!specificAttempt && attemptCount > 1) {
-             if(data.meetingDate) { attemptCount = 1; meetingDate = data.meetingDate; meetingTime = data.meetingTime; }
-        } else {
-            return showToast(`Nenhuma data agendada para a ${attemptCount}ª Convocação.`);
-        }
+        return showAlert(`Não foi possível gerar a notificação: a data da ${attemptCount}ª convocação não foi encontrada no registro.`);
     }
     
     const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
