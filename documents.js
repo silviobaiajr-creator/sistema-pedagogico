@@ -31,11 +31,18 @@ export const renderDocuments = async (filterText = '') => {
 
     try {
         // Carrega do Firestore se a lista estiver vazia (primeira vez)
+        // CORREÇÃO: Mostra o loading ANTES de qualquer operação assíncrona.
+        dom.loadingDocuments.classList.remove('hidden');
+
+        // Carrega do Firestore apenas se a lista em memória estiver vazia.
+        // Isso evita recargas desnecessárias ao apenas digitar no campo de busca.
         if (state.documents.length === 0) {
             // CORREÇÃO: Espera (await) o carregamento antes de continuar
             state.documents = await loadDocuments();
         }
         dom.loadingDocuments.classList.add('hidden');
+        
+        dom.loadingDocuments.classList.add('hidden'); // Esconde o loading APÓS a busca.
 
         const search = filterText.toLowerCase();
         const filtered = state.documents.filter(doc => {

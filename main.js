@@ -199,6 +199,7 @@ function switchTab(tabName) {
         // Força a recarga dos documentos do zero ao abrir a aba
         state.documents = []; 
         renderDocuments().finally(() => dom.loadingDocuments.classList.add('hidden')); // Renderiza e garante que o loading será escondido
+        renderDocuments(); // Apenas chama a função de renderização
     }
 }
 
