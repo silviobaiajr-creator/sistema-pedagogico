@@ -31,12 +31,10 @@ export const renderDocuments = async (filterText = '') => {
 
     try {
         // Carrega do Firestore se a lista estiver vazia (primeira vez)
-        // Em um app real, poderíamos forçar recarga ou usar onSnapshot
         if (state.documents.length === 0) {
-            const docs = await loadDocuments();
-            state.documents = docs;
+            // CORREÇÃO: Espera (await) o carregamento antes de continuar
+            state.documents = await loadDocuments();
         }
-
         dom.loadingDocuments.classList.add('hidden');
 
         const search = filterText.toLowerCase();
