@@ -379,6 +379,20 @@ export const getDashboardStats = async () => {
 
 // --- ARQUIVO DIGITAL / SNAPSHOTS ---
 
+export const getLegalDocumentById = async (docId) => {
+    try {
+        const docRef = doc(getCollectionRef('documents'), docId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            return { id: docSnap.id, ...docSnap.data(), ref: docSnap.ref };
+        }
+        return null;
+    } catch (e) {
+        console.error("Erro ao buscar documento por ID:", e);
+        return null;
+    }
+};
+
 export const findDocumentSnapshot = async (docType, studentId, refId) => {
     try {
         const documentsRef = getCollectionRef('documents');

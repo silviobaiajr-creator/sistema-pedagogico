@@ -1,13 +1,13 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 9.7 (Com Desafio de Identidade CPF/Nome)
+// VERSÃO: 9.8 (Correção Link Seguro por DocID + Desafio Identidade)
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
 import { roleIcons, defaultRole, getFilteredOccurrences } from './logic.js';
-import { getIncidentByGroupId as fetchIncidentById, getStudentById, getOccurrencesForReport, getAbsencesForReport, saveDocumentSnapshot, findDocumentSnapshot, updateDocumentSignatures } from './firestore.js';
+import { getIncidentByGroupId as fetchIncidentById, getStudentById, getOccurrencesForReport, getAbsencesForReport, saveDocumentSnapshot, findDocumentSnapshot, getLegalDocumentById, updateDocumentSignatures } from './firestore.js';
 
 
 export const actionDisplayTitles = {
@@ -49,14 +49,14 @@ const fetchClientMetadata = async () => {
 const checkForRemoteSignParams = async () => {
     const params = new URLSearchParams(window.location.search);
     const mode = params.get('mode');
-    const refId = params.get('refId');
+    const docId = params.get('docId'); // Prioridade 1: Busca por ID Direto do Firestore
+    const refId = params.get('refId'); // Prioridade 2: Busca por Referência antiga
     const type = params.get('type');
     const studentId = params.get('student');
 
-    if (mode === 'sign' && refId && type) {
+    if (mode === 'sign') {
         console.log("Modo de Assinatura Remota Detectado");
         
-        // Substitui o corpo do site pelo modo de assinatura segura
         document.body.innerHTML = `
             <div id="remote-sign-container" class="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4 font-sans">
                 <div class="animate-pulse flex flex-col items-center">
@@ -66,7 +66,16 @@ const checkForRemoteSignParams = async () => {
             </div>`;
 
         try {
-            const docSnapshot = await findDocumentSnapshot(type, studentId, refId);
+            let docSnapshot = null;
+            
+            // Tenta buscar pelo ID direto (mais seguro e rápido)
+            if (docId) {
+                docSnapshot = await getLegalDocumentById(docId);
+            } 
+            // Fallback para o método antigo se não tiver docId
+            else if (refId && type) {
+                docSnapshot = await findDocumentSnapshot(type, studentId, refId);
+            }
             
             if (!docSnapshot) {
                 document.getElementById('remote-sign-container').innerHTML = `<div class="bg-white p-8 rounded-lg shadow-xl mt-10 text-center"><h1 class="text-2xl font-bold text-red-600 mb-2">Link Inválido</h1><p>Documento não encontrado ou expirado.</p></div>`;
@@ -76,7 +85,6 @@ const checkForRemoteSignParams = async () => {
             const container = document.getElementById('remote-sign-container');
 
             // --- FASE 1: DESAFIO DE IDENTIDADE (NOVO) ---
-            // Renderiza tela de bloqueio pedindo Nome e CPF
             const renderIdentityChallenge = () => {
                 container.innerHTML = `
                     <div class="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden">
@@ -109,7 +117,6 @@ const checkForRemoteSignParams = async () => {
                     </div>
                 `;
 
-                // Máscara simples de CPF
                 const cpfInput = document.getElementById('input-signer-cpf');
                 cpfInput.addEventListener('input', (e) => {
                     let v = e.target.value.replace(/\D/g, "");
@@ -127,7 +134,6 @@ const checkForRemoteSignParams = async () => {
                     if (name.length < 5) { alert("Por favor, digite seu nome completo."); return; }
                     if (cpf.length < 11) { alert("Por favor, digite um CPF válido."); return; }
 
-                    // Se validou, passa para a Fase 2 com os dados
                     renderDocumentView({ name, cpf });
                 };
             };
@@ -135,7 +141,6 @@ const checkForRemoteSignParams = async () => {
 
             // --- FASE 2: VISUALIZAÇÃO E ASSINATURA ---
             const renderDocumentView = (identityData) => {
-                // Remove justify-center para permitir scroll em telas pequenas na visualização do doc
                 container.classList.remove('justify-center'); 
                 container.classList.add('pt-4');
 
@@ -171,11 +176,10 @@ const checkForRemoteSignParams = async () => {
                     </div>
                 `;
 
-                // Lógica do Aceite Final
                 document.getElementById('btn-remote-agree').onclick = async function() {
                     const btn = this;
                     btn.disabled = true;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registrando no Blockchain...'; // Efeito psicológico
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registrando no Blockchain...';
                     
                     const meta = await fetchClientMetadata();
                     
@@ -184,13 +188,13 @@ const checkForRemoteSignParams = async () => {
                         ip: meta.ip,
                         device: meta.userAgent,
                         timestamp: meta.timestamp,
-                        signerName: identityData.name, // Salva o nome digitado
-                        signerCPF: identityData.cpf,   // Salva o CPF digitado
+                        signerName: identityData.name,
+                        signerCPF: identityData.cpf,
                         valid: true
                     };
 
-                    // Identifica a chave (assumindo responsible_{studentId})
-                    const key = `responsible_${studentId}`;
+                    // Busca key dinamica se não estiver obvia, mas assume responsible para padrao
+                    const key = `responsible_${studentId || docSnapshot.studentId}`; 
                     const sigMap = new Map();
                     sigMap.set(key, digitalSignature);
 
@@ -221,7 +225,6 @@ const checkForRemoteSignParams = async () => {
                 };
             };
 
-            // Inicia fluxo
             renderIdentityChallenge();
 
         } catch (e) {
@@ -364,7 +367,8 @@ const setupSignaturePadEvents = () => {
         // GERA O LINK
         if (currentDocumentIdForRemote) {
             const baseUrl = window.location.href.split('?')[0];
-            const fullLink = `${baseUrl}?mode=sign&type=notificacao&refId=${currentDocumentIdForRemote}&student=${currentDocumentKeyForRemote.replace('responsible_', '')}`;
+            // CORREÇÃO CRÍTICA: Agora usamos 'docId' (o ID do Firestore) em vez de 'refId' para garantir unicidade
+            const fullLink = `${baseUrl}?mode=sign&docId=${currentDocumentIdForRemote}&type=notificacao&student=${currentDocumentKeyForRemote.replace('responsible_', '')}`;
             document.getElementById('generated-link-preview').innerText = fullLink;
             
             document.getElementById('btn-send-whatsapp').onclick = () => {
