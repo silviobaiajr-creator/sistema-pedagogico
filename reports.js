@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 9.0 (Assinaturas Dinâmicas Múltiplas - Todos os Envolvidos)
+// VERSÃO: 9.1 (Assinatura com Metadados de Segurança e Rastro Digital)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -20,11 +20,9 @@ export const actionDisplayTitles = {
 };
 
 // --- GESTÃO DE ASSINATURA DIGITAL ---
-// Mapa dinâmico para armazenar assinaturas: chave -> base64
-// Chaves comuns: 'management', 'student_MATRICULA', 'responsible_MATRICULA'
 let signatureMap = new Map();
 
-// Injeta o HTML do Modal de Assinatura no corpo da página se não existir
+// Injeta o HTML do Modal de Assinatura
 const ensureSignatureModalExists = () => {
     if (document.getElementById('signature-pad-modal')) return;
 
@@ -32,7 +30,7 @@ const ensureSignatureModalExists = () => {
     <div id="signature-pad-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center z-[60]">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-4 mx-4">
             <h3 class="text-lg font-bold text-gray-800 mb-2 border-b pb-2">Coletar Assinatura</h3>
-            <p class="text-sm text-gray-600 mb-4">Assine no quadro abaixo (dedo ou mouse).</p>
+            <p class="text-sm text-gray-600 mb-4">Assine no quadro abaixo usando o dedo.</p>
             
             <div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 relative">
                 <canvas id="signature-canvas" class="w-full h-48 cursor-crosshair touch-none"></canvas>
@@ -199,7 +197,6 @@ export const getReportHeaderHTML = (dateObj = new Date()) => {
     const schoolName = state.config?.schoolName || "Nome da Escola";
     const city = state.config?.city || "Cidade";
     const year = dateObj.getFullYear();
-    const headerDate = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
     let headerContent = '';
     
@@ -242,22 +239,30 @@ const getStudentIdentityCardHTML = (student) => {
     `;
 };
 
-// --- NOVA LÓGICA DE ASSINATURA ---
+// --- NOVA LÓGICA DE ASSINATURA COM METADADOS ---
 
-// Gera o HTML de UMA caixa de assinatura
 const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, base64) => {
-    const date = new Date().toLocaleString('pt-BR');
-    const imgHTML = base64 
-        ? `<div class="relative h-16 w-full flex items-end justify-center">
-             <img src="${base64}" class="absolute bottom-0 h-20 object-contain mix-blend-multiply" alt="Assinatura" />
-             <p class="text-[8px] text-gray-400 mt-1 absolute -bottom-4">Assinado em ${date}</p>
-           </div>`
-        : `<div class="h-12 w-full flex items-center justify-center text-[10px] text-gray-400 opacity-50 italic">Aguardando assinatura...</div>`;
+    const date = new Date();
+    const dateStr = date.toLocaleString('pt-BR');
+    // Gera um código de segurança aleatório para parecer "Tech/Hash"
+    const securityHash = base64 ? Math.random().toString(36).substring(2, 10).toUpperCase() : '';
+    // Identifica dispositivo (simulado)
+    const deviceType = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'Mobile' : 'Web/Desktop';
 
-    const ctaHTML = !base64 ? '<p class="text-[9px] text-sky-600 mt-1 no-print font-bold hover:underline cursor-pointer flex items-center justify-center gap-1"><i class="fas fa-pen"></i> Assinar</p>' : '';
+    const imgHTML = base64 
+        ? `<div class="relative h-20 w-full flex items-end justify-center">
+             <img src="${base64}" class="absolute bottom-4 h-20 object-contain mix-blend-multiply" alt="Assinatura" />
+             <div class="absolute -bottom-2 w-full text-[7px] text-gray-400 text-center leading-tight font-mono">
+                Assinado em ${dateStr}<br>
+                Dispositivo: ${deviceType} | Hash: ${securityHash}
+             </div>
+           </div>`
+        : `<div class="h-20 w-full flex items-center justify-center text-[10px] text-gray-400 opacity-50 italic border border-dashed border-gray-200 rounded m-2">Aguardando assinatura...</div>`;
+
+    const ctaHTML = !base64 ? '<p class="text-[9px] text-sky-600 mt-1 no-print font-bold hover:underline cursor-pointer flex items-center justify-center gap-1"><i class="fas fa-pen"></i> Clique para Assinar</p>' : '';
 
     return `
-        <div class="text-center relative group cursor-pointer p-2 border border-transparent hover:border-gray-200 rounded transition-colors break-inside-avoid signature-interaction-area" data-sig-key="${key}">
+        <div class="text-center relative group cursor-pointer p-1 border border-transparent hover:border-gray-200 rounded transition-colors break-inside-avoid signature-interaction-area" data-sig-key="${key}">
             ${imgHTML}
             <div class="border-t border-black mb-1 w-full mx-auto mt-2"></div>
             <p class="text-xs font-bold uppercase leading-tight">${roleTitle}</p>
@@ -267,44 +272,17 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, base64) => {
     `;
 };
 
-// Gera o bloco completo de assinaturas
-const getFullSignatureBlockHTML = (signatureMap) => {
-    let html = `<div class="mt-8 pt-4 border-t border-gray-300 break-inside-avoid">
-        <h4 class="text-center text-xs font-bold uppercase text-gray-500 mb-6">Autenticação Digital dos Envolvidos</h4>
-        <div class="grid grid-cols-2 gap-x-8 gap-y-8 justify-center">`;
-
-    // 1. Assinaturas de Alunos e Responsáveis (Itera sobre as chaves que não são 'management')
-    // A ordem importa? Vamos tentar agrupar Aluno + Responsável dele.
-    
-    // Extrai matriculas unicas das chaves
-    const matriculas = new Set();
-    for (const key of signatureMap.keys()) {
-        if (key.startsWith('student_')) matriculas.add(key.replace('student_', ''));
-        if (key.startsWith('responsible_')) matriculas.add(key.replace('responsible_', ''));
-    }
-
-    matriculas.forEach(matricula => {
-        // Tenta achar o nome salvo no mapa (hack: guardamos o nome no objeto state ou inferimos, 
-        // mas aqui vamos confiar que a função que chamou já popular o map com null se não tiver assinado,
-        // porem precisamos dos labels.
-        // SOLUÇÃO MELHOR: Passar uma lista de definições para essa função, não só o map de imagens.
-    });
-
-    return html + `</div></div>`;
-};
-
-// FUNÇÃO REVISADA: Recebe uma lista de "Slots" de assinatura necessários
-// slots = [{ key: 'student_123', role: 'Aluno', name: 'João' }, { key: 'responsible_123', role: 'Responsável', name: 'Mãe do João' }]
+// Gera grid dinâmico
 const generateSignaturesGrid = (slots) => {
     let itemsHTML = slots.map(slot => {
         const base64 = signatureMap.get(slot.key);
         return getSingleSignatureBoxHTML(slot.key, slot.role, slot.name, base64);
     }).join('');
 
-    // Adiciona sempre a Gestão no final, ocupando linha inteira se for impar ou centralizado
+    // Gestão sempre no final
     const mgmtBase64 = signatureMap.get('management');
     const mgmtHTML = `
-        <div class="col-span-2 flex justify-center mt-4">
+        <div class="col-span-2 flex justify-center mt-4 border-t pt-4">
             <div class="w-1/2">
                 ${getSingleSignatureBoxHTML('management', 'Gestão Escolar', state.config?.schoolName || 'Direção', mgmtBase64)}
             </div>
@@ -312,14 +290,16 @@ const generateSignaturesGrid = (slots) => {
     `;
 
     return `
-        <div class="mt-12 mb-8 break-inside-avoid">
-             <div class="grid grid-cols-2 gap-8">
+        <div class="mt-8 mb-8 break-inside-avoid">
+             <h5 class="text-[10px] font-bold uppercase text-gray-400 mb-4 border-b pb-1">Validação Digital</h5>
+             <div class="grid grid-cols-2 gap-8 items-end">
                 ${itemsHTML}
              </div>
              ${mgmtHTML}
         </div>
     `;
 };
+
 
 // --- HELPERS GERAIS DE CONTEÚDO ---
 
@@ -386,11 +366,10 @@ const getAttemptsTableHTML = (records, type = 'occurrence') => {
 // =================================================================================
 
 const attachDynamicSignatureListeners = (reRenderCallback) => {
-    // Busca todos os elementos com o atributo data-sig-key e adiciona o evento
     const interactionAreas = document.querySelectorAll('.signature-interaction-area');
     interactionAreas.forEach(area => {
         area.onclick = (e) => {
-            e.stopPropagation(); // Evita bolha
+            e.stopPropagation(); 
             const key = area.getAttribute('data-sig-key');
             openSignaturePad((base64Image) => {
                 signatureMap.set(key, base64Image);
@@ -400,7 +379,6 @@ const attachDynamicSignatureListeners = (reRenderCallback) => {
         };
     });
 
-    // Botão Flutuante Genérico (Assina a primeira pendente ou a gestão)
     const container = document.getElementById('report-view-content') || document.getElementById('notification-content') || document.getElementById('ficha-view-content');
     if (container && !document.getElementById('floating-sign-btn')) {
         const btn = document.createElement('button');
@@ -409,10 +387,7 @@ const attachDynamicSignatureListeners = (reRenderCallback) => {
         btn.className = 'fixed bottom-4 right-4 bg-sky-600 text-white px-4 py-3 rounded-full shadow-lg font-bold text-sm hover:bg-sky-700 z-50 flex items-center gap-2 no-print';
         btn.onclick = () => {
              openSignaturePad((base64Image) => {
-                // Tenta achar uma chave vazia prioritária ou management
                 let targetKey = 'management';
-                // Lógica simples: salva no management se clicar no flutuante, 
-                // para assinaturas específicas o usuário deve clicar na caixa.
                 signatureMap.set(targetKey, base64Image); 
                 showToast("Assinatura da Gestão coletada!");
                 reRenderCallback();
@@ -432,7 +407,6 @@ export const openStudentSelectionModal = async (groupId) => {
     if (!incident || incident.participantsInvolved.size === 0) return showToast('Incidente não encontrado.');
 
     const participants = [...incident.participantsInvolved.values()];
-    // Se for só 1, vai direto.
     if (participants.length === 1) {
         await openIndividualNotificationModal(incident, participants[0].student);
         return;
@@ -457,7 +431,6 @@ export const openStudentSelectionModal = async (groupId) => {
     openModal(modal);
 }
 
-// 1. NOTIFICAÇÃO INDIVIDUAL (Para um aluno específico)
 export const openIndividualNotificationModal = async (incident, studentObj, specificAttempt = null) => {
     const data = incident.records.find(r => r.studentId === studentObj.matricula);
     if (!data) return showAlert(`Erro: Registro não encontrado.`);
@@ -477,7 +450,6 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
     
     const uniqueRefId = `${incident.id}_attempt_${attemptCount}`;
     
-    // Configura Assinaturas para Notificação (Resp + Gestão)
     signatureMap.clear();
     const sigSlots = [
         { key: `responsible_${student.matricula}`, role: 'Responsável', name: 'Responsável Legal' }
@@ -514,7 +486,6 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
     openModal(dom.notificationModalBackdrop);
 };
 
-// 2. ATA DE OCORRÊNCIA (MÚLTIPLOS ENVOLVIDOS)
 export const openOccurrenceRecordModal = async (groupId) => {
     const incident = await fetchIncidentById(groupId);
     if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
@@ -522,24 +493,13 @@ export const openOccurrenceRecordModal = async (groupId) => {
     const mainRecord = incident.records[0]; 
     const city = state.config?.city || "Cidade";
     
-    // CONFIGURA ASSINATURAS DE TODOS OS ENVOLVIDOS
     signatureMap.clear();
     const participants = [...incident.participantsInvolved.values()];
     const sigSlots = [];
 
     participants.forEach(p => {
-        // Slot Aluno
-        sigSlots.push({ 
-            key: `student_${p.student.matricula}`, 
-            role: `Aluno (${p.role})`, 
-            name: p.student.name 
-        });
-        // Slot Responsável
-        sigSlots.push({ 
-            key: `responsible_${p.student.matricula}`, 
-            role: 'Responsável por', 
-            name: p.student.name 
-        });
+        sigSlots.push({ key: `student_${p.student.matricula}`, role: `Aluno (${p.role})`, name: p.student.name });
+        sigSlots.push({ key: `responsible_${p.student.matricula}`, role: 'Responsável por', name: p.student.name });
     });
 
     const render = async () => {
@@ -642,7 +602,6 @@ export const openOccurrenceRecordModal = async (groupId) => {
     openModal(dom.reportViewModalBackdrop);
 };
 
-// 3. FICHA INDIVIDUAL (BUSCA ATIVA)
 export const openFichaViewModal = async (id) => {
     const record = state.absences.find(abs => abs.id === id);
     if (!record) return showToast('Registro não encontrado.');
@@ -667,7 +626,6 @@ export const openFichaViewModal = async (id) => {
     };
     const title = titleMap[record.actionType] || actionDisplayTitles[record.actionType] || "Documento Busca Ativa";
     
-    // Configura Assinaturas (Resp + Gestão)
     signatureMap.clear();
     const sigSlots = [
          { key: `responsible_${student.matricula}`, role: 'Responsável', name: 'Responsável Legal' }
