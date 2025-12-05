@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 9.6 (FULL - Link Seguro, Rastreabilidade, Assinatura Híbrida e Undo)
+// VERSÃO: 9.7 (Com Desafio de Identidade CPF/Nome)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -58,10 +58,10 @@ const checkForRemoteSignParams = async () => {
         
         // Substitui o corpo do site pelo modo de assinatura segura
         document.body.innerHTML = `
-            <div id="remote-sign-container" class="min-h-screen bg-gray-100 flex flex-col items-center p-4 font-sans">
-                <div class="animate-pulse flex flex-col items-center mt-20">
+            <div id="remote-sign-container" class="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4 font-sans">
+                <div class="animate-pulse flex flex-col items-center">
                     <div class="h-12 w-12 bg-sky-200 rounded-full mb-4"></div>
-                    <p class="text-gray-600 font-bold">Carregando documento seguro...</p>
+                    <p class="text-gray-600 font-bold">Iniciando ambiente seguro...</p>
                 </div>
             </div>`;
 
@@ -73,81 +73,160 @@ const checkForRemoteSignParams = async () => {
                 return;
             }
 
-            // Renderiza o Documento
             const container = document.getElementById('remote-sign-container');
-            container.innerHTML = `
-                <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden my-6">
-                    <div class="bg-sky-700 p-4 text-white text-center">
-                        <h2 class="text-lg font-bold uppercase"><i class="fas fa-file-contract"></i> Portal de Assinatura Digital</h2>
-                        <p class="text-xs opacity-80">Ambiente Seguro • IP Rastreado</p>
-                    </div>
-                    <div class="p-6 md:p-10 text-sm overflow-auto max-h-[60vh] bg-gray-50 border-b">
-                        ${docSnapshot.htmlContent}
-                    </div>
-                    <div class="bg-gray-100 p-6 flex flex-col items-center gap-4">
-                        <div class="text-center mb-2">
-                            <p class="font-bold text-gray-800 text-lg">Declaração de Ciência</p>
-                            <p class="text-xs text-gray-600 max-w-md mx-auto">Ao clicar no botão abaixo, declaro ter lido e compreendido o teor deste documento, servindo este clique como minha assinatura eletrônica válida.</p>
+
+            // --- FASE 1: DESAFIO DE IDENTIDADE (NOVO) ---
+            // Renderiza tela de bloqueio pedindo Nome e CPF
+            const renderIdentityChallenge = () => {
+                container.innerHTML = `
+                    <div class="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden">
+                        <div class="bg-sky-800 p-6 text-white text-center">
+                            <i class="fas fa-shield-alt text-4xl mb-2"></i>
+                            <h2 class="text-xl font-bold uppercase">Área Restrita</h2>
+                            <p class="text-xs opacity-80 mt-1">Identificação Obrigatória</p>
                         </div>
-                        <button id="btn-remote-agree" class="bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-4 px-10 rounded-full shadow-lg transform transition hover:scale-105 flex items-center gap-2">
-                            <i class="fas fa-check-circle"></i> LI, COMPREENDO E ACEITO
-                        </button>
-                        <p class="text-[10px] text-gray-400 mt-2 text-center">
-                            Seu IP e Modelo do Dispositivo serão registrados para fins de auditoria.<br>
-                            ${new Date().toLocaleString()}
-                        </p>
-                    </div>
-                </div>
-            `;
-
-            // Lógica do Aceite
-            document.getElementById('btn-remote-agree').onclick = async function() {
-                const btn = this;
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registrando...';
-                
-                const meta = await fetchClientMetadata();
-                
-                const digitalSignature = {
-                    type: 'digital_ack',
-                    ip: meta.ip,
-                    device: meta.userAgent,
-                    timestamp: meta.timestamp,
-                    valid: true
-                };
-
-                // Identifica a chave (assumindo responsible_{studentId})
-                const key = `responsible_${studentId}`;
-                const sigMap = new Map();
-                sigMap.set(key, digitalSignature);
-
-                const success = await updateDocumentSignatures(docSnapshot.id, sigMap);
-
-                if (success) {
-                    container.innerHTML = `
-                        <div class="h-screen flex items-center justify-center bg-green-50">
-                            <div class="bg-white p-10 rounded-2xl shadow-xl text-center max-w-md border-2 border-green-100">
-                                <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                                    <i class="fas fa-check text-5xl text-green-600"></i>
-                                </div>
-                                <h1 class="text-2xl font-bold text-gray-800 mb-2">Assinatura Registrada!</h1>
-                                <p class="text-gray-600 mb-6">Agradecemos sua confirmação. O documento foi atualizado no sistema da escola.</p>
-                                <div class="bg-gray-100 p-3 rounded text-xs text-left text-gray-500 font-mono">
-                                    HASH: ${Math.random().toString(36).substring(2, 15).toUpperCase()}<br>
-                                    IP: ${meta.ip}
-                                </div>
+                        <div class="p-6 md:p-8 space-y-4">
+                            <p class="text-sm text-gray-600 text-center mb-4">Para visualizar e assinar o documento referente ao aluno(a), por favor confirme sua identidade.</p>
+                            
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Seu Nome Completo</label>
+                                <input id="input-signer-name" type="text" class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-sky-500 outline-none uppercase text-sm" placeholder="Digite seu nome">
                             </div>
-                        </div>`;
-                } else {
-                    alert("Erro ao salvar. Tente novamente.");
-                    btn.disabled = false;
-                    btn.innerHTML = 'Tentar Novamente';
-                }
+                            
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Seu CPF</label>
+                                <input id="input-signer-cpf" type="tel" class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-sky-500 outline-none text-sm" placeholder="000.000.000-00" maxlength="14">
+                            </div>
+
+                            <button id="btn-access-doc" class="w-full mt-4 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded shadow transition transform active:scale-95">
+                                ACESSAR DOCUMENTO
+                            </button>
+                            
+                            <p class="text-[10px] text-gray-400 text-center mt-2">
+                                <i class="fas fa-lock"></i> Seus dados serão vinculados à assinatura digital deste documento conforme Art. 10 da MP 2.200-2.
+                            </p>
+                        </div>
+                    </div>
+                `;
+
+                // Máscara simples de CPF
+                const cpfInput = document.getElementById('input-signer-cpf');
+                cpfInput.addEventListener('input', (e) => {
+                    let v = e.target.value.replace(/\D/g, "");
+                    if(v.length > 11) v = v.slice(0, 11);
+                    v = v.replace(/(\d{3})(\d)/, "$1.$2");
+                    v = v.replace(/(\d{3})(\d)/, "$1.$2");
+                    v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+                    e.target.value = v;
+                });
+
+                document.getElementById('btn-access-doc').onclick = () => {
+                    const name = document.getElementById('input-signer-name').value.trim();
+                    const cpf = cpfInput.value.trim();
+
+                    if (name.length < 5) { alert("Por favor, digite seu nome completo."); return; }
+                    if (cpf.length < 11) { alert("Por favor, digite um CPF válido."); return; }
+
+                    // Se validou, passa para a Fase 2 com os dados
+                    renderDocumentView({ name, cpf });
+                };
             };
+
+
+            // --- FASE 2: VISUALIZAÇÃO E ASSINATURA ---
+            const renderDocumentView = (identityData) => {
+                // Remove justify-center para permitir scroll em telas pequenas na visualização do doc
+                container.classList.remove('justify-center'); 
+                container.classList.add('pt-4');
+
+                container.innerHTML = `
+                    <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8">
+                        <div class="bg-green-700 p-4 text-white flex justify-between items-center">
+                            <div>
+                                <h2 class="text-sm font-bold uppercase"><i class="fas fa-file-contract"></i> Documento Liberado</h2>
+                                <p class="text-[10px] opacity-80">Acesso por: ${identityData.name} (CPF: ${identityData.cpf})</p>
+                            </div>
+                            <div class="text-right text-[10px]">
+                                <span class="bg-green-800 px-2 py-1 rounded">Ambiente Seguro</span>
+                            </div>
+                        </div>
+                        <div class="p-6 md:p-10 text-sm overflow-auto max-h-[60vh] bg-gray-50 border-b">
+                            ${docSnapshot.htmlContent}
+                        </div>
+                        <div class="bg-gray-100 p-6 flex flex-col items-center gap-4">
+                            <div class="text-center mb-2">
+                                <p class="font-bold text-gray-800 text-lg">Declaração Final de Aceite</p>
+                                <p class="text-xs text-gray-600 max-w-md mx-auto text-justify">
+                                    Eu, <strong>${identityData.name}</strong>, portador(a) do CPF <strong>${identityData.cpf}</strong>, declaro ter lido e compreendido integralmente o teor deste documento. O clique no botão abaixo equivale à minha assinatura manuscrita para todos os fins legais.
+                                </p>
+                            </div>
+                            <button id="btn-remote-agree" class="bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-4 px-10 rounded-full shadow-lg transform transition hover:scale-105 flex items-center gap-2">
+                                <i class="fas fa-check-double"></i> CONFIRMAR E ASSINAR
+                            </button>
+                            <p class="text-[10px] text-gray-400 mt-2 text-center">
+                                Rastreabilidade Digital Ativa: IP e Device ID serão gravados.<br>
+                                ${new Date().toLocaleString()}
+                            </p>
+                        </div>
+                    </div>
+                `;
+
+                // Lógica do Aceite Final
+                document.getElementById('btn-remote-agree').onclick = async function() {
+                    const btn = this;
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registrando no Blockchain...'; // Efeito psicológico
+                    
+                    const meta = await fetchClientMetadata();
+                    
+                    const digitalSignature = {
+                        type: 'digital_ack',
+                        ip: meta.ip,
+                        device: meta.userAgent,
+                        timestamp: meta.timestamp,
+                        signerName: identityData.name, // Salva o nome digitado
+                        signerCPF: identityData.cpf,   // Salva o CPF digitado
+                        valid: true
+                    };
+
+                    // Identifica a chave (assumindo responsible_{studentId})
+                    const key = `responsible_${studentId}`;
+                    const sigMap = new Map();
+                    sigMap.set(key, digitalSignature);
+
+                    const success = await updateDocumentSignatures(docSnapshot.id, sigMap);
+
+                    if (success) {
+                        container.innerHTML = `
+                            <div class="h-[80vh] flex items-center justify-center">
+                                <div class="bg-white p-10 rounded-2xl shadow-xl text-center max-w-md border-2 border-green-100">
+                                    <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <i class="fas fa-check text-5xl text-green-600"></i>
+                                    </div>
+                                    <h1 class="text-2xl font-bold text-gray-800 mb-2">Assinatura Recebida!</h1>
+                                    <p class="text-gray-600 mb-6 text-sm">O documento foi assinado por <strong>${identityData.name}</strong> e arquivado digitalmente na escola.</p>
+                                    <div class="bg-gray-100 p-3 rounded text-xs text-left text-gray-500 font-mono">
+                                        HASH: ${Math.random().toString(36).substring(2, 15).toUpperCase()}<br>
+                                        CPF SHA1: ***${identityData.cpf.slice(-4)}<br>
+                                        IP: ${meta.ip}
+                                    </div>
+                                    <button onclick="window.close()" class="mt-6 text-sky-600 font-bold text-sm hover:underline">Fechar Janela</button>
+                                </div>
+                            </div>`;
+                    } else {
+                        alert("Erro de conexão ao salvar. Tente novamente.");
+                        btn.disabled = false;
+                        btn.innerHTML = 'Tentar Novamente';
+                    }
+                };
+            };
+
+            // Inicia fluxo
+            renderIdentityChallenge();
 
         } catch (e) {
             console.error(e);
-            alert("Erro fatal ao carregar documento.");
+            alert("Erro fatal ao carregar sistema de assinatura.");
         }
     }
 };
@@ -208,7 +287,7 @@ const ensureSignatureModalExists = () => {
                     <div class="bg-green-50 border border-green-200 rounded-lg p-4">
                         <h4 class="font-bold text-green-800 text-sm mb-1"><i class="fab fa-whatsapp"></i> Link Seguro via WhatsApp</h4>
                         <p class="text-xs text-green-700 mb-3 text-justify leading-tight">
-                            Gere um link único. O pai abre no próprio celular e assina digitalmente. O sistema registra IP e Modelo do aparelho.
+                            Gere um link único. O pai abre no celular, <strong>confirma Nome e CPF</strong> e assina. O sistema registra IP e Modelo do aparelho.
                         </p>
                         <div class="bg-white p-2 rounded border border-gray-200 text-[10px] text-gray-500 mb-3 font-mono break-all" id="generated-link-preview">
                             Selecione um documento primeiro...
@@ -522,8 +601,9 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
                     <p class="text-[10px] font-bold uppercase text-green-800">${roleTitle}</p>
                     <p class="text-[9px] text-green-700">${nameSubtitle}</p>
                     <div class="mt-1 text-[8px] text-green-600 font-mono leading-tight">
+                        ${sigData.signerName ? `<i class="fas fa-user-check"></i> ${sigData.signerName}<br>` : ''}
+                        ${sigData.signerCPF ? `<i class="fas fa-id-card"></i> CPF: ${sigData.signerCPF}<br>` : ''}
                         <i class="fas fa-globe"></i> IP: ${sigData.ip || 'N/A'}<br>
-                        <i class="fas fa-mobile-alt"></i> ${sigData.device ? sigData.device.substring(0, 20)+'...' : 'N/A'}<br>
                         <i class="fas fa-clock"></i> ${new Date(sigData.timestamp).toLocaleString()}
                     </div>
                 </div>
