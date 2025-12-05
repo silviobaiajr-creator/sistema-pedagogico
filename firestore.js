@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: firestore.js
-// VERSÃO: 3.7 (Correção Duplicatas: Prioridade RefId + Cleanup)
+// VERSÃO: 9.5 (Suporte a Rastreabilidade Digital IP/Device)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
@@ -377,7 +377,7 @@ export const getDashboardStats = async () => {
     }
 };
 
-// --- ARQUIVO DIGITAL / SNAPSHOTS (NOVAS FUNÇÕES COM PREVENÇÃO DE DUPLICATAS) ---
+// --- ARQUIVO DIGITAL / SNAPSHOTS ---
 
 export const findDocumentSnapshot = async (docType, studentId, refId) => {
     try {
@@ -386,8 +386,6 @@ export const findDocumentSnapshot = async (docType, studentId, refId) => {
         
         if (!sRefId) return null;
 
-        // CORREÇÃO: Busca apenas por Type e RefId.
-        // Ignora studentId na busca para garantir que encontre o documento mesmo se o ID do aluno tiver mudado ligeiramente.
         const conditions = [
             where('type', '==', docType),
             where('refId', '==', sRefId)
@@ -414,7 +412,6 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
         const refId = metadata.refId ? String(metadata.refId).trim() : null;
         const safeStudentId = studentId ? String(studentId).trim() : null;
         
-        // CORREÇÃO: Verifica duplicatas usando RefId e Type (sem StudentId para evitar falha de match)
         if (refId) {
             const conditions = [
                 where('type', '==', docType),
@@ -427,9 +424,7 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
             if (!snapshot.empty) {
                 const docToUpdate = snapshot.docs[0];
 
-                // AUTO-LIMPEZA: Se houver mais de 1 documento duplicado (lixo antigo), apaga os extras
                 if (snapshot.size > 1) {
-                    console.warn(`Limpando ${snapshot.size - 1} duplicatas detectadas para RefID: ${refId}`);
                     const deletePromises = [];
                     for (let i = 1; i < snapshot.docs.length; i++) {
                         deletePromises.push(deleteDoc(doc(documentsRef, snapshot.docs[i].id)));
@@ -439,28 +434,21 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
 
                 const currentData = docToUpdate.data();
 
-                // SOLUÇÃO INTELIGENTE (JÁ NORMALIZADA NO REPORTS.JS):
-                // Mas mantemos uma verificação simples aqui também.
-                if (currentData.htmlContent === htmlContent) {
-                    console.log(`Documento [${docToUpdate.id}] é idêntico. Mantendo original.`);
-                    return docToUpdate.ref; 
+                // Atualização normal se o conteúdo mudou
+                if (currentData.htmlContent !== htmlContent) {
+                    await updateDoc(doc(documentsRef, docToUpdate.id), {
+                        title: title,
+                        htmlContent: htmlContent,
+                        studentId: safeStudentId || currentData.studentId, 
+                        createdAt: new Date(), 
+                        createdBy: state.userEmail || 'Sistema'
+                    });
                 }
-
-                // SE DIFERENTE: Atualiza conteúdo e data (pois houve modificação real)
-                await updateDoc(doc(documentsRef, docToUpdate.id), {
-                    title: title,
-                    htmlContent: htmlContent,
-                    // Se o studentId mudou, atualiza aqui também
-                    studentId: safeStudentId || currentData.studentId, 
-                    createdAt: new Date(), 
-                    createdBy: state.userEmail || 'Sistema'
-                });
-                console.log(`Documento atualizado (conteúdo alterado): ${docToUpdate.id}`);
+                
                 return docToUpdate.ref;
             }
         }
 
-        // SE NÃO EXISTIR: Cria novo
         const docData = {
             type: docType,
             title: title,
@@ -479,10 +467,27 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
     }
 };
 
+// NOVA FUNÇÃO: Assinatura Remota / Metadados
+export const updateDocumentSignatures = async (docId, signatureMap) => {
+    try {
+        const docRef = doc(getCollectionRef('documents'), docId);
+        // Converte o Map em Objeto para salvar no Firestore
+        const signaturesObj = Object.fromEntries(signatureMap);
+        
+        await updateDoc(docRef, {
+            signatures: signaturesObj,
+            lastSignedAt: new Date()
+        });
+        return true;
+    } catch(e) {
+        console.error("Erro ao salvar assinatura:", e);
+        return false;
+    }
+};
+
 export const loadDocuments = async (filters = {}) => {
     try {
         let q = query(getCollectionRef('documents'), orderBy('createdAt', 'desc'), limit(50));
-        
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
