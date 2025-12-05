@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: firestore.js
-// VERSÃO: 3.2 (Correção: Adicionadas funções de Arquivo Digital)
+// VERSÃO: 3.4 (Correção: Solução Inteligente para Duplicatas no Arquivo Digital)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
@@ -377,23 +377,66 @@ export const getDashboardStats = async () => {
     }
 };
 
-// --- ARQUIVO DIGITAL / SNAPSHOTS (NOVAS FUNÇÕES) ---
+// --- ARQUIVO DIGITAL / SNAPSHOTS (NOVAS FUNÇÕES COM PREVENÇÃO DE DUPLICATAS) ---
 
 export const saveDocumentSnapshot = async (docType, title, htmlContent, studentId, metadata = {}) => {
     try {
+        const documentsRef = getCollectionRef('documents');
+        // Garante que IDs sejam strings para consistência na busca e salvamento
+        const refId = metadata.refId ? String(metadata.refId) : null;
+        const safeStudentId = studentId ? String(studentId) : null;
+        
+        // CORREÇÃO: Verifica se já existe um documento com as mesmas características (Tipo, Aluno, RefID)
+        if (refId && safeStudentId) {
+            const q = query(
+                documentsRef, 
+                where('type', '==', docType),
+                where('studentId', '==', safeStudentId),
+                where('refId', '==', refId),
+                limit(1)
+            );
+            
+            const snapshot = await getDocs(q);
+            
+            if (!snapshot.empty) {
+                const docToUpdate = snapshot.docs[0];
+                const currentData = docToUpdate.data();
+
+                // SOLUÇÃO INTELIGENTE: 
+                // Compara o conteúdo HTML atual com o novo.
+                // Se forem idênticos, NÃO faz nada (nem update). Evita duplicatas visuais e escritas no banco.
+                if (currentData.htmlContent === htmlContent) {
+                    console.log(`Documento [${docToUpdate.id}] é idêntico. Nenhuma alteração salva.`);
+                    return docToUpdate.ref; 
+                }
+
+                // SE EXISTIR MAS FOR DIFERENTE: Atualiza o conteúdo e a data
+                // Isso mantém apenas UMA cópia deste documento no arquivo, mas com os dados mais recentes.
+                await updateDoc(doc(documentsRef, docToUpdate.id), {
+                    title: title,
+                    htmlContent: htmlContent,
+                    createdAt: new Date(), // Atualiza data para subir na lista pois houve alteração real
+                    createdBy: state.userEmail || 'Sistema'
+                });
+                console.log(`Documento atualizado: ${docToUpdate.id}`);
+                return docToUpdate.ref;
+            }
+        }
+
+        // SE NÃO EXISTIR: Cria um novo registro
         const docData = {
-            type: docType, // 'ata', 'oficio', 'notificacao', 'relatorio'
+            type: docType, // 'ata', 'oficio', 'notificacao', 'relatorio', 'ficha_busca_ativa'
             title: title,
-            htmlContent: htmlContent, // O HTML congelado
-            studentId: studentId || null,
+            htmlContent: htmlContent, 
+            studentId: safeStudentId || null,
             studentName: metadata.studentName || null,
-            refId: metadata.refId || null, // ID da ocorrência ou processo
+            refId: refId, // ID único da Ocorrência, Processo ou Tentativa
             createdAt: new Date(),
             createdBy: state.userEmail || 'Sistema'
         };
         
-        // Salva na coleção separada 'legal_documents'
-        return addDoc(getCollectionRef('documents'), docData);
+        return addDoc(documentsRef, docData);
+
     } catch (error) {
         console.error("Erro ao salvar snapshot do documento:", error);
     }
@@ -403,9 +446,6 @@ export const loadDocuments = async (filters = {}) => {
     try {
         let q = query(getCollectionRef('documents'), orderBy('createdAt', 'desc'), limit(50));
         
-        // Filtros podem ser expandidos aqui se adicionarmos índices no Firestore
-        // Por enquanto, faremos a filtragem fina no client-side para simplificar
-
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
