@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 9.3 (Assinatura Blindada: Foto-Evidência + Biometria Visual)
+// VERSÃO: 9.4 (Função Desfazer Traço + Acionamento WhatsApp)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -20,9 +20,12 @@ export const actionDisplayTitles = {
 };
 
 // --- GESTÃO DE ASSINATURA DIGITAL ---
-// Agora armazena objetos: { signature: stringBase64, photo: stringBase64 }
 let signatureMap = new Map();
 let currentStream = null;
+
+// Variáveis para Controle de Desfazer (Undo)
+let savedPaths = []; // Armazena o histórico de traços
+let currentPath = []; // Armazena o traço atual sendo desenhado
 
 // Injeta o HTML do Modal de Assinatura
 const ensureSignatureModalExists = () => {
@@ -30,16 +33,27 @@ const ensureSignatureModalExists = () => {
 
     const modalHTML = `
     <div id="signature-pad-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center z-[60]">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-4 mx-4 flex flex-col max-h-[90vh]">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-4 mx-4 flex flex-col max-h-[95vh]">
             <h3 class="text-lg font-bold text-gray-800 mb-2 border-b pb-2 flex justify-between items-center">
                 <span>Coleta Biométrica</span>
                 <span class="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">Foto + Assinatura</span>
             </h3>
             
             <div class="overflow-y-auto p-1">
+                <!-- BOTÃO WHATSAPP (NOVO) -->
+                <div class="mb-4 p-3 bg-green-50 border border-green-200 rounded flex justify-between items-center">
+                    <div>
+                        <p class="text-xs font-bold text-green-800 uppercase">Responsável Ausente?</p>
+                        <p class="text-[10px] text-green-600">Envie uma mensagem solicitando comparecimento.</p>
+                    </div>
+                    <button id="btn-whatsapp-request" class="bg-green-600 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow hover:bg-green-700 flex items-center gap-1">
+                        <i class="fab fa-whatsapp"></i> Chamar no Zap
+                    </button>
+                </div>
+
                 <!-- PASSO 1: FOTO -->
-                <p class="text-xs font-bold text-gray-600 mb-1 uppercase">1. Evidência Visual (Foto do Responsável)</p>
-                <div class="bg-black rounded-lg overflow-hidden relative mb-4 h-48 flex items-center justify-center group">
+                <p class="text-xs font-bold text-gray-600 mb-1 uppercase">1. Evidência Visual (Foto)</p>
+                <div class="bg-black rounded-lg overflow-hidden relative mb-4 h-48 flex items-center justify-center group shadow-inner">
                     <video id="camera-preview" autoplay playsinline class="w-full h-full object-cover"></video>
                     <canvas id="photo-canvas" class="hidden"></canvas>
                     <img id="photo-result" class="hidden w-full h-full object-cover absolute top-0 left-0 z-10" />
@@ -52,11 +66,21 @@ const ensureSignatureModalExists = () => {
                 </div>
 
                 <!-- PASSO 2: ASSINATURA -->
-                <p class="text-xs font-bold text-gray-600 mb-1 uppercase">2. Assinatura na Tela</p>
-                <div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 relative">
-                    <canvas id="signature-canvas" class="w-full h-32 cursor-crosshair touch-none"></canvas>
-                    <div class="absolute bottom-1 right-2 text-[10px] text-gray-400 pointer-events-none">Assine aqui</div>
-                    <button id="btn-clear-signature" class="absolute top-1 right-1 text-red-600 text-[10px] font-bold border border-red-200 bg-white px-2 py-0.5 rounded hover:bg-red-50">Limpar</button>
+                <div class="flex justify-between items-end mb-1">
+                    <p class="text-xs font-bold text-gray-600 uppercase">2. Assinatura na Tela</p>
+                    <div class="flex gap-1">
+                        <button id="btn-undo-signature" class="text-gray-700 bg-gray-200 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-gray-300 flex items-center gap-1" title="Desfazer último traço">
+                            <i class="fas fa-undo"></i> Desfazer
+                        </button>
+                        <button id="btn-clear-signature" class="text-red-700 bg-red-100 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-red-200 flex items-center gap-1" title="Limpar tudo">
+                            <i class="fas fa-trash"></i> Limpar
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 relative touch-none">
+                    <canvas id="signature-canvas" class="w-full h-40 cursor-crosshair"></canvas>
+                    <div class="absolute bottom-1 right-2 text-[10px] text-gray-400 pointer-events-none select-none">Assine aqui</div>
                 </div>
             </div>
 
@@ -82,11 +106,10 @@ const startCamera = async () => {
     const video = document.getElementById('camera-preview');
     const loading = document.getElementById('camera-loading');
     
-    stopCameraStream(); // Garante que não tem stream anterior
+    stopCameraStream(); 
 
     try {
         loading.classList.remove('hidden');
-        // Tenta pegar a câmera traseira (environment) ou frontal (user)
         const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, 
             audio: false 
@@ -99,9 +122,28 @@ const startCamera = async () => {
     } catch (err) {
         console.error("Erro na câmera:", err);
         loading.innerHTML = "Câmera indisponível.<br>Verifique permissões.";
-        // Permite continuar sem foto em caso de erro, ou bloqueia? 
-        // Vamos permitir mas avisar.
     }
+};
+
+// --- LÓGICA DE DESENHO E UNDO ---
+const redrawCanvas = (canvas, ctx) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#000';
+
+    savedPaths.forEach(path => {
+        ctx.beginPath();
+        if (path.length > 0) {
+            ctx.moveTo(path[0].x, path[0].y);
+            for (let i = 1; i < path.length; i++) {
+                ctx.lineTo(path[i].x, path[i].y);
+            }
+            ctx.stroke();
+        }
+    });
 };
 
 const setupSignaturePadEvents = () => {
@@ -109,7 +151,9 @@ const setupSignaturePadEvents = () => {
     const canvas = document.getElementById('signature-canvas');
     const ctx = canvas.getContext('2d');
     const btnClear = document.getElementById('btn-clear-signature');
+    const btnUndo = document.getElementById('btn-undo-signature');
     const btnCancel = document.getElementById('btn-cancel-signature');
+    const btnWhatsApp = document.getElementById('btn-whatsapp-request');
     
     // Camera Elements
     const video = document.getElementById('camera-preview');
@@ -118,21 +162,16 @@ const setupSignaturePadEvents = () => {
     const btnTake = document.getElementById('btn-take-photo');
     const btnRetake = document.getElementById('btn-retake-photo');
 
-    // Estado local
     let capturedPhotoData = null;
     let isDrawing = false;
 
-    // --- LÓGICA DA CÂMERA ---
+    // --- CÂMERA ---
     btnTake.onclick = () => {
         if (!currentStream) return showToast("Câmera não iniciada.");
-        
         photoCanvas.width = video.videoWidth;
         photoCanvas.height = video.videoHeight;
         photoCanvas.getContext('2d').drawImage(video, 0, 0);
-        
-        // Reduz qualidade para não pesar no banco (JPEG 0.6)
         capturedPhotoData = photoCanvas.toDataURL('image/jpeg', 0.6);
-        
         photoResult.src = capturedPhotoData;
         photoResult.classList.remove('hidden');
         btnTake.classList.add('hidden');
@@ -146,16 +185,22 @@ const setupSignaturePadEvents = () => {
         btnRetake.classList.add('hidden');
     };
 
-    // --- LÓGICA DA ASSINATURA (Offset Fix v9.2) ---
+    // --- WHATSAPP ---
+    btnWhatsApp.onclick = () => {
+        // Tenta pegar o nome do documento ou do aluno do contexto
+        const docTitle = document.getElementById('report-view-title')?.innerText || "Documento Escolar";
+        const msg = `Olá, aqui é da escola. Precisamos da assinatura do responsável no documento: *${docTitle}*. Favor comparecer à secretaria quando possível para regularização.`;
+        const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+        window.open(url, '_blank');
+    };
+
+    // --- ASSINATURA (COM UNDO E REDRAW) ---
     const resizeCanvas = () => {
         const rect = canvas.parentElement.getBoundingClientRect();
         if (rect.width > 0) {
             canvas.width = rect.width;
-            canvas.height = rect.height; // Altura fixa no CSS/HTML
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.strokeStyle = '#000';
+            canvas.height = rect.height;
+            redrawCanvas(canvas, ctx); // Redesenha ao redimensionar para não perder o traço
         }
     };
     window.addEventListener('resize', resizeCanvas);
@@ -173,8 +218,15 @@ const setupSignaturePadEvents = () => {
     const startDraw = (e) => {
         if (e.type === 'touchstart') e.preventDefault();
         isDrawing = true;
+        currentPath = []; // Inicia novo traço
         const pos = getPos(e);
+        currentPath.push(pos);
+        
         ctx.beginPath();
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#000';
         ctx.moveTo(pos.x, pos.y);
     };
 
@@ -182,12 +234,21 @@ const setupSignaturePadEvents = () => {
         if (e.type === 'touchmove') e.preventDefault();
         if (!isDrawing) return;
         const pos = getPos(e);
+        currentPath.push(pos); // Grava ponto
         ctx.lineTo(pos.x, pos.y);
         ctx.stroke();
     };
 
-    const stopDraw = () => { isDrawing = false; };
+    const stopDraw = () => { 
+        if (isDrawing) {
+            isDrawing = false;
+            if (currentPath.length > 0) {
+                savedPaths.push([...currentPath]); // Salva o traço completo no histórico
+            }
+        }
+    };
 
+    // Eventos
     canvas.addEventListener('mousedown', startDraw);
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDraw);
@@ -196,7 +257,20 @@ const setupSignaturePadEvents = () => {
     canvas.addEventListener('touchmove', draw, { passive: false });
     canvas.addEventListener('touchend', stopDraw);
 
-    btnClear.onclick = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); };
+    // Botão Limpar Tudo
+    btnClear.onclick = () => { 
+        savedPaths = []; 
+        currentPath = [];
+        ctx.clearRect(0, 0, canvas.width, canvas.height); 
+    };
+
+    // Botão Desfazer (Undo)
+    btnUndo.onclick = () => {
+        if (savedPaths.length > 0) {
+            savedPaths.pop(); // Remove o último traço
+            redrawCanvas(canvas, ctx); // Redesenha tudo sem o último traço
+        }
+    };
     
     btnCancel.onclick = () => { 
         stopCameraStream();
@@ -215,28 +289,28 @@ const openSignaturePad = (onConfirm) => {
     const btnTake = document.getElementById('btn-take-photo');
     const btnRetake = document.getElementById('btn-retake-photo');
 
-    // Reset UI
+    // Reset UI e Variáveis
+    savedPaths = []; // Limpa histórico ao abrir
+    currentPath = [];
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
     photoResult.classList.add('hidden');
     btnTake.classList.remove('hidden');
     btnRetake.classList.add('hidden');
 
     // Força resize inicial
     const rect = canvas.parentElement.getBoundingClientRect();
-    if (rect.width > 0) { canvas.width = rect.width; canvas.height = 128; } // 32 * 4 (h-32 tailwind)
+    if (rect.width > 0) { canvas.width = rect.width; canvas.height = 160; } // Ajustado para h-40
+    
     ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#000';
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     
-    startCamera(); // Inicia a câmera ao abrir
+    startCamera(); 
 
     btnConfirm.onclick = () => {
         const signatureData = canvas.toDataURL('image/png');
-        
-        // Verifica se desenhou algo (canvas em branco é bem pequeno em bytes, mas vamos simplificar)
-        // Se quiser validar foto: if (photoResult.classList.contains('hidden')) return showToast("Foto obrigatória!");
-        
         const evidenceData = !photoResult.classList.contains('hidden') ? photoResult.src : null;
 
         stopCameraStream();
