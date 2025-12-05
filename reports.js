@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 9.2 (Correção de Precisão da Assinatura - Offset Fix)
+// VERSÃO: 9.3 (Assinatura Blindada: Foto-Evidência + Biometria Visual)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -20,7 +20,9 @@ export const actionDisplayTitles = {
 };
 
 // --- GESTÃO DE ASSINATURA DIGITAL ---
+// Agora armazena objetos: { signature: stringBase64, photo: stringBase64 }
 let signatureMap = new Map();
+let currentStream = null;
 
 // Injeta o HTML do Modal de Assinatura
 const ensureSignatureModalExists = () => {
@@ -28,27 +30,78 @@ const ensureSignatureModalExists = () => {
 
     const modalHTML = `
     <div id="signature-pad-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center z-[60]">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-4 mx-4">
-            <h3 class="text-lg font-bold text-gray-800 mb-2 border-b pb-2">Coletar Assinatura</h3>
-            <p class="text-sm text-gray-600 mb-4">Assine no quadro abaixo usando o dedo.</p>
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-4 mx-4 flex flex-col max-h-[90vh]">
+            <h3 class="text-lg font-bold text-gray-800 mb-2 border-b pb-2 flex justify-between items-center">
+                <span>Coleta Biométrica</span>
+                <span class="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">Foto + Assinatura</span>
+            </h3>
             
-            <div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 relative">
-                <canvas id="signature-canvas" class="w-full h-48 cursor-crosshair touch-none"></canvas>
-                <div class="absolute bottom-2 right-2 text-xs text-gray-400 pointer-events-none">Área de Assinatura</div>
+            <div class="overflow-y-auto p-1">
+                <!-- PASSO 1: FOTO -->
+                <p class="text-xs font-bold text-gray-600 mb-1 uppercase">1. Evidência Visual (Foto do Responsável)</p>
+                <div class="bg-black rounded-lg overflow-hidden relative mb-4 h-48 flex items-center justify-center group">
+                    <video id="camera-preview" autoplay playsinline class="w-full h-full object-cover"></video>
+                    <canvas id="photo-canvas" class="hidden"></canvas>
+                    <img id="photo-result" class="hidden w-full h-full object-cover absolute top-0 left-0 z-10" />
+                    
+                    <div class="absolute bottom-2 w-full flex justify-center gap-2 z-20">
+                        <button id="btn-take-photo" class="bg-white text-gray-900 rounded-full px-4 py-1 text-sm font-bold shadow hover:bg-gray-200"><i class="fas fa-camera"></i> Capturar</button>
+                        <button id="btn-retake-photo" class="hidden bg-yellow-400 text-yellow-900 rounded-full px-4 py-1 text-sm font-bold shadow hover:bg-yellow-300"><i class="fas fa-redo"></i> Refazer</button>
+                    </div>
+                    <div id="camera-loading" class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-xs hidden">Iniciando câmera...</div>
+                </div>
+
+                <!-- PASSO 2: ASSINATURA -->
+                <p class="text-xs font-bold text-gray-600 mb-1 uppercase">2. Assinatura na Tela</p>
+                <div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 relative">
+                    <canvas id="signature-canvas" class="w-full h-32 cursor-crosshair touch-none"></canvas>
+                    <div class="absolute bottom-1 right-2 text-[10px] text-gray-400 pointer-events-none">Assine aqui</div>
+                    <button id="btn-clear-signature" class="absolute top-1 right-1 text-red-600 text-[10px] font-bold border border-red-200 bg-white px-2 py-0.5 rounded hover:bg-red-50">Limpar</button>
+                </div>
             </div>
 
-            <div class="flex justify-between items-center mt-4">
-                <button id="btn-clear-signature" class="text-red-600 text-sm font-semibold hover:underline">Limpar</button>
-                <div class="space-x-2">
-                    <button id="btn-cancel-signature" class="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-100">Cancelar</button>
-                    <button id="btn-confirm-signature" class="px-4 py-2 rounded bg-sky-600 text-white font-bold hover:bg-sky-700 shadow">Confirmar</button>
-                </div>
+            <div class="flex justify-end items-center mt-4 gap-3 pt-2 border-t">
+                <button id="btn-cancel-signature" class="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm">Cancelar</button>
+                <button id="btn-confirm-signature" class="px-6 py-2 rounded bg-sky-600 text-white font-bold hover:bg-sky-700 shadow text-sm disabled:opacity-50 disabled:cursor-not-allowed">Confirmar & Salvar</button>
             </div>
         </div>
     </div>`;
     
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     setupSignaturePadEvents();
+};
+
+const stopCameraStream = () => {
+    if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
+    }
+};
+
+const startCamera = async () => {
+    const video = document.getElementById('camera-preview');
+    const loading = document.getElementById('camera-loading');
+    
+    stopCameraStream(); // Garante que não tem stream anterior
+
+    try {
+        loading.classList.remove('hidden');
+        // Tenta pegar a câmera traseira (environment) ou frontal (user)
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, 
+            audio: false 
+        });
+        currentStream = stream;
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+            loading.classList.add('hidden');
+        };
+    } catch (err) {
+        console.error("Erro na câmera:", err);
+        loading.innerHTML = "Câmera indisponível.<br>Verifique permissões.";
+        // Permite continuar sem foto em caso de erro, ou bloqueia? 
+        // Vamos permitir mas avisar.
+    }
 };
 
 const setupSignaturePadEvents = () => {
@@ -58,27 +111,59 @@ const setupSignaturePadEvents = () => {
     const btnClear = document.getElementById('btn-clear-signature');
     const btnCancel = document.getElementById('btn-cancel-signature');
     
+    // Camera Elements
+    const video = document.getElementById('camera-preview');
+    const photoCanvas = document.getElementById('photo-canvas');
+    const photoResult = document.getElementById('photo-result');
+    const btnTake = document.getElementById('btn-take-photo');
+    const btnRetake = document.getElementById('btn-retake-photo');
+
+    // Estado local
+    let capturedPhotoData = null;
     let isDrawing = false;
 
-    // Ajusta tamanho interno do canvas para bater com o tamanho visual (CSS)
+    // --- LÓGICA DA CÂMERA ---
+    btnTake.onclick = () => {
+        if (!currentStream) return showToast("Câmera não iniciada.");
+        
+        photoCanvas.width = video.videoWidth;
+        photoCanvas.height = video.videoHeight;
+        photoCanvas.getContext('2d').drawImage(video, 0, 0);
+        
+        // Reduz qualidade para não pesar no banco (JPEG 0.6)
+        capturedPhotoData = photoCanvas.toDataURL('image/jpeg', 0.6);
+        
+        photoResult.src = capturedPhotoData;
+        photoResult.classList.remove('hidden');
+        btnTake.classList.add('hidden');
+        btnRetake.classList.remove('hidden');
+    };
+
+    btnRetake.onclick = () => {
+        capturedPhotoData = null;
+        photoResult.classList.add('hidden');
+        btnTake.classList.remove('hidden');
+        btnRetake.classList.add('hidden');
+    };
+
+    // --- LÓGICA DA ASSINATURA (Offset Fix v9.2) ---
     const resizeCanvas = () => {
         const rect = canvas.parentElement.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-        // Reconfigura o contexto após resize
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = '#000';
+        if (rect.width > 0) {
+            canvas.width = rect.width;
+            canvas.height = rect.height; // Altura fixa no CSS/HTML
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = '#000';
+        }
     };
-    window.addEventListener('resize', resizeCanvas); 
+    window.addEventListener('resize', resizeCanvas);
 
-    // CRUCIAL: Corrige o offset do mouse/dedo relativo ao canvas redimensionado
     const getPos = (e) => {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
         return {
             x: (clientX - rect.left) * (canvas.width / rect.width),
             y: (clientY - rect.top) * (canvas.height / rect.height)
@@ -86,23 +171,15 @@ const setupSignaturePadEvents = () => {
     };
 
     const startDraw = (e) => {
-        // Bloqueia scroll ao iniciar o toque
         if (e.type === 'touchstart') e.preventDefault();
-        
         isDrawing = true;
         const pos = getPos(e);
         ctx.beginPath();
         ctx.moveTo(pos.x, pos.y);
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = '#000';
     };
 
     const draw = (e) => {
-        // Bloqueia scroll durante o desenho
         if (e.type === 'touchmove') e.preventDefault();
-        
         if (!isDrawing) return;
         const pos = getPos(e);
         ctx.lineTo(pos.x, pos.y);
@@ -111,19 +188,18 @@ const setupSignaturePadEvents = () => {
 
     const stopDraw = () => { isDrawing = false; };
 
-    // Eventos Mouse
     canvas.addEventListener('mousedown', startDraw);
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDraw);
     canvas.addEventListener('mouseout', stopDraw);
-    
-    // Eventos Touch (passive: false é importante para o preventDefault funcionar)
     canvas.addEventListener('touchstart', startDraw, { passive: false });
     canvas.addEventListener('touchmove', draw, { passive: false });
     canvas.addEventListener('touchend', stopDraw);
 
     btnClear.onclick = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); };
+    
     btnCancel.onclick = () => { 
+        stopCameraStream();
         modal.classList.add('hidden'); 
         modal.classList.remove('flex');
     };
@@ -135,29 +211,39 @@ const openSignaturePad = (onConfirm) => {
     const canvas = document.getElementById('signature-canvas');
     const ctx = canvas.getContext('2d');
     const btnConfirm = document.getElementById('btn-confirm-signature');
+    const photoResult = document.getElementById('photo-result');
+    const btnTake = document.getElementById('btn-take-photo');
+    const btnRetake = document.getElementById('btn-retake-photo');
 
-    // Força o resize correto antes de mostrar para garantir alinhamento
-    const rect = canvas.parentElement.getBoundingClientRect();
-    if(rect.width > 0) {
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-    }
-    
+    // Reset UI
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Reconfigura estilos
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#000';
+    photoResult.classList.add('hidden');
+    btnTake.classList.remove('hidden');
+    btnRetake.classList.add('hidden');
+
+    // Força resize inicial
+    const rect = canvas.parentElement.getBoundingClientRect();
+    if (rect.width > 0) { canvas.width = rect.width; canvas.height = 128; } // 32 * 4 (h-32 tailwind)
+    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#000';
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    
+    startCamera(); // Inicia a câmera ao abrir
 
     btnConfirm.onclick = () => {
-        const dataUrl = canvas.toDataURL('image/png');
+        const signatureData = canvas.toDataURL('image/png');
+        
+        // Verifica se desenhou algo (canvas em branco é bem pequeno em bytes, mas vamos simplificar)
+        // Se quiser validar foto: if (photoResult.classList.contains('hidden')) return showToast("Foto obrigatória!");
+        
+        const evidenceData = !photoResult.classList.contains('hidden') ? photoResult.src : null;
+
+        stopCameraStream();
         modal.classList.add('hidden');
         modal.classList.remove('flex');
-        if (onConfirm) onConfirm(dataUrl);
+
+        if (onConfirm) onConfirm({ signature: signatureData, photo: evidenceData });
     };
 };
 
@@ -269,56 +355,89 @@ const getStudentIdentityCardHTML = (student) => {
     `;
 };
 
-// --- NOVA LÓGICA DE ASSINATURA COM METADADOS ---
+// --- NOVA LÓGICA DE ASSINATURA COM FOTO EVIDÊNCIA ---
 
-const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, base64) => {
+const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
+    // sigData agora pode ser string (legado) ou objeto { signature, photo }
+    let signatureImg = null;
+    let photoImg = null;
+
+    if (typeof sigData === 'string') {
+        signatureImg = sigData;
+    } else if (typeof sigData === 'object' && sigData !== null) {
+        signatureImg = sigData.signature;
+        photoImg = sigData.photo;
+    }
+
     const date = new Date();
     const dateStr = date.toLocaleString('pt-BR');
-    const securityHash = base64 ? Math.random().toString(36).substring(2, 10).toUpperCase() : '';
-    const deviceType = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'Mobile' : 'Web/Desktop';
+    const deviceType = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop';
+    
+    // Se tiver foto, mostramos um layout "Cartão de Identidade"
+    if (signatureImg) {
+        return `
+            <div class="relative group cursor-pointer p-1 border border-gray-300 rounded bg-white break-inside-avoid signature-interaction-area flex items-stretch overflow-hidden" data-sig-key="${key}">
+                
+                <!-- ÁREA DA FOTO (EVIDÊNCIA) -->
+                <div class="w-16 bg-gray-100 border-r border-gray-300 flex flex-col items-center justify-center shrink-0">
+                    ${photoImg 
+                        ? `<img src="${photoImg}" class="w-full h-20 object-cover" alt="Foto Evidência" /><div class="text-[6px] bg-green-100 text-green-800 w-full text-center font-bold">VERIFICADO</div>` 
+                        : `<div class="text-gray-300 text-2xl"><i class="fas fa-user-slash"></i></div><div class="text-[6px] text-gray-400 text-center">SEM FOTO</div>`
+                    }
+                </div>
 
-    const imgHTML = base64 
-        ? `<div class="relative h-20 w-full flex items-end justify-center">
-             <img src="${base64}" class="absolute bottom-4 h-20 object-contain mix-blend-multiply" alt="Assinatura" />
-             <div class="absolute -bottom-2 w-full text-[7px] text-gray-400 text-center leading-tight font-mono">
-                Assinado em ${dateStr}<br>
-                Dispositivo: ${deviceType} | Hash: ${securityHash}
-             </div>
-           </div>`
-        : `<div class="h-20 w-full flex items-center justify-center text-[10px] text-gray-400 opacity-50 italic border border-dashed border-gray-200 rounded m-2">Aguardando assinatura...</div>`;
+                <!-- ÁREA DA ASSINATURA -->
+                <div class="flex-1 flex flex-col justify-between p-2 relative">
+                    <img src="${signatureImg}" class="h-12 object-contain mix-blend-multiply self-center" alt="Assinatura" />
+                    
+                    <div class="border-t border-black mt-1 w-full"></div>
+                    <div class="text-center leading-tight">
+                        <p class="text-[10px] font-bold uppercase">${roleTitle}</p>
+                        <p class="text-[9px] text-gray-500 truncate max-w-[120px] mx-auto">${nameSubtitle}</p>
+                    </div>
 
-    const ctaHTML = !base64 ? '<p class="text-[9px] text-sky-600 mt-1 no-print font-bold hover:underline cursor-pointer flex items-center justify-center gap-1"><i class="fas fa-pen"></i> Clique para Assinar</p>' : '';
+                    <div class="absolute top-1 right-1 text-[6px] text-gray-400 font-mono text-right leading-none">
+                        ${dateStr}<br>${deviceType}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 
+    // Estado Vazio (Aguardando)
     return `
-        <div class="text-center relative group cursor-pointer p-1 border border-transparent hover:border-gray-200 rounded transition-colors break-inside-avoid signature-interaction-area" data-sig-key="${key}">
-            ${imgHTML}
-            <div class="border-t border-black mb-1 w-full mx-auto mt-2"></div>
-            <p class="text-xs font-bold uppercase leading-tight">${roleTitle}</p>
-            <p class="text-[10px] text-gray-500 leading-tight">${nameSubtitle}</p>
-            ${ctaHTML}
+        <div class="h-24 border border-dashed border-gray-300 rounded bg-gray-50 flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-100 transition signature-interaction-area" data-sig-key="${key}">
+            <i class="fas fa-fingerprint text-2xl mb-1 opacity-50"></i>
+            <p class="text-[10px] uppercase font-bold">Aguardando Assinatura</p>
+            <p class="text-[9px]">${roleTitle}</p>
+            <p class="text-[9px] text-sky-600 font-bold mt-2"><i class="fas fa-camera"></i> + <i class="fas fa-pen"></i> Assinar</p>
         </div>
     `;
 };
 
 const generateSignaturesGrid = (slots) => {
     let itemsHTML = slots.map(slot => {
-        const base64 = signatureMap.get(slot.key);
-        return getSingleSignatureBoxHTML(slot.key, slot.role, slot.name, base64);
+        const sigData = signatureMap.get(slot.key);
+        return getSingleSignatureBoxHTML(slot.key, slot.role, slot.name, sigData);
     }).join('');
 
-    const mgmtBase64 = signatureMap.get('management');
+    const mgmtData = signatureMap.get('management');
     const mgmtHTML = `
-        <div class="col-span-2 flex justify-center mt-4 border-t pt-4">
-            <div class="w-1/2">
-                ${getSingleSignatureBoxHTML('management', 'Gestão Escolar', state.config?.schoolName || 'Direção', mgmtBase64)}
+        <div class="mt-6 pt-4 border-t border-gray-200">
+            <p class="text-[10px] text-gray-400 text-center mb-2 uppercase tracking-widest">Autenticação da Gestão</p>
+            <div class="w-2/3 mx-auto">
+                ${getSingleSignatureBoxHTML('management', 'Gestão Escolar', state.config?.schoolName || 'Direção', mgmtData)}
             </div>
         </div>
     `;
 
     return `
-        <div class="mt-8 mb-8 break-inside-avoid">
-             <h5 class="text-[10px] font-bold uppercase text-gray-400 mb-4 border-b pb-1">Validação Digital</h5>
-             <div class="grid grid-cols-2 gap-8 items-end">
+        <div class="mt-8 mb-8 break-inside-avoid p-4 bg-gray-50 rounded border border-gray-200">
+             <h5 class="text-[10px] font-bold uppercase text-gray-500 mb-4 border-b border-gray-300 pb-1 flex justify-between">
+                <span>Registro de Validação e Presença</span>
+                <span class="text-[9px] font-normal"><i class="fas fa-shield-alt"></i> Proteção Biométrica Ativa</span>
+             </h5>
+             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 ${itemsHTML}
              </div>
              ${mgmtHTML}
@@ -397,9 +516,10 @@ const attachDynamicSignatureListeners = (reRenderCallback) => {
         area.onclick = (e) => {
             e.stopPropagation(); 
             const key = area.getAttribute('data-sig-key');
-            openSignaturePad((base64Image) => {
-                signatureMap.set(key, base64Image);
-                showToast("Assinatura coletada com sucesso!");
+            openSignaturePad((data) => {
+                // data agora é { signature, photo }
+                signatureMap.set(key, data);
+                showToast("Assinatura e Foto coletadas!");
                 reRenderCallback();
             });
         };
@@ -412,9 +532,9 @@ const attachDynamicSignatureListeners = (reRenderCallback) => {
         btn.innerHTML = '<i class="fas fa-pen-nib"></i> Assinar';
         btn.className = 'fixed bottom-4 right-4 bg-sky-600 text-white px-4 py-3 rounded-full shadow-lg font-bold text-sm hover:bg-sky-700 z-50 flex items-center gap-2 no-print';
         btn.onclick = () => {
-             openSignaturePad((base64Image) => {
+             openSignaturePad((data) => {
                 let targetKey = 'management';
-                signatureMap.set(targetKey, base64Image); 
+                signatureMap.set(targetKey, data); 
                 showToast("Assinatura da Gestão coletada!");
                 reRenderCallback();
             });
