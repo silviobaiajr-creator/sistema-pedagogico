@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 9.8 (Correção Link Seguro por DocID + Desafio Identidade)
+// VERSÃO: 9.9 (Correção de Visualização Mobile - Texto Expandido)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -144,6 +144,7 @@ const checkForRemoteSignParams = async () => {
                 container.classList.remove('justify-center'); 
                 container.classList.add('pt-4');
 
+                // CORREÇÃO: Removemos 'overflow-auto max-h-[60vh]' para o documento expandir naturalmente
                 container.innerHTML = `
                     <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8">
                         <div class="bg-green-700 p-4 text-white flex justify-between items-center">
@@ -155,9 +156,12 @@ const checkForRemoteSignParams = async () => {
                                 <span class="bg-green-800 px-2 py-1 rounded">Ambiente Seguro</span>
                             </div>
                         </div>
-                        <div class="p-6 md:p-10 text-sm overflow-auto max-h-[60vh] bg-gray-50 border-b">
+                        
+                        <!-- Conteúdo do Documento (Agora expandido sem scroll interno) -->
+                        <div class="p-6 md:p-10 text-sm bg-gray-50 border-b">
                             ${docSnapshot.htmlContent}
                         </div>
+
                         <div class="bg-gray-100 p-6 flex flex-col items-center gap-4">
                             <div class="text-center mb-2">
                                 <p class="font-bold text-gray-800 text-lg">Declaração Final de Aceite</p>
