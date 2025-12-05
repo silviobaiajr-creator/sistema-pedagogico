@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: firestore.js
-// VERSÃO: 3.5 (Correção Definitiva: Auto-Limpeza de Duplicatas e Verificação de Conteúdo)
+// VERSÃO: 3.6 (Correção: Smart Date e Suporte a Atas sem Duplicatas)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
@@ -379,33 +379,69 @@ export const getDashboardStats = async () => {
 
 // --- ARQUIVO DIGITAL / SNAPSHOTS (NOVAS FUNÇÕES COM PREVENÇÃO DE DUPLICATAS) ---
 
+export const findDocumentSnapshot = async (docType, studentId, refId) => {
+    try {
+        const documentsRef = getCollectionRef('documents');
+        const sRefId = refId ? String(refId).trim() : null;
+        const sStudentId = studentId ? String(studentId).trim() : null;
+
+        if (!sRefId) return null; // refId é obrigatório para busca única
+
+        const conditions = [
+            where('type', '==', docType),
+            where('refId', '==', sRefId)
+        ];
+        
+        if (sStudentId) {
+            conditions.push(where('studentId', '==', sStudentId));
+        } else {
+            // Se studentId for null (ex: Ata Geral), busca onde é null
+            conditions.push(where('studentId', '==', null));
+        }
+
+        const q = query(documentsRef, ...conditions, limit(1));
+        
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+             const d = snapshot.docs[0];
+             return { id: d.id, ...d.data(), ref: d.ref };
+        }
+        return null;
+
+    } catch (error) {
+        console.error("Erro ao buscar snapshot:", error);
+        return null;
+    }
+};
+
 export const saveDocumentSnapshot = async (docType, title, htmlContent, studentId, metadata = {}) => {
     try {
         const documentsRef = getCollectionRef('documents');
-        // Garante que IDs sejam strings e sem espaços extras para busca exata
         const refId = metadata.refId ? String(metadata.refId).trim() : null;
         const safeStudentId = studentId ? String(studentId).trim() : null;
         
-        // CORREÇÃO: Verifica se já existe um documento com as mesmas características (Tipo, Aluno, RefID)
-        if (refId && safeStudentId) {
-            // REMOVIDO limit(1) para detectar duplicatas antigas e limpar
-            const q = query(
-                documentsRef, 
+        // CORREÇÃO: Verifica duplicatas usando query específica que suporta studentId NULL
+        if (refId) {
+            const conditions = [
                 where('type', '==', docType),
-                where('studentId', '==', safeStudentId),
                 where('refId', '==', refId)
-            );
-            
+            ];
+            if (safeStudentId) {
+                conditions.push(where('studentId', '==', safeStudentId));
+            } else {
+                conditions.push(where('studentId', '==', null));
+            }
+
+            const q = query(documentsRef, ...conditions);
             const snapshot = await getDocs(q);
             
             if (!snapshot.empty) {
                 const docToUpdate = snapshot.docs[0];
 
-                // AUTO-LIMPEZA: Se houver mais de 1 documento para o mesmo RefID, apaga os extras
+                // AUTO-LIMPEZA: Se houver mais de 1 documento duplicado, apaga os extras
                 if (snapshot.size > 1) {
                     console.warn(`Limpando ${snapshot.size - 1} duplicatas detectadas para RefID: ${refId}`);
                     const deletePromises = [];
-                    // Começa do índice 1, mantendo o índice 0 (docToUpdate)
                     for (let i = 1; i < snapshot.docs.length; i++) {
                         deletePromises.push(deleteDoc(doc(documentsRef, snapshot.docs[i].id)));
                     }
@@ -415,33 +451,32 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
                 const currentData = docToUpdate.data();
 
                 // SOLUÇÃO INTELIGENTE: 
-                // Compara o conteúdo HTML atual com o novo.
-                // Se forem idênticos, NÃO faz nada (nem update, nem muda data).
+                // Se conteúdo idêntico, não faz nada (mantém data original).
                 if (currentData.htmlContent === htmlContent) {
-                    console.log(`Documento [${docToUpdate.id}] é idêntico. Nenhuma alteração salva.`);
+                    console.log(`Documento [${docToUpdate.id}] é idêntico. Mantendo original.`);
                     return docToUpdate.ref; 
                 }
 
-                // SE FOR DIFERENTE: Atualiza o conteúdo e a data
+                // SE DIFERENTE: Atualiza conteúdo e data (pois houve modificação real)
                 await updateDoc(doc(documentsRef, docToUpdate.id), {
                     title: title,
                     htmlContent: htmlContent,
-                    createdAt: new Date(), // Atualiza data para subir na lista pois houve alteração real
+                    createdAt: new Date(), 
                     createdBy: state.userEmail || 'Sistema'
                 });
-                console.log(`Documento atualizado: ${docToUpdate.id}`);
+                console.log(`Documento atualizado (conteúdo alterado): ${docToUpdate.id}`);
                 return docToUpdate.ref;
             }
         }
 
-        // SE NÃO EXISTIR: Cria um novo registro
+        // SE NÃO EXISTIR: Cria novo
         const docData = {
-            type: docType, // 'ata', 'oficio', 'notificacao', 'relatorio', 'ficha_busca_ativa'
+            type: docType,
             title: title,
             htmlContent: htmlContent, 
             studentId: safeStudentId || null,
             studentName: metadata.studentName || null,
-            refId: refId, // ID único da Ocorrência, Processo ou Tentativa
+            refId: refId,
             createdAt: new Date(),
             createdBy: state.userEmail || 'Sistema'
         };

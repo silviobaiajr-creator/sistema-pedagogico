@@ -1,13 +1,13 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 7.1 (Correção refId Notificações)
+// VERSÃO: 7.2 (Smart Date Logic & RefId Fix)
 // =================================================================================
 
 import { state, dom } from './state.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
 import { roleIcons, defaultRole, getFilteredOccurrences } from './logic.js';
-import { getIncidentByGroupId as fetchIncidentById, getStudentById, getOccurrencesForReport, getAbsencesForReport, saveDocumentSnapshot } from './firestore.js';
+import { getIncidentByGroupId as fetchIncidentById, getStudentById, getOccurrencesForReport, getAbsencesForReport, saveDocumentSnapshot, findDocumentSnapshot } from './firestore.js';
 
 
 export const actionDisplayTitles = {
@@ -50,14 +50,41 @@ const resolveStudentData = async (studentId, recordSource = null) => {
     };
 };
 
+// --- FUNÇÃO SMART DATE: Decide se usa data antiga ou nova ---
+async function generateSmartHTML(docType, studentId, refId, htmlGeneratorFn) {
+    // Busca versão salva
+    const existingDoc = await findDocumentSnapshot(docType, studentId, refId);
+    
+    // Tenta gerar com a data original
+    if (existingDoc && existingDoc.createdAt) {
+        const oldDate = existingDoc.createdAt.toDate();
+        const oldHTML = htmlGeneratorFn(oldDate);
+        
+        // Se o HTML gerado com a data antiga for IDÊNTICO ao salvo,
+        // retorna o HTML com data antiga (preserva o documento histórico).
+        if (oldHTML === existingDoc.htmlContent) {
+            console.log("Conteúdo inalterado. Usando versão original de:", oldDate.toLocaleString());
+            return oldHTML; 
+        }
+    }
+    
+    // Se não existe, ou se conteúdo mudou (typo corrigido, novos dados),
+    // gera com data de hoje.
+    console.log("Conteúdo novo ou alterado. Gerando com data atual.");
+    const newDate = new Date();
+    return htmlGeneratorFn(newDate);
+}
+
+
 // =================================================================================
 // HELPERS DE LAYOUT
 // =================================================================================
 
-export const getReportHeaderHTML = () => {
+export const getReportHeaderHTML = (dateObj = new Date()) => {
     const logoUrl = state.config?.schoolLogoUrl || null;
     const schoolName = state.config?.schoolName || "Nome da Escola";
     const city = state.config?.city || "Cidade";
+    const year = dateObj.getFullYear();
 
     let headerContent = '';
     
@@ -72,7 +99,7 @@ export const getReportHeaderHTML = () => {
                 </div>
                 <div class="hidden sm:block text-right text-xs text-gray-400">
                     <p>Documento Oficial</p>
-                    <p>${new Date().getFullYear()}</p>
+                    <p>${year}</p>
                 </div>
             </div>`;
     } else {
@@ -112,7 +139,6 @@ const getPrintHTML = (prints, singlePrintFallback) => {
 
     if (images.length === 0) return '';
 
-    // Verifica se é video ou audio
     const isVideo = (src) => src.includes('.mp4') || src.includes('.webm');
     const isAudio = (src) => src.includes('.mp3') || src.includes('.wav');
 
@@ -243,11 +269,8 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
         if (data.contactSucceeded_2 != null) attemptCount = 3;
     }
 
-    // Usa os campos específicos da tentativa (ex: meetingDate_1, meetingDate_2)
     let meetingDate = data[`meetingDate_${attemptCount}`];
     let meetingTime = data[`meetingTime_${attemptCount}`];
-
-    // Fallback para o campo legado (meetingDate) se for a 1ª tentativa
     if (attemptCount === 1 && !meetingDate) {
         meetingDate = data.meetingDate;
         meetingTime = data.meetingTime;
@@ -256,40 +279,45 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
     if (!meetingDate) {
         return showAlert(`Não foi possível gerar a notificação: a data da ${attemptCount}ª convocação não foi encontrada no registro.`);
     }
-    
-    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    const attemptText = `Esta é a <strong>${attemptCount}ª tentativa</strong> de contato formal realizada pela escola.`;
 
-    const html = `
-        <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
-            ${getReportHeaderHTML()}
-            <p class="text-right text-sm italic mb-8">${state.config?.city || "Cidade"}, ${currentDate}</p>
-            <h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">Notificação de Ocorrência Escolar</h3>
-            ${getStudentIdentityCardHTML(student)}
-            <p class="text-justify indent-8">Prezados Senhores Pais ou Responsáveis,</p>
-            <p class="text-justify indent-8 mt-2">Vimos por meio desta notificá-los sobre um registro disciplinar referente ao(à) aluno(a) acima identificado(a), classificado como <strong>"${formatText(data.occurrenceType)}"</strong>, ocorrido na data de <strong>${formatDate(data.date)}</strong>. ${attemptText}</p>
-            <div class="my-6 p-4 bg-gray-50 border-l-4 border-red-500 rounded text-sm font-sans"><p class="font-bold text-red-700 mb-1"><i class="fas fa-exclamation-triangle"></i> Atenção:</p><p class="text-justify text-gray-700">Conforme a Lei de Diretrizes e Bases da Educação (LDB) e o Estatuto da Criança e do Adolescente (ECA), a parceria família-escola é fundamental. O não comparecimento após as tentativas formais de contato poderá acarretar no encaminhamento do caso aos órgãos de proteção.</p></div>
-            <p class="text-justify mt-4">Solicitamos o comparecimento urgente de um responsável na coordenação pedagógica para tratar deste assunto na seguinte data:</p>
-            <div class="my-6 mx-auto max-w-sm border-2 border-gray-800 rounded-lg p-4 text-center bg-white shadow-sm break-inside-avoid">
-                <p class="text-xs uppercase tracking-wide text-gray-500 font-bold mb-1">Agendamento</p>
-                <div class="text-2xl font-bold text-gray-900">${formatDate(meetingDate)}</div>
-                <div class="text-xl font-semibold text-gray-700 mt-1">${formatTime(meetingTime)}</div>
-            </div>
-            <div class="signature-block mt-24 pt-8 mb-8 break-inside-avoid">
-                <div class="flex justify-around items-end">
-                    <div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Gestão Escolar</p></div>
-                    <div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Responsável pelo Aluno(a)</p></div>
+    const uniqueRefId = `${incident.id}_attempt_${attemptCount}`;
+    
+    // --- SMART GENERATION ---
+    const generateContent = (dateObj) => {
+        const currentDateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+        const attemptText = `Esta é a <strong>${attemptCount}ª tentativa</strong> de contato formal realizada pela escola.`;
+
+        return `
+            <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
+                ${getReportHeaderHTML(dateObj)}
+                <p class="text-right text-sm italic mb-8">${state.config?.city || "Cidade"}, ${currentDateStr}</p>
+                <h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">Notificação de Ocorrência Escolar</h3>
+                ${getStudentIdentityCardHTML(student)}
+                <p class="text-justify indent-8">Prezados Senhores Pais ou Responsáveis,</p>
+                <p class="text-justify indent-8 mt-2">Vimos por meio desta notificá-los sobre um registro disciplinar referente ao(à) aluno(a) acima identificado(a), classificado como <strong>"${formatText(data.occurrenceType)}"</strong>, ocorrido na data de <strong>${formatDate(data.date)}</strong>. ${attemptText}</p>
+                <div class="my-6 p-4 bg-gray-50 border-l-4 border-red-500 rounded text-sm font-sans"><p class="font-bold text-red-700 mb-1"><i class="fas fa-exclamation-triangle"></i> Atenção:</p><p class="text-justify text-gray-700">Conforme a Lei de Diretrizes e Bases da Educação (LDB) e o Estatuto da Criança e do Adolescente (ECA), a parceria família-escola é fundamental. O não comparecimento após as tentativas formais de contato poderá acarretar no encaminhamento do caso aos órgãos de proteção.</p></div>
+                <p class="text-justify mt-4">Solicitamos o comparecimento urgente de um responsável na coordenação pedagógica para tratar deste assunto na seguinte data:</p>
+                <div class="my-6 mx-auto max-w-sm border-2 border-gray-800 rounded-lg p-4 text-center bg-white shadow-sm break-inside-avoid">
+                    <p class="text-xs uppercase tracking-wide text-gray-500 font-bold mb-1">Agendamento</p>
+                    <div class="text-2xl font-bold text-gray-900">${formatDate(meetingDate)}</div>
+                    <div class="text-xl font-semibold text-gray-700 mt-1">${formatTime(meetingTime)}</div>
                 </div>
-            </div>
-        </div>`;
+                <div class="signature-block mt-24 pt-8 mb-8 break-inside-avoid">
+                    <div class="flex justify-around items-end">
+                        <div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Gestão Escolar</p></div>
+                        <div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Responsável pelo Aluno(a)</p></div>
+                    </div>
+                </div>
+            </div>`;
+    };
+
+    const html = await generateSmartHTML('notificacao', student.matricula, uniqueRefId, generateContent);
 
     document.getElementById('notification-title').innerText = 'Notificação';
     document.getElementById('notification-content').innerHTML = html;
     openModal(dom.notificationModalBackdrop);
 
-    // AUTO-SAVE SNAPSHOT
-    // CORREÇÃO: refId composto para distinguir tentativas (ex: occ123_attempt_1)
-    const uniqueRefId = `${incident.id}_attempt_${attemptCount}`;
+    // AUTO-SAVE
     saveDocumentSnapshot('notificacao', `Notificação ${attemptCount}ª Tentativa - ${student.name}`, html, student.matricula, { studentName: student.name, refId: uniqueRefId });
 };
 
@@ -300,110 +328,109 @@ export const openOccurrenceRecordModal = async (groupId) => {
     const mainRecord = incident.records[0]; 
     const city = state.config?.city || "Cidade";
     
-    let html = `
-        <div class="space-y-4 text-sm font-serif leading-relaxed text-gray-900">
-            ${getReportHeaderHTML()}
-            <h3 class="text-lg font-bold text-center uppercase mb-6 bg-gray-100 py-2 border rounded">ATA DE REGISTRO DE OCORRÊNCIA Nº ${incident.id}</h3>
-            
-            <p class="text-justify indent-8">
-                Aos ${new Date().toLocaleDateString('pt-BR', {dateStyle:'long'})}, foi lavrada a presente ata para registrar os fatos referentes ao incidente classificado como <strong>"${formatText(mainRecord.occurrenceType)}"</strong>.
-            </p>
-
-            <h4 class="font-bold border-b border-gray-300 mt-6 mb-2 uppercase text-xs text-gray-500">1. Descrição do Fato e Envolvidos</h4>
-            <div class="bg-gray-50 p-4 rounded border border-gray-200 text-sm font-sans mb-4">
-                <p class="italic text-gray-700">"${formatText(mainRecord.description)}"</p>
-            </div>
-            
-            <div class="mb-4">
-                <p class="font-bold text-xs uppercase text-gray-500 mb-2">Alunos Envolvidos:</p>
-                <div class="grid grid-cols-1 gap-2">
-                    ${[...incident.participantsInvolved.values()].map(p => `
-                        <div class="flex items-center gap-2 p-2 border rounded bg-white">
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${p.role === 'Vítima' ? 'bg-blue-50 text-blue-700 border-blue-200' : p.role === 'Agente' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-700 border-gray-200'}">${p.role}</span>
-                            <span class="font-semibold text-gray-800">${p.student.name}</span>
-                            <span class="text-xs text-gray-500">(${p.student.class})</span>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-
-            <h4 class="font-bold border-b border-gray-300 mt-6 mb-2 uppercase text-xs text-gray-500">2. Providências Imediatas (Escola)</h4>
-            <p class="text-justify bg-gray-50 p-3 rounded border border-gray-200 font-sans text-sm">${formatText(mainRecord.providenciasEscola)}</p>
-
-            <h4 class="font-bold border-b border-gray-300 mt-6 mb-2 uppercase text-xs text-gray-500">3. Histórico de Acompanhamento</h4>
-    `;
-
-    // Loop de acompanhamento (Timeline)
-    incident.records.forEach(rec => {
-        const participant = incident.participantsInvolved.get(rec.studentId);
-        const name = participant ? participant.student.name : rec.studentName;
-
-        let timelineItems = [];
-
-        if (rec.meetingDate) timelineItems.push({ date: rec.meetingDate, title: "1ª Convocação Agendada", desc: `Para: ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}` });
+    // --- SMART GENERATION ---
+    const generateContent = (dateObj) => {
+        const dateString = dateObj.toLocaleDateString('pt-BR', {dateStyle:'long'});
         
-        for (let i = 1; i <= 3; i++) {
-            const succ = rec[`contactSucceeded_${i}`];
-            if (succ) {
-                const date = rec[`contactDate_${i}`];
-                const status = succ === 'yes' ? "Contato Realizado" : "Sem Sucesso";
-                const prov = rec[`providenciasFamilia_${i}`] || '';
-                const prints = rec[`contactPrints_${i}`];
-                const singlePrint = rec[`contactPrint_${i}`];
+        let html = `
+            <div class="space-y-4 text-sm font-serif leading-relaxed text-gray-900">
+                ${getReportHeaderHTML(dateObj)}
+                <h3 class="text-lg font-bold text-center uppercase mb-6 bg-gray-100 py-2 border rounded">ATA DE REGISTRO DE OCORRÊNCIA Nº ${incident.id}</h3>
                 
-                let desc = succ === 'yes' ? `Com: ${rec[`contactPerson_${i}`]}. Prov: ${prov}` : "Responsável não compareceu/atendeu.";
+                <p class="text-justify indent-8">
+                    Aos ${dateString}, foi lavrada a presente ata para registrar os fatos referentes ao incidente classificado como <strong>"${formatText(mainRecord.occurrenceType)}"</strong>.
+                </p>
+
+                <h4 class="font-bold border-b border-gray-300 mt-6 mb-2 uppercase text-xs text-gray-500">1. Descrição do Fato e Envolvidos</h4>
+                <div class="bg-gray-50 p-4 rounded border border-gray-200 text-sm font-sans mb-4">
+                    <p class="italic text-gray-700">"${formatText(mainRecord.description)}"</p>
+                </div>
                 
-                if (succ === 'yes' && ((prints && prints.length) || singlePrint)) {
-                    desc += getPrintHTML(prints, singlePrint);
+                <div class="mb-4">
+                    <p class="font-bold text-xs uppercase text-gray-500 mb-2">Alunos Envolvidos:</p>
+                    <div class="grid grid-cols-1 gap-2">
+                        ${[...incident.participantsInvolved.values()].map(p => `
+                            <div class="flex items-center gap-2 p-2 border rounded bg-white">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${p.role === 'Vítima' ? 'bg-blue-50 text-blue-700 border-blue-200' : p.role === 'Agente' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-700 border-gray-200'}">${p.role}</span>
+                                <span class="font-semibold text-gray-800">${p.student.name}</span>
+                                <span class="text-xs text-gray-500">(${p.student.class})</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <h4 class="font-bold border-b border-gray-300 mt-6 mb-2 uppercase text-xs text-gray-500">2. Providências Imediatas (Escola)</h4>
+                <p class="text-justify bg-gray-50 p-3 rounded border border-gray-200 font-sans text-sm">${formatText(mainRecord.providenciasEscola)}</p>
+
+                <h4 class="font-bold border-b border-gray-300 mt-6 mb-2 uppercase text-xs text-gray-500">3. Histórico de Acompanhamento</h4>
+        `;
+
+        // Loop de acompanhamento
+        incident.records.forEach(rec => {
+            const participant = incident.participantsInvolved.get(rec.studentId);
+            const name = participant ? participant.student.name : rec.studentName;
+            let timelineItems = [];
+
+            if (rec.meetingDate) timelineItems.push({ date: rec.meetingDate, title: "1ª Convocação Agendada", desc: `Para: ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}` });
+            
+            for (let i = 1; i <= 3; i++) {
+                const succ = rec[`contactSucceeded_${i}`];
+                if (succ) {
+                    const date = rec[`contactDate_${i}`];
+                    const status = succ === 'yes' ? "Contato Realizado" : "Sem Sucesso";
+                    const prov = rec[`providenciasFamilia_${i}`] || '';
+                    const prints = rec[`contactPrints_${i}`];
+                    const singlePrint = rec[`contactPrint_${i}`];
+                    
+                    let desc = succ === 'yes' ? `Com: ${rec[`contactPerson_${i}`]}. Prov: ${prov}` : "Responsável não compareceu/atendeu.";
+                    if (succ === 'yes' && ((prints && prints.length) || singlePrint)) desc += getPrintHTML(prints, singlePrint);
+                    
+                    timelineItems.push({ date: date, title: `Feedback ${i}ª Tentativa`, desc: desc, status: status });
                 }
-                
-                timelineItems.push({ date: date, title: `Feedback ${i}ª Tentativa`, desc: desc, status: status });
+                if (i < 3) {
+                     const nDate = rec[`meetingDate_${i+1}`];
+                     if (nDate) timelineItems.push({ date: nDate, title: `${i+1}ª Convocação Agendada`, desc: `Para: ${formatDate(nDate)} às ${formatTime(rec[`meetingTime_${i+1}`])}` });
+                }
             }
-            if (i < 3) {
-                 const nDate = rec[`meetingDate_${i+1}`];
-                 if (nDate) timelineItems.push({ date: nDate, title: `${i+1}ª Convocação Agendada`, desc: `Para: ${formatDate(nDate)} às ${formatTime(rec[`meetingTime_${i+1}`])}` });
+
+            if (rec.oficioNumber) timelineItems.push({ date: rec.ctSentDate, title: "Encaminhamento CT", desc: `Ofício ${rec.oficioNumber}/${rec.oficioYear}` });
+            if (rec.ctFeedback) timelineItems.push({ date: null, title: "Devolutiva CT", desc: rec.ctFeedback });
+            if (rec.parecerFinal) timelineItems.push({ date: null, title: "Parecer Final", desc: rec.parecerFinal });
+
+            if (timelineItems.length === 0) {
+                html += `<div class="mb-4"><p class="font-bold text-sm text-gray-800">${name}:</p><p class="text-xs text-gray-500 italic ml-4">Sem ações registradas.</p></div>`;
+            } else {
+                html += `<div class="mb-4 break-inside-avoid"><p class="font-bold text-sm text-gray-800 mb-2 bg-sky-50 p-1 px-2 rounded inline-block">${name} <span class="text-xs font-normal text-gray-500">(${rec.statusIndividual})</span></p>`;
+                timelineItems.forEach(item => {
+                    html += `<div class="report-timeline-item ml-2"><div class="report-timeline-dot"></div><p class="text-xs font-bold text-gray-700">${item.title} <span class="font-normal text-gray-500 ml-1">${item.date ? `(${formatDate(item.date)})` : ''}</span></p><div class="text-xs text-gray-600 mt-1">${item.desc}</div></div>`;
+                });
+                html += `</div>`;
             }
-        }
+        });
 
-        if (rec.oficioNumber) timelineItems.push({ date: rec.ctSentDate, title: "Encaminhamento CT", desc: `Ofício ${rec.oficioNumber}/${rec.oficioYear}` });
-        if (rec.ctFeedback) timelineItems.push({ date: null, title: "Devolutiva CT", desc: rec.ctFeedback });
-        if (rec.parecerFinal) timelineItems.push({ date: null, title: "Parecer Final", desc: rec.parecerFinal });
+        html += `
+                <div class="mt-8 pt-4 border-t-2 border-gray-800">
+                    <p class="font-bold text-center mb-4">ENCERRAMENTO</p>
+                    <p class="text-center text-sm">${incident.overallStatus === 'Finalizada' ? 'Ocorrência finalizada.' : 'Ocorrência segue em acompanhamento.'}</p>
+                    <p class="text-center text-sm mt-2">${city}, ${dateString}.</p>
+                </div>
 
-        if (timelineItems.length === 0) {
-            html += `<div class="mb-4"><p class="font-bold text-sm text-gray-800">${name}:</p><p class="text-xs text-gray-500 italic ml-4">Sem ações registradas.</p></div>`;
-        } else {
-            html += `<div class="mb-4 break-inside-avoid"><p class="font-bold text-sm text-gray-800 mb-2 bg-sky-50 p-1 px-2 rounded inline-block">${name} <span class="text-xs font-normal text-gray-500">(${rec.statusIndividual})</span></p>`;
-            timelineItems.forEach(item => {
-                html += `
-                    <div class="report-timeline-item ml-2">
-                        <div class="report-timeline-dot"></div>
-                        <p class="text-xs font-bold text-gray-700">${item.title} <span class="font-normal text-gray-500 ml-1">${item.date ? `(${formatDate(item.date)})` : ''}</span></p>
-                        <div class="text-xs text-gray-600 mt-1">${item.desc}</div>
-                    </div>`;
-            });
-            html += `</div>`;
-        }
-    });
+                <div class="signature-block mt-24 pt-8 grid grid-cols-2 gap-8 break-inside-avoid">
+                    <div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Gestão Escolar</p></div>
+                    <div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Responsável/Aluno (se presente)</p></div>
+                </div>
+            </div>`;
+        return html;
+    };
 
-    html += `
-            <div class="mt-8 pt-4 border-t-2 border-gray-800">
-                <p class="font-bold text-center mb-4">ENCERRAMENTO</p>
-                <p class="text-center text-sm">${incident.overallStatus === 'Finalizada' ? 'Ocorrência finalizada.' : 'Ocorrência segue em acompanhamento.'}</p>
-                <p class="text-center text-sm mt-2">${city}, ${new Date().toLocaleDateString('pt-BR')}.</p>
-            </div>
-
-            <div class="signature-block mt-24 pt-8 grid grid-cols-2 gap-8 break-inside-avoid">
-                <div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Gestão Escolar</p></div>
-                <div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Responsável/Aluno (se presente)</p></div>
-            </div>
-        </div>`;
+    // Gera usando null para studentId, pois Ata é do incidente
+    const finalHtml = await generateSmartHTML('ata', null, incident.id, generateContent);
 
     document.getElementById('report-view-title').textContent = `Ata Nº ${incident.id}`;
-    document.getElementById('report-view-content').innerHTML = html;
+    document.getElementById('report-view-content').innerHTML = finalHtml;
     openModal(dom.reportViewModalBackdrop);
 
-    // AUTO-SAVE SNAPSHOT
-    saveDocumentSnapshot('ata', `Ata de Ocorrência Nº ${incident.id}`, html, null, { refId: incident.id });
+    saveDocumentSnapshot('ata', `Ata de Ocorrência Nº ${incident.id}`, finalHtml, null, { refId: incident.id });
 };
 
 export const openFichaViewModal = async (id) => {
@@ -416,7 +443,6 @@ export const openFichaViewModal = async (id) => {
     let absenceCount = record.absenceCount;
     let periodoStart = record.periodoFaltasStart;
     let periodoEnd = record.periodoFaltasEnd;
-
     if (!absenceCount) {
         const processActions = state.absences.filter(a => a.processId === record.processId);
         const source = processActions.find(a => a.periodoFaltasStart);
@@ -430,71 +456,61 @@ export const openFichaViewModal = async (id) => {
         visita: "Registro de Visita Domiciliar"
     };
     const title = titleMap[record.actionType] || actionDisplayTitles[record.actionType] || "Documento Busca Ativa";
-    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    let bodyContent = '';
+    // --- SMART GENERATION ---
+    const generateContent = (dateObj) => {
+        const currentDateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+        let bodyContent = '';
 
-    if (record.actionType.startsWith('tentativa')) {
-        bodyContent = `
-            <p class="text-justify indent-8">
-                Prezados Responsáveis,
-            </p>
-            <p class="text-justify indent-8 mt-2">
-                Comunicamos que o(a) aluno(a) acima identificado(a) atingiu o número de <strong>${formatText(absenceCount)} faltas</strong> 
-                no período de ${formatDate(periodoStart)} a ${formatDate(periodoEnd)}, configurando situação de risco escolar.
-            </p>
-            <div class="my-4 p-3 bg-yellow-50 border-l-4 border-yellow-500 text-sm font-sans rounded">
-                <p><strong>Fundamentação Legal:</strong> Conforme a LDB (Lei 9.394/96) e o ECA, é dever da família assegurar a frequência escolar. 
-                A persistência das faltas sem justificativa legal exigirá a notificação obrigatória ao Conselho Tutelar e Ministério Público.</p>
-            </div>
-            ${record.meetingDate ? `
-                <p class="text-justify mt-4">Solicitamos comparecimento obrigatório na escola:</p>
-                <div class="my-4 mx-auto max-w-xs border border-gray-400 rounded p-3 text-center bg-white shadow-sm">
-                    <p class="font-bold text-lg">${formatDate(record.meetingDate)}</p>
-                    <p class="font-semibold text-gray-700">${formatTime(record.meetingTime)}</p>
+        if (record.actionType.startsWith('tentativa')) {
+            bodyContent = `
+                <p class="text-justify indent-8">Prezados Responsáveis,</p>
+                <p class="text-justify indent-8 mt-2">Comunicamos que o(a) aluno(a) acima identificado(a) atingiu o número de <strong>${formatText(absenceCount)} faltas</strong> no período de ${formatDate(periodoStart)} a ${formatDate(periodoEnd)}, configurando situação de risco escolar.</p>
+                <div class="my-4 p-3 bg-yellow-50 border-l-4 border-yellow-500 text-sm font-sans rounded"><p><strong>Fundamentação Legal:</strong> Conforme a LDB (Lei 9.394/96) e o ECA, é dever da família assegurar a frequência escolar. A persistência das faltas sem justificativa legal exigirá a notificação obrigatória ao Conselho Tutelar e Ministério Público.</p></div>
+                ${record.meetingDate ? `<p class="text-justify mt-4">Solicitamos comparecimento obrigatório na escola:</p><div class="my-4 mx-auto max-w-xs border border-gray-400 rounded p-3 text-center bg-white shadow-sm"><p class="font-bold text-lg">${formatDate(record.meetingDate)}</p><p class="font-semibold text-gray-700">${formatTime(record.meetingTime)}</p></div>` : `<p class="mt-4 font-bold text-center">Favor comparecer à secretaria da escola com urgência.</p>`}
+            `;
+        } else if (record.actionType === 'visita') {
+            bodyContent = `
+                <p class="text-justify indent-8">Certifico que, nesta data, foi realizada Visita Domiciliar referente ao aluno(a) supracitado(a).</p>
+                <div class="mt-4 p-4 border rounded bg-gray-50 font-sans text-sm"><p><strong>Data da Visita:</strong> ${formatDate(record.visitDate)}</p><p><strong>Agente:</strong> ${formatText(record.visitAgent)}</p><p><strong>Resultado:</strong> ${record.visitSucceeded === 'yes' ? 'Contato Realizado' : 'Sem sucesso'}</p><p class="mt-2"><strong>Observações/Justificativa:</strong></p><p class="italic bg-white p-2 border rounded mt-1">${formatText(record.visitReason)} ${formatText(record.visitObs)}</p></div>
+            `;
+        }
+
+        return `
+            <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
+                ${getReportHeaderHTML(dateObj)}
+                <p class="text-right text-sm italic mb-4">${state.config?.city || "Cidade"}, ${currentDateStr}</p>
+                <h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">${title}</h3>
+                ${getStudentIdentityCardHTML(student)}
+                ${bodyContent}
+                <div class="signature-block mt-24 pt-8 mb-8 break-inside-avoid">
+                    <div class="flex justify-around items-end">
+                        <div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Gestão Escolar</p></div>
+                        <div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Responsável</p></div>
+                    </div>
                 </div>
-            ` : `<p class="mt-4 font-bold text-center">Favor comparecer à secretaria da escola com urgência.</p>`}
-        `;
-    } else if (record.actionType === 'visita') {
-        bodyContent = `
-            <p class="text-justify indent-8">
-                Certifico que, nesta data, foi realizada Visita Domiciliar referente ao aluno(a) supracitado(a).
-            </p>
-            <div class="mt-4 p-4 border rounded bg-gray-50 font-sans text-sm">
-                <p><strong>Data da Visita:</strong> ${formatDate(record.visitDate)}</p>
-                <p><strong>Agente:</strong> ${formatText(record.visitAgent)}</p>
-                <p><strong>Resultado:</strong> ${record.visitSucceeded === 'yes' ? 'Contato Realizado' : 'Sem sucesso'}</p>
-                <p class="mt-2"><strong>Observações/Justificativa:</strong></p>
-                <p class="italic bg-white p-2 border rounded mt-1">${formatText(record.visitReason)} ${formatText(record.visitObs)}</p>
-            </div>
-        `;
-    }
+            </div>`;
+    };
 
-    const html = `
-        <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
-            ${getReportHeaderHTML()}
-            <p class="text-right text-sm italic mb-4">${state.config?.city || "Cidade"}, ${currentDate}</p>
-            <h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">${title}</h3>
-            ${getStudentIdentityCardHTML(student)}
-            ${bodyContent}
-            
-            <div class="signature-block mt-24 pt-8 mb-8 break-inside-avoid">
-                <div class="flex justify-around items-end">
-                    <div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Gestão Escolar</p></div>
-                    <div class="text-center w-5/12"><div class="border-t border-black mb-1"></div><p class="text-xs font-bold">Responsável</p></div>
-                </div>
-            </div>
-        </div>`;
+    const html = await generateSmartHTML('notificacao', student.matricula, record.id, generateContent);
 
     document.getElementById('ficha-view-title').textContent = title;
     document.getElementById('ficha-view-content').innerHTML = html;
     openModal(dom.fichaViewModalBackdrop);
 
-    // AUTO-SAVE SNAPSHOT
     saveDocumentSnapshot('notificacao', `${title} - ${student.name}`, html, student.matricula, { studentName: student.name, refId: record.id });
 };
 
+// ... generateAndShowConsolidatedFicha e Reports mantidos (atualizam sempre pois são reports de estado) ...
+
 export const generateAndShowConsolidatedFicha = async (studentId, processId = null) => {
+    // Ficha Consolidada é um snapshot do ESTADO ATUAL. Ela deve atualizar sempre se houver novos dados.
+    // Mas se nada mudou, idealmente não duplicaria.
+    // Como a lógica do snapshot v3.6 já previne duplicação se o HTML for idêntico, 
+    // podemos apenas gerar com new Date(). Se tudo for igual (incluindo a data, se usada no texto), não salva.
+    // Porém, se usarmos new Date() no texto, sempre será diferente.
+    // Para simplificar, Fichas Consolidadas e Relatórios Gerenciais assumimos que são gerados na hora (Data Atual).
+    
     let actions = state.absences.filter(a => a.studentId === studentId);
     if (processId) actions = actions.filter(a => a.processId === processId);
     actions.sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
@@ -512,7 +528,6 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
         : `<div class="absolute top-0 right-0 border-2 border-yellow-600 text-yellow-600 font-bold px-2 py-1 transform rotate-12 text-xs uppercase rounded">EM ACOMPANHAMENTO</div>`;
 
     let timelineHTML = '';
-
     const formatReturnStatus = (val) => {
         if (val === 'yes') return `<span class="text-green-700 font-bold uppercase">Sim</span>`;
         if (val === 'no') return `<span class="text-red-700 font-bold uppercase">Não</span>`;
@@ -521,31 +536,17 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
 
     actions.forEach(act => {
         if (act.meetingDate) {
-            timelineHTML += `
-                <div class="report-timeline-item ml-2 break-inside-avoid">
-                    <div class="report-timeline-dot"></div>
-                    <p class="text-sm font-bold text-gray-800">Convocação Agendada <span class="font-normal text-xs text-gray-500">(${actionDisplayTitles[act.actionType]})</span></p>
-                    <p class="text-xs text-gray-600 mt-1">
-                        Para: <strong>${formatDate(act.meetingDate)}</strong> às <strong>${formatTime(act.meetingTime)}</strong>.
-                    </p>
-                </div>`;
+            timelineHTML += `<div class="report-timeline-item ml-2 break-inside-avoid"><div class="report-timeline-dot"></div><p class="text-sm font-bold text-gray-800">Convocação Agendada <span class="font-normal text-xs text-gray-500">(${actionDisplayTitles[act.actionType]})</span></p><p class="text-xs text-gray-600 mt-1">Para: <strong>${formatDate(act.meetingDate)}</strong> às <strong>${formatTime(act.meetingTime)}</strong>.</p></div>`;
         }
-
-        let title = "";
-        let desc = "";
-        let dateRef = act.createdAt?.toDate(); 
-        let imgs = "";
-
+        let title = "", desc = "", dateRef = act.createdAt?.toDate(), imgs = "";
         if (act.actionType.startsWith('tentativa')) {
             if (act.contactSucceeded) {
                 title = `Registro de Contato (${formatText(actionDisplayTitles[act.actionType])})`;
                 dateRef = act.contactDate;
                 const status = act.contactSucceeded === 'yes' ? "Contato Realizado" : "Sem Sucesso/Não Compareceu";
-                
                 desc = `<strong>Status:</strong> ${status}.<br>`;
                 if(act.contactSucceeded === 'yes') {
-                    desc += `<strong>Com quem falou:</strong> ${formatText(act.contactPerson)}.<br>`;
-                    desc += `<strong>Justificativa/Combinado:</strong> ${formatText(act.contactReason)}.`;
+                    desc += `<strong>Com quem falou:</strong> ${formatText(act.contactPerson)}.<br><strong>Justificativa/Combinado:</strong> ${formatText(act.contactReason)}.`;
                     imgs = getPrintHTML(act.contactPrints, act.contactPrint);
                 }
                 desc += `<br><span class="bg-gray-100 px-1 rounded border border-gray-300 mt-1 inline-block"><strong>Retorno à Escola:</strong> ${formatReturnStatus(act.contactReturned)}</span>`;
@@ -553,34 +554,19 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
         } else if (act.actionType === 'visita') {
             title = "Visita Domiciliar Realizada";
             dateRef = act.visitDate;
-            const status = act.visitSucceeded === 'yes' ? "Contato Realizado" : "Sem contato/Não atendido";
-            
-            desc = `<strong>Agente:</strong> ${formatText(act.visitAgent)}.<br>`;
-            desc += `<strong>Status:</strong> ${status}.<br>`;
-            desc += `<strong>Obs:</strong> ${formatText(act.visitReason)} ${formatText(act.visitObs)}.`;
-            desc += `<br><span class="bg-gray-100 px-1 rounded border border-gray-300 mt-1 inline-block"><strong>Retorno à Escola:</strong> ${formatReturnStatus(act.visitReturned)}</span>`;
-
+            desc = `<strong>Agente:</strong> ${formatText(act.visitAgent)}.<br><strong>Status:</strong> ${act.visitSucceeded === 'yes' ? "Contato Realizado" : "Sem contato/Não atendido"}.<br><strong>Obs:</strong> ${formatText(act.visitReason)} ${formatText(act.visitObs)}.<br><span class="bg-gray-100 px-1 rounded border border-gray-300 mt-1 inline-block"><strong>Retorno à Escola:</strong> ${formatReturnStatus(act.visitReturned)}</span>`;
         } else if (act.actionType === 'encaminhamento_ct') {
             title = "Encaminhamento ao Conselho Tutelar";
             dateRef = act.ctSentDate;
             desc = `<strong>Ofício Nº:</strong> ${formatText(act.oficioNumber)}/${formatText(act.oficioYear)}.<br>`;
             if (act.ctFeedback) desc += `<div class="mt-2 pt-2 border-t border-gray-200"><strong>Devolutiva CT:</strong> ${formatText(act.ctFeedback)}</div>`;
             if (act.ctReturned) desc += `<br><span class="bg-gray-100 px-1 rounded border border-gray-300 mt-1 inline-block"><strong>Retorno à Escola:</strong> ${formatReturnStatus(act.ctReturned)}</span>`;
-
         } else if (act.actionType === 'analise') {
             title = "Parecer Final / Conclusão";
             desc = formatText(act.ctParecer);
         }
 
-        if (title) {
-             timelineHTML += `
-                <div class="report-timeline-item ml-2 break-inside-avoid">
-                    <div class="report-timeline-dot" style="background-color: #4b5563;"></div>
-                    <p class="text-sm font-bold text-gray-800">${title} <span class="font-normal text-xs text-gray-500">(${formatDate(dateRef)})</span></p>
-                    <div class="text-xs text-gray-600 mt-1 leading-relaxed">${desc}</div>
-                    ${imgs}
-                </div>`;
-        }
+        if (title) timelineHTML += `<div class="report-timeline-item ml-2 break-inside-avoid"><div class="report-timeline-dot" style="background-color: #4b5563;"></div><p class="text-sm font-bold text-gray-800">${title} <span class="font-normal text-xs text-gray-500">(${formatDate(dateRef)})</span></p><div class="text-xs text-gray-600 mt-1 leading-relaxed">${desc}</div>${imgs}</div>`;
     });
 
     if (!timelineHTML) timelineHTML = '<p class="text-sm text-gray-500 italic pl-4">Nenhuma ação detalhada registrada.</p>';
@@ -591,27 +577,15 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
             ${statusStamp}
             <h3 class="text-xl font-bold text-center uppercase border-b pb-2">Ficha Individual de Busca Ativa</h3>
             ${getStudentIdentityCardHTML(student)}
-
-            <div class="bg-gray-50 p-4 rounded border border-gray-200 grid grid-cols-3 gap-4 text-center">
-                <div><p class="text-xs font-bold text-gray-500 uppercase">Total Faltas</p><p class="text-xl font-bold text-red-600">${formatText(faltasData.absenceCount)}</p></div>
-                <div><p class="text-xs font-bold text-gray-500 uppercase">Início Período</p><p class="font-semibold">${formatDate(faltasData.periodoFaltasStart)}</p></div>
-                <div><p class="text-xs font-bold text-gray-500 uppercase">Fim Período</p><p class="font-semibold">${formatDate(faltasData.periodoFaltasEnd)}</p></div>
-            </div>
-
+            <div class="bg-gray-50 p-4 rounded border border-gray-200 grid grid-cols-3 gap-4 text-center"><div><p class="text-xs font-bold text-gray-500 uppercase">Total Faltas</p><p class="text-xl font-bold text-red-600">${formatText(faltasData.absenceCount)}</p></div><div><p class="text-xs font-bold text-gray-500 uppercase">Início Período</p><p class="font-semibold">${formatDate(faltasData.periodoFaltasStart)}</p></div><div><p class="text-xs font-bold text-gray-500 uppercase">Fim Período</p><p class="font-semibold">${formatDate(faltasData.periodoFaltasEnd)}</p></div></div>
             <h4 class="font-bold border-b mt-6 mb-4 uppercase text-xs text-gray-500">Histórico de Acompanhamento (Cronologia)</h4>
             <div class="pl-2 border-l-2 border-gray-100">${timelineHTML}</div>
-
-            <div class="signature-block mt-24 pt-8 grid grid-cols-2 gap-8 break-inside-avoid">
-                <div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Direção</p></div>
-                <div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Coordenação</p></div>
-            </div>
+            <div class="signature-block mt-24 pt-8 grid grid-cols-2 gap-8 break-inside-avoid"><div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Direção</p></div><div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Coordenação</p></div></div>
         </div>`;
 
     document.getElementById('report-view-title').textContent = "Ficha Consolidada";
     document.getElementById('report-view-content').innerHTML = html;
     openModal(dom.reportViewModalBackdrop);
-
-    // AUTO-SAVE SNAPSHOT
     saveDocumentSnapshot('ficha_busca_ativa', `Ficha Individual - ${student.name}`, html, student.matricula, { studentName: student.name, refId: processId });
 };
 
@@ -624,58 +598,50 @@ const generateAndShowGenericOficio = async (data, oficioNum, type, studentObjOve
     const student = await resolveStudentData(studentId, studentObjOverride || data);
 
     const oficioYear = data.oficioYear || new Date().getFullYear();
-    const currentDate = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const city = state.config?.city || "Cidade";
 
-    let subject = "";
-    let contextParagraph = "";
-    let tableHTML = "";
-    let anexosText = "";
+    // --- SMART GENERATION ---
+    const generateContent = (dateObj) => {
+        const currentDateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+        let subject = "", contextParagraph = "", tableHTML = "", anexosText = "";
 
-    if (type === 'busca_ativa') {
-        subject = "Encaminhamento por Evasão/Infrequência Escolar";
-        const actions = state.absences.filter(a => a.processId === data.processId).sort((a,b) => (a.createdAt?.toDate()||0) - (b.createdAt?.toDate()||0));
-        const faltaInfo = actions.find(a => a.periodoFaltasStart);
-        
-        contextParagraph = `
-            O(A) referido(a) aluno(a) encontra-se em situação de risco escolar, apresentando <strong>${formatText(faltaInfo?.absenceCount)} faltas</strong> 
-            no período de ${formatDate(faltaInfo?.periodoFaltasStart)} a ${formatDate(faltaInfo?.periodoFaltasEnd)}, sem justificativa legal aceitável.
-        `;
-        tableHTML = getAttemptsTableHTML(actions, 'busca_ativa');
-        anexosText = "Seguem anexos: Ficha de Matrícula e Ficha de Acompanhamento de Frequência.";
+        if (type === 'busca_ativa') {
+            subject = "Encaminhamento por Evasão/Infrequência Escolar";
+            const actions = state.absences.filter(a => a.processId === data.processId).sort((a,b) => (a.createdAt?.toDate()||0) - (b.createdAt?.toDate()||0));
+            const faltaInfo = actions.find(a => a.periodoFaltasStart);
+            contextParagraph = `O(A) referido(a) aluno(a) encontra-se em situação de risco escolar, apresentando <strong>${formatText(faltaInfo?.absenceCount)} faltas</strong> no período de ${formatDate(faltaInfo?.periodoFaltasStart)} a ${formatDate(faltaInfo?.periodoFaltasEnd)}, sem justificativa legal aceitável.`;
+            tableHTML = getAttemptsTableHTML(actions, 'busca_ativa');
+            anexosText = "Seguem anexos: Ficha de Matrícula e Ficha de Acompanhamento de Frequência.";
+        } else {
+            subject = "Encaminhamento por Ocorrência Disciplinar";
+            contextParagraph = `Encaminhamos o relatório referente ao incidente ocorrido em <strong>${formatDate(data.date)}</strong>, classificado como <strong>"${formatText(data.occurrenceType)}"</strong>. A escola esgotou suas instâncias pedagógicas de resolução de conflito conforme demonstrado abaixo.`;
+            tableHTML = getAttemptsTableHTML(data, 'occurrence'); 
+            anexosText = "Seguem anexos: Ata de Ocorrência e Relatórios Individuais.";
+        }
 
-    } else {
-        subject = "Encaminhamento por Ocorrência Disciplinar";
-        contextParagraph = `
-            Encaminhamos o relatório referente ao incidente ocorrido em <strong>${formatDate(data.date)}</strong>, classificado como <strong>"${formatText(data.occurrenceType)}"</strong>.
-            A escola esgotou suas instâncias pedagógicas de resolução de conflito conforme demonstrado abaixo.
-        `;
-        tableHTML = getAttemptsTableHTML(data, 'occurrence'); 
-        anexosText = "Seguem anexos: Ata de Ocorrência e Relatórios Individuais.";
-    }
+        return `
+            <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
+                <div>${getReportHeaderHTML(dateObj)}<p class="text-right mt-4">${city}, ${currentDateStr}.</p></div>
+                <div class="mt-8 font-bold text-lg">OFÍCIO Nº ${String(oficioNum).padStart(3, '0')}/${oficioYear}</div>
+                <div class="mt-4"><p><strong>Ao Ilustríssimo(a) Senhor(a) Conselheiro(a) Tutelar</strong></p><p>Conselho Tutelar de ${city}</p></div>
+                <div class="bg-gray-100 p-2 border rounded mt-4 mb-6"><p><strong>Assunto:</strong> ${subject}</p></div>
+                <div class="text-justify indent-8"><p>Prezados Senhores,</p><p class="mt-4">Pelo presente, encaminhamos a situação do(a) aluno(a) abaixo qualificado(a), solicitando a intervenção deste órgão para garantia dos direitos da criança/adolescente, visto que os recursos escolares foram esgotados.</p></div>
+                ${getStudentIdentityCardHTML(student)}
+                <div class="text-justify indent-8 mt-4">${contextParagraph}</div>
+                <p class="mt-4 mb-2 font-bold text-gray-700">Histórico de Tentativas de Solução pela Escola:</p>
+                ${tableHTML}
+                <p class="text-justify indent-8 mt-6">Diante do exposto e com base no Art. 56 do Estatuto da Criança e do Adolescente (ECA), submetemos o caso para as devidas providências.</p>
+                <div class="mt-24 pt-8 text-center space-y-12 break-inside-avoid"><p>Atenciosamente,</p><div class="signature-block w-2/3 mx-auto"><div class="border-t border-black mb-1"></div><p class="font-bold">Direção / Coordenação Pedagógica</p><p class="text-xs">${state.config?.schoolName}</p></div></div>
+                <div class="mt-8 pt-4 border-t text-xs text-gray-500"><p><strong>Anexos:</strong> ${anexosText}</p></div>
+            </div>`;
+    };
 
-    const html = `
-        <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
-            <div>${getReportHeaderHTML()}<p class="text-right mt-4">${city}, ${currentDate}.</p></div>
-            <div class="mt-8 font-bold text-lg">OFÍCIO Nº ${String(oficioNum).padStart(3, '0')}/${oficioYear}</div>
-            <div class="mt-4"><p><strong>Ao Ilustríssimo(a) Senhor(a) Conselheiro(a) Tutelar</strong></p><p>Conselho Tutelar de ${city}</p></div>
-            <div class="bg-gray-100 p-2 border rounded mt-4 mb-6"><p><strong>Assunto:</strong> ${subject}</p></div>
-            <div class="text-justify indent-8"><p>Prezados Senhores,</p><p class="mt-4">Pelo presente, encaminhamos a situação do(a) aluno(a) abaixo qualificado(a), solicitando a intervenção deste órgão para garantia dos direitos da criança/adolescente, visto que os recursos escolares foram esgotados.</p></div>
-            ${getStudentIdentityCardHTML(student)}
-            <div class="text-justify indent-8 mt-4">${contextParagraph}</div>
-            <p class="mt-4 mb-2 font-bold text-gray-700">Histórico de Tentativas de Solução pela Escola:</p>
-            ${tableHTML}
-            <p class="text-justify indent-8 mt-6">Diante do exposto e com base no Art. 56 do Estatuto da Criança e do Adolescente (ECA), submetemos o caso para as devidas providências.</p>
-            <div class="mt-24 pt-8 text-center space-y-12 break-inside-avoid"><p>Atenciosamente,</p><div class="signature-block w-2/3 mx-auto"><div class="border-t border-black mb-1"></div><p class="font-bold">Direção / Coordenação Pedagógica</p><p class="text-xs">${state.config?.schoolName}</p></div></div>
-            <div class="mt-8 pt-4 border-t text-xs text-gray-500"><p><strong>Anexos:</strong> ${anexosText}</p></div>
-        </div>
-    `;
+    const html = await generateSmartHTML('oficio', student.matricula, data.id, generateContent);
 
     document.getElementById('report-view-title').textContent = `Ofício Nº ${oficioNum}/${oficioYear}`;
     document.getElementById('report-view-content').innerHTML = html;
     openModal(dom.reportViewModalBackdrop);
 
-    // AUTO-SAVE SNAPSHOT
     saveDocumentSnapshot('oficio', `Ofício Nº ${oficioNum}/${oficioYear} - ${student.name}`, html, student.matricula, { studentName: student.name, refId: data.id });
 };
 
