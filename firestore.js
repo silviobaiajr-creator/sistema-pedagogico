@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: firestore.js
-// VERSÃO: 3.4 (Correção: Solução Inteligente para Duplicatas no Arquivo Digital)
+// VERSÃO: 3.5 (Correção Definitiva: Auto-Limpeza de Duplicatas e Verificação de Conteúdo)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
@@ -382,36 +382,47 @@ export const getDashboardStats = async () => {
 export const saveDocumentSnapshot = async (docType, title, htmlContent, studentId, metadata = {}) => {
     try {
         const documentsRef = getCollectionRef('documents');
-        // Garante que IDs sejam strings para consistência na busca e salvamento
-        const refId = metadata.refId ? String(metadata.refId) : null;
-        const safeStudentId = studentId ? String(studentId) : null;
+        // Garante que IDs sejam strings e sem espaços extras para busca exata
+        const refId = metadata.refId ? String(metadata.refId).trim() : null;
+        const safeStudentId = studentId ? String(studentId).trim() : null;
         
         // CORREÇÃO: Verifica se já existe um documento com as mesmas características (Tipo, Aluno, RefID)
         if (refId && safeStudentId) {
+            // REMOVIDO limit(1) para detectar duplicatas antigas e limpar
             const q = query(
                 documentsRef, 
                 where('type', '==', docType),
                 where('studentId', '==', safeStudentId),
-                where('refId', '==', refId),
-                limit(1)
+                where('refId', '==', refId)
             );
             
             const snapshot = await getDocs(q);
             
             if (!snapshot.empty) {
                 const docToUpdate = snapshot.docs[0];
+
+                // AUTO-LIMPEZA: Se houver mais de 1 documento para o mesmo RefID, apaga os extras
+                if (snapshot.size > 1) {
+                    console.warn(`Limpando ${snapshot.size - 1} duplicatas detectadas para RefID: ${refId}`);
+                    const deletePromises = [];
+                    // Começa do índice 1, mantendo o índice 0 (docToUpdate)
+                    for (let i = 1; i < snapshot.docs.length; i++) {
+                        deletePromises.push(deleteDoc(doc(documentsRef, snapshot.docs[i].id)));
+                    }
+                    await Promise.all(deletePromises);
+                }
+
                 const currentData = docToUpdate.data();
 
                 // SOLUÇÃO INTELIGENTE: 
                 // Compara o conteúdo HTML atual com o novo.
-                // Se forem idênticos, NÃO faz nada (nem update). Evita duplicatas visuais e escritas no banco.
+                // Se forem idênticos, NÃO faz nada (nem update, nem muda data).
                 if (currentData.htmlContent === htmlContent) {
                     console.log(`Documento [${docToUpdate.id}] é idêntico. Nenhuma alteração salva.`);
                     return docToUpdate.ref; 
                 }
 
-                // SE EXISTIR MAS FOR DIFERENTE: Atualiza o conteúdo e a data
-                // Isso mantém apenas UMA cópia deste documento no arquivo, mas com os dados mais recentes.
+                // SE FOR DIFERENTE: Atualiza o conteúdo e a data
                 await updateDoc(doc(documentsRef, docToUpdate.id), {
                     title: title,
                     htmlContent: htmlContent,

@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 7.0 (Auto-Salvamento no Arquivo Digital)
+// VERSÃO: 7.1 (Correção refId Notificações)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -288,7 +288,9 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
     openModal(dom.notificationModalBackdrop);
 
     // AUTO-SAVE SNAPSHOT
-    saveDocumentSnapshot('notificacao', `Notificação ${attemptCount}ª Tentativa - ${student.name}`, html, student.matricula, { studentName: student.name, refId: incident.id });
+    // CORREÇÃO: refId composto para distinguir tentativas (ex: occ123_attempt_1)
+    const uniqueRefId = `${incident.id}_attempt_${attemptCount}`;
+    saveDocumentSnapshot('notificacao', `Notificação ${attemptCount}ª Tentativa - ${student.name}`, html, student.matricula, { studentName: student.name, refId: uniqueRefId });
 };
 
 export const openOccurrenceRecordModal = async (groupId) => {
