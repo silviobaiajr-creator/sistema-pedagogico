@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 7.2 (Smart Date Logic & RefId Fix)
+// VERSÃO: 7.3 (Smart Date: Comparação Normalizada)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -50,27 +50,42 @@ const resolveStudentData = async (studentId, recordSource = null) => {
     };
 };
 
+// --- FUNÇÃO AUXILIAR: Normaliza HTML para comparação ---
+// Remove espaços extras, quebras de linha e caracteres invisíveis para comparar apenas o "conteúdo real".
+const normalizeHTML = (str) => {
+    if (!str) return "";
+    return str
+        .replace(/\s+/g, '') // Remove todos os espaços e quebras de linha
+        .replace(/&nbsp;/g, '') // Remove espaços HTML
+        .toLowerCase(); // Ignora maiúsculas/minúsculas na tag
+};
+
 // --- FUNÇÃO SMART DATE: Decide se usa data antiga ou nova ---
 async function generateSmartHTML(docType, studentId, refId, htmlGeneratorFn) {
     // Busca versão salva
     const existingDoc = await findDocumentSnapshot(docType, studentId, refId);
     
-    // Tenta gerar com a data original
+    // Tenta gerar com a data original (se existir)
     if (existingDoc && existingDoc.createdAt) {
         const oldDate = existingDoc.createdAt.toDate();
         const oldHTML = htmlGeneratorFn(oldDate);
         
-        // Se o HTML gerado com a data antiga for IDÊNTICO ao salvo,
-        // retorna o HTML com data antiga (preserva o documento histórico).
-        if (oldHTML === existingDoc.htmlContent) {
-            console.log("Conteúdo inalterado. Usando versão original de:", oldDate.toLocaleString());
+        // COMPARAÇÃO INTELIGENTE:
+        // Usa a versão normalizada para ignorar diferenças de formatação invisíveis.
+        // Se o conteúdo for "semanticamente" igual, mantém a data original.
+        if (normalizeHTML(oldHTML) === normalizeHTML(existingDoc.htmlContent)) {
+            console.log("Smart Date: Conteúdo inalterado. Mantendo data original de:", oldDate.toLocaleString());
             return oldHTML; 
+        } else {
+            console.log("Smart Date: Alteração detectada no conteúdo. Atualizando data.");
+            // Debug (opcional): console.log(normalizeHTML(oldHTML).length, normalizeHTML(existingDoc.htmlContent).length);
         }
+    } else {
+        console.log("Smart Date: Novo documento.");
     }
     
     // Se não existe, ou se conteúdo mudou (typo corrigido, novos dados),
     // gera com data de hoje.
-    console.log("Conteúdo novo ou alterado. Gerando com data atual.");
     const newDate = new Date();
     return htmlGeneratorFn(newDate);
 }

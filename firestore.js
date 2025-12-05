@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: firestore.js
-// VERSÃO: 3.6 (Correção: Smart Date e Suporte a Atas sem Duplicatas)
+// VERSÃO: 3.7 (Correção Duplicatas: Prioridade RefId + Cleanup)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
@@ -383,22 +383,16 @@ export const findDocumentSnapshot = async (docType, studentId, refId) => {
     try {
         const documentsRef = getCollectionRef('documents');
         const sRefId = refId ? String(refId).trim() : null;
-        const sStudentId = studentId ? String(studentId).trim() : null;
+        
+        if (!sRefId) return null;
 
-        if (!sRefId) return null; // refId é obrigatório para busca única
-
+        // CORREÇÃO: Busca apenas por Type e RefId.
+        // Ignora studentId na busca para garantir que encontre o documento mesmo se o ID do aluno tiver mudado ligeiramente.
         const conditions = [
             where('type', '==', docType),
             where('refId', '==', sRefId)
         ];
         
-        if (sStudentId) {
-            conditions.push(where('studentId', '==', sStudentId));
-        } else {
-            // Se studentId for null (ex: Ata Geral), busca onde é null
-            conditions.push(where('studentId', '==', null));
-        }
-
         const q = query(documentsRef, ...conditions, limit(1));
         
         const snapshot = await getDocs(q);
@@ -420,17 +414,12 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
         const refId = metadata.refId ? String(metadata.refId).trim() : null;
         const safeStudentId = studentId ? String(studentId).trim() : null;
         
-        // CORREÇÃO: Verifica duplicatas usando query específica que suporta studentId NULL
+        // CORREÇÃO: Verifica duplicatas usando RefId e Type (sem StudentId para evitar falha de match)
         if (refId) {
             const conditions = [
                 where('type', '==', docType),
                 where('refId', '==', refId)
             ];
-            if (safeStudentId) {
-                conditions.push(where('studentId', '==', safeStudentId));
-            } else {
-                conditions.push(where('studentId', '==', null));
-            }
 
             const q = query(documentsRef, ...conditions);
             const snapshot = await getDocs(q);
@@ -438,7 +427,7 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
             if (!snapshot.empty) {
                 const docToUpdate = snapshot.docs[0];
 
-                // AUTO-LIMPEZA: Se houver mais de 1 documento duplicado, apaga os extras
+                // AUTO-LIMPEZA: Se houver mais de 1 documento duplicado (lixo antigo), apaga os extras
                 if (snapshot.size > 1) {
                     console.warn(`Limpando ${snapshot.size - 1} duplicatas detectadas para RefID: ${refId}`);
                     const deletePromises = [];
@@ -450,8 +439,8 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
 
                 const currentData = docToUpdate.data();
 
-                // SOLUÇÃO INTELIGENTE: 
-                // Se conteúdo idêntico, não faz nada (mantém data original).
+                // SOLUÇÃO INTELIGENTE (JÁ NORMALIZADA NO REPORTS.JS):
+                // Mas mantemos uma verificação simples aqui também.
                 if (currentData.htmlContent === htmlContent) {
                     console.log(`Documento [${docToUpdate.id}] é idêntico. Mantendo original.`);
                     return docToUpdate.ref; 
@@ -461,6 +450,8 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
                 await updateDoc(doc(documentsRef, docToUpdate.id), {
                     title: title,
                     htmlContent: htmlContent,
+                    // Se o studentId mudou, atualiza aqui também
+                    studentId: safeStudentId || currentData.studentId, 
                     createdAt: new Date(), 
                     createdBy: state.userEmail || 'Sistema'
                 });
