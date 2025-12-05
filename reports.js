@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 9.1 (Assinatura com Metadados de Segurança e Rastro Digital)
+// VERSÃO: 9.2 (Correção de Precisão da Assinatura - Offset Fix)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -60,33 +60,50 @@ const setupSignaturePadEvents = () => {
     
     let isDrawing = false;
 
+    // Ajusta tamanho interno do canvas para bater com o tamanho visual (CSS)
     const resizeCanvas = () => {
         const rect = canvas.parentElement.getBoundingClientRect();
         canvas.width = rect.width;
         canvas.height = rect.height;
+        // Reconfigura o contexto após resize
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#000';
     };
     window.addEventListener('resize', resizeCanvas); 
 
+    // CRUCIAL: Corrige o offset do mouse/dedo relativo ao canvas redimensionado
     const getPos = (e) => {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: clientX - rect.left, y: clientY - rect.top };
+
+        return {
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height)
+        };
     };
 
     const startDraw = (e) => {
+        // Bloqueia scroll ao iniciar o toque
+        if (e.type === 'touchstart') e.preventDefault();
+        
         isDrawing = true;
         const pos = getPos(e);
         ctx.beginPath();
         ctx.moveTo(pos.x, pos.y);
         ctx.lineWidth = 2;
         ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
         ctx.strokeStyle = '#000';
     };
 
     const draw = (e) => {
+        // Bloqueia scroll durante o desenho
+        if (e.type === 'touchmove') e.preventDefault();
+        
         if (!isDrawing) return;
-        e.preventDefault(); 
         const pos = getPos(e);
         ctx.lineTo(pos.x, pos.y);
         ctx.stroke();
@@ -94,12 +111,15 @@ const setupSignaturePadEvents = () => {
 
     const stopDraw = () => { isDrawing = false; };
 
+    // Eventos Mouse
     canvas.addEventListener('mousedown', startDraw);
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDraw);
     canvas.addEventListener('mouseout', stopDraw);
-    canvas.addEventListener('touchstart', startDraw);
-    canvas.addEventListener('touchmove', draw);
+    
+    // Eventos Touch (passive: false é importante para o preventDefault funcionar)
+    canvas.addEventListener('touchstart', startDraw, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
     canvas.addEventListener('touchend', stopDraw);
 
     btnClear.onclick = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); };
@@ -116,9 +136,19 @@ const openSignaturePad = (onConfirm) => {
     const ctx = canvas.getContext('2d');
     const btnConfirm = document.getElementById('btn-confirm-signature');
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Força o resize correto antes de mostrar para garantir alinhamento
     const rect = canvas.parentElement.getBoundingClientRect();
-    if(rect.width > 0) { canvas.width = rect.width; canvas.height = rect.height; }
+    if(rect.width > 0) {
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+    }
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Reconfigura estilos
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#000';
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -244,9 +274,7 @@ const getStudentIdentityCardHTML = (student) => {
 const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, base64) => {
     const date = new Date();
     const dateStr = date.toLocaleString('pt-BR');
-    // Gera um código de segurança aleatório para parecer "Tech/Hash"
     const securityHash = base64 ? Math.random().toString(36).substring(2, 10).toUpperCase() : '';
-    // Identifica dispositivo (simulado)
     const deviceType = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'Mobile' : 'Web/Desktop';
 
     const imgHTML = base64 
@@ -272,14 +300,12 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, base64) => {
     `;
 };
 
-// Gera grid dinâmico
 const generateSignaturesGrid = (slots) => {
     let itemsHTML = slots.map(slot => {
         const base64 = signatureMap.get(slot.key);
         return getSingleSignatureBoxHTML(slot.key, slot.role, slot.name, base64);
     }).join('');
 
-    // Gestão sempre no final
     const mgmtBase64 = signatureMap.get('management');
     const mgmtHTML = `
         <div class="col-span-2 flex justify-center mt-4 border-t pt-4">
