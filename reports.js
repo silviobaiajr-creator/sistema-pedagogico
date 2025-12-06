@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 9.9 (Correção de Visualização Mobile - Texto Expandido)
+// VERSÃO: 10.0 (Link Único + Fix Tipagem Chaves + Texto Expandido Mobile)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -84,7 +84,53 @@ const checkForRemoteSignParams = async () => {
 
             const container = document.getElementById('remote-sign-container');
 
-            // --- FASE 1: DESAFIO DE IDENTIDADE (NOVO) ---
+            // --- VERIFICAÇÃO DE LINK JÁ ASSINADO ---
+            // Define a chave esperada para o responsável, garantindo que seja string para evitar erros de comparação
+            const targetKey = `responsible_${String(studentId || docSnapshot.studentId)}`;
+            
+            if (docSnapshot.signatures && docSnapshot.signatures[targetKey]) {
+                const sig = docSnapshot.signatures[targetKey];
+                const signedDate = new Date(sig.timestamp).toLocaleString();
+                
+                container.innerHTML = `
+                    <div class="w-full max-w-md bg-white shadow-xl rounded-xl overflow-hidden border-t-4 border-green-600 mt-10 mx-auto">
+                        <div class="bg-gray-50 p-8 text-center">
+                            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-file-signature text-4xl text-green-600"></i>
+                            </div>
+                            <h2 class="text-xl font-bold text-gray-800">Documento Já Assinado</h2>
+                            <p class="text-sm text-gray-500 mt-2">Este link já foi utilizado para registrar a ciência do responsável.</p>
+                        </div>
+                        <div class="p-6 border-t border-gray-100 bg-white">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Dados do Registro</h3>
+                            <div class="space-y-3 text-sm">
+                                <div class="flex justify-between border-b border-gray-100 pb-2">
+                                    <span class="text-gray-600">Assinado por:</span>
+                                    <span class="font-bold text-gray-900">${sig.signerName || 'Não informado'}</span>
+                                </div>
+                                <div class="flex justify-between border-b border-gray-100 pb-2">
+                                    <span class="text-gray-600">CPF:</span>
+                                    <span class="font-mono text-gray-900">${sig.signerCPF || '***'}</span>
+                                </div>
+                                <div class="flex justify-between border-b border-gray-100 pb-2">
+                                    <span class="text-gray-600">Data/Hora:</span>
+                                    <span class="text-gray-900">${signedDate}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">IP de Origem:</span>
+                                    <span class="font-mono text-xs text-gray-500">${sig.ip || 'N/A'}</span>
+                                </div>
+                            </div>
+                            <div class="mt-6 text-center">
+                                <p class="text-[10px] text-gray-400">Este recibo digital tem validade jurídica.</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return; // Encerra execução para impedir nova assinatura
+            }
+
+            // --- FASE 1: DESAFIO DE IDENTIDADE ---
             const renderIdentityChallenge = () => {
                 container.innerHTML = `
                     <div class="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden">
@@ -144,7 +190,7 @@ const checkForRemoteSignParams = async () => {
                 container.classList.remove('justify-center'); 
                 container.classList.add('pt-4');
 
-                // CORREÇÃO: Removemos 'overflow-auto max-h-[60vh]' para o documento expandir naturalmente
+                // Removido max-h-[60vh] e overflow-auto para expandir o conteúdo no mobile
                 container.innerHTML = `
                     <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8">
                         <div class="bg-green-700 p-4 text-white flex justify-between items-center">
@@ -156,12 +202,9 @@ const checkForRemoteSignParams = async () => {
                                 <span class="bg-green-800 px-2 py-1 rounded">Ambiente Seguro</span>
                             </div>
                         </div>
-                        
-                        <!-- Conteúdo do Documento (Agora expandido sem scroll interno) -->
                         <div class="p-6 md:p-10 text-sm bg-gray-50 border-b">
                             ${docSnapshot.htmlContent}
                         </div>
-
                         <div class="bg-gray-100 p-6 flex flex-col items-center gap-4">
                             <div class="text-center mb-2">
                                 <p class="font-bold text-gray-800 text-lg">Declaração Final de Aceite</p>
@@ -197,14 +240,15 @@ const checkForRemoteSignParams = async () => {
                         valid: true
                     };
 
-                    // Busca key dinamica se não estiver obvia, mas assume responsible para padrao
-                    const key = `responsible_${studentId || docSnapshot.studentId}`; 
+                    // Força String para garantir que a chave bata com a verificação de "Já Assinado"
+                    const key = `responsible_${String(studentId || docSnapshot.studentId)}`; 
                     const sigMap = new Map();
                     sigMap.set(key, digitalSignature);
 
                     const success = await updateDocumentSignatures(docSnapshot.id, sigMap);
 
                     if (success) {
+                        // Exibe recibo e informa que o link ficou inativo
                         container.innerHTML = `
                             <div class="h-[80vh] flex items-center justify-center">
                                 <div class="bg-white p-10 rounded-2xl shadow-xl text-center max-w-md border-2 border-green-100">
@@ -218,7 +262,8 @@ const checkForRemoteSignParams = async () => {
                                         CPF SHA1: ***${identityData.cpf.slice(-4)}<br>
                                         IP: ${meta.ip}
                                     </div>
-                                    <button onclick="window.close()" class="mt-6 text-sky-600 font-bold text-sm hover:underline">Fechar Janela</button>
+                                    <p class="mt-4 text-[10px] text-red-400">Este link agora está inativo para novas assinaturas.</p>
+                                    <button onclick="window.close()" class="mt-4 text-sky-600 font-bold text-sm hover:underline">Fechar Janela</button>
                                 </div>
                             </div>`;
                     } else {
@@ -371,7 +416,7 @@ const setupSignaturePadEvents = () => {
         // GERA O LINK
         if (currentDocumentIdForRemote) {
             const baseUrl = window.location.href.split('?')[0];
-            // CORREÇÃO CRÍTICA: Agora usamos 'docId' (o ID do Firestore) em vez de 'refId' para garantir unicidade
+            // Usa 'docId' (o ID do Firestore) em vez de 'refId' para garantir unicidade
             const fullLink = `${baseUrl}?mode=sign&docId=${currentDocumentIdForRemote}&type=notificacao&student=${currentDocumentKeyForRemote.replace('responsible_', '')}`;
             document.getElementById('generated-link-preview').innerText = fullLink;
             
@@ -778,7 +823,8 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
     const generator = (dateObj) => {
         const currentDateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
         const attemptText = `Esta é a <strong>${attemptCount}ª tentativa</strong> de contato formal realizada pela escola.`;
-        const sigSlots = [{ key: `responsible_${student.matricula}`, role: 'Responsável', name: 'Responsável Legal' }];
+        // CORREÇÃO: Forçar String no ID
+        const sigSlots = [{ key: `responsible_${String(student.matricula)}`, role: 'Responsável', name: 'Responsável Legal' }];
 
         return `
             <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
@@ -812,10 +858,12 @@ export const openOccurrenceRecordModal = async (groupId) => {
         const dateString = dateObj.toLocaleDateString('pt-BR', {dateStyle:'long'});
         const sigSlots = [];
         participants.forEach(p => {
-            sigSlots.push({ key: `student_${p.student.matricula}`, role: `Aluno (${p.role})`, name: p.student.name });
-            sigSlots.push({ key: `responsible_${p.student.matricula}`, role: 'Responsável', name: p.student.name });
+            // CORREÇÃO: Forçar String no ID
+            sigSlots.push({ key: `student_${String(p.student.matricula)}`, role: `Aluno (${p.role})`, name: p.student.name });
+            sigSlots.push({ key: `responsible_${String(p.student.matricula)}`, role: 'Responsável', name: p.student.name });
         });
-
+        
+        // ... (resto do template HTML da Ata mantido igual) ...
         let html = `
             <div class="space-y-4 text-sm font-serif leading-relaxed text-gray-900">
                 ${getReportHeaderHTML(dateObj)}
@@ -888,7 +936,8 @@ export const openFichaViewModal = async (id) => {
         } else if (record.actionType === 'visita') {
             bodyContent = `<p class="text-justify indent-8">Certifico que, nesta data, foi realizada Visita Domiciliar referente ao aluno(a) supracitado(a).</p><div class="mt-4 p-4 border rounded bg-gray-50 font-sans text-sm"><p><strong>Data da Visita:</strong> ${formatDate(record.visitDate)}</p><p><strong>Agente:</strong> ${formatText(record.visitAgent)}</p><p><strong>Resultado:</strong> ${record.visitSucceeded === 'yes' ? 'Contato Realizado' : 'Sem sucesso'}</p><p class="mt-2"><strong>Observações/Justificativa:</strong></p><p class="italic bg-white p-2 border rounded mt-1">${formatText(record.visitReason)} ${formatText(record.visitObs)}</p></div>`;
         }
-        const sigSlots = [{ key: `responsible_${student.matricula}`, role: 'Responsável', name: 'Responsável Legal' }];
+        // CORREÇÃO: Forçar String no ID
+        const sigSlots = [{ key: `responsible_${String(student.matricula)}`, role: 'Responsável', name: 'Responsável Legal' }];
         
         return `<div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">${getReportHeaderHTML(dateObj)}<p class="text-right text-sm italic mb-4">${state.config?.city || "Cidade"}, ${currentDateStr}</p><h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">${title}</h3>${getStudentIdentityCardHTML(student)}${bodyContent}${generateSignaturesGrid(sigSlots)}</div>`;
     };
