@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 10.2 (Selfie Obrigatória no Link Seguro)
+// VERSÃO: 10.3 (Selfie Presencial + Fix Canvas + Layout Compacto)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -49,8 +49,8 @@ const fetchClientMetadata = async () => {
 const checkForRemoteSignParams = async () => {
     const params = new URLSearchParams(window.location.search);
     const mode = params.get('mode');
-    const docId = params.get('docId'); // Prioridade 1: Busca por ID Direto do Firestore
-    const refId = params.get('refId'); // Prioridade 2: Busca por Referência antiga
+    const docId = params.get('docId'); 
+    const refId = params.get('refId'); 
     const type = params.get('type');
     const studentId = params.get('student');
 
@@ -67,13 +67,9 @@ const checkForRemoteSignParams = async () => {
 
         try {
             let docSnapshot = null;
-            
-            // Tenta buscar pelo ID direto (mais seguro e rápido)
             if (docId) {
                 docSnapshot = await getLegalDocumentById(docId);
-            } 
-            // Fallback para o método antigo se não tiver docId
-            else if (refId && type) {
+            } else if (refId && type) {
                 docSnapshot = await findDocumentSnapshot(type, studentId, refId);
             }
             
@@ -83,8 +79,6 @@ const checkForRemoteSignParams = async () => {
             }
 
             const container = document.getElementById('remote-sign-container');
-
-            // --- VERIFICAÇÃO DE LINK JÁ ASSINADO ---
             const targetKey = `responsible_${String(studentId || docSnapshot.studentId)}`;
             
             if (docSnapshot.signatures && docSnapshot.signatures[targetKey]) {
@@ -130,7 +124,7 @@ const checkForRemoteSignParams = async () => {
                 return; 
             }
 
-            // --- FASE 1: DESAFIO DE IDENTIDADE ---
+            // FASE 1: DESAFIO DE IDENTIDADE
             const renderIdentityChallenge = () => {
                 container.innerHTML = `
                     <div class="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden">
@@ -141,26 +135,19 @@ const checkForRemoteSignParams = async () => {
                         </div>
                         <div class="p-6 md:p-8 space-y-4">
                             <p class="text-sm text-gray-600 text-center mb-4">Para visualizar e assinar o documento, por favor confirme sua identidade.</p>
-                            
                             <div>
                                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Seu Nome Completo</label>
                                 <input id="input-signer-name" type="text" class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-sky-500 outline-none uppercase text-sm" placeholder="Digite seu nome">
                             </div>
-                            
                             <div>
                                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Seu CPF</label>
                                 <input id="input-signer-cpf" type="tel" class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-sky-500 outline-none text-sm" placeholder="000.000.000-00" maxlength="14">
                             </div>
-
-                            <button id="btn-access-doc" class="w-full mt-4 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded shadow transition transform active:scale-95">
-                                CONTINUAR
-                            </button>
+                            <button id="btn-access-doc" class="w-full mt-4 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded shadow transition transform active:scale-95">CONTINUAR</button>
                         </div>
                     </div>
                 `;
-
-                const cpfInput = document.getElementById('input-signer-cpf');
-                cpfInput.addEventListener('input', (e) => {
+                document.getElementById('input-signer-cpf').addEventListener('input', (e) => {
                     let v = e.target.value.replace(/\D/g, "");
                     if(v.length > 11) v = v.slice(0, 11);
                     v = v.replace(/(\d{3})(\d)/, "$1.$2");
@@ -168,87 +155,46 @@ const checkForRemoteSignParams = async () => {
                     v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
                     e.target.value = v;
                 });
-
                 document.getElementById('btn-access-doc').onclick = () => {
                     const name = document.getElementById('input-signer-name').value.trim();
-                    const cpf = cpfInput.value.trim();
-                    if (name.length < 5) { alert("Por favor, digite seu nome completo."); return; }
-                    if (cpf.length < 11) { alert("Por favor, digite um CPF válido."); return; }
+                    const cpf = document.getElementById('input-signer-cpf').value.trim();
+                    if (name.length < 5) { alert("Nome inválido."); return; }
+                    if (cpf.length < 11) { alert("CPF inválido."); return; }
                     renderDocumentView({ name, cpf });
                 };
             };
 
-
-            // --- FASE 2: VISUALIZAÇÃO, SELFIE E ASSINATURA ---
+            // FASE 2: VISUALIZAÇÃO E ASSINATURA
             const renderDocumentView = (identityData) => {
-                container.classList.remove('justify-center'); 
-                container.classList.add('pt-4');
-
+                container.classList.remove('justify-center'); container.classList.add('pt-4');
                 container.innerHTML = `
                     <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8">
                         <div class="bg-green-700 p-4 text-white flex justify-between items-center">
-                            <div>
-                                <h2 class="text-sm font-bold uppercase"><i class="fas fa-file-contract"></i> Documento Liberado</h2>
-                                <p class="text-[10px] opacity-80">Acesso por: ${identityData.name} (CPF: ${identityData.cpf})</p>
-                            </div>
-                            <div class="text-right text-[10px]">
-                                <span class="bg-green-800 px-2 py-1 rounded">Ambiente Seguro</span>
-                            </div>
+                            <div><h2 class="text-sm font-bold uppercase"><i class="fas fa-file-contract"></i> Documento Liberado</h2><p class="text-[10px] opacity-80">Acesso por: ${identityData.name}</p></div>
                         </div>
-                        <div class="p-6 md:p-10 text-sm bg-gray-50 border-b">
-                            ${docSnapshot.htmlContent}
-                        </div>
-                        
-                        <!-- ÁREA DE BIOMETRIA E ASSINATURA -->
+                        <div class="p-6 md:p-10 text-sm bg-gray-50 border-b">${docSnapshot.htmlContent}</div>
                         <div class="bg-gray-100 p-6 flex flex-col items-center gap-6">
-                            
-                            <!-- BOX DA CÂMERA -->
                             <div class="w-full max-w-sm bg-white p-4 rounded-lg shadow-md border border-gray-300">
-                                <div class="text-center mb-2">
-                                    <p class="font-bold text-gray-800 text-sm uppercase"><i class="fas fa-camera"></i> Registro Biométrico Facial</p>
-                                    <p class="text-[10px] text-gray-500">Obrigatório para validar a assinatura.</p>
-                                </div>
-                                
+                                <div class="text-center mb-2"><p class="font-bold text-gray-800 text-sm uppercase"><i class="fas fa-camera"></i> Registro Biométrico Facial</p><p class="text-[10px] text-gray-500">Obrigatório para validar a assinatura.</p></div>
                                 <div class="relative w-full h-64 bg-black rounded-lg overflow-hidden flex items-center justify-center mb-3">
                                     <video id="remote-video" autoplay playsinline class="w-full h-full object-cover transform scale-x-[-1]"></video>
                                     <canvas id="remote-canvas" class="hidden"></canvas>
                                     <img id="remote-photo-result" class="absolute inset-0 w-full h-full object-cover hidden transform scale-x-[-1]">
-                                    <div id="camera-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                                        <i class="fas fa-user-circle text-4xl mb-2"></i>
-                                        <p class="text-xs">Aguardando Câmera</p>
-                                    </div>
+                                    <div id="camera-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400"><i class="fas fa-user-circle text-4xl mb-2"></i><p class="text-xs">Aguardando Câmera</p></div>
                                 </div>
-
                                 <div class="flex gap-2 justify-center">
-                                    <button id="btn-start-remote-cam" class="bg-sky-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-sky-700 w-full">
-                                        <i class="fas fa-video"></i> ATIVAR CÂMERA
-                                    </button>
-                                    <button id="btn-take-remote-pic" class="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-green-700 w-full hidden">
-                                        <i class="fas fa-camera"></i> TIRAR SELFIE
-                                    </button>
-                                    <button id="btn-retake-remote-pic" class="bg-yellow-500 text-white px-4 py-2 rounded text-xs font-bold hover:bg-yellow-600 w-full hidden">
-                                        <i class="fas fa-redo"></i> REFAZER
-                                    </button>
+                                    <button id="btn-start-remote-cam" class="bg-sky-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-sky-700 w-full"><i class="fas fa-video"></i> ATIVAR CÂMERA</button>
+                                    <button id="btn-take-remote-pic" class="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-green-700 w-full hidden"><i class="fas fa-camera"></i> TIRAR SELFIE</button>
+                                    <button id="btn-retake-remote-pic" class="bg-yellow-500 text-white px-4 py-2 rounded text-xs font-bold hover:bg-yellow-600 w-full hidden"><i class="fas fa-redo"></i> REFAZER</button>
                                 </div>
                             </div>
-
-                            <!-- TEXTO LEGAL E BOTÃO FINAL -->
                             <div class="text-center w-full">
-                                <p class="text-xs text-gray-600 max-w-md mx-auto text-justify mb-4">
-                                    Eu, <strong>${identityData.name}</strong>, CPF <strong>${identityData.cpf}</strong>, declaro ter lido o documento acima e concordo com seu teor. A selfie capturada servirá como prova de vida e autoria deste aceite digital.
-                                </p>
-                                <button id="btn-remote-agree" disabled class="w-full max-w-md bg-gray-400 text-white text-lg font-bold py-4 px-10 rounded-full shadow-lg flex items-center justify-center gap-2 cursor-not-allowed transition-all">
-                                    <i class="fas fa-lock"></i> TIRE A SELFIE PARA ASSINAR
-                                </button>
-                                <p class="text-[10px] text-gray-400 mt-2 text-center">
-                                    IP: Buscando... | Device: ${navigator.userAgent.substring(0, 30)}...
-                                </p>
+                                <p class="text-xs text-gray-600 max-w-md mx-auto text-justify mb-4">Eu, <strong>${identityData.name}</strong>, CPF <strong>${identityData.cpf}</strong>, declaro ter lido o documento acima e concordo com seu teor.</p>
+                                <button id="btn-remote-agree" disabled class="w-full max-w-md bg-gray-400 text-white text-lg font-bold py-4 px-10 rounded-full shadow-lg flex items-center justify-center gap-2 cursor-not-allowed transition-all"><i class="fas fa-lock"></i> TIRE A SELFIE PARA ASSINAR</button>
                             </div>
                         </div>
-                    </div>
-                `;
+                    </div>`;
 
-                // --- LÓGICA DA CÂMERA REMOTA ---
                 let remoteStream = null;
                 let capturedPhotoBase64 = null;
                 const videoEl = document.getElementById('remote-video');
@@ -268,10 +214,7 @@ const checkForRemoteSignParams = async () => {
                         phEl.classList.add('hidden');
                         btnStart.classList.add('hidden');
                         btnTake.classList.remove('hidden');
-                    } catch (err) {
-                        alert("Não foi possível acessar a câmera. Verifique as permissões do navegador.");
-                        console.error(err);
-                    }
+                    } catch (err) { alert("Erro na câmera."); }
                 };
 
                 btnTake.onclick = () => {
@@ -279,105 +222,41 @@ const checkForRemoteSignParams = async () => {
                     canvasEl.width = videoEl.videoWidth;
                     canvasEl.height = videoEl.videoHeight;
                     const ctx = canvasEl.getContext('2d');
-                    // Espelhar horizontalmente para selfie ficar natural
-                    ctx.translate(canvasEl.width, 0);
-                    ctx.scale(-1, 1);
+                    ctx.translate(canvasEl.width, 0); ctx.scale(-1, 1);
                     ctx.drawImage(videoEl, 0, 0);
-                    
-                    capturedPhotoBase64 = canvasEl.toDataURL('image/jpeg', 0.5); // Qualidade média para não pesar
-                    imgEl.src = capturedPhotoBase64;
-                    imgEl.classList.remove('hidden');
-                    
-                    btnTake.classList.add('hidden');
-                    btnRetake.classList.remove('hidden');
-                    
-                    // Libera botão de assinar
-                    btnSign.disabled = false;
-                    btnSign.classList.remove('bg-gray-400', 'cursor-not-allowed');
-                    btnSign.classList.add('bg-green-600', 'hover:bg-green-700', 'hover:scale-105', 'transform');
-                    btnSign.innerHTML = '<i class="fas fa-check-double"></i> CONFIRMAR E ASSINAR';
+                    capturedPhotoBase64 = canvasEl.toDataURL('image/jpeg', 0.5);
+                    imgEl.src = capturedPhotoBase64; imgEl.classList.remove('hidden');
+                    btnTake.classList.add('hidden'); btnRetake.classList.remove('hidden');
+                    btnSign.disabled = false; btnSign.classList.remove('bg-gray-400', 'cursor-not-allowed'); btnSign.classList.add('bg-green-600', 'hover:bg-green-700', 'transform', 'hover:scale-105'); btnSign.innerHTML = '<i class="fas fa-check-double"></i> CONFIRMAR E ASSINAR';
                 };
 
                 btnRetake.onclick = () => {
-                    capturedPhotoBase64 = null;
-                    imgEl.classList.add('hidden');
-                    btnRetake.classList.add('hidden');
-                    btnTake.classList.remove('hidden');
-                    
-                    // Bloqueia botão novamente
-                    btnSign.disabled = true;
-                    btnSign.classList.add('bg-gray-400', 'cursor-not-allowed');
-                    btnSign.classList.remove('bg-green-600', 'hover:bg-green-700', 'hover:scale-105', 'transform');
-                    btnSign.innerHTML = '<i class="fas fa-lock"></i> TIRE A SELFIE PARA ASSINAR';
+                    capturedPhotoBase64 = null; imgEl.classList.add('hidden'); btnRetake.classList.add('hidden'); btnTake.classList.remove('hidden');
+                    btnSign.disabled = true; btnSign.classList.add('bg-gray-400', 'cursor-not-allowed'); btnSign.classList.remove('bg-green-600', 'hover:bg-green-700', 'transform', 'hover:scale-105'); btnSign.innerHTML = '<i class="fas fa-lock"></i> TIRE A SELFIE PARA ASSINAR';
                 };
 
-                // --- AÇÃO FINAL DE ASSINATURA ---
                 btnSign.onclick = async function() {
                     if (!capturedPhotoBase64) return;
-                    
-                    const btn = this;
-                    btn.disabled = true;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registrando no Blockchain...';
-                    
+                    this.disabled = true; this.innerHTML = 'Salvando...';
                     const meta = await fetchClientMetadata();
-                    
-                    const digitalSignature = {
-                        type: 'digital_ack',
-                        ip: meta.ip,
-                        device: meta.userAgent,
-                        timestamp: meta.timestamp,
-                        signerName: identityData.name,
-                        signerCPF: identityData.cpf,
-                        photo: capturedPhotoBase64, // SALVA A FOTO
-                        valid: true
-                    };
-
-                    const key = `responsible_${String(studentId || docSnapshot.studentId)}`; 
-                    const sigMap = new Map();
-                    sigMap.set(key, digitalSignature);
-
+                    const digitalSignature = { type: 'digital_ack', ip: meta.ip, device: meta.userAgent, timestamp: meta.timestamp, signerName: identityData.name, signerCPF: identityData.cpf, photo: capturedPhotoBase64, valid: true };
+                    const key = `responsible_${String(studentId || docSnapshot.studentId)}`;
+                    const sigMap = new Map(); sigMap.set(key, digitalSignature);
                     const success = await updateDocumentSignatures(docSnapshot.id, sigMap);
-
                     if (success) {
-                        if(remoteStream) remoteStream.getTracks().forEach(t => t.stop()); // Para a câmera
-                        container.innerHTML = `
-                            <div class="h-[80vh] flex items-center justify-center">
-                                <div class="bg-white p-10 rounded-2xl shadow-xl text-center max-w-md border-2 border-green-100">
-                                    <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                                        <i class="fas fa-check text-5xl text-green-600"></i>
-                                    </div>
-                                    <h1 class="text-2xl font-bold text-gray-800 mb-2">Assinatura Recebida!</h1>
-                                    <p class="text-gray-600 mb-6 text-sm">O documento foi assinado e validado biometricamente.</p>
-                                    <div class="bg-gray-100 p-3 rounded text-xs text-left text-gray-500 font-mono">
-                                        HASH: ${Math.random().toString(36).substring(2, 15).toUpperCase()}<br>
-                                        CPF: ***${identityData.cpf.slice(-4)}<br>
-                                        FOTO: OK (Anexada)
-                                    </div>
-                                    <button onclick="window.close()" class="mt-6 w-full bg-sky-600 text-white font-bold py-2 rounded">Fechar Janela</button>
-                                </div>
-                            </div>`;
-                    } else {
-                        alert("Erro de conexão ao salvar. Tente novamente.");
-                        btn.disabled = false;
-                        btn.innerHTML = 'Tentar Novamente';
-                    }
+                        if(remoteStream) remoteStream.getTracks().forEach(t => t.stop());
+                        container.innerHTML = `<div class="h-[80vh] flex items-center justify-center"><div class="bg-white p-10 rounded-2xl shadow-xl text-center"><h1 class="text-2xl font-bold text-gray-800">Sucesso!</h1><p class="text-gray-600">Documento assinado com biometria facial.</p></div></div>`;
+                    } else { alert("Erro ao salvar."); this.disabled = false; }
                 };
             };
-
             renderIdentityChallenge();
-
-        } catch (e) {
-            console.error(e);
-            alert("Erro fatal ao carregar sistema de assinatura.");
-        }
+        } catch (e) { alert("Erro fatal."); }
     }
 };
-
-// Inicializa verificação ao carregar arquivo
 setTimeout(checkForRemoteSignParams, 500);
 
 
-// --- MODAL DE ASSINATURA (COM ABAS: DESENHO / LINK) ---
+// --- MODAL DE ASSINATURA ---
 
 const ensureSignatureModalExists = () => {
     if (document.getElementById('signature-pad-modal')) return;
@@ -386,81 +265,86 @@ const ensureSignatureModalExists = () => {
     <div id="signature-pad-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center z-[60] font-sans">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col max-h-[95vh] overflow-hidden">
             
-            <!-- HEADER COM ABAS -->
             <div class="flex border-b bg-gray-50">
-                <button id="tab-draw" class="flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition">
-                    <i class="fas fa-pen-alt mr-1"></i> Desenhar
-                </button>
-                <button id="tab-link" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition">
-                    <i class="fab fa-whatsapp mr-1"></i> Link / Digital
-                </button>
+                <button id="tab-draw" class="flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition"><i class="fas fa-pen-alt mr-1"></i> Desenhar</button>
+                <button id="tab-link" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition"><i class="fas fa-fingerprint mr-1"></i> Digital / Link</button>
             </div>
             
             <div class="p-4 overflow-y-auto">
                 
-                <!-- CONTEÚDO TAB 1: DESENHO (PADRÃO) -->
+                <!-- TAB 1: DESENHO -->
                 <div id="content-tab-draw">
                     <div class="bg-black rounded-lg overflow-hidden relative mb-4 h-40 flex items-center justify-center group shadow-inner">
                         <video id="camera-preview" autoplay playsinline class="w-full h-full object-cover"></video>
                         <canvas id="photo-canvas" class="hidden"></canvas>
                         <img id="photo-result" class="hidden w-full h-full object-cover absolute top-0 left-0 z-10" />
                         <div class="absolute bottom-2 w-full flex justify-center gap-2 z-20">
-                            <button id="btn-take-photo" class="bg-white text-gray-900 rounded-full px-3 py-1 text-xs font-bold shadow hover:bg-gray-200"><i class="fas fa-camera"></i> Foto (Obrigatória)</button>
+                            <button id="btn-take-photo" class="bg-white text-gray-900 rounded-full px-3 py-1 text-xs font-bold shadow hover:bg-gray-200"><i class="fas fa-camera"></i> Foto</button>
                             <button id="btn-retake-photo" class="hidden bg-yellow-400 text-yellow-900 rounded-full px-3 py-1 text-xs font-bold shadow"><i class="fas fa-redo"></i> Refazer</button>
                         </div>
                     </div>
-
                     <div class="flex justify-between items-end mb-1">
                         <p class="text-xs font-bold text-gray-600 uppercase">Assinatura</p>
                         <div class="flex gap-1">
-                            <button id="btn-undo-signature" class="bg-gray-200 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-gray-300" title="Desfazer Traço"><i class="fas fa-undo"></i></button>
-                            <button id="btn-clear-signature" class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-red-200" title="Limpar Tudo"><i class="fas fa-trash"></i></button>
+                            <button id="btn-undo-signature" class="bg-gray-200 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-gray-300"><i class="fas fa-undo"></i></button>
+                            <button id="btn-clear-signature" class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-red-200"><i class="fas fa-trash"></i></button>
                         </div>
                     </div>
-                    <div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 relative touch-none">
+                    <div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 relative touch-none" style="touch-action: none;">
                         <canvas id="signature-canvas" class="w-full h-32 cursor-crosshair"></canvas>
                     </div>
                 </div>
 
-                <!-- CONTEÚDO TAB 2: LINK SEGURO -->
-                <div id="content-tab-link" class="hidden space-y-4">
-                    
-                    <!-- OPÇÃO A: ENVIAR VIA WHATSAPP -->
-                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <h4 class="font-bold text-green-800 text-sm mb-1"><i class="fab fa-whatsapp"></i> Link Seguro via WhatsApp</h4>
-                        <p class="text-xs text-green-700 mb-3 text-justify leading-tight">
-                            Gere um link único. O pai abre no celular, <strong>confirma Nome e CPF</strong> e assina. O sistema registra IP e Modelo do aparelho.
-                        </p>
-                        <div class="bg-white p-2 rounded border border-gray-200 text-[10px] text-gray-500 mb-3 font-mono break-all" id="generated-link-preview">
-                            Selecione um documento primeiro...
+                <!-- TAB 2: LINK OU PRESENCIAL -->
+                <div id="content-tab-link" class="hidden">
+                    <div id="local-options-container" class="space-y-4">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <h4 class="font-bold text-green-800 text-sm mb-1"><i class="fab fa-whatsapp"></i> Enviar Link para Casa</h4>
+                            <p class="text-xs text-green-700 mb-3">Gere um link para o responsável assinar do próprio celular.</p>
+                            <div class="bg-white p-2 rounded border border-gray-200 text-[10px] text-gray-500 mb-3 font-mono break-all" id="generated-link-preview">...</div>
+                            <button id="btn-send-whatsapp" class="w-full bg-green-600 text-white font-bold py-2 rounded shadow text-sm"><i class="fas fa-share"></i> Enviar Link</button>
                         </div>
-                        <button id="btn-send-whatsapp" class="w-full bg-green-600 text-white font-bold py-2 rounded shadow hover:bg-green-700 text-sm flex items-center justify-center gap-2">
-                            <i class="fas fa-share"></i> Enviar Link Agora
-                        </button>
-                        <p class="text-[9px] text-center text-gray-400 mt-2">Nota: O sistema precisa estar online para o pai acessar de casa.</p>
+                        <div class="flex items-center justify-center text-gray-400 text-xs font-bold">- OU -</div>
+                        <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 text-center">
+                            <h4 class="font-bold text-sky-800 text-sm mb-1">Assinar Agora (Biometria)</h4>
+                            <p class="text-xs text-sky-700 mb-3">Coleta Nome, CPF e Selfie neste dispositivo.</p>
+                            <button id="btn-start-local-flow" class="w-full bg-sky-600 text-white font-bold py-3 rounded shadow"><i class="fas fa-user-check"></i> INICIAR COLETA</button>
+                        </div>
                     </div>
 
-                    <div class="flex items-center justify-center text-gray-400 text-xs font-bold my-2">- OU -</div>
-
-                    <!-- OPÇÃO B: ACEITE PRESENCIAL (TABLET) -->
-                    <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 text-center">
-                        <h4 class="font-bold text-sky-800 text-sm mb-1">Ciência Digital (Dispositivo Atual)</h4>
-                        <p class="text-xs text-sky-700 mb-3 leading-tight">
-                            O responsável está aqui mas prefere não desenhar? Use o botão abaixo para registrar o aceite eletrônico neste aparelho.
-                        </p>
-                        <button id="btn-digital-ack" class="w-full bg-sky-600 text-white font-bold py-3 rounded shadow hover:bg-sky-700 flex items-center justify-center gap-2">
-                            <i class="fas fa-fingerprint"></i> REGISTRAR ACEITE
-                        </button>
+                    <!-- FLUXO LOCAL DE IDENTIDADE -->
+                    <div id="local-identity-container" class="hidden space-y-3">
+                         <h4 class="font-bold text-gray-700 text-center border-b pb-2">Identificação do Responsável</h4>
+                         <div><label class="text-xs font-bold text-gray-500">Nome Completo</label><input id="local-signer-name" type="text" class="w-full border p-2 rounded uppercase text-sm"></div>
+                         <div><label class="text-xs font-bold text-gray-500">CPF</label><input id="local-signer-cpf" type="tel" class="w-full border p-2 rounded text-sm" maxlength="14"></div>
+                         <div class="flex gap-2 mt-4">
+                            <button id="btn-cancel-local" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded text-xs font-bold">Voltar</button>
+                            <button id="btn-next-local" class="flex-1 bg-sky-600 text-white py-2 rounded text-xs font-bold">Próximo</button>
+                         </div>
                     </div>
 
+                    <!-- FLUXO LOCAL DE SELFIE -->
+                    <div id="local-selfie-container" class="hidden flex flex-col items-center">
+                        <h4 class="font-bold text-gray-700 text-center mb-2">Validação Biométrica</h4>
+                        <div class="relative w-full h-48 bg-black rounded-lg overflow-hidden flex items-center justify-center mb-3">
+                            <video id="local-video" autoplay playsinline class="w-full h-full object-cover transform scale-x-[-1]"></video>
+                            <canvas id="local-canvas" class="hidden"></canvas>
+                            <img id="local-photo-result" class="absolute inset-0 w-full h-full object-cover hidden transform scale-x-[-1]">
+                        </div>
+                        <div class="flex gap-2 w-full mb-3">
+                            <button id="btn-local-take" class="flex-1 bg-green-600 text-white py-2 rounded text-xs font-bold"><i class="fas fa-camera"></i> Capturar</button>
+                            <button id="btn-local-retake" class="hidden flex-1 bg-yellow-500 text-white py-2 rounded text-xs font-bold"><i class="fas fa-redo"></i> Refazer</button>
+                        </div>
+                        <button id="btn-finish-local" disabled class="w-full bg-gray-400 text-white py-3 rounded font-bold shadow cursor-not-allowed">CONFIRMAR ASSINATURA</button>
+                        <button id="btn-back-to-identity" class="mt-2 text-xs text-gray-500 underline">Voltar</button>
+                    </div>
                 </div>
 
             </div>
 
-            <!-- FOOTER -->
             <div class="flex justify-between items-center bg-gray-50 p-3 border-t">
                 <button id="btn-cancel-signature" class="px-4 py-2 rounded text-gray-600 hover:bg-gray-200 text-xs font-bold">Cancelar</button>
-                <button id="btn-confirm-signature" class="px-6 py-2 rounded bg-gray-900 text-white font-bold hover:bg-gray-800 shadow text-xs">Confirmar Desenho</button>
+                <button id="btn-confirm-signature" class="px-6 py-2 rounded bg-gray-900 text-white font-bold hover:bg-gray-800 shadow text-xs">Salvar Desenho</button>
             </div>
         </div>
     </div>`;
@@ -478,52 +362,125 @@ const setupSignaturePadEvents = () => {
     const tabLink = document.getElementById('tab-link');
     const contentDraw = document.getElementById('content-tab-draw');
     const contentLink = document.getElementById('content-tab-link');
-    
     const btnConfirm = document.getElementById('btn-confirm-signature');
+
+    // ELEMENTOS DO FLUXO LOCAL
+    const localOptions = document.getElementById('local-options-container');
+    const localIdentity = document.getElementById('local-identity-container');
+    const localSelfie = document.getElementById('local-selfie-container');
     
     // --- LÓGICA DE ABAS ---
-    tabDraw.onclick = () => {
-        contentDraw.classList.remove('hidden');
-        contentLink.classList.add('hidden');
-        tabDraw.className = "flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition";
-        tabLink.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
-        btnConfirm.classList.remove('hidden');
-        startCamera();
-        
-        // Resize canvas ao trocar de aba para garantir render correto
-        const rect = canvas.parentElement.getBoundingClientRect();
-        if(rect.width > 0) { canvas.width = rect.width; canvas.height = 128; redrawCanvas(); }
-    };
-
-    tabLink.onclick = () => {
-        contentDraw.classList.add('hidden');
-        contentLink.classList.remove('hidden');
-        tabLink.className = "flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition";
-        tabDraw.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
-        btnConfirm.classList.add('hidden'); 
-        stopCameraStream();
-
-        // GERA O LINK
-        if (currentDocumentIdForRemote) {
-            const baseUrl = window.location.href.split('?')[0];
-            // Usa 'docId' (o ID do Firestore) em vez de 'refId' para garantir unicidade
-            const fullLink = `${baseUrl}?mode=sign&docId=${currentDocumentIdForRemote}&type=notificacao&student=${currentDocumentKeyForRemote.replace('responsible_', '')}`;
-            document.getElementById('generated-link-preview').innerText = fullLink;
-            
-            document.getElementById('btn-send-whatsapp').onclick = () => {
-                const msg = `Olá. Segue link seguro para assinatura da notificação escolar: ${fullLink}`;
-                window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-            };
+    const switchTab = (tab) => {
+        if(tab === 'draw') {
+            contentDraw.classList.remove('hidden'); contentLink.classList.add('hidden');
+            tabDraw.className = "flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition";
+            tabLink.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
+            btnConfirm.classList.remove('hidden');
+            startCamera(); // Camera do Tab 1 (Desenho)
+            const rect = canvas.parentElement.getBoundingClientRect();
+            if(rect.width > 0) { canvas.width = rect.width; canvas.height = 128; redrawCanvas(); }
         } else {
-            document.getElementById('generated-link-preview').innerText = "Salve o documento antes de gerar o link.";
+            contentDraw.classList.add('hidden'); contentLink.classList.remove('hidden');
+            tabLink.className = "flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition";
+            tabDraw.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
+            btnConfirm.classList.add('hidden');
+            stopCameraStream(); // Para camera do Tab 1
+            
+            // Reseta fluxo local
+            localOptions.classList.remove('hidden');
+            localIdentity.classList.add('hidden');
+            localSelfie.classList.add('hidden');
+
+            // Gera Link
+            if (currentDocumentIdForRemote) {
+                const baseUrl = window.location.href.split('?')[0];
+                const fullLink = `${baseUrl}?mode=sign&docId=${currentDocumentIdForRemote}&type=notificacao&student=${currentDocumentKeyForRemote.replace('responsible_', '')}`;
+                document.getElementById('generated-link-preview').innerText = fullLink;
+                document.getElementById('btn-send-whatsapp').onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(`Link para assinatura: ${fullLink}`)}`, '_blank');
+            }
         }
     };
 
-    // --- BOTÃO ACEITE DIGITAL PRESENCIAL ---
-    document.getElementById('btn-digital-ack').onclick = async () => {
-        if (!confirm("Confirmar assinatura digital com registro de IP e Dispositivo?")) return;
+    tabDraw.onclick = () => switchTab('draw');
+    tabLink.onclick = () => switchTab('link');
+
+    // --- LÓGICA DO FLUXO LOCAL PRESENCIAL (Novo) ---
+    let localStream = null;
+    let localCapturedPhoto = null;
+
+    document.getElementById('btn-start-local-flow').onclick = () => {
+        localOptions.classList.add('hidden');
+        localIdentity.classList.remove('hidden');
+    };
+
+    document.getElementById('btn-cancel-local').onclick = () => {
+        localIdentity.classList.add('hidden');
+        localOptions.classList.remove('hidden');
+    };
+
+    document.getElementById('local-signer-cpf').addEventListener('input', (e) => {
+        let v = e.target.value.replace(/\D/g, "");
+        if(v.length > 11) v = v.slice(0, 11);
+        v = v.replace(/(\d{3})(\d)/, "$1.$2"); v = v.replace(/(\d{3})(\d)/, "$1.$2"); v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+        e.target.value = v;
+    });
+
+    document.getElementById('btn-next-local').onclick = async () => {
+        const name = document.getElementById('local-signer-name').value.trim();
+        const cpf = document.getElementById('local-signer-cpf').value.trim();
+        if (name.length < 5 || cpf.length < 11) return alert("Preencha Nome e CPF corretamente.");
         
-        showToast("Registrando biometria digital...");
+        localIdentity.classList.add('hidden');
+        localSelfie.classList.remove('hidden');
+        
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+            localStream = stream;
+            document.getElementById('local-video').srcObject = stream;
+        } catch(e) { alert("Erro ao abrir câmera."); }
+    };
+
+    document.getElementById('btn-back-to-identity').onclick = () => {
+        if(localStream) localStream.getTracks().forEach(t=>t.stop());
+        localSelfie.classList.add('hidden');
+        localIdentity.classList.remove('hidden');
+    };
+
+    document.getElementById('btn-local-take').onclick = () => {
+        const vid = document.getElementById('local-video');
+        const can = document.getElementById('local-canvas');
+        const img = document.getElementById('local-photo-result');
+        
+        can.width = vid.videoWidth; can.height = vid.videoHeight;
+        const ctxL = can.getContext('2d');
+        ctxL.translate(can.width, 0); ctxL.scale(-1, 1);
+        ctxL.drawImage(vid, 0, 0);
+        
+        localCapturedPhoto = can.toDataURL('image/jpeg', 0.5);
+        img.src = localCapturedPhoto; img.classList.remove('hidden');
+        
+        document.getElementById('btn-local-take').classList.add('hidden');
+        document.getElementById('btn-local-retake').classList.remove('hidden');
+        
+        const btnFinish = document.getElementById('btn-finish-local');
+        btnFinish.disabled = false; btnFinish.classList.remove('bg-gray-400', 'cursor-not-allowed'); btnFinish.classList.add('bg-sky-600', 'hover:bg-sky-700');
+    };
+
+    document.getElementById('btn-local-retake').onclick = () => {
+        localCapturedPhoto = null;
+        document.getElementById('local-photo-result').classList.add('hidden');
+        document.getElementById('btn-local-take').classList.remove('hidden');
+        document.getElementById('btn-local-retake').classList.add('hidden');
+        const btnFinish = document.getElementById('btn-finish-local');
+        btnFinish.disabled = true; btnFinish.classList.add('bg-gray-400', 'cursor-not-allowed'); btnFinish.classList.remove('bg-sky-600', 'hover:bg-sky-700');
+    };
+
+    document.getElementById('btn-finish-local').onclick = async () => {
+        if(!localCapturedPhoto) return;
+        const name = document.getElementById('local-signer-name').value.trim();
+        const cpf = document.getElementById('local-signer-cpf').value.trim();
+        
+        showToast("Registrando...");
         const meta = await fetchClientMetadata();
         
         const digitalData = {
@@ -531,17 +488,20 @@ const setupSignaturePadEvents = () => {
             ip: meta.ip,
             device: meta.userAgent,
             timestamp: meta.timestamp,
+            signerName: name,
+            signerCPF: cpf,
+            photo: localCapturedPhoto,
             valid: true
         };
 
-        stopCameraStream();
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
+        if(localStream) localStream.getTracks().forEach(t=>t.stop());
+        if(currentStream) currentStream.getTracks().forEach(t=>t.stop()); // Garante que tudo para
 
+        modal.classList.add('hidden'); modal.classList.remove('flex');
         if (modal._onConfirmCallback) modal._onConfirmCallback(digitalData);
     };
 
-    // --- CÂMERA ---
+    // --- LÓGICA DA CÂMERA (TAB 1) ---
     const btnTake = document.getElementById('btn-take-photo');
     const btnRetake = document.getElementById('btn-retake-photo');
     const video = document.getElementById('camera-preview');
@@ -551,24 +511,19 @@ const setupSignaturePadEvents = () => {
 
     btnTake.onclick = () => {
         if (!currentStream) return showToast("Câmera desligada.");
-        photoCanvas.width = video.videoWidth;
-        photoCanvas.height = video.videoHeight;
+        photoCanvas.width = video.videoWidth; photoCanvas.height = video.videoHeight;
         photoCanvas.getContext('2d').drawImage(video, 0, 0);
         capturedPhotoData = photoCanvas.toDataURL('image/jpeg', 0.6);
-        photoResult.src = capturedPhotoData;
-        photoResult.classList.remove('hidden');
-        btnTake.classList.add('hidden');
-        btnRetake.classList.remove('hidden');
+        photoResult.src = capturedPhotoData; photoResult.classList.remove('hidden');
+        btnTake.classList.add('hidden'); btnRetake.classList.remove('hidden');
     };
 
     btnRetake.onclick = () => {
-        capturedPhotoData = null;
-        photoResult.classList.add('hidden');
-        btnTake.classList.remove('hidden');
-        btnRetake.classList.add('hidden');
+        capturedPhotoData = null; photoResult.classList.add('hidden');
+        btnTake.classList.remove('hidden'); btnRetake.classList.add('hidden');
     };
 
-    // --- DESENHO (COM UNDO) ---
+    // --- CORREÇÃO DO CANVAS (GHOSTING FIX) ---
     const redrawCanvas = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#000';
@@ -590,12 +545,55 @@ const setupSignaturePadEvents = () => {
         return { x: (clientX - rect.left)*(canvas.width/rect.width), y: (clientY - rect.top)*(canvas.height/rect.height) };
     };
 
-    canvas.addEventListener('mousedown', (e) => { isDrawing=true; currentPath=[getPos(e)]; });
-    canvas.addEventListener('mousemove', (e) => { if(!isDrawing)return; const p=getPos(e); currentPath.push(p); ctx.lineTo(p.x, p.y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
-    canvas.addEventListener('mouseup', () => { if(isDrawing){ isDrawing=false; savedPaths.push([...currentPath]); redrawCanvas(); } });
-    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); isDrawing=true; currentPath=[getPos(e)]; }, {passive: false});
-    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); if(!isDrawing)return; const p=getPos(e); currentPath.push(p); ctx.lineTo(p.x, p.y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(p.x, p.y); }, {passive: false});
-    canvas.addEventListener('touchend', (e) => { if(isDrawing){ isDrawing=false; savedPaths.push([...currentPath]); redrawCanvas(); } });
+    // FIX: Separar lógica de path atual do histórico
+    canvas.addEventListener('mousedown', (e) => { 
+        isDrawing=true; 
+        currentPath=[getPos(e)]; 
+        ctx.beginPath(); // IMPORTANTE
+        ctx.moveTo(currentPath[0].x, currentPath[0].y);
+    });
+    
+    canvas.addEventListener('mousemove', (e) => { 
+        if(!isDrawing) return; 
+        const p = getPos(e); 
+        currentPath.push(p); 
+        ctx.lineTo(p.x, p.y); 
+        ctx.stroke(); 
+        // Não chamamos beginPath aqui para que o traço seja contínuo
+    });
+    
+    canvas.addEventListener('mouseup', () => { 
+        if(isDrawing){ 
+            isDrawing=false; 
+            savedPaths.push([...currentPath]); 
+            // Não precisa chamar redrawCanvas aqui pois o traço já está na tela
+        } 
+    });
+
+    // Touch Support (com preventDefault para não rolar a tela)
+    canvas.addEventListener('touchstart', (e) => { 
+        e.preventDefault(); 
+        isDrawing=true; 
+        currentPath=[getPos(e)]; 
+        ctx.beginPath();
+        ctx.moveTo(currentPath[0].x, currentPath[0].y);
+    }, {passive: false});
+
+    canvas.addEventListener('touchmove', (e) => { 
+        e.preventDefault(); 
+        if(!isDrawing) return; 
+        const p=getPos(e); 
+        currentPath.push(p); 
+        ctx.lineTo(p.x, p.y); 
+        ctx.stroke(); 
+    }, {passive: false});
+
+    canvas.addEventListener('touchend', (e) => { 
+        if(isDrawing){ 
+            isDrawing=false; 
+            savedPaths.push([...currentPath]); 
+        } 
+    });
 
     document.getElementById('btn-undo-signature').onclick = () => { savedPaths.pop(); redrawCanvas(); };
     document.getElementById('btn-clear-signature').onclick = () => { savedPaths=[]; currentPath=[]; ctx.clearRect(0,0,canvas.width,canvas.height); };
@@ -604,15 +602,14 @@ const setupSignaturePadEvents = () => {
         const signatureData = canvas.toDataURL('image/png');
         const evidenceData = !photoResult.classList.contains('hidden') ? photoResult.src : null;
         stopCameraStream();
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
+        modal.classList.add('hidden'); modal.classList.remove('flex');
         if (modal._onConfirmCallback) modal._onConfirmCallback({ signature: signatureData, photo: evidenceData });
     };
 
     document.getElementById('btn-cancel-signature').onclick = () => {
         stopCameraStream();
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
+        if(localStream) localStream.getTracks().forEach(t=>t.stop());
+        modal.classList.add('hidden'); modal.classList.remove('flex');
     };
 };
 
@@ -621,7 +618,7 @@ const startCamera = async () => {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
         currentStream = stream;
         document.getElementById('camera-preview').srcObject = stream;
-    } catch(e) { console.error("Erro Câmera", e); }
+    } catch(e) { console.error("Erro Câmera Tab 1", e); }
 };
 
 const stopCameraStream = () => { 
@@ -642,16 +639,14 @@ const openSignaturePad = (key, docRefId, onConfirm) => {
     
     document.getElementById('tab-draw').click(); // Reseta para aba de desenho
     
-    // Limpa canvas visualmente
     const canvas = document.getElementById('signature-canvas');
     if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
     
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
+    modal.classList.remove('hidden'); modal.classList.add('flex');
 };
 
 
-// --- HELPERS DE DADOS ---
+// --- HELPERS DE DADOS E HTML ---
 
 const resolveStudentData = async (studentId, recordSource = null) => {
     let memoryStudent = state.students.find(s => s.matricula === studentId);
@@ -663,8 +658,6 @@ const resolveStudentData = async (studentId, recordSource = null) => {
         resp1: memoryStudent?.resp1 || ''
     };
 };
-
-// --- HELPERS DE HTML ---
 
 export const getReportHeaderHTML = (dateObj = new Date()) => {
     const logoUrl = state.config?.schoolLogoUrl || null;
@@ -734,55 +727,52 @@ const getAttemptsTableHTML = (records, type = 'occurrence') => {
     return `<table class="report-table"><thead><tr><th style="width: 30%">Ação</th><th style="width: 25%">Data</th><th>Resultado</th></tr></thead><tbody>${rows}</tbody></table>`;
 };
 
-// --- GERAÇÃO VISUAL DA ASSINATURA ---
+// --- VISUAL DA ASSINATURA (LAYOUT COMPACTO) ---
 const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
-    // Caso 1: Assinatura Digital (Botão Verde)
+    // 1. Digital com Biometria
     if (sigData && sigData.type === 'digital_ack') {
         return `
-            <div class="relative group p-1 border-2 border-green-500 bg-green-50 rounded break-inside-avoid flex items-center justify-between overflow-hidden" data-sig-key="${key}">
-                <div class="p-2 flex-1">
-                    <p class="text-[10px] font-bold uppercase text-green-800">${roleTitle}</p>
-                    <p class="text-[9px] text-green-700">${nameSubtitle}</p>
-                    <div class="mt-1 text-[8px] text-green-600 font-mono leading-tight">
-                        ${sigData.signerName ? `<i class="fas fa-user-check"></i> ${sigData.signerName}<br>` : ''}
-                        ${sigData.signerCPF ? `<i class="fas fa-id-card"></i> CPF: ${sigData.signerCPF}<br>` : ''}
-                        <i class="fas fa-globe"></i> IP: ${sigData.ip || 'N/A'}<br>
-                        <i class="fas fa-clock"></i> ${new Date(sigData.timestamp).toLocaleString()}
+            <div class="relative group border border-green-500 bg-green-50 rounded flex flex-col justify-between overflow-hidden h-28" data-sig-key="${key}">
+                <div class="p-2">
+                    <p class="text-[9px] font-bold uppercase text-green-800 leading-tight">${roleTitle}</p>
+                    <p class="text-[8px] text-green-700 truncate">${nameSubtitle}</p>
+                    <div class="mt-1 text-[7px] text-green-600 font-mono leading-tight">
+                        ${sigData.signerName ? `<i class="fas fa-user"></i> ${sigData.signerName.split(' ')[0]}...<br>` : ''}
+                        CPF: ***${sigData.signerCPF ? sigData.signerCPF.slice(-4) : '***'}<br>
+                        ${new Date(sigData.timestamp).toLocaleDateString()}
                     </div>
                 </div>
-                ${sigData.photo ? `<div class="h-16 w-16 bg-gray-200 mr-2 rounded overflow-hidden border border-gray-300"><img src="${sigData.photo}" class="w-full h-full object-cover"></div>` : ''}
-                <div class="bg-green-500 w-10 h-full flex items-center justify-center text-white text-xl">
-                    <i class="fas fa-check-circle"></i>
+                <div class="flex items-end justify-between">
+                     ${sigData.photo ? `<img src="${sigData.photo}" class="w-10 h-10 object-cover rounded-tr-lg border-t border-r border-green-200">` : '<span></span>'}
+                     <div class="bg-green-500 text-white px-2 py-1 text-xs rounded-tl-lg"><i class="fas fa-check"></i></div>
                 </div>
             </div>`;
     } 
-    // Caso 2: Assinatura Desenhada (Com Foto)
+    // 2. Desenhada
     else if (sigData && (sigData.signature || typeof sigData === 'string')) {
         const img = sigData.signature || sigData;
         const photo = sigData.photo;
         return `
-            <div class="relative group cursor-pointer p-1 border border-gray-300 rounded bg-white break-inside-avoid flex items-stretch overflow-hidden" data-sig-key="${key}">
-                <div class="w-16 bg-gray-100 border-r border-gray-300 flex flex-col items-center justify-center shrink-0">
-                    ${photo ? `<img src="${photo}" class="w-full h-20 object-cover" />` : `<i class="fas fa-user text-gray-300 text-2xl"></i>`}
+            <div class="relative group cursor-pointer border border-gray-300 rounded bg-white flex h-28 overflow-hidden" data-sig-key="${key}">
+                <div class="w-10 bg-gray-50 border-r border-gray-200 flex items-center justify-center shrink-0">
+                    ${photo ? `<img src="${photo}" class="w-full h-full object-cover opacity-80" />` : `<i class="fas fa-pen-nib text-gray-300"></i>`}
                 </div>
-                <div class="flex-1 flex flex-col justify-between p-2 relative">
-                    <img src="${img}" class="h-12 object-contain mix-blend-multiply self-center" />
-                    <div class="border-t border-black mt-1 w-full"></div>
-                    <div class="text-center leading-tight">
-                        <p class="text-[10px] font-bold uppercase">${roleTitle}</p>
-                        <p class="text-[9px] text-gray-500 truncate">${nameSubtitle}</p>
+                <div class="flex-1 flex flex-col p-1 justify-between relative">
+                    <img src="${img}" class="h-14 object-contain mix-blend-multiply self-center" />
+                    <div class="border-t border-black w-full pt-1 text-center">
+                        <p class="text-[8px] font-bold uppercase leading-none">${roleTitle}</p>
+                        <p class="text-[7px] text-gray-500 truncate">${nameSubtitle}</p>
                     </div>
                 </div>
             </div>`;
     } 
-    // Caso 3: Vazio
+    // 3. Vazio
     else {
         return `
-            <div class="h-24 border border-dashed border-gray-300 rounded bg-gray-50 flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-100 transition signature-interaction-area" data-sig-key="${key}">
-                <i class="fas fa-fingerprint text-2xl mb-1 opacity-50"></i>
-                <p class="text-[10px] uppercase font-bold">Aguardando Assinatura</p>
-                <p class="text-[9px]">${roleTitle}</p>
-                <p class="text-[9px] text-sky-600 font-bold mt-2">Clique para Assinar</p>
+            <div class="h-28 border border-dashed border-gray-300 rounded bg-gray-50 flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-100 transition signature-interaction-area" data-sig-key="${key}">
+                <i class="fas fa-fingerprint text-xl mb-1 opacity-50"></i>
+                <p class="text-[9px] uppercase font-bold text-center">Aguardando<br>Assinatura</p>
+                <p class="text-[8px] mt-1">${roleTitle}</p>
             </div>`;
     }
 };
@@ -795,16 +785,18 @@ const generateSignaturesGrid = (slots) => {
 
     const mgmtData = signatureMap.get('management');
     return `
-        <div class="mt-8 mb-8 break-inside-avoid p-4 bg-gray-50 rounded border border-gray-200">
-             <h5 class="text-[10px] font-bold uppercase text-gray-500 mb-4 border-b border-gray-300 pb-1 flex justify-between">
-                <span>Registro de Validação e Presença</span>
-                <span class="text-[9px] font-normal"><i class="fas fa-shield-alt"></i> Proteção Biométrica Ativa</span>
+        <div class="mt-6 mb-4 break-inside-avoid p-3 bg-gray-50 rounded border border-gray-200">
+             <h5 class="text-[9px] font-bold uppercase text-gray-500 mb-3 border-b border-gray-300 pb-1 flex justify-between">
+                <span>Registro de Validação</span>
+                <span class="font-normal"><i class="fas fa-shield-alt"></i> Biometria</span>
              </h5>
-             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${itemsHTML}</div>
-             <div class="mt-6 pt-4 border-t border-gray-200">
-                <p class="text-[10px] text-gray-400 text-center mb-2 uppercase tracking-widest">Autenticação da Gestão</p>
-                <div class="w-2/3 mx-auto">
-                    ${getSingleSignatureBoxHTML('management', 'Gestão Escolar', state.config?.schoolName || 'Direção', mgmtData)}
+             <!-- LAYOUT: 3 COLUNAS -->
+             <div class="grid grid-cols-2 md:grid-cols-3 gap-2">${itemsHTML}</div>
+             
+             <div class="mt-4 pt-2 border-t border-gray-200 flex justify-center">
+                <div class="w-full max-w-[200px]">
+                    <p class="text-[8px] text-gray-400 text-center mb-1 uppercase">Gestão Escolar</p>
+                    ${getSingleSignatureBoxHTML('management', 'Gestão', state.config?.schoolName || 'Direção', mgmtData)}
                 </div>
              </div>
         </div>`;
