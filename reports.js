@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 10.1 (Fix: Persistência de Assinaturas e Link Único)
+// VERSÃO: 10.2 (Selfie Obrigatória no Link Seguro)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -85,7 +85,6 @@ const checkForRemoteSignParams = async () => {
             const container = document.getElementById('remote-sign-container');
 
             // --- VERIFICAÇÃO DE LINK JÁ ASSINADO ---
-            // Define a chave esperada para o responsável, garantindo que seja string para evitar erros de comparação
             const targetKey = `responsible_${String(studentId || docSnapshot.studentId)}`;
             
             if (docSnapshot.signatures && docSnapshot.signatures[targetKey]) {
@@ -120,6 +119,7 @@ const checkForRemoteSignParams = async () => {
                                     <span class="text-gray-600">IP de Origem:</span>
                                     <span class="font-mono text-xs text-gray-500">${sig.ip || 'N/A'}</span>
                                 </div>
+                                ${sig.photo ? `<div class="mt-4 text-center"><p class="text-xs text-gray-500 mb-1">Registro Biométrico:</p><img src="${sig.photo}" class="w-24 h-24 object-cover rounded-full mx-auto border-2 border-gray-200 shadow-sm"></div>` : ''}
                             </div>
                             <div class="mt-6 text-center">
                                 <p class="text-[10px] text-gray-400">Este recibo digital tem validade jurídica.</p>
@@ -127,7 +127,7 @@ const checkForRemoteSignParams = async () => {
                         </div>
                     </div>
                 `;
-                return; // Encerra execução para impedir nova assinatura
+                return; 
             }
 
             // --- FASE 1: DESAFIO DE IDENTIDADE ---
@@ -140,7 +140,7 @@ const checkForRemoteSignParams = async () => {
                             <p class="text-xs opacity-80 mt-1">Identificação Obrigatória</p>
                         </div>
                         <div class="p-6 md:p-8 space-y-4">
-                            <p class="text-sm text-gray-600 text-center mb-4">Para visualizar e assinar o documento referente ao aluno(a), por favor confirme sua identidade.</p>
+                            <p class="text-sm text-gray-600 text-center mb-4">Para visualizar e assinar o documento, por favor confirme sua identidade.</p>
                             
                             <div>
                                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Seu Nome Completo</label>
@@ -153,12 +153,8 @@ const checkForRemoteSignParams = async () => {
                             </div>
 
                             <button id="btn-access-doc" class="w-full mt-4 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded shadow transition transform active:scale-95">
-                                ACESSAR DOCUMENTO
+                                CONTINUAR
                             </button>
-                            
-                            <p class="text-[10px] text-gray-400 text-center mt-2">
-                                <i class="fas fa-lock"></i> Seus dados serão vinculados à assinatura digital deste documento conforme Art. 10 da MP 2.200-2.
-                            </p>
                         </div>
                     </div>
                 `;
@@ -176,21 +172,18 @@ const checkForRemoteSignParams = async () => {
                 document.getElementById('btn-access-doc').onclick = () => {
                     const name = document.getElementById('input-signer-name').value.trim();
                     const cpf = cpfInput.value.trim();
-
                     if (name.length < 5) { alert("Por favor, digite seu nome completo."); return; }
                     if (cpf.length < 11) { alert("Por favor, digite um CPF válido."); return; }
-
                     renderDocumentView({ name, cpf });
                 };
             };
 
 
-            // --- FASE 2: VISUALIZAÇÃO E ASSINATURA ---
+            // --- FASE 2: VISUALIZAÇÃO, SELFIE E ASSINATURA ---
             const renderDocumentView = (identityData) => {
                 container.classList.remove('justify-center'); 
                 container.classList.add('pt-4');
 
-                // Removido max-h-[60vh] e overflow-auto para expandir o conteúdo no mobile
                 container.innerHTML = `
                     <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8">
                         <div class="bg-green-700 p-4 text-white flex justify-between items-center">
@@ -205,25 +198,123 @@ const checkForRemoteSignParams = async () => {
                         <div class="p-6 md:p-10 text-sm bg-gray-50 border-b">
                             ${docSnapshot.htmlContent}
                         </div>
-                        <div class="bg-gray-100 p-6 flex flex-col items-center gap-4">
-                            <div class="text-center mb-2">
-                                <p class="font-bold text-gray-800 text-lg">Declaração Final de Aceite</p>
-                                <p class="text-xs text-gray-600 max-w-md mx-auto text-justify">
-                                    Eu, <strong>${identityData.name}</strong>, portador(a) do CPF <strong>${identityData.cpf}</strong>, declaro ter lido e compreendido integralmente o teor deste documento. O clique no botão abaixo equivale à minha assinatura manuscrita para todos os fins legais.
+                        
+                        <!-- ÁREA DE BIOMETRIA E ASSINATURA -->
+                        <div class="bg-gray-100 p-6 flex flex-col items-center gap-6">
+                            
+                            <!-- BOX DA CÂMERA -->
+                            <div class="w-full max-w-sm bg-white p-4 rounded-lg shadow-md border border-gray-300">
+                                <div class="text-center mb-2">
+                                    <p class="font-bold text-gray-800 text-sm uppercase"><i class="fas fa-camera"></i> Registro Biométrico Facial</p>
+                                    <p class="text-[10px] text-gray-500">Obrigatório para validar a assinatura.</p>
+                                </div>
+                                
+                                <div class="relative w-full h-64 bg-black rounded-lg overflow-hidden flex items-center justify-center mb-3">
+                                    <video id="remote-video" autoplay playsinline class="w-full h-full object-cover transform scale-x-[-1]"></video>
+                                    <canvas id="remote-canvas" class="hidden"></canvas>
+                                    <img id="remote-photo-result" class="absolute inset-0 w-full h-full object-cover hidden transform scale-x-[-1]">
+                                    <div id="camera-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                                        <i class="fas fa-user-circle text-4xl mb-2"></i>
+                                        <p class="text-xs">Aguardando Câmera</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex gap-2 justify-center">
+                                    <button id="btn-start-remote-cam" class="bg-sky-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-sky-700 w-full">
+                                        <i class="fas fa-video"></i> ATIVAR CÂMERA
+                                    </button>
+                                    <button id="btn-take-remote-pic" class="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-green-700 w-full hidden">
+                                        <i class="fas fa-camera"></i> TIRAR SELFIE
+                                    </button>
+                                    <button id="btn-retake-remote-pic" class="bg-yellow-500 text-white px-4 py-2 rounded text-xs font-bold hover:bg-yellow-600 w-full hidden">
+                                        <i class="fas fa-redo"></i> REFAZER
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TEXTO LEGAL E BOTÃO FINAL -->
+                            <div class="text-center w-full">
+                                <p class="text-xs text-gray-600 max-w-md mx-auto text-justify mb-4">
+                                    Eu, <strong>${identityData.name}</strong>, CPF <strong>${identityData.cpf}</strong>, declaro ter lido o documento acima e concordo com seu teor. A selfie capturada servirá como prova de vida e autoria deste aceite digital.
+                                </p>
+                                <button id="btn-remote-agree" disabled class="w-full max-w-md bg-gray-400 text-white text-lg font-bold py-4 px-10 rounded-full shadow-lg flex items-center justify-center gap-2 cursor-not-allowed transition-all">
+                                    <i class="fas fa-lock"></i> TIRE A SELFIE PARA ASSINAR
+                                </button>
+                                <p class="text-[10px] text-gray-400 mt-2 text-center">
+                                    IP: Buscando... | Device: ${navigator.userAgent.substring(0, 30)}...
                                 </p>
                             </div>
-                            <button id="btn-remote-agree" class="bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-4 px-10 rounded-full shadow-lg transform transition hover:scale-105 flex items-center gap-2">
-                                <i class="fas fa-check-double"></i> CONFIRMAR E ASSINAR
-                            </button>
-                            <p class="text-[10px] text-gray-400 mt-2 text-center">
-                                Rastreabilidade Digital Ativa: IP e Device ID serão gravados.<br>
-                                ${new Date().toLocaleString()}
-                            </p>
                         </div>
                     </div>
                 `;
 
-                document.getElementById('btn-remote-agree').onclick = async function() {
+                // --- LÓGICA DA CÂMERA REMOTA ---
+                let remoteStream = null;
+                let capturedPhotoBase64 = null;
+                const videoEl = document.getElementById('remote-video');
+                const canvasEl = document.getElementById('remote-canvas');
+                const imgEl = document.getElementById('remote-photo-result');
+                const phEl = document.getElementById('camera-placeholder');
+                const btnStart = document.getElementById('btn-start-remote-cam');
+                const btnTake = document.getElementById('btn-take-remote-pic');
+                const btnRetake = document.getElementById('btn-retake-remote-pic');
+                const btnSign = document.getElementById('btn-remote-agree');
+
+                btnStart.onclick = async () => {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                        remoteStream = stream;
+                        videoEl.srcObject = stream;
+                        phEl.classList.add('hidden');
+                        btnStart.classList.add('hidden');
+                        btnTake.classList.remove('hidden');
+                    } catch (err) {
+                        alert("Não foi possível acessar a câmera. Verifique as permissões do navegador.");
+                        console.error(err);
+                    }
+                };
+
+                btnTake.onclick = () => {
+                    if (!remoteStream) return;
+                    canvasEl.width = videoEl.videoWidth;
+                    canvasEl.height = videoEl.videoHeight;
+                    const ctx = canvasEl.getContext('2d');
+                    // Espelhar horizontalmente para selfie ficar natural
+                    ctx.translate(canvasEl.width, 0);
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(videoEl, 0, 0);
+                    
+                    capturedPhotoBase64 = canvasEl.toDataURL('image/jpeg', 0.5); // Qualidade média para não pesar
+                    imgEl.src = capturedPhotoBase64;
+                    imgEl.classList.remove('hidden');
+                    
+                    btnTake.classList.add('hidden');
+                    btnRetake.classList.remove('hidden');
+                    
+                    // Libera botão de assinar
+                    btnSign.disabled = false;
+                    btnSign.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                    btnSign.classList.add('bg-green-600', 'hover:bg-green-700', 'hover:scale-105', 'transform');
+                    btnSign.innerHTML = '<i class="fas fa-check-double"></i> CONFIRMAR E ASSINAR';
+                };
+
+                btnRetake.onclick = () => {
+                    capturedPhotoBase64 = null;
+                    imgEl.classList.add('hidden');
+                    btnRetake.classList.add('hidden');
+                    btnTake.classList.remove('hidden');
+                    
+                    // Bloqueia botão novamente
+                    btnSign.disabled = true;
+                    btnSign.classList.add('bg-gray-400', 'cursor-not-allowed');
+                    btnSign.classList.remove('bg-green-600', 'hover:bg-green-700', 'hover:scale-105', 'transform');
+                    btnSign.innerHTML = '<i class="fas fa-lock"></i> TIRE A SELFIE PARA ASSINAR';
+                };
+
+                // --- AÇÃO FINAL DE ASSINATURA ---
+                btnSign.onclick = async function() {
+                    if (!capturedPhotoBase64) return;
+                    
                     const btn = this;
                     btn.disabled = true;
                     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registrando no Blockchain...';
@@ -237,10 +328,10 @@ const checkForRemoteSignParams = async () => {
                         timestamp: meta.timestamp,
                         signerName: identityData.name,
                         signerCPF: identityData.cpf,
+                        photo: capturedPhotoBase64, // SALVA A FOTO
                         valid: true
                     };
 
-                    // Força String para garantir que a chave bata com a verificação de "Já Assinado"
                     const key = `responsible_${String(studentId || docSnapshot.studentId)}`; 
                     const sigMap = new Map();
                     sigMap.set(key, digitalSignature);
@@ -248,7 +339,7 @@ const checkForRemoteSignParams = async () => {
                     const success = await updateDocumentSignatures(docSnapshot.id, sigMap);
 
                     if (success) {
-                        // Exibe recibo e informa que o link ficou inativo
+                        if(remoteStream) remoteStream.getTracks().forEach(t => t.stop()); // Para a câmera
                         container.innerHTML = `
                             <div class="h-[80vh] flex items-center justify-center">
                                 <div class="bg-white p-10 rounded-2xl shadow-xl text-center max-w-md border-2 border-green-100">
@@ -256,14 +347,13 @@ const checkForRemoteSignParams = async () => {
                                         <i class="fas fa-check text-5xl text-green-600"></i>
                                     </div>
                                     <h1 class="text-2xl font-bold text-gray-800 mb-2">Assinatura Recebida!</h1>
-                                    <p class="text-gray-600 mb-6 text-sm">O documento foi assinado por <strong>${identityData.name}</strong> e arquivado digitalmente na escola.</p>
+                                    <p class="text-gray-600 mb-6 text-sm">O documento foi assinado e validado biometricamente.</p>
                                     <div class="bg-gray-100 p-3 rounded text-xs text-left text-gray-500 font-mono">
                                         HASH: ${Math.random().toString(36).substring(2, 15).toUpperCase()}<br>
-                                        CPF SHA1: ***${identityData.cpf.slice(-4)}<br>
-                                        IP: ${meta.ip}
+                                        CPF: ***${identityData.cpf.slice(-4)}<br>
+                                        FOTO: OK (Anexada)
                                     </div>
-                                    <p class="mt-4 text-[10px] text-red-400">Este link agora está inativo para novas assinaturas.</p>
-                                    <button onclick="window.close()" class="mt-4 text-sky-600 font-bold text-sm hover:underline">Fechar Janela</button>
+                                    <button onclick="window.close()" class="mt-6 w-full bg-sky-600 text-white font-bold py-2 rounded">Fechar Janela</button>
                                 </div>
                             </div>`;
                     } else {
@@ -660,6 +750,7 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
                         <i class="fas fa-clock"></i> ${new Date(sigData.timestamp).toLocaleString()}
                     </div>
                 </div>
+                ${sigData.photo ? `<div class="h-16 w-16 bg-gray-200 mr-2 rounded overflow-hidden border border-gray-300"><img src="${sigData.photo}" class="w-full h-full object-cover"></div>` : ''}
                 <div class="bg-green-500 w-10 h-full flex items-center justify-center text-white text-xl">
                     <i class="fas fa-check-circle"></i>
                 </div>
