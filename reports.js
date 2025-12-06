@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 10.3 (Selfie Presencial + Fix Canvas + Layout Compacto)
+// VERSÃO: 10.4 (Fix Atualização Imediata + Foto Grande)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -113,7 +113,7 @@ const checkForRemoteSignParams = async () => {
                                     <span class="text-gray-600">IP de Origem:</span>
                                     <span class="font-mono text-xs text-gray-500">${sig.ip || 'N/A'}</span>
                                 </div>
-                                ${sig.photo ? `<div class="mt-4 text-center"><p class="text-xs text-gray-500 mb-1">Registro Biométrico:</p><img src="${sig.photo}" class="w-24 h-24 object-cover rounded-full mx-auto border-2 border-gray-200 shadow-sm"></div>` : ''}
+                                ${sig.photo ? `<div class="mt-4 text-center"><p class="text-xs text-gray-500 mb-1">Registro Biométrico:</p><img src="${sig.photo}" class="w-32 h-32 object-cover rounded-lg mx-auto border-2 border-gray-200 shadow-sm"></div>` : ''}
                             </div>
                             <div class="mt-6 text-center">
                                 <p class="text-[10px] text-gray-400">Este recibo digital tem validade jurídica.</p>
@@ -732,20 +732,20 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
     // 1. Digital com Biometria
     if (sigData && sigData.type === 'digital_ack') {
         return `
-            <div class="relative group border border-green-500 bg-green-50 rounded flex flex-col justify-between overflow-hidden h-28" data-sig-key="${key}">
-                <div class="p-2">
-                    <p class="text-[9px] font-bold uppercase text-green-800 leading-tight">${roleTitle}</p>
-                    <p class="text-[8px] text-green-700 truncate">${nameSubtitle}</p>
-                    <div class="mt-1 text-[7px] text-green-600 font-mono leading-tight">
-                        ${sigData.signerName ? `<i class="fas fa-user"></i> ${sigData.signerName.split(' ')[0]}...<br>` : ''}
-                        CPF: ***${sigData.signerCPF ? sigData.signerCPF.slice(-4) : '***'}<br>
-                        ${new Date(sigData.timestamp).toLocaleDateString()}
+            <div class="relative group border border-green-500 bg-green-50 rounded flex flex-row overflow-hidden h-28" data-sig-key="${key}">
+                <div class="flex-1 p-2 flex flex-col justify-between">
+                    <div>
+                        <p class="text-[9px] font-bold uppercase text-green-800 leading-tight">${roleTitle}</p>
+                        <p class="text-[8px] text-green-700 truncate">${nameSubtitle}</p>
+                        <div class="mt-1 text-[7px] text-green-600 font-mono leading-tight">
+                            ${sigData.signerName ? `<i class="fas fa-user"></i> ${sigData.signerName.split(' ')[0]}...<br>` : ''}
+                            CPF: ***${sigData.signerCPF ? sigData.signerCPF.slice(-4) : '***'}<br>
+                            ${new Date(sigData.timestamp).toLocaleDateString()}
+                        </div>
                     </div>
+                    <div class="bg-green-500 text-white text-[9px] px-1 py-0.5 rounded w-fit"><i class="fas fa-check"></i> Válido</div>
                 </div>
-                <div class="flex items-end justify-between">
-                     ${sigData.photo ? `<img src="${sigData.photo}" class="w-10 h-10 object-cover rounded-tr-lg border-t border-r border-green-200">` : '<span></span>'}
-                     <div class="bg-green-500 text-white px-2 py-1 text-xs rounded-tl-lg"><i class="fas fa-check"></i></div>
-                </div>
+                ${sigData.photo ? `<div class="w-24 h-full border-l border-green-200"><img src="${sigData.photo}" class="w-full h-full object-cover"></div>` : ''}
             </div>`;
     } 
     // 2. Desenhada
@@ -753,12 +753,10 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
         const img = sigData.signature || sigData;
         const photo = sigData.photo;
         return `
-            <div class="relative group cursor-pointer border border-gray-300 rounded bg-white flex h-28 overflow-hidden" data-sig-key="${key}">
-                <div class="w-10 bg-gray-50 border-r border-gray-200 flex items-center justify-center shrink-0">
-                    ${photo ? `<img src="${photo}" class="w-full h-full object-cover opacity-80" />` : `<i class="fas fa-pen-nib text-gray-300"></i>`}
-                </div>
+            <div class="relative group cursor-pointer border border-gray-300 rounded bg-white flex flex-row h-28 overflow-hidden" data-sig-key="${key}">
+                 ${photo ? `<div class="w-24 h-full border-r border-gray-200"><img src="${photo}" class="w-full h-full object-cover" /></div>` : `<div class="w-8 bg-gray-50 border-r border-gray-200 flex items-center justify-center"><i class="fas fa-pen-nib text-gray-300"></i></div>`}
                 <div class="flex-1 flex flex-col p-1 justify-between relative">
-                    <img src="${img}" class="h-14 object-contain mix-blend-multiply self-center" />
+                    <img src="${img}" class="h-16 object-contain mix-blend-multiply self-center" />
                     <div class="border-t border-black w-full pt-1 text-center">
                         <p class="text-[8px] font-bold uppercase leading-none">${roleTitle}</p>
                         <p class="text-[7px] text-gray-500 truncate">${nameSubtitle}</p>
@@ -794,7 +792,7 @@ const generateSignaturesGrid = (slots) => {
              <div class="grid grid-cols-2 md:grid-cols-3 gap-2">${itemsHTML}</div>
              
              <div class="mt-4 pt-2 border-t border-gray-200 flex justify-center">
-                <div class="w-full max-w-[200px]">
+                <div class="w-full max-w-[250px]">
                     <p class="text-[8px] text-gray-400 text-center mb-1 uppercase">Gestão Escolar</p>
                     ${getSingleSignatureBoxHTML('management', 'Gestão', state.config?.schoolName || 'Direção', mgmtData)}
                 </div>
@@ -806,9 +804,15 @@ const generateSignaturesGrid = (slots) => {
 async function generateSmartHTML(docType, studentId, refId, htmlGeneratorFn) {
     const existingDoc = await findDocumentSnapshot(docType, studentId, refId);
     
-    // Hidrata o mapa com assinaturas existentes
+    // FIX DE ATUALIZAÇÃO IMEDIATA:
+    // Só carregamos do Firestore o que NÃO temos localmente.
+    // Isso impede que um banco de dados "vazio" (antes de salvar) apague a assinatura local.
     if (existingDoc && existingDoc.signatures) {
-        Object.entries(existingDoc.signatures).forEach(([k, v]) => signatureMap.set(k, v));
+        Object.entries(existingDoc.signatures).forEach(([k, v]) => {
+             if (!signatureMap.has(k)) {
+                 signatureMap.set(k, v);
+             }
+        });
     }
     
     const newDate = existingDoc?.createdAt?.toDate() || new Date();
