@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 10.0 (Link Único + Fix Tipagem Chaves + Texto Expandido Mobile)
+// VERSÃO: 10.1 (Fix: Persistência de Assinaturas e Link Único)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -745,12 +745,14 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
     const titleEl = document.getElementById(titleId);
     if(titleEl) titleEl.textContent = title;
     
-    // Auto-save para gerar ID para o Link
+    // Auto-save: Agora passamos explicitamente as assinaturas para o Firestore
+    const signaturesToSave = Object.fromEntries(signatureMap);
+    
     if (!docId) {
-        const docRef = await saveDocumentSnapshot(docType, title, html, studentId, { refId });
+        const docRef = await saveDocumentSnapshot(docType, title, html, studentId, { refId, signatures: signaturesToSave });
         contentDiv.setAttribute('data-doc-ref-id', docRef.id);
     } else {
-        await saveDocumentSnapshot(docType, title, html, studentId, { refId });
+        await saveDocumentSnapshot(docType, title, html, studentId, { refId, signatures: signaturesToSave });
     }
 
     attachDynamicSignatureListeners(() => renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn));

@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: firestore.js
-// VERSÃO: 9.5 (Suporte a Rastreabilidade Digital IP/Device)
+// VERSÃO: 9.6 (Fix: Persistência de Assinaturas no Snapshot)
 
 import {
     doc, addDoc, setDoc, deleteDoc, collection, getDoc, updateDoc, arrayUnion,
@@ -425,6 +425,7 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
         const documentsRef = getCollectionRef('documents');
         const refId = metadata.refId ? String(metadata.refId).trim() : null;
         const safeStudentId = studentId ? String(studentId).trim() : null;
+        const signatures = metadata.signatures || null; // Fix: Captura assinaturas
         
         if (refId) {
             const conditions = [
@@ -448,16 +449,15 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
 
                 const currentData = docToUpdate.data();
 
-                // Atualização normal se o conteúdo mudou
-                if (currentData.htmlContent !== htmlContent) {
-                    await updateDoc(doc(documentsRef, docToUpdate.id), {
-                        title: title,
-                        htmlContent: htmlContent,
-                        studentId: safeStudentId || currentData.studentId, 
-                        createdAt: new Date(), 
-                        createdBy: state.userEmail || 'Sistema'
-                    });
-                }
+                // Atualiza se houver mudança de conteúdo OU se tivermos novas assinaturas para gravar
+                await updateDoc(doc(documentsRef, docToUpdate.id), {
+                    title: title,
+                    htmlContent: htmlContent,
+                    signatures: signatures || currentData.signatures, // Mantém ou atualiza assinaturas
+                    studentId: safeStudentId || currentData.studentId, 
+                    createdAt: new Date(), 
+                    createdBy: state.userEmail || 'Sistema'
+                });
                 
                 return docToUpdate.ref;
             }
@@ -467,6 +467,7 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
             type: docType,
             title: title,
             htmlContent: htmlContent, 
+            signatures: signatures, // Fix: Grava na criação
             studentId: safeStudentId || null,
             studentName: metadata.studentName || null,
             refId: refId,
