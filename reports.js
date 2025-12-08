@@ -1,7 +1,7 @@
 
 // =================================================================================
 // ARQUIVO: reports.js
-// VERSÃO: 10.5 (Dados Completos + Foto Grande + Atualização Instantânea)
+// VERSÃO: 12.0 (Completo - Funções Legadas + Assinatura Lado a Lado + WhatsApp)
 // =================================================================================
 
 import { state, dom } from './state.js';
@@ -28,6 +28,18 @@ let currentPath = [];
 // --- DADOS PARA ASSINATURA REMOTA ---
 let currentDocumentIdForRemote = null; // ID do documento no Firestore
 let currentDocumentKeyForRemote = null; // Ex: responsible_123
+
+// --- SEGURANÇA: GERAÇÃO DE HASH ---
+const generateIntegrityHash = (content, dateId) => {
+    let hash = 0;
+    const str = content + (dateId || new Date().toISOString());
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return Math.abs(hash).toString(16).toUpperCase().padStart(8, '0');
+};
 
 // --- DETECÇÃO DE IP (API EXTERNA) ---
 const fetchClientMetadata = async () => {
@@ -102,21 +114,10 @@ const checkForRemoteSignParams = async () => {
                                     <span class="font-bold text-gray-900">${sig.signerName || 'Não informado'}</span>
                                 </div>
                                 <div class="flex justify-between border-b border-gray-100 pb-2">
-                                    <span class="text-gray-600">CPF:</span>
-                                    <span class="font-mono text-gray-900">${sig.signerCPF || '***'}</span>
-                                </div>
-                                <div class="flex justify-between border-b border-gray-100 pb-2">
                                     <span class="text-gray-600">Data/Hora:</span>
                                     <span class="text-gray-900">${signedDate}</span>
                                 </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-600">IP de Origem:</span>
-                                    <span class="font-mono text-xs text-gray-500">${sig.ip || 'N/A'}</span>
-                                </div>
                                 ${sig.photo ? `<div class="mt-4 text-center"><p class="text-xs text-gray-500 mb-1">Registro Biométrico:</p><img src="${sig.photo}" class="w-32 h-32 object-cover rounded-lg mx-auto border-2 border-gray-200 shadow-sm"></div>` : ''}
-                            </div>
-                            <div class="mt-6 text-center">
-                                <p class="text-[10px] text-gray-400">Este recibo digital tem validade jurídica.</p>
                             </div>
                         </div>
                     </div>
@@ -168,12 +169,12 @@ const checkForRemoteSignParams = async () => {
             const renderDocumentView = (identityData) => {
                 container.classList.remove('justify-center'); container.classList.add('pt-4');
                 container.innerHTML = `
-                    <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8">
+                    <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8" id="document-capture-area">
                         <div class="bg-green-700 p-4 text-white flex justify-between items-center">
                             <div><h2 class="text-sm font-bold uppercase"><i class="fas fa-file-contract"></i> Documento Liberado</h2><p class="text-[10px] opacity-80">Acesso por: ${identityData.name}</p></div>
                         </div>
                         <div class="p-6 md:p-10 text-sm bg-gray-50 border-b">${docSnapshot.htmlContent}</div>
-                        <div class="bg-gray-100 p-6 flex flex-col items-center gap-6">
+                        <div class="bg-gray-100 p-6 flex flex-col items-center gap-6 no-print">
                             <div class="w-full max-w-sm bg-white p-4 rounded-lg shadow-md border border-gray-300">
                                 <div class="text-center mb-2"><p class="font-bold text-gray-800 text-sm uppercase"><i class="fas fa-camera"></i> Registro Biométrico Facial</p><p class="text-[10px] text-gray-500">Obrigatório para validar a assinatura.</p></div>
                                 <div class="relative w-full h-64 bg-black rounded-lg overflow-hidden flex items-center justify-center mb-3">
@@ -245,7 +246,32 @@ const checkForRemoteSignParams = async () => {
                     const success = await updateDocumentSignatures(docSnapshot.id, sigMap);
                     if (success) {
                         if(remoteStream) remoteStream.getTracks().forEach(t => t.stop());
-                        container.innerHTML = `<div class="h-[80vh] flex items-center justify-center"><div class="bg-white p-10 rounded-2xl shadow-xl text-center"><h1 class="text-2xl font-bold text-gray-800">Sucesso!</h1><p class="text-gray-600">Documento assinado com biometria facial.</p></div></div>`;
+                        
+                        // SUCESSO E WHATSAPP
+                        container.innerHTML = `
+                            <div class="h-[80vh] flex flex-col items-center justify-center p-4">
+                                <div class="bg-white p-8 rounded-2xl shadow-xl text-center max-w-sm w-full">
+                                    <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <i class="fas fa-check text-4xl text-green-600"></i>
+                                    </div>
+                                    <h1 class="text-2xl font-bold text-gray-800 mb-2">Assinado com Sucesso!</h1>
+                                    <p class="text-gray-600 mb-6 text-sm">O documento foi validado juridicamente.</p>
+                                    
+                                    <div class="space-y-3">
+                                        <button onclick="window.generateAndSendWhatsapp('${docSnapshot.id}')" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition">
+                                            <i class="fab fa-whatsapp text-xl"></i> Baixar e Abrir WhatsApp
+                                        </button>
+                                        <button onclick="location.reload()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg">
+                                            Fechar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>`;
+                            
+                            window.generateAndSendWhatsapp = (dId) => {
+                                const msg = `Olá, segue a confirmação de assinatura do documento escolar ID ${dId}.`;
+                                window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                            };
                     } else { alert("Erro ao salvar."); this.disabled = false; }
                 };
             };
@@ -256,23 +282,18 @@ const checkForRemoteSignParams = async () => {
 setTimeout(checkForRemoteSignParams, 500);
 
 
-// --- MODAL DE ASSINATURA ---
-
+// --- LÓGICA DO MODAL DE ASSINATURA ---
 const ensureSignatureModalExists = () => {
     if (document.getElementById('signature-pad-modal')) return;
 
     const modalHTML = `
     <div id="signature-pad-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center z-[60] font-sans">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col max-h-[95vh] overflow-hidden">
-            
             <div class="flex border-b bg-gray-50">
                 <button id="tab-draw" class="flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition"><i class="fas fa-pen-alt mr-1"></i> Desenhar</button>
                 <button id="tab-link" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition"><i class="fas fa-fingerprint mr-1"></i> Digital / Link</button>
             </div>
-            
             <div class="p-4 overflow-y-auto">
-                
-                <!-- TAB 1: DESENHO -->
                 <div id="content-tab-draw">
                     <div class="bg-black rounded-lg overflow-hidden relative mb-4 h-40 flex items-center justify-center group shadow-inner">
                         <video id="camera-preview" autoplay playsinline class="w-full h-full object-cover"></video>
@@ -283,72 +304,22 @@ const ensureSignatureModalExists = () => {
                             <button id="btn-retake-photo" class="hidden bg-yellow-400 text-yellow-900 rounded-full px-3 py-1 text-xs font-bold shadow"><i class="fas fa-redo"></i> Refazer</button>
                         </div>
                     </div>
-                    <div class="flex justify-between items-end mb-1">
-                        <p class="text-xs font-bold text-gray-600 uppercase">Assinatura</p>
-                        <div class="flex gap-1">
-                            <button id="btn-undo-signature" class="bg-gray-200 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-gray-300"><i class="fas fa-undo"></i></button>
-                            <button id="btn-clear-signature" class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-red-200"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </div>
-                    <div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 relative touch-none" style="touch-action: none;">
-                        <canvas id="signature-canvas" class="w-full h-32 cursor-crosshair"></canvas>
-                    </div>
+                    <div class="flex justify-between items-end mb-1"><p class="text-xs font-bold text-gray-600 uppercase">Assinatura</p><div class="flex gap-1"><button id="btn-undo-signature" class="bg-gray-200 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-gray-300"><i class="fas fa-undo"></i></button><button id="btn-clear-signature" class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-red-200"><i class="fas fa-trash"></i></button></div></div>
+                    <div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 relative touch-none"><canvas id="signature-canvas" class="w-full h-32 cursor-crosshair"></canvas></div>
                 </div>
-
-                <!-- TAB 2: LINK OU PRESENCIAL -->
                 <div id="content-tab-link" class="hidden">
                     <div id="local-options-container" class="space-y-4">
-                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-                            <h4 class="font-bold text-green-800 text-sm mb-1"><i class="fab fa-whatsapp"></i> Enviar Link para Casa</h4>
-                            <p class="text-xs text-green-700 mb-3">Gere um link para o responsável assinar do próprio celular.</p>
-                            <div class="bg-white p-2 rounded border border-gray-200 text-[10px] text-gray-500 mb-3 font-mono break-all" id="generated-link-preview">...</div>
-                            <button id="btn-send-whatsapp" class="w-full bg-green-600 text-white font-bold py-2 rounded shadow text-sm"><i class="fas fa-share"></i> Enviar Link</button>
-                        </div>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4"><h4 class="font-bold text-green-800 text-sm mb-1"><i class="fab fa-whatsapp"></i> Enviar Link</h4><p class="text-xs text-green-700 mb-3">Gere um link para o responsável assinar do próprio celular.</p><div class="bg-white p-2 rounded border border-gray-200 text-[10px] text-gray-500 mb-3 font-mono break-all" id="generated-link-preview">...</div><button id="btn-send-whatsapp" class="w-full bg-green-600 text-white font-bold py-2 rounded shadow text-sm"><i class="fas fa-share"></i> Enviar Link</button></div>
                         <div class="flex items-center justify-center text-gray-400 text-xs font-bold">- OU -</div>
-                        <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 text-center">
-                            <h4 class="font-bold text-sky-800 text-sm mb-1">Assinar Agora (Biometria)</h4>
-                            <p class="text-xs text-sky-700 mb-3">Coleta Nome, CPF e Selfie neste dispositivo.</p>
-                            <button id="btn-start-local-flow" class="w-full bg-sky-600 text-white font-bold py-3 rounded shadow"><i class="fas fa-user-check"></i> INICIAR COLETA</button>
-                        </div>
+                        <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 text-center"><h4 class="font-bold text-sky-800 text-sm mb-1">Assinar Agora (Biometria)</h4><p class="text-xs text-sky-700 mb-3">Coleta Nome, CPF e Selfie.</p><button id="btn-start-local-flow" class="w-full bg-sky-600 text-white font-bold py-3 rounded shadow"><i class="fas fa-user-check"></i> INICIAR COLETA</button></div>
                     </div>
-
-                    <!-- FLUXO LOCAL DE IDENTIDADE -->
-                    <div id="local-identity-container" class="hidden space-y-3">
-                         <h4 class="font-bold text-gray-700 text-center border-b pb-2">Identificação do Responsável</h4>
-                         <div><label class="text-xs font-bold text-gray-500">Nome Completo</label><input id="local-signer-name" type="text" class="w-full border p-2 rounded uppercase text-sm"></div>
-                         <div><label class="text-xs font-bold text-gray-500">CPF</label><input id="local-signer-cpf" type="tel" class="w-full border p-2 rounded text-sm" maxlength="14"></div>
-                         <div class="flex gap-2 mt-4">
-                            <button id="btn-cancel-local" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded text-xs font-bold">Voltar</button>
-                            <button id="btn-next-local" class="flex-1 bg-sky-600 text-white py-2 rounded text-xs font-bold">Próximo</button>
-                         </div>
-                    </div>
-
-                    <!-- FLUXO LOCAL DE SELFIE -->
-                    <div id="local-selfie-container" class="hidden flex flex-col items-center">
-                        <h4 class="font-bold text-gray-700 text-center mb-2">Validação Biométrica</h4>
-                        <div class="relative w-full h-48 bg-black rounded-lg overflow-hidden flex items-center justify-center mb-3">
-                            <video id="local-video" autoplay playsinline class="w-full h-full object-cover transform scale-x-[-1]"></video>
-                            <canvas id="local-canvas" class="hidden"></canvas>
-                            <img id="local-photo-result" class="absolute inset-0 w-full h-full object-cover hidden transform scale-x-[-1]">
-                        </div>
-                        <div class="flex gap-2 w-full mb-3">
-                            <button id="btn-local-take" class="flex-1 bg-green-600 text-white py-2 rounded text-xs font-bold"><i class="fas fa-camera"></i> Capturar</button>
-                            <button id="btn-local-retake" class="hidden flex-1 bg-yellow-500 text-white py-2 rounded text-xs font-bold"><i class="fas fa-redo"></i> Refazer</button>
-                        </div>
-                        <button id="btn-finish-local" disabled class="w-full bg-gray-400 text-white py-3 rounded font-bold shadow cursor-not-allowed">CONFIRMAR ASSINATURA</button>
-                        <button id="btn-back-to-identity" class="mt-2 text-xs text-gray-500 underline">Voltar</button>
-                    </div>
+                    <div id="local-identity-container" class="hidden space-y-3"><h4 class="font-bold text-gray-700 text-center border-b pb-2">Identificação</h4><div><label class="text-xs font-bold text-gray-500">Nome Completo</label><input id="local-signer-name" type="text" class="w-full border p-2 rounded uppercase text-sm"></div><div><label class="text-xs font-bold text-gray-500">CPF</label><input id="local-signer-cpf" type="tel" class="w-full border p-2 rounded text-sm" maxlength="14"></div><div class="flex gap-2 mt-4"><button id="btn-cancel-local" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded text-xs font-bold">Voltar</button><button id="btn-next-local" class="flex-1 bg-sky-600 text-white py-2 rounded text-xs font-bold">Próximo</button></div></div>
+                    <div id="local-selfie-container" class="hidden flex flex-col items-center"><h4 class="font-bold text-gray-700 text-center mb-2">Validação Biométrica</h4><div class="relative w-full h-48 bg-black rounded-lg overflow-hidden flex items-center justify-center mb-3"><video id="local-video" autoplay playsinline class="w-full h-full object-cover transform scale-x-[-1]"></video><canvas id="local-canvas" class="hidden"></canvas><img id="local-photo-result" class="absolute inset-0 w-full h-full object-cover hidden transform scale-x-[-1]"></div><div class="flex gap-2 w-full mb-3"><button id="btn-local-take" class="flex-1 bg-green-600 text-white py-2 rounded text-xs font-bold"><i class="fas fa-camera"></i> Capturar</button><button id="btn-local-retake" class="hidden flex-1 bg-yellow-500 text-white py-2 rounded text-xs font-bold"><i class="fas fa-redo"></i> Refazer</button></div><button id="btn-finish-local" disabled class="w-full bg-gray-400 text-white py-3 rounded font-bold shadow cursor-not-allowed">CONFIRMAR ASSINATURA</button><button id="btn-back-to-identity" class="mt-2 text-xs text-gray-500 underline">Voltar</button></div>
                 </div>
-
             </div>
-
-            <div class="flex justify-between items-center bg-gray-50 p-3 border-t">
-                <button id="btn-cancel-signature" class="px-4 py-2 rounded text-gray-600 hover:bg-gray-200 text-xs font-bold">Cancelar</button>
-                <button id="btn-confirm-signature" class="px-6 py-2 rounded bg-gray-900 text-white font-bold hover:bg-gray-800 shadow text-xs">Salvar Desenho</button>
-            </div>
+            <div class="flex justify-between items-center bg-gray-50 p-3 border-t"><button id="btn-cancel-signature" class="px-4 py-2 rounded text-gray-600 hover:bg-gray-200 text-xs font-bold">Cancelar</button><button id="btn-confirm-signature" class="px-6 py-2 rounded bg-gray-900 text-white font-bold hover:bg-gray-800 shadow text-xs">Salvar Desenho</button></div>
         </div>
     </div>`;
-    
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     setupSignaturePadEvents();
 };
@@ -358,25 +329,25 @@ const setupSignaturePadEvents = () => {
     const canvas = document.getElementById('signature-canvas');
     const ctx = canvas.getContext('2d');
     
+    // Abas
     const tabDraw = document.getElementById('tab-draw');
     const tabLink = document.getElementById('tab-link');
     const contentDraw = document.getElementById('content-tab-draw');
     const contentLink = document.getElementById('content-tab-link');
     const btnConfirm = document.getElementById('btn-confirm-signature');
 
-    // ELEMENTOS DO FLUXO LOCAL
+    // Fluxo Local
     const localOptions = document.getElementById('local-options-container');
     const localIdentity = document.getElementById('local-identity-container');
     const localSelfie = document.getElementById('local-selfie-container');
     
-    // --- LÓGICA DE ABAS ---
     const switchTab = (tab) => {
         if(tab === 'draw') {
             contentDraw.classList.remove('hidden'); contentLink.classList.add('hidden');
             tabDraw.className = "flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition";
             tabLink.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
             btnConfirm.classList.remove('hidden');
-            startCamera(); // Camera do Tab 1 (Desenho)
+            startCamera(); 
             const rect = canvas.parentElement.getBoundingClientRect();
             if(rect.width > 0) { canvas.width = rect.width; canvas.height = 128; redrawCanvas(); }
         } else {
@@ -384,14 +355,8 @@ const setupSignaturePadEvents = () => {
             tabLink.className = "flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition";
             tabDraw.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
             btnConfirm.classList.add('hidden');
-            stopCameraStream(); // Para camera do Tab 1
-            
-            // Reseta fluxo local
-            localOptions.classList.remove('hidden');
-            localIdentity.classList.add('hidden');
-            localSelfie.classList.add('hidden');
-
-            // Gera Link
+            stopCameraStream(); 
+            localOptions.classList.remove('hidden'); localIdentity.classList.add('hidden'); localSelfie.classList.add('hidden');
             if (currentDocumentIdForRemote) {
                 const baseUrl = window.location.href.split('?')[0];
                 const fullLink = `${baseUrl}?mode=sign&docId=${currentDocumentIdForRemote}&type=notificacao&student=${currentDocumentKeyForRemote.replace('responsible_', '')}`;
@@ -404,20 +369,13 @@ const setupSignaturePadEvents = () => {
     tabDraw.onclick = () => switchTab('draw');
     tabLink.onclick = () => switchTab('link');
 
-    // --- LÓGICA DO FLUXO LOCAL PRESENCIAL (Novo) ---
+    // Fluxo Local Presencial
     let localStream = null;
     let localCapturedPhoto = null;
 
-    document.getElementById('btn-start-local-flow').onclick = () => {
-        localOptions.classList.add('hidden');
-        localIdentity.classList.remove('hidden');
-    };
-
-    document.getElementById('btn-cancel-local').onclick = () => {
-        localIdentity.classList.add('hidden');
-        localOptions.classList.remove('hidden');
-    };
-
+    document.getElementById('btn-start-local-flow').onclick = () => { localOptions.classList.add('hidden'); localIdentity.classList.remove('hidden'); };
+    document.getElementById('btn-cancel-local').onclick = () => { localIdentity.classList.add('hidden'); localOptions.classList.remove('hidden'); };
+    
     document.getElementById('local-signer-cpf').addEventListener('input', (e) => {
         let v = e.target.value.replace(/\D/g, "");
         if(v.length > 11) v = v.slice(0, 11);
@@ -430,9 +388,7 @@ const setupSignaturePadEvents = () => {
         const cpf = document.getElementById('local-signer-cpf').value.trim();
         if (name.length < 5 || cpf.length < 11) return alert("Preencha Nome e CPF corretamente.");
         
-        localIdentity.classList.add('hidden');
-        localSelfie.classList.remove('hidden');
-        
+        localIdentity.classList.add('hidden'); localSelfie.classList.remove('hidden');
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
             localStream = stream;
@@ -442,35 +398,23 @@ const setupSignaturePadEvents = () => {
 
     document.getElementById('btn-back-to-identity').onclick = () => {
         if(localStream) localStream.getTracks().forEach(t=>t.stop());
-        localSelfie.classList.add('hidden');
-        localIdentity.classList.remove('hidden');
+        localSelfie.classList.add('hidden'); localIdentity.classList.remove('hidden');
     };
 
     document.getElementById('btn-local-take').onclick = () => {
-        const vid = document.getElementById('local-video');
-        const can = document.getElementById('local-canvas');
-        const img = document.getElementById('local-photo-result');
-        
+        const vid = document.getElementById('local-video'); const can = document.getElementById('local-canvas'); const img = document.getElementById('local-photo-result');
         can.width = vid.videoWidth; can.height = vid.videoHeight;
-        const ctxL = can.getContext('2d');
-        ctxL.translate(can.width, 0); ctxL.scale(-1, 1);
-        ctxL.drawImage(vid, 0, 0);
-        
+        const ctxL = can.getContext('2d'); ctxL.translate(can.width, 0); ctxL.scale(-1, 1); ctxL.drawImage(vid, 0, 0);
         localCapturedPhoto = can.toDataURL('image/jpeg', 0.5);
         img.src = localCapturedPhoto; img.classList.remove('hidden');
-        
-        document.getElementById('btn-local-take').classList.add('hidden');
-        document.getElementById('btn-local-retake').classList.remove('hidden');
-        
+        document.getElementById('btn-local-take').classList.add('hidden'); document.getElementById('btn-local-retake').classList.remove('hidden');
         const btnFinish = document.getElementById('btn-finish-local');
         btnFinish.disabled = false; btnFinish.classList.remove('bg-gray-400', 'cursor-not-allowed'); btnFinish.classList.add('bg-sky-600', 'hover:bg-sky-700');
     };
 
     document.getElementById('btn-local-retake').onclick = () => {
-        localCapturedPhoto = null;
-        document.getElementById('local-photo-result').classList.add('hidden');
-        document.getElementById('btn-local-take').classList.remove('hidden');
-        document.getElementById('btn-local-retake').classList.add('hidden');
+        localCapturedPhoto = null; document.getElementById('local-photo-result').classList.add('hidden');
+        document.getElementById('btn-local-take').classList.remove('hidden'); document.getElementById('btn-local-retake').classList.add('hidden');
         const btnFinish = document.getElementById('btn-finish-local');
         btnFinish.disabled = true; btnFinish.classList.add('bg-gray-400', 'cursor-not-allowed'); btnFinish.classList.remove('bg-sky-600', 'hover:bg-sky-700');
     };
@@ -479,34 +423,18 @@ const setupSignaturePadEvents = () => {
         if(!localCapturedPhoto) return;
         const name = document.getElementById('local-signer-name').value.trim();
         const cpf = document.getElementById('local-signer-cpf').value.trim();
-        
         showToast("Registrando...");
         const meta = await fetchClientMetadata();
-        
-        const digitalData = {
-            type: 'digital_ack',
-            ip: meta.ip,
-            device: meta.userAgent,
-            timestamp: meta.timestamp,
-            signerName: name,
-            signerCPF: cpf,
-            photo: localCapturedPhoto,
-            valid: true
-        };
-
+        const digitalData = { type: 'digital_ack', ip: meta.ip, device: meta.userAgent, timestamp: meta.timestamp, signerName: name, signerCPF: cpf, photo: localCapturedPhoto, valid: true };
         if(localStream) localStream.getTracks().forEach(t=>t.stop());
-        if(currentStream) currentStream.getTracks().forEach(t=>t.stop()); // Garante que tudo para
-
+        if(currentStream) currentStream.getTracks().forEach(t=>t.stop());
         modal.classList.add('hidden'); modal.classList.remove('flex');
         if (modal._onConfirmCallback) modal._onConfirmCallback(digitalData);
     };
 
-    // --- LÓGICA DA CÂMERA (TAB 1) ---
-    const btnTake = document.getElementById('btn-take-photo');
-    const btnRetake = document.getElementById('btn-retake-photo');
-    const video = document.getElementById('camera-preview');
-    const photoResult = document.getElementById('photo-result');
-    const photoCanvas = document.getElementById('photo-canvas');
+    // Canvas Desenho
+    const btnTake = document.getElementById('btn-take-photo'); const btnRetake = document.getElementById('btn-retake-photo');
+    const video = document.getElementById('camera-preview'); const photoResult = document.getElementById('photo-result'); const photoCanvas = document.getElementById('photo-canvas');
     let capturedPhotoData = null;
 
     btnTake.onclick = () => {
@@ -518,23 +446,11 @@ const setupSignaturePadEvents = () => {
         btnTake.classList.add('hidden'); btnRetake.classList.remove('hidden');
     };
 
-    btnRetake.onclick = () => {
-        capturedPhotoData = null; photoResult.classList.add('hidden');
-        btnTake.classList.remove('hidden'); btnRetake.classList.add('hidden');
-    };
+    btnRetake.onclick = () => { capturedPhotoData = null; photoResult.classList.add('hidden'); btnTake.classList.remove('hidden'); btnRetake.classList.add('hidden'); };
 
-    // --- CORREÇÃO DO CANVAS (GHOSTING FIX) ---
     const redrawCanvas = () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#000';
-        savedPaths.forEach(path => {
-            ctx.beginPath();
-            if(path.length) {
-                ctx.moveTo(path[0].x, path[0].y);
-                path.forEach(p => ctx.lineTo(p.x, p.y));
-                ctx.stroke();
-            }
-        });
+        ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#000';
+        savedPaths.forEach(path => { ctx.beginPath(); if(path.length) { ctx.moveTo(path[0].x, path[0].y); path.forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke(); } });
     };
 
     let isDrawing = false;
@@ -545,55 +461,12 @@ const setupSignaturePadEvents = () => {
         return { x: (clientX - rect.left)*(canvas.width/rect.width), y: (clientY - rect.top)*(canvas.height/rect.height) };
     };
 
-    // FIX: Separar lógica de path atual do histórico
-    canvas.addEventListener('mousedown', (e) => { 
-        isDrawing=true; 
-        currentPath=[getPos(e)]; 
-        ctx.beginPath(); // IMPORTANTE
-        ctx.moveTo(currentPath[0].x, currentPath[0].y);
-    });
-    
-    canvas.addEventListener('mousemove', (e) => { 
-        if(!isDrawing) return; 
-        const p = getPos(e); 
-        currentPath.push(p); 
-        ctx.lineTo(p.x, p.y); 
-        ctx.stroke(); 
-        // Não chamamos beginPath aqui para que o traço seja contínuo
-    });
-    
-    canvas.addEventListener('mouseup', () => { 
-        if(isDrawing){ 
-            isDrawing=false; 
-            savedPaths.push([...currentPath]); 
-            // Não precisa chamar redrawCanvas aqui pois o traço já está na tela
-        } 
-    });
-
-    // Touch Support (com preventDefault para não rolar a tela)
-    canvas.addEventListener('touchstart', (e) => { 
-        e.preventDefault(); 
-        isDrawing=true; 
-        currentPath=[getPos(e)]; 
-        ctx.beginPath();
-        ctx.moveTo(currentPath[0].x, currentPath[0].y);
-    }, {passive: false});
-
-    canvas.addEventListener('touchmove', (e) => { 
-        e.preventDefault(); 
-        if(!isDrawing) return; 
-        const p=getPos(e); 
-        currentPath.push(p); 
-        ctx.lineTo(p.x, p.y); 
-        ctx.stroke(); 
-    }, {passive: false});
-
-    canvas.addEventListener('touchend', (e) => { 
-        if(isDrawing){ 
-            isDrawing=false; 
-            savedPaths.push([...currentPath]); 
-        } 
-    });
+    canvas.addEventListener('mousedown', (e) => { isDrawing=true; currentPath=[getPos(e)]; ctx.beginPath(); ctx.moveTo(currentPath[0].x, currentPath[0].y); });
+    canvas.addEventListener('mousemove', (e) => { if(!isDrawing) return; const p = getPos(e); currentPath.push(p); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+    canvas.addEventListener('mouseup', () => { if(isDrawing){ isDrawing=false; savedPaths.push([...currentPath]); } });
+    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); isDrawing=true; currentPath=[getPos(e)]; ctx.beginPath(); ctx.moveTo(currentPath[0].x, currentPath[0].y); }, {passive: false});
+    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); if(!isDrawing) return; const p=getPos(e); currentPath.push(p); ctx.lineTo(p.x, p.y); ctx.stroke(); }, {passive: false});
+    canvas.addEventListener('touchend', (e) => { if(isDrawing){ isDrawing=false; savedPaths.push([...currentPath]); } });
 
     document.getElementById('btn-undo-signature').onclick = () => { savedPaths.pop(); redrawCanvas(); };
     document.getElementById('btn-clear-signature').onclick = () => { savedPaths=[]; currentPath=[]; ctx.clearRect(0,0,canvas.width,canvas.height); };
@@ -606,42 +479,20 @@ const setupSignaturePadEvents = () => {
         if (modal._onConfirmCallback) modal._onConfirmCallback({ signature: signatureData, photo: evidenceData });
     };
 
-    document.getElementById('btn-cancel-signature').onclick = () => {
-        stopCameraStream();
-        if(localStream) localStream.getTracks().forEach(t=>t.stop());
-        modal.classList.add('hidden'); modal.classList.remove('flex');
-    };
+    document.getElementById('btn-cancel-signature').onclick = () => { stopCameraStream(); if(localStream) localStream.getTracks().forEach(t=>t.stop()); modal.classList.add('hidden'); modal.classList.remove('flex'); };
 };
 
-const startCamera = async () => {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-        currentStream = stream;
-        document.getElementById('camera-preview').srcObject = stream;
-    } catch(e) { console.error("Erro Câmera Tab 1", e); }
-};
+const startCamera = async () => { try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }); currentStream = stream; document.getElementById('camera-preview').srcObject = stream; } catch(e) { console.error(e); } };
+const stopCameraStream = () => { if(currentStream) currentStream.getTracks().forEach(t=>t.stop()); currentStream=null; };
 
-const stopCameraStream = () => { 
-    if(currentStream) currentStream.getTracks().forEach(t=>t.stop()); 
-    currentStream=null; 
-};
-
-// --- ABRIR MODAL ---
 const openSignaturePad = (key, docRefId, onConfirm) => {
     ensureSignatureModalExists();
     const modal = document.getElementById('signature-pad-modal');
     modal._onConfirmCallback = onConfirm;
-    
-    currentDocumentKeyForRemote = key;
-    currentDocumentIdForRemote = docRefId; 
-    savedPaths = [];
-    currentPath = [];
-    
-    document.getElementById('tab-draw').click(); // Reseta para aba de desenho
-    
+    currentDocumentKeyForRemote = key; currentDocumentIdForRemote = docRefId; savedPaths = []; currentPath = [];
+    document.getElementById('tab-draw').click(); 
     const canvas = document.getElementById('signature-canvas');
     if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-    
     modal.classList.remove('hidden'); modal.classList.add('flex');
 };
 
@@ -727,87 +578,93 @@ const getAttemptsTableHTML = (records, type = 'occurrence') => {
     return `<table class="report-table"><thead><tr><th style="width: 30%">Ação</th><th style="width: 25%">Data</th><th>Resultado</th></tr></thead><tbody>${rows}</tbody></table>`;
 };
 
-// --- VISUAL DA ASSINATURA (LAYOUT COMPACTO & DADOS COMPLETOS) ---
+// --- VISUAL ASSINATURAS (ATUALIZADO LADO A LADO) ---
 const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
-    // 1. Digital com Biometria
+    let content = '';
+    // Digital com Biometria
     if (sigData && sigData.type === 'digital_ack') {
-        return `
-            <div class="relative group border border-green-500 bg-green-50 rounded flex flex-row overflow-hidden h-32" data-sig-key="${key}">
-                <div class="flex-1 p-2 flex flex-col justify-between overflow-hidden">
-                    <div class="overflow-y-auto">
-                        <p class="font-bold uppercase text-xs text-green-800 leading-tight">${roleTitle}</p>
-                        <p class="text-[10px] text-green-700 font-semibold mb-1 truncate">${nameSubtitle}</p>
-                        <div class="text-[10px] text-gray-700 leading-snug break-words whitespace-normal">
-                            ${sigData.signerName ? `<span class="font-bold">Nome:</span> ${sigData.signerName}<br>` : ''}
-                            ${sigData.signerCPF ? `<span class="font-bold">CPF:</span> ${sigData.signerCPF}<br>` : ''}
-                            <span class="font-bold">IP:</span> ${sigData.ip || 'N/A'}<br>
-                            ${new Date(sigData.timestamp).toLocaleString()}
-                        </div>
+        content = `
+            <div class="flex-1 p-2 flex flex-col justify-between overflow-hidden">
+                <div class="overflow-y-auto">
+                    <p class="font-bold uppercase text-[10px] text-green-800 leading-tight">${roleTitle}</p>
+                    <p class="text-[9px] text-green-700 font-semibold mb-1 truncate">${nameSubtitle}</p>
+                    <div class="text-[8px] text-gray-700 leading-snug">
+                        ${sigData.signerName ? `<b>Nome:</b> ${sigData.signerName}<br>` : ''}
+                        <b>CPF:</b> ${sigData.signerCPF || '***'}<br>
+                        <b>IP:</b> ${sigData.ip || 'N/A'}<br>
+                        ${new Date(sigData.timestamp).toLocaleString()}
                     </div>
-                    <div class="bg-green-500 text-white text-[9px] px-2 py-0.5 rounded w-fit mt-1"><i class="fas fa-check"></i> Válido</div>
                 </div>
-                ${sigData.photo ? `<div class="w-32 min-w-[30%] border-l border-green-200"><img src="${sigData.photo}" class="w-full h-full object-cover"></div>` : ''}
-            </div>`;
+                <div class="bg-green-500 text-white text-[8px] px-2 py-0.5 rounded w-fit mt-1"><i class="fas fa-check"></i> Válido</div>
+            </div>
+            ${sigData.photo ? `<div class="w-20 min-w-[30%] border-l border-green-200"><img src="${sigData.photo}" class="w-full h-full object-cover"></div>` : ''}`;
+        return `<div class="signature-slot border-green-500 bg-green-50 flex flex-row" data-sig-key="${key}">${content}</div>`;
     } 
-    // 2. Desenhada
+    // Desenhada
     else if (sigData && (sigData.signature || typeof sigData === 'string')) {
         const img = sigData.signature || sigData;
-        const photo = sigData.photo;
-        return `
-            <div class="relative group cursor-pointer border border-gray-300 rounded bg-white flex flex-row h-32 overflow-hidden" data-sig-key="${key}">
-                 ${photo ? `<div class="w-32 min-w-[30%] border-r border-gray-200"><img src="${photo}" class="w-full h-full object-cover" /></div>` : `<div class="w-8 bg-gray-50 border-r border-gray-200 flex items-center justify-center"><i class="fas fa-pen-nib text-gray-300"></i></div>`}
-                <div class="flex-1 flex flex-col p-2 justify-between relative overflow-hidden">
-                    <img src="${img}" class="h-16 object-contain mix-blend-multiply self-center" />
-                    <div class="border-t border-black w-full pt-1 text-center">
-                        <p class="text-[9px] font-bold uppercase leading-none">${roleTitle}</p>
-                        <p class="text-[8px] text-gray-500 truncate">${nameSubtitle}</p>
-                    </div>
-                </div>
+        content = `
+             <div class="w-full h-24 flex items-center justify-center bg-white"><img src="${img}" class="max-h-20 object-contain mix-blend-multiply" /></div>
+             <div class="border-t border-gray-300 w-full p-2 text-center bg-gray-50">
+                <p class="text-[9px] font-bold uppercase leading-none">${roleTitle}</p>
+                <p class="text-[8px] text-gray-500 truncate">${nameSubtitle}</p>
             </div>`;
+        return `<div class="signature-slot cursor-pointer border-gray-400" data-sig-key="${key}">${content}</div>`;
     } 
-    // 3. Vazio
+    // Vazio
     else {
-        return `
-            <div class="h-32 border border-dashed border-gray-300 rounded bg-gray-50 flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-100 transition signature-interaction-area" data-sig-key="${key}">
-                <i class="fas fa-fingerprint text-xl mb-1 opacity-50"></i>
-                <p class="text-[9px] uppercase font-bold text-center">Aguardando<br>Assinatura</p>
-                <p class="text-[8px] mt-1">${roleTitle}</p>
+        content = `
+            <div class="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">
+                <i class="fas fa-fingerprint text-2xl mb-1 opacity-30"></i>
+                <p class="text-[9px] uppercase font-bold text-center text-gray-400">Assinar</p>
+            </div>
+            <div class="border-t border-gray-200 w-full p-2 text-center bg-gray-50">
+                <p class="text-[9px] font-bold uppercase text-gray-500">${roleTitle}</p>
+                <p class="text-[8px] text-gray-400 truncate">${nameSubtitle}</p>
             </div>`;
+        return `<div class="signature-slot border-dashed cursor-pointer hover:bg-gray-100 transition signature-interaction-area" data-sig-key="${key}">${content}</div>`;
     }
 };
 
-const generateSignaturesGrid = (slots) => {
-    let itemsHTML = slots.map(slot => {
-        const sigData = signatureMap.get(slot.key);
-        return getSingleSignatureBoxHTML(slot.key, slot.role, slot.name, sigData);
-    }).join('');
-
-    const mgmtData = signatureMap.get('management');
+const generatePairedSignaturesHTML = (studentSlot, parentSlot) => {
+    const studentHTML = getSingleSignatureBoxHTML(studentSlot.key, studentSlot.role, studentSlot.name, signatureMap.get(studentSlot.key));
+    const parentHTML = getSingleSignatureBoxHTML(parentSlot.key, parentSlot.role, parentSlot.name, signatureMap.get(parentSlot.key));
     return `
-        <div class="mt-6 mb-4 break-inside-avoid p-3 bg-gray-50 rounded border border-gray-200">
-             <h5 class="text-[9px] font-bold uppercase text-gray-500 mb-3 border-b border-gray-300 pb-1 flex justify-between">
-                <span>Registro de Validação</span>
-                <span class="font-normal"><i class="fas fa-shield-alt"></i> Biometria</span>
-             </h5>
-             <!-- LAYOUT: 3 COLUNAS -->
-             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">${itemsHTML}</div>
-             
-             <div class="mt-4 pt-2 border-t border-gray-200 flex justify-center">
-                <div class="w-full max-w-[250px]">
-                    <p class="text-[8px] text-gray-400 text-center mb-1 uppercase">Gestão Escolar</p>
-                    ${getSingleSignatureBoxHTML('management', 'Gestão', state.config?.schoolName || 'Direção', mgmtData)}
+        <div class="signatures-wrapper">
+            <h5 class="text-[10px] font-bold uppercase text-gray-500 mb-2 border-b border-gray-300 pb-1">Assinaturas / Ciência</h5>
+            <div class="signature-pair">
+                ${studentHTML}
+                ${parentHTML}
+            </div>
+            <div class="mt-4 flex justify-center">
+                <div class="w-1/3 text-center">
+                    <div class="border-b border-black mb-1 h-8"></div>
+                    <p class="text-[9px] uppercase font-bold">Coordenação Pedagógica</p>
                 </div>
-             </div>
+            </div>
         </div>`;
 };
 
-// --- FUNÇÃO CENTRAL DE RENDERIZAÇÃO (IMPORTANTE) ---
+// --- GERAÇÃO DE RODAPÉ DE SEGURANÇA ---
+const getReportFooterHTML = (docId, hash) => {
+    return `
+        <div class="security-footer">
+            <div class="flex justify-between items-center px-4">
+                <span>ID: ${docId}</span>
+                <span>Hash: <span class="security-hash">${hash}</span></span>
+                <span>Pág. 1/1</span>
+            </div>
+            <div class="text-[8px] text-gray-400 mt-1">
+                Documento gerado eletronicamente pelo Sistema Pedagógico. A autenticidade pode ser verificada junto à secretaria escolar.
+            </div>
+        </div>`;
+};
+
+// --- FUNÇÃO CENTRAL DE RENDERIZAÇÃO ---
 async function generateSmartHTML(docType, studentId, refId, htmlGeneratorFn) {
-    // 1. Tenta carregar dados existentes do banco
     const existingDoc = await findDocumentSnapshot(docType, studentId, refId);
     
-    // 2. Se houver dados no banco, atualiza o mapa local APENAS se não tivermos uma versão mais nova localmente
-    // A chave aqui é que signatureMap "vence" se já tiver algo gravado na sessão atual
+    // Atualiza mapa local (prioridade para a sessão atual se tiver, senão carrega do banco)
     if (existingDoc && existingDoc.signatures) {
         Object.entries(existingDoc.signatures).forEach(([k, v]) => {
              if (!signatureMap.has(k)) {
@@ -816,15 +673,18 @@ async function generateSmartHTML(docType, studentId, refId, htmlGeneratorFn) {
         });
     }
     
-    // 3. Gera o HTML usando o mapa atualizado (seja do banco ou da memória local)
     const newDate = existingDoc?.createdAt?.toDate() || new Date();
-    const html = htmlGeneratorFn(newDate);
+    // Gera HTML principal
+    let html = htmlGeneratorFn(newDate);
+    
+    // Adiciona Rodapé de Segurança
+    const hash = generateIntegrityHash(html, existingDoc?.id || refId);
+    html += getReportFooterHTML(existingDoc?.id || 'NOVO', hash);
 
     return { html, docId: existingDoc?.id };
 }
 
 const renderDocumentModal = async (title, contentDivId, docType, studentId, refId, generatorFn) => {
-    // Gera o HTML já com a assinatura que está em memória (signatureMap)
     const { html, docId } = await generateSmartHTML(docType, studentId, refId, generatorFn);
     
     const contentDiv = document.getElementById(contentDivId);
@@ -835,14 +695,16 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
     const titleEl = document.getElementById(titleId);
     if(titleEl) titleEl.textContent = title;
     
-    // Salva silenciosamente em background
+    // Salva silenciosamente se houver assinaturas novas
     const signaturesToSave = Object.fromEntries(signatureMap);
     
     if (!docId) {
         const docRef = await saveDocumentSnapshot(docType, title, html, studentId, { refId, signatures: signaturesToSave });
         contentDiv.setAttribute('data-doc-ref-id', docRef.id);
     } else {
-        await saveDocumentSnapshot(docType, title, html, studentId, { refId, signatures: signaturesToSave });
+        if (signatureMap.size > 0) {
+            await saveDocumentSnapshot(docType, title, html, studentId, { refId, signatures: signaturesToSave });
+        }
     }
 
     // Reanexa os listeners para o novo HTML gerado
@@ -854,25 +716,116 @@ const attachDynamicSignatureListeners = (reRenderCallback) => {
         area.onclick = (e) => {
             e.stopPropagation(); 
             const key = area.getAttribute('data-sig-key');
-            // Busca o ID do documento renderizado na div pai
             const contentDiv = area.closest('[data-doc-ref-id]');
             const currentDocRefId = contentDiv ? contentDiv.getAttribute('data-doc-ref-id') : 'temp';
 
             openSignaturePad(key, currentDocRefId, (data) => {
-                // SALVA LOCALMENTE PRIMEIRO
                 signatureMap.set(key, data);
-                showToast("Assinatura coletada! Atualizando...");
-                
-                // FORÇA RE-RENDER IMEDIATO COM OS DADOS LOCAIS
+                showToast("Assinatura coletada! Atualizando visualização...");
                 reRenderCallback();
             });
         };
     });
 };
 
+// =================================================================================
+// FUNÇÕES DE RELATÓRIO ESPECÍFICAS (MODIFICADAS PARA LADO A LADO)
+// =================================================================================
+
+export const openOccurrenceRecordModal = async (groupId) => {
+    signatureMap.clear();
+    const incident = await fetchIncidentById(groupId);
+    if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
+
+    const mainRecord = incident.records[0]; 
+    const city = state.config?.city || "Cidade";
+    
+    // Gera blocos repetidos para cada aluno envolvido
+    const participants = [...incident.participantsInvolved.values()];
+
+    const generator = (dateObj) => {
+        const dateString = dateObj.toLocaleDateString('pt-BR', {dateStyle:'long'});
+        
+        let html = `
+            <div class="font-sans text-sm text-gray-900">
+                ${getReportHeaderHTML(dateObj)}
+                <h3 class="text-center font-bold uppercase text-base border-b border-black pb-2 mb-4">ATA DE OCORRÊNCIA Nº ${incident.id}</h3>
+                
+                <div class="text-justify mb-4">
+                    <p>Aos ${dateString}, registra-se o fato classificado como <strong>"${formatText(mainRecord.occurrenceType)}"</strong>.</p>
+                </div>
+
+                <div class="mb-4 border p-2 rounded">
+                    <p class="font-bold text-xs uppercase mb-1">Descrição do Fato:</p>
+                    <p class="italic text-gray-700 text-sm">${formatText(mainRecord.description)}</p>
+                </div>
+
+                <div class="mb-4">
+                    <p class="font-bold text-xs uppercase mb-1">Providências da Escola:</p>
+                    <p class="text-sm">${formatText(mainRecord.providenciasEscola)}</p>
+                </div>
+        `;
+
+        // Loop de Assinaturas
+        participants.forEach(p => {
+            const studentSlot = { key: `student_${String(p.student.matricula)}`, role: `Aluno (${p.role})`, name: p.student.name };
+            const parentSlot = { key: `responsible_${String(p.student.matricula)}`, role: 'Responsável Legal', name: 'Assinatura' };
+            
+            html += `
+                <div class="mt-6 border-t pt-4 break-inside-avoid">
+                    <p class="font-bold text-sm bg-gray-100 p-1 mb-2">Envolvido: ${p.student.name}</p>
+                    ${generatePairedSignaturesHTML(studentSlot, parentSlot)}
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+        return html;
+    };
+
+    await renderDocumentModal(`Ata Nº ${incident.id}`, 'report-view-content', 'ata', null, incident.id, generator);
+    openModal(dom.reportViewModalBackdrop);
+};
+
+export const openFichaViewModal = async (id) => {
+    signatureMap.clear();
+    const record = state.absences.find(abs => abs.id === id);
+    if (!record) return showToast('Registro não encontrado.');
+    const student = await resolveStudentData(record.studentId, record);
+
+    const titleMap = { tentativa_1: "1ª Notificação de Frequência", tentativa_2: "2ª Notificação de Frequência", tentativa_3: "3ª Notificação (Pré-Conselho)", visita: "Relatório de Visita" };
+    const title = titleMap[record.actionType] || "Documento de Acompanhamento";
+
+    const generator = (dateObj) => {
+        const currentDateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+        
+        const studentSlot = { key: `student_${String(student.matricula)}`, role: 'Aluno', name: student.name };
+        const parentSlot = { key: `responsible_${String(student.matricula)}`, role: 'Responsável', name: 'Assinatura' };
+
+        return `
+            <div class="font-sans text-sm text-gray-900">
+                ${getReportHeaderHTML(dateObj)}
+                <h3 class="text-center font-bold uppercase text-base border-b border-black pb-2 mb-4">${title}</h3>
+                <p class="text-right text-xs italic mb-4">${state.config?.city}, ${currentDateStr}</p>
+                
+                ${getStudentIdentityCardHTML(student)}
+                
+                <div class="my-6 p-4 border rounded bg-white text-justify">
+                    <p>Comunicamos que o aluno registrou ocorrência/ausência relevante na data de <strong>${formatDate(record.createdAt)}</strong>.</p>
+                    ${record.absenceCount ? `<p class="mt-2">Total de Faltas: <strong>${record.absenceCount}</strong></p>` : ''}
+                    <p class="mt-2">Solicitamos o comparecimento do responsável.</p>
+                </div>
+
+                ${generatePairedSignaturesHTML(studentSlot, parentSlot)}
+            </div>`;
+    };
+
+    await renderDocumentModal(title, 'ficha-view-content', 'notificacao', student.matricula, record.id, generator);
+    openModal(dom.fichaViewModalBackdrop);
+};
 
 // =================================================================================
-// FUNÇÕES DE ABERTURA DE MODAIS (EXPORTADAS)
+// FUNÇÕES RESTAURADAS (GRÁFICOS, OFÍCIOS, HISTÓRICO)
 // =================================================================================
 
 export const openStudentSelectionModal = async (groupId) => {
@@ -905,22 +858,28 @@ export const openStudentSelectionModal = async (groupId) => {
 }
 
 export const openIndividualNotificationModal = async (incident, studentObj, specificAttempt = null) => {
-    signatureMap.clear();
+    // Redireciona para a Ficha View Modal com suporte a assinatura lado a lado
+    // mas precisamos encontrar o registro específico do aluno
     const data = incident.records.find(r => r.studentId === studentObj.matricula);
     if (!data) return showToast(`Erro: Registro não encontrado.`);
-
+    
+    // Aqui usamos a lógica da Ficha, mas adaptada para Notificação Individual da Ocorrência
+    // Como openFichaViewModal espera um ID de 'absences', vamos criar um wrapper customizado
+    // Ou melhor: Vamos adaptar openOccurrenceRecordModal para gerar apenas para UM aluno se chamado aqui
+    // Mas a notificação de ocorrência é diferente da Ata.
+    
+    signatureMap.clear();
     const student = await resolveStudentData(studentObj.matricula, data);
     let attemptCount = specificAttempt || (data.contactSucceeded_1 ? (data.contactSucceeded_2 ? 3 : 2) : 1);
-    
     let meetingDate = data[`meetingDate_${attemptCount}`] || (attemptCount === 1 ? data.meetingDate : null);
     let meetingTime = data[`meetingTime_${attemptCount}`] || (attemptCount === 1 ? data.meetingTime : null);
-    const uniqueRefId = `${incident.id}_attempt_${attemptCount}`;
-
+    
     const generator = (dateObj) => {
         const currentDateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
         const attemptText = `Esta é a <strong>${attemptCount}ª tentativa</strong> de contato formal realizada pela escola.`;
-        // CORREÇÃO: Forçar String no ID
-        const sigSlots = [{ key: `responsible_${String(student.matricula)}`, role: 'Responsável', name: 'Responsável Legal' }];
+        
+        const studentSlot = { key: `student_${String(student.matricula)}`, role: 'Aluno', name: student.name };
+        const parentSlot = { key: `responsible_${String(student.matricula)}`, role: 'Responsável', name: 'Assinatura' };
 
         return `
             <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
@@ -933,113 +892,12 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
                 <div class="my-6 p-4 bg-gray-50 border-l-4 border-red-500 rounded text-sm font-sans"><p class="font-bold text-red-700 mb-1"><i class="fas fa-exclamation-triangle"></i> Atenção:</p><p class="text-justify text-gray-700">Conforme a Lei de Diretrizes e Bases da Educação (LDB) e o Estatuto da Criança e do Adolescente (ECA), a parceria família-escola é fundamental. O não comparecimento após as tentativas formais de contato poderá acarretar no encaminhamento do caso aos órgãos de proteção.</p></div>
                 <p class="text-justify mt-4">Solicitamos o comparecimento urgente de um responsável na coordenação pedagógica para tratar deste assunto na seguinte data:</p>
                 ${meetingDate ? `<div class="my-6 mx-auto max-w-sm border-2 border-gray-800 rounded-lg p-4 text-center bg-white shadow-sm break-inside-avoid"><p class="text-xs uppercase tracking-wide text-gray-500 font-bold mb-1">Agendamento</p><div class="text-2xl font-bold text-gray-900">${formatDate(meetingDate)}</div><div class="text-xl font-semibold text-gray-700 mt-1">${formatTime(meetingTime)}</div></div>` : ''}
-                ${generateSignaturesGrid(sigSlots)}
+                ${generatePairedSignaturesHTML(studentSlot, parentSlot)}
             </div>`;
     };
 
-    await renderDocumentModal('Notificação', 'notification-content', 'notificacao', student.matricula, uniqueRefId, generator);
+    await renderDocumentModal('Notificação', 'notification-content', 'notificacao', student.matricula, `${incident.id}_attempt_${attemptCount}`, generator);
     openModal(dom.notificationModalBackdrop);
-};
-
-export const openOccurrenceRecordModal = async (groupId) => {
-    signatureMap.clear();
-    const incident = await fetchIncidentById(groupId);
-    if (!incident || incident.records.length === 0) return showToast('Incidente não encontrado.');
-
-    const mainRecord = incident.records[0]; 
-    const city = state.config?.city || "Cidade";
-    const participants = [...incident.participantsInvolved.values()];
-
-    const generator = (dateObj) => {
-        const dateString = dateObj.toLocaleDateString('pt-BR', {dateStyle:'long'});
-        const sigSlots = [];
-        participants.forEach(p => {
-            // CORREÇÃO: Forçar String no ID
-            sigSlots.push({ key: `student_${String(p.student.matricula)}`, role: `Aluno (${p.role})`, name: p.student.name });
-            sigSlots.push({ key: `responsible_${String(p.student.matricula)}`, role: 'Responsável', name: p.student.name });
-        });
-        
-        // ... (resto do template HTML da Ata mantido igual) ...
-        let html = `
-            <div class="space-y-4 text-sm font-serif leading-relaxed text-gray-900">
-                ${getReportHeaderHTML(dateObj)}
-                <h3 class="text-lg font-bold text-center uppercase mb-6 bg-gray-100 py-2 border rounded">ATA DE REGISTRO DE OCORRÊNCIA Nº ${incident.id}</h3>
-                <p class="text-justify indent-8">Aos ${dateString}, foi lavrada a presente ata para registrar os fatos referentes ao incidente classificado como <strong>"${formatText(mainRecord.occurrenceType)}"</strong>.</p>
-                <h4 class="font-bold border-b border-gray-300 mt-6 mb-2 uppercase text-xs text-gray-500">1. Descrição do Fato e Envolvidos</h4>
-                <div class="bg-gray-50 p-4 rounded border border-gray-200 text-sm font-sans mb-4"><p class="italic text-gray-700">"${formatText(mainRecord.description)}"</p></div>
-                <div class="mb-4"><p class="font-bold text-xs uppercase text-gray-500 mb-2">Alunos Envolvidos:</p><div class="grid grid-cols-1 gap-2">${participants.map(p => `<div class="flex items-center gap-2 p-2 border rounded bg-white"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${p.role === 'Vítima' ? 'bg-blue-50 text-blue-700 border-blue-200' : p.role === 'Agente' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-700 border-gray-200'}">${p.role}</span><span class="font-semibold text-gray-800">${p.student.name}</span><span class="text-xs text-gray-500">(${p.student.class})</span></div>`).join('')}</div></div>
-                <h4 class="font-bold border-b border-gray-300 mt-6 mb-2 uppercase text-xs text-gray-500">2. Providências Imediatas (Escola)</h4>
-                <p class="text-justify bg-gray-50 p-3 rounded border border-gray-200 font-sans text-sm">${formatText(mainRecord.providenciasEscola)}</p>
-                <h4 class="font-bold border-b border-gray-300 mt-6 mb-2 uppercase text-xs text-gray-500">3. Histórico de Acompanhamento</h4>`;
-
-        incident.records.forEach(rec => {
-            const participant = incident.participantsInvolved.get(rec.studentId);
-            const name = participant ? participant.student.name : rec.studentName;
-            let timelineItems = [];
-
-            if (rec.meetingDate) timelineItems.push({ date: rec.meetingDate, title: "1ª Convocação Agendada", desc: `Para: ${formatDate(rec.meetingDate)} às ${formatTime(rec.meetingTime)}` });
-            for (let i = 1; i <= 3; i++) {
-                const succ = rec[`contactSucceeded_${i}`];
-                if (succ) {
-                    let desc = succ === 'yes' ? `Com: ${rec[`contactPerson_${i}`]}. Prov: ${rec[`providenciasFamilia_${i}`]||''}` : "Responsável não compareceu/atendeu.";
-                    if (succ === 'yes' && (rec[`contactPrints_${i}`] || rec[`contactPrint_${i}`])) desc += getPrintHTML(rec[`contactPrints_${i}`], rec[`contactPrint_${i}`]);
-                    timelineItems.push({ date: rec[`contactDate_${i}`], title: `Feedback ${i}ª Tentativa`, desc: desc });
-                }
-                if (i < 3 && rec[`meetingDate_${i+1}`]) timelineItems.push({ date: rec[`meetingDate_${i+1}`], title: `${i+1}ª Convocação`, desc: `Para: ${formatDate(rec[`meetingDate_${i+1}`])}` });
-            }
-            if (rec.oficioNumber) timelineItems.push({ date: rec.ctSentDate, title: "Encaminhamento CT", desc: `Ofício ${rec.oficioNumber}/${rec.oficioYear}` });
-            if (rec.ctFeedback) timelineItems.push({ date: null, title: "Devolutiva CT", desc: rec.ctFeedback });
-            if (rec.parecerFinal) timelineItems.push({ date: null, title: "Parecer Final", desc: rec.parecerFinal });
-
-            if (timelineItems.length > 0) {
-                html += `<div class="mb-4 break-inside-avoid"><p class="font-bold text-sm text-gray-800 mb-2 bg-sky-50 p-1 px-2 rounded inline-block">${name} <span class="text-xs font-normal text-gray-500">(${rec.statusIndividual})</span></p>`;
-                timelineItems.forEach(item => { html += `<div class="report-timeline-item ml-2"><div class="report-timeline-dot"></div><p class="text-xs font-bold text-gray-700">${item.title} <span class="font-normal text-gray-500 ml-1">${item.date ? `(${formatDate(item.date)})` : ''}</span></p><div class="text-xs text-gray-600 mt-1">${item.desc}</div></div>`; });
-                html += `</div>`;
-            }
-        });
-
-        html += `<div class="mt-8 pt-4 border-t-2 border-gray-800"><p class="font-bold text-center mb-4">ENCERRAMENTO</p><p class="text-center text-sm">${incident.overallStatus === 'Finalizada' ? 'Ocorrência finalizada.' : 'Ocorrência segue em acompanhamento.'}</p><p class="text-center text-sm mt-2">${city}, ${dateString}.</p></div>${generateSignaturesGrid(sigSlots)}</div>`;
-        return html;
-    };
-
-    await renderDocumentModal(`Ata Nº ${incident.id}`, 'report-view-content', 'ata', null, incident.id, generator);
-    openModal(dom.reportViewModalBackdrop);
-};
-
-export const openFichaViewModal = async (id) => {
-    signatureMap.clear();
-    const record = state.absences.find(abs => abs.id === id);
-    if (!record) return showToast('Registro não encontrado.');
-    const student = await resolveStudentData(record.studentId, record);
-
-    let absenceCount = record.absenceCount;
-    let periodoStart = record.periodoFaltasStart;
-    let periodoEnd = record.periodoFaltasEnd;
-    if (!absenceCount) {
-        const processActions = state.absences.filter(a => a.processId === record.processId);
-        const source = processActions.find(a => a.periodoFaltasStart);
-        if (source) { absenceCount = source.absenceCount; periodoStart = source.periodoFaltasStart; periodoEnd = source.periodoFaltasEnd; }
-    }
-
-    const titleMap = { tentativa_1: "1ª Notificação de Baixa Frequência", tentativa_2: "2ª Notificação de Baixa Frequência", tentativa_3: "3ª Notificação - Pré-Encaminhamento", visita: "Registro de Visita Domiciliar" };
-    const title = titleMap[record.actionType] || actionDisplayTitles[record.actionType] || "Documento Busca Ativa";
-
-    const generator = (dateObj) => {
-        const currentDateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-        let bodyContent = '';
-        if (record.actionType.startsWith('tentativa')) {
-            bodyContent = `<p class="text-justify indent-8">Prezados Responsáveis,</p><p class="text-justify indent-8 mt-2">Comunicamos que o(a) aluno(a) acima identificado(a) atingiu o número de <strong>${formatText(absenceCount)} faltas</strong> no período de ${formatDate(periodoStart)} a ${formatDate(periodoEnd)}, configurando situação de risco escolar.</p><div class="my-4 p-3 bg-yellow-50 border-l-4 border-yellow-500 text-sm font-sans rounded"><p><strong>Fundamentação Legal:</strong> Conforme a LDB (Lei 9.394/96) e o ECA, é dever da família assegurar a frequência escolar.</p></div>${record.meetingDate ? `<p class="text-justify mt-4">Solicitamos comparecimento obrigatório na escola:</p><div class="my-4 mx-auto max-w-xs border border-gray-400 rounded p-3 text-center bg-white shadow-sm"><p class="font-bold text-lg">${formatDate(record.meetingDate)}</p><p class="font-semibold text-gray-700">${formatTime(record.meetingTime)}</p></div>` : `<p class="mt-4 font-bold text-center">Favor comparecer à secretaria da escola com urgência.</p>`}`;
-        } else if (record.actionType === 'visita') {
-            bodyContent = `<p class="text-justify indent-8">Certifico que, nesta data, foi realizada Visita Domiciliar referente ao aluno(a) supracitado(a).</p><div class="mt-4 p-4 border rounded bg-gray-50 font-sans text-sm"><p><strong>Data da Visita:</strong> ${formatDate(record.visitDate)}</p><p><strong>Agente:</strong> ${formatText(record.visitAgent)}</p><p><strong>Resultado:</strong> ${record.visitSucceeded === 'yes' ? 'Contato Realizado' : 'Sem sucesso'}</p><p class="mt-2"><strong>Observações/Justificativa:</strong></p><p class="italic bg-white p-2 border rounded mt-1">${formatText(record.visitReason)} ${formatText(record.visitObs)}</p></div>`;
-        }
-        // CORREÇÃO: Forçar String no ID
-        const sigSlots = [{ key: `responsible_${String(student.matricula)}`, role: 'Responsável', name: 'Responsável Legal' }];
-        
-        return `<div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">${getReportHeaderHTML(dateObj)}<p class="text-right text-sm italic mb-4">${state.config?.city || "Cidade"}, ${currentDateStr}</p><h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">${title}</h3>${getStudentIdentityCardHTML(student)}${bodyContent}${generateSignaturesGrid(sigSlots)}</div>`;
-    };
-
-    await renderDocumentModal(title, 'ficha-view-content', 'notificacao', student.matricula, record.id, generator);
-    openModal(dom.fichaViewModalBackdrop);
 };
 
 export const generateAndShowConsolidatedFicha = async (studentId, processId = null) => {
@@ -1089,7 +947,10 @@ export const generateAndShowConsolidatedFicha = async (studentId, processId = nu
     if (!timelineHTML) timelineHTML = '<p class="text-sm text-gray-500 italic pl-4">Nenhuma ação detalhada registrada.</p>';
 
     const generator = (dateObj) => {
-        return `<div class="space-y-6 text-sm font-sans relative">${getReportHeaderHTML()} ${statusStamp} <h3 class="text-xl font-bold text-center uppercase border-b pb-2">Ficha Individual de Busca Ativa</h3> ${getStudentIdentityCardHTML(student)} <div class="bg-gray-50 p-4 rounded border border-gray-200 grid grid-cols-3 gap-4 text-center"><div><p class="text-xs font-bold text-gray-500 uppercase">Total Faltas</p><p class="text-xl font-bold text-red-600">${formatText(faltasData.absenceCount)}</p></div><div><p class="text-xs font-bold text-gray-500 uppercase">Início Período</p><p class="font-semibold">${formatDate(faltasData.periodoFaltasStart)}</p></div><div><p class="text-xs font-bold text-gray-500 uppercase">Fim Período</p><p class="font-semibold">${formatDate(faltasData.periodoFaltasEnd)}</p></div></div> <h4 class="font-bold border-b mt-6 mb-4 uppercase text-xs text-gray-500">Histórico de Acompanhamento (Cronologia)</h4> <div class="pl-2 border-l-2 border-gray-100">${timelineHTML}</div> <div class="signature-block mt-24 pt-8 grid grid-cols-2 gap-8 break-inside-avoid"><div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Direção</p></div><div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Coordenação</p></div></div> </div>`;
+        // Para Ficha Consolidada, mantemos o bloco antigo de assinaturas (Gestão)
+        // pois é um documento interno, mas podemos adaptar se quiser.
+        // Vou manter o padrão antigo para este relatório específico pois é um relatório de gestão.
+        return `<div class="space-y-6 text-sm font-sans relative">${getReportHeaderHTML(dateObj)} ${statusStamp} <h3 class="text-xl font-bold text-center uppercase border-b pb-2">Ficha Individual de Busca Ativa</h3> ${getStudentIdentityCardHTML(student)} <div class="bg-gray-50 p-4 rounded border border-gray-200 grid grid-cols-3 gap-4 text-center"><div><p class="text-xs font-bold text-gray-500 uppercase">Total Faltas</p><p class="text-xl font-bold text-red-600">${formatText(faltasData.absenceCount)}</p></div><div><p class="text-xs font-bold text-gray-500 uppercase">Início Período</p><p class="font-semibold">${formatDate(faltasData.periodoFaltasStart)}</p></div><div><p class="text-xs font-bold text-gray-500 uppercase">Fim Período</p><p class="font-semibold">${formatDate(faltasData.periodoFaltasEnd)}</p></div></div> <h4 class="font-bold border-b mt-6 mb-4 uppercase text-xs text-gray-500">Histórico de Acompanhamento (Cronologia)</h4> <div class="pl-2 border-l-2 border-gray-100">${timelineHTML}</div> <div class="signature-block mt-24 pt-8 grid grid-cols-2 gap-8 break-inside-avoid"><div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Direção</p></div><div class="text-center"><div class="border-t border-black mb-1"></div><p class="text-xs">Coordenação</p></div></div> </div>`;
     };
 
     await renderDocumentModal("Ficha Consolidada", 'report-view-content', 'ficha_busca_ativa', student.matricula, processId, generator);
@@ -1122,8 +983,7 @@ const generateAndShowGenericOficio = async (data, oficioNum, type, studentObjOve
             anexosText = "Seguem anexos: Ata de Ocorrência e Relatórios Individuais.";
         }
         
-        // Ofícios geralmente não precisam de assinatura do Pai, apenas Gestão (que é padrão no grid)
-        return `<div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900"><div>${getReportHeaderHTML(dateObj)}<p class="text-right mt-4">${city}, ${currentDateStr}.</p></div><div class="mt-8 font-bold text-lg">OFÍCIO Nº ${String(oficioNum).padStart(3, '0')}/${oficioYear}</div><div class="mt-4"><p><strong>Ao Ilustríssimo(a) Senhor(a) Conselheiro(a) Tutelar</strong></p><p>Conselho Tutelar de ${city}</p></div><div class="bg-gray-100 p-2 border rounded mt-4 mb-6"><p><strong>Assunto:</strong> ${subject}</p></div><div class="text-justify indent-8"><p>Prezados Senhores,</p><p class="mt-4">Pelo presente, encaminhamos a situação do(a) aluno(a) abaixo qualificado(a), solicitando a intervenção deste órgão para garantia dos direitos da criança/adolescente, visto que os recursos escolares foram esgotados.</p></div>${getStudentIdentityCardHTML(student)}<div class="text-justify indent-8 mt-4">${contextParagraph}</div><p class="mt-4 mb-2 font-bold text-gray-700">Histórico de Tentativas de Solução pela Escola:</p>${tableHTML}<p class="text-justify indent-8 mt-6">Diante do exposto e com base no Art. 56 do Estatuto da Criança e do Adolescente (ECA), submetemos o caso para as devidas providências.</p>${generateSignaturesGrid([])}<div class="mt-8 pt-4 border-t text-xs text-gray-500"><p><strong>Anexos:</strong> ${anexosText}</p></div></div>`;
+        return `<div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900"><div>${getReportHeaderHTML(dateObj)}<p class="text-right mt-4">${city}, ${currentDateStr}.</p></div><div class="mt-8 font-bold text-lg">OFÍCIO Nº ${String(oficioNum).padStart(3, '0')}/${oficioYear}</div><div class="mt-4"><p><strong>Ao Ilustríssimo(a) Senhor(a) Conselheiro(a) Tutelar</strong></p><p>Conselho Tutelar de ${city}</p></div><div class="bg-gray-100 p-2 border rounded mt-4 mb-6"><p><strong>Assunto:</strong> ${subject}</p></div><div class="text-justify indent-8"><p>Prezados Senhores,</p><p class="mt-4">Pelo presente, encaminhamos a situação do(a) aluno(a) abaixo qualificado(a), solicitando a intervenção deste órgão para garantia dos direitos da criança/adolescente, visto que os recursos escolares foram esgotados.</p></div>${getStudentIdentityCardHTML(student)}<div class="text-justify indent-8 mt-4">${contextParagraph}</div><p class="mt-4 mb-2 font-bold text-gray-700">Histórico de Tentativas de Solução pela Escola:</p>${tableHTML}<p class="text-justify indent-8 mt-6">Diante do exposto e com base no Art. 56 do Estatuto da Criança e do Adolescente (ECA), submetemos o caso para as devidas providências.</p><div class="signature-block mt-24 pt-8 text-center break-inside-avoid"><div class="w-2/3 mx-auto border-t border-black pt-2"><p class="text-sm">Assinatura da Gestão Escolar</p></div></div><div class="mt-8 pt-4 border-t text-xs text-gray-500"><p><strong>Anexos:</strong> ${anexosText}</p></div></div>`;
     };
 
     await renderDocumentModal(`Ofício Nº ${oficioNum}/${oficioYear}`, 'report-view-content', 'oficio', student.matricula, data.id, generator);
@@ -1253,4 +1113,37 @@ export const openAbsenceHistoryModal = (processId) => {
     document.getElementById('history-view-subtitle').textContent = `ID: ${processId}`;
     document.getElementById('history-view-content').innerHTML = historyHTML || '<p class="text-center p-4">Sem histórico.</p>';
     openModal(document.getElementById('history-view-modal-backdrop'));
+};
+
+// Expõe globalmente para o index.html acessar se necessário
+window.Reports = {
+    viewDocument: (doc) => openFichaViewModal(doc.id),
+    shareOnWhatsApp: (id) => {
+        const content = document.getElementById('report-view-content') || document.getElementById('ficha-view-content') || document.getElementById('notification-content');
+        if(!content) return;
+        
+        // Efeito visual de carregamento
+        const oldCursor = document.body.style.cursor;
+        document.body.style.cursor = 'wait';
+        
+        html2canvas(content, {
+            scale: 2, // Alta qualidade
+            useCORS: true // Para carregar imagens
+        }).then(canvas => {
+            document.body.style.cursor = oldCursor;
+            const link = document.createElement('a');
+            link.download = `Documento_Escolar_${id}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+            
+            setTimeout(() => {
+                const confirmed = confirm("Imagem salva!\n\nAbrir o WhatsApp agora para enviar?");
+                if(confirmed) window.open('https://wa.me/', '_blank');
+            }, 500);
+        }).catch(err => {
+            document.body.style.cursor = oldCursor;
+            console.error(err);
+            alert('Erro ao gerar imagem.');
+        });
+    }
 };
