@@ -130,25 +130,42 @@ const checkForRemoteSignParams = async () => {
 
             // FASE 1: DESAFIO DE IDENTIDADE
             const renderIdentityChallenge = () => {
+                const docTypeLabel = type ? type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ') : 'Documento Oficial';
+
                 container.innerHTML = `
-                    <div class="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden">
-                        <div class="bg-sky-800 p-6 text-white text-center">
-                            <i class="fas fa-shield-alt text-4xl mb-2"></i>
-                            <h2 class="text-xl font-bold uppercase">Área Restrita</h2>
-                            <p class="text-sm font-semibold opacity-90 mt-1">${formatText(urlSchoolName)}</p>
-                            <p class="text-xs opacity-70">Identificação Obrigatória</p>
+                    <div class="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden font-sans">
+                        <div class="bg-white p-6 text-center border-b border-gray-100 pb-8 pt-8">
+                            ${urlLogo ? `<div class="mb-4 flex justify-center"><img src="${urlLogo}" class="h-24 object-contain"></div>` : '<div class="h-20 w-20 bg-sky-50 rounded-full mx-auto mb-4 flex items-center justify-center"><i class="fas fa-university text-sky-600 text-3xl"></i></div>'}
+                            <h2 class="text-xl font-extrabold text-gray-900 uppercase leading-snug px-4">${formatText(urlSchoolName)}</h2>
+                            <div class="mt-3">
+                                <span class="inline-block bg-sky-50 text-sky-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider border border-sky-100">
+                                    ${docTypeLabel}
+                                </span>
+                            </div>
                         </div>
-                        <div class="p-6 md:p-8 space-y-4">
-                            <p class="text-sm text-gray-600 text-center mb-4">Para visualizar e assinar o documento, por favor confirme sua identidade.</p>
+                        <div class="p-8 space-y-5 bg-gray-50/50">
+                            <div class="text-center mb-2">
+                                <h3 class="text-lg font-bold text-gray-800">Área de Assinatura</h3>
+                                <p class="text-sm text-gray-500">Confirme sua identidade para acessar.</p>
+                            </div>
+                            
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Seu Nome Completo</label>
-                                <input id="input-signer-name" type="text" class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-sky-500 outline-none uppercase text-sm" placeholder="Digite seu nome">
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Seu Nome Completo</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-user text-gray-400"></i></div>
+                                    <input id="input-signer-name" type="text" class="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none uppercase text-sm font-semibold text-gray-700 transition" placeholder="DIGITE SEU NOME">
+                                </div>
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Seu CPF</label>
-                                <input id="input-signer-cpf" type="tel" class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-sky-500 outline-none text-sm" placeholder="000.000.000-00" maxlength="14">
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Seu CPF</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-id-card text-gray-400"></i></div>
+                                    <input id="input-signer-cpf" type="tel" class="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none text-sm font-mono font-semibold text-gray-700 transition" placeholder="000.000.000-00" maxlength="14">
+                                </div>
                             </div>
-                            <button id="btn-access-doc" class="w-full mt-4 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded shadow transition transform active:scale-95">CONTINUAR</button>
+                            <button id="btn-access-doc" class="w-full mt-2 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3.5 px-4 rounded-lg shadow-lg hover:shadow-xl transition transform active:scale-95 flex justify-center items-center gap-2">
+                                <span>CONTINUAR</span> <i class="fas fa-arrow-right"></i>
+                            </button>
                         </div>
                     </div>
                 `;
@@ -173,11 +190,11 @@ const checkForRemoteSignParams = async () => {
             const renderDocumentView = (identityData) => {
                 container.classList.remove('justify-center'); container.classList.add('pt-4');
                 container.innerHTML = `
-                    <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8">
+                    <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8 no-print">
                         <div class="bg-green-700 p-4 text-white flex justify-between items-center">
                             <div><h2 class="text-sm font-bold uppercase"><i class="fas fa-file-contract"></i> Documento Liberado</h2><p class="text-[10px] opacity-80">Acesso por: ${identityData.name}</p></div>
                         </div>
-                        <div class="p-6 md:p-10 text-sm bg-gray-50 border-b">${docSnapshot.htmlContent}</div>
+                        <div class="p-6 md:p-10 text-sm bg-gray-50 border-b overflow-auto max-h-[60vh]">${docSnapshot.htmlContent}</div>
                         <div class="bg-gray-100 p-6 flex flex-col items-center gap-6">
                             <div class="w-full max-w-sm bg-white p-4 rounded-lg shadow-md border border-gray-300">
                                 <div class="text-center mb-2"><p class="font-bold text-gray-800 text-sm uppercase"><i class="fas fa-camera"></i> Registro Biométrico Facial</p><p class="text-[10px] text-gray-500">Obrigatório para validar a assinatura.</p></div>
@@ -198,7 +215,18 @@ const checkForRemoteSignParams = async () => {
                                 <button id="btn-remote-agree" disabled class="w-full max-w-md bg-gray-400 text-white text-lg font-bold py-4 px-10 rounded-full shadow-lg flex items-center justify-center gap-2 cursor-not-allowed transition-all"><i class="fas fa-lock"></i> TIRE A SELFIE PARA ASSINAR</button>
                             </div>
                         </div>
-                    </div>`;
+                    </div>
+                    <!-- Área Invisível para Impressão -->
+                    <div id="print-area" class="hidden print:block print:w-full print:h-auto bg-white p-8">
+                         ${docSnapshot.htmlContent}
+                         <div class="mt-8 pt-4 border-t border-gray-300">
+                            <p class="font-bold text-sm">Assinado Digitalmente por:</p>
+                            <p class="text-sm">${identityData.name}</p>
+                            <p class="text-sm">CPF: ${identityData.cpf}</p>
+                            <p class="text-xs text-gray-500 mt-1">Data: ${new Date().toLocaleString()}</p>
+                         </div>
+                    </div>
+                    `;
 
                 let remoteStream = null;
                 let capturedPhotoBase64 = null;
@@ -250,7 +278,48 @@ const checkForRemoteSignParams = async () => {
                     const success = await updateDocumentSignatures(docSnapshot.id, sigMap);
                     if (success) {
                         if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
-                        container.innerHTML = `<div class="h-[80vh] flex items-center justify-center"><div class="bg-white p-10 rounded-2xl shadow-xl text-center"><h1 class="text-2xl font-bold text-gray-800">Sucesso!</h1><p class="text-gray-600">Documento assinado com biometria facial.</p></div></div>`;
+
+                        container.innerHTML = `
+                        <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans">
+                            <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full max-w-md border-t-8 border-green-500">
+                                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                                    <i class="fas fa-check text-2xl text-green-600"></i>
+                                </div>
+                                <h1 class="text-2xl font-bold text-gray-800 mb-2">Assinado com Sucesso!</h1>
+                                <p class="text-gray-600 text-sm mb-6">O documento foi registrado no sistema.</p>
+                                
+                                <div class="space-y-3">
+                                    <button onclick="window.print()" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
+                                        <i class="fas fa-file-download text-lg"></i> 
+                                        <span>Baixar cópia (PDF)</span>
+                                    </button>
+                                    
+                                    <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Olá, segue o link para acessar o documento assinado digitalmente: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
+                                        <i class="fab fa-whatsapp text-2xl"></i> 
+                                        <span>Enviar para mim (WhatsApp)</span>
+                                    </button>
+                                </div>
+                                <div class="mt-6 pt-4 border-t border-gray-100">
+                                    <p class="text-[10px] text-gray-400">Escola: ${formatText(urlSchoolName)}</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Mantemos a área de impressão oculta mas presente -->
+                        <div id="print-area-success" class="hidden print:block print:w-full print:h-auto bg-white p-8">
+                             ${docSnapshot.htmlContent}
+                             <div class="mt-8 pt-4 border-t border-gray-300">
+                                <p class="font-bold text-sm">Assinado Digitalmente por:</p>
+                                <p class="text-sm">${identityData.name}</p>
+                                <p class="text-sm">CPF: ${identityData.cpf}</p>
+                                <p class="text-xs text-gray-500 mt-1">Data: ${new Date().toLocaleString()}</p>
+                                <div class="mt-4">
+                                     <p class="font-bold text-xs text-gray-400">Registro Biométrico:</p>
+                                     <img src="${capturedPhotoBase64}" class="w-32 h-32 object-contain border rounded">
+                                </div>
+                             </div>
+                        </div>
+                        `;
                     } else { alert("Erro ao salvar."); this.disabled = false; }
                 };
             };
