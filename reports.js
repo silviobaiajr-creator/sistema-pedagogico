@@ -107,7 +107,8 @@ const checkForRemoteSignParams = async () => {
 
                         <!-- Rodapé com Detalhes da Assinatura -->
                         <div class="bg-gray-100 p-6">
-                            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+                            ${!docSnapshot.htmlContent.includes('signatures-wrapper-v2') ?
+                            `<div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
                                 <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 border-b pb-2">Dados da Assinatura Digital</h3>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                                     <div>
@@ -128,7 +129,8 @@ const checkForRemoteSignParams = async () => {
                                     </div>
                                 </div>
                                 ${sig.photo ? `<div class="mt-4 pt-4 border-t flex flex-col items-center"><p class="text-xs text-gray-400 mb-2">Registro Biométrico Facial</p><img src="${sig.photo}" class="w-24 h-24 object-cover rounded-lg border shadow-sm"></div>` : ''}
-                            </div>
+                            </div>` :
+                            `<div class="text-center mb-4 text-xs text-green-700 font-bold"><i class="fas fa-check-circle"></i> Assinatura Digital Incorporada ao Documento</div>`}
 
                             <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Olá, segue o link para acessar o documento assinado digitalmente: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
                                 <i class="fab fa-whatsapp text-2xl"></i> 
@@ -303,7 +305,48 @@ const checkForRemoteSignParams = async () => {
                     const digitalSignature = { type: 'digital_ack', ip: meta.ip, device: meta.userAgent, timestamp: meta.timestamp, signerName: identityData.name, signerCPF: identityData.cpf, photo: capturedPhotoBase64, valid: true };
                     const key = `responsible_${String(studentId || docSnapshot.studentId)}`;
                     const sigMap = new Map(); sigMap.set(key, digitalSignature);
-                    const success = await updateDocumentSignatures(docSnapshot.id, sigMap);
+
+                    // --- HTML INJECTION ---
+                    // Generate the signature card HTML
+                    const signedDate = new Date(meta.timestamp).toLocaleString();
+                    const signatureHtml = `
+                    <div class="mt-8 pt-6 border-t-2 border-gray-100 break-inside-avoid signatures-wrapper-v2">
+                        <div class="bg-green-50/50 p-4 rounded-lg border border-green-100">
+                             <h3 class="text-xs font-bold text-green-700 uppercase tracking-wider mb-4 border-b border-green-200 pb-2 flex items-center gap-2">
+                                <i class="fas fa-certificate"></i> Assinatura Digital Verificada
+                             </h3>
+                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <p class="text-gray-500 text-xs">Assinado por</p>
+                                    <p class="font-bold text-gray-800">${identityData.name}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 text-xs">CPF</p>
+                                    <p class="font-bold text-gray-800 font-mono">${identityData.cpf}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 text-xs">Data do Registro</p>
+                                    <p class="font-bold text-gray-800">${signedDate}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 text-xs">IP / Dispositivo</p>
+                                    <p class="font-bold text-gray-800 font-mono text-xs truncate" title="${meta.ip}">${meta.ip || 'N/A'}</p>
+                                </div>
+                            </div>
+                            <div class="mt-4 pt-4 border-t border-green-100">
+                                <p class="text-xs text-green-700 font-bold mb-2">Registro Biométrico Facial (Selfie)</p>
+                                <img src="${capturedPhotoBase64}" class="w-24 h-24 object-cover rounded-lg border border-green-200 shadow-sm">
+                            </div>
+                        </div>
+                    </div>`;
+
+                    // Safe approach: check if original content already has it (unlikely here but good practice)
+                    let newHtmlContent = docSnapshot.htmlContent;
+                    if (!newHtmlContent.includes('signatures-wrapper-v2')) {
+                        newHtmlContent = newHtmlContent + signatureHtml;
+                    }
+
+                    const success = await updateDocumentSignatures(docSnapshot.id, sigMap, newHtmlContent);
                     if (success) {
                         if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
 

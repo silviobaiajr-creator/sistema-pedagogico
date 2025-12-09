@@ -26,7 +26,7 @@ export const getCollectionRef = (type) => {
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     // Mapeamento correto para documentos legais
     if (type === 'documents') return collection(db, `/artifacts/${appId}/public/data/legal_documents`);
-    
+
     const collectionName = type === 'occurrence' ? 'occurrences' : 'absences';
     return collection(db, `/artifacts/${appId}/public/data/${collectionName}`);
 };
@@ -46,25 +46,25 @@ export const addRecordWithHistory = (type, data, historyAction, userEmail = 'sis
         timestamp: new Date()
     };
 
-    const finalData = { 
-        ...data, 
+    const finalData = {
+        ...data,
         createdAt: new Date(),
         createdBy: userEmail,
         history: [newHistoryEntry]
     };
-    
+
     return addDoc(getCollectionRef(type), finalData);
 };
 
 export const updateRecordWithHistory = (type, id, dataToUpdate, historyAction, userEmail = 'sistema') => {
     const recordRef = doc(getCollectionRef(type), id);
-    
+
     const newHistoryEntry = {
         action: historyAction,
         user: userEmail,
         timestamp: new Date()
     };
-    
+
     const finalUpdateData = {
         ...dataToUpdate,
         updatedAt: new Date(),
@@ -114,7 +114,7 @@ const toTitleCase = (str) => {
 
 export const searchStudentsByName = async (searchText) => {
     if (!searchText) return [];
-    
+
     const rawTerm = searchText.trim();
     if (!rawTerm) return [];
 
@@ -130,8 +130,8 @@ export const searchStudentsByName = async (searchText) => {
     variations.forEach(term => {
         const endTerm = term + '\uf8ff';
         const q = query(
-            studentsRef, 
-            orderBy('name'), 
+            studentsRef,
+            orderBy('name'),
             where('name', '>=', term),
             where('name', '<=', endTerm),
             limit(10)
@@ -221,7 +221,7 @@ export const saveSchoolConfig = (data) => {
 
 export const getIncidentByGroupId = async (groupId) => {
     const incidentQuery = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', groupId));
-    
+
     try {
         const querySnapshot = await getDocs(incidentQuery);
         if (querySnapshot.empty) return null;
@@ -237,17 +237,17 @@ export const getIncidentByGroupId = async (groupId) => {
         });
 
         if (incident.records.length === 0) return null;
-        
+
         const mainRecord = incident.records[0];
         const participantsList = mainRecord.participants || [];
 
         const studentPromises = participantsList.map(async (participant) => {
             let student = null;
             try {
-                const timeoutPromise = new Promise((_, reject) => 
+                const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(() => reject(new Error("Timeout")), 3000)
                 );
-                
+
                 student = await Promise.race([
                     getStudentById(participant.studentId),
                     timeoutPromise
@@ -355,7 +355,7 @@ export const getDashboardStats = async () => {
         const snapStudents = await getCountFromServer(studentColl);
         const snapOccurrences = await getCountFromServer(occurrenceColl);
         const snapAbsencesTotal = await getCountFromServer(absenceColl);
-        
+
         const qConcluded = query(absenceColl, where('actionType', '==', 'analise'));
         const snapAbsencesConcluded = await getCountFromServer(qConcluded);
 
@@ -365,7 +365,7 @@ export const getDashboardStats = async () => {
         return {
             totalStudents: snapStudents.data().count,
             totalOccurrences: snapOccurrences.data().count,
-            totalAbsences: snapAbsencesTotal.data().count, 
+            totalAbsences: snapAbsencesTotal.data().count,
             concludedAbsences: snapAbsencesConcluded.data().count,
             chartDataOccurrences: recentOccurrences.docs.map(d => d.data()),
             chartDataAbsences: recentAbsences.docs.map(d => d.data())
@@ -397,20 +397,20 @@ export const findDocumentSnapshot = async (docType, studentId, refId) => {
     try {
         const documentsRef = getCollectionRef('documents');
         const sRefId = refId ? String(refId).trim() : null;
-        
+
         if (!sRefId) return null;
 
         const conditions = [
             where('type', '==', docType),
             where('refId', '==', sRefId)
         ];
-        
+
         const q = query(documentsRef, ...conditions, limit(1));
-        
+
         const snapshot = await getDocs(q);
         if (!snapshot.empty) {
-             const d = snapshot.docs[0];
-             return { id: d.id, ...d.data(), ref: d.ref };
+            const d = snapshot.docs[0];
+            return { id: d.id, ...d.data(), ref: d.ref };
         }
         return null;
 
@@ -426,7 +426,7 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
         const refId = metadata.refId ? String(metadata.refId).trim() : null;
         const safeStudentId = studentId ? String(studentId).trim() : null;
         const signatures = metadata.signatures || null; // Fix: Captura assinaturas
-        
+
         if (refId) {
             const conditions = [
                 where('type', '==', docType),
@@ -435,7 +435,7 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
 
             const q = query(documentsRef, ...conditions);
             const snapshot = await getDocs(q);
-            
+
             if (!snapshot.empty) {
                 const docToUpdate = snapshot.docs[0];
 
@@ -454,11 +454,11 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
                     title: title,
                     htmlContent: htmlContent,
                     signatures: signatures || currentData.signatures, // Mantém ou atualiza assinaturas
-                    studentId: safeStudentId || currentData.studentId, 
-                    createdAt: new Date(), 
+                    studentId: safeStudentId || currentData.studentId,
+                    createdAt: new Date(),
                     createdBy: state.userEmail || 'Sistema'
                 });
-                
+
                 return docToUpdate.ref;
             }
         }
@@ -466,7 +466,7 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
         const docData = {
             type: docType,
             title: title,
-            htmlContent: htmlContent, 
+            htmlContent: htmlContent,
             signatures: signatures, // Fix: Grava na criação
             studentId: safeStudentId || null,
             studentName: metadata.studentName || null,
@@ -474,7 +474,7 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
             createdAt: new Date(),
             createdBy: state.userEmail || 'Sistema'
         };
-        
+
         return addDoc(documentsRef, docData);
 
     } catch (error) {
@@ -483,18 +483,24 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
 };
 
 // NOVA FUNÇÃO: Assinatura Remota / Metadados
-export const updateDocumentSignatures = async (docId, signatureMap) => {
+export const updateDocumentSignatures = async (docId, signatureMap, newHtmlContent = null) => {
     try {
         const docRef = doc(getCollectionRef('documents'), docId);
         // Converte o Map em Objeto para salvar no Firestore
         const signaturesObj = Object.fromEntries(signatureMap);
-        
-        await updateDoc(docRef, {
+
+        const updateData = {
             signatures: signaturesObj,
             lastSignedAt: new Date()
-        });
+        };
+
+        if (newHtmlContent) {
+            updateData.htmlContent = newHtmlContent;
+        }
+
+        await updateDoc(docRef, updateData);
         return true;
-    } catch(e) {
+    } catch (e) {
         console.error("Erro ao salvar assinatura:", e);
         return false;
     }
