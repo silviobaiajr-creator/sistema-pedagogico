@@ -89,50 +89,70 @@ const checkForRemoteSignParams = async () => {
                 const sig = docSnapshot.signatures[targetKey];
                 const signedDate = new Date(sig.timestamp).toLocaleString();
 
-                container.innerHTML = `
-                    <div class="w-full max-w-md bg-white shadow-xl rounded-xl overflow-hidden border-t-4 border-green-600 mt-10 mx-auto font-sans">
-                        <div class="bg-gray-50 p-8 text-center">
-                            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <i class="fas fa-file-signature text-4xl text-green-600"></i>
-                            </div>
-                            <h2 class="text-xl font-bold text-gray-800">Documento Já Assinado</h2>
-                            <p class="text-sm text-gray-500 mt-2">Este link já foi utilizado para registrar a ciência do responsável.</p>
+                if (docSnapshot.signatures && docSnapshot.signatures[targetKey]) {
+                    const sig = docSnapshot.signatures[targetKey];
+                    const signedDate = new Date(sig.timestamp).toLocaleString();
+
+                    container.classList.remove('justify-center'); container.classList.add('pt-4');
+                    container.innerHTML = `
+                    <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8 no-print font-sans">
+                        <div class="bg-green-700 p-4 text-white flex justify-between items-center">
+                            <div><h2 class="text-sm font-bold uppercase"><i class="fas fa-check-circle"></i> Documento Assinado</h2><p class="text-[10px] opacity-80">Registrado por: ${sig.signerName || 'Desconhecido'}</p></div>
                         </div>
-                        <div class="p-6 border-t border-gray-100 bg-white">
-                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Dados do Registro</h3>
-                            <div class="space-y-3 text-sm">
-                                <div class="flex justify-between border-b border-gray-100 pb-2">
-                                    <span class="text-gray-600">Assinado por:</span>
-                                    <span class="font-bold text-gray-900">${sig.signerName || 'Não informado'}</span>
+                        
+                        <!-- Conteúdo do Documento -->
+                        <div class="p-6 md:p-10 text-sm bg-gray-50 border-b overflow-auto max-h-[60vh]">
+                            ${docSnapshot.htmlContent}
+                        </div>
+
+                        <!-- Rodapé com Detalhes da Assinatura -->
+                        <div class="bg-gray-100 p-6">
+                            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+                                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 border-b pb-2">Dados da Assinatura Digital</h3>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <p class="text-gray-500 text-xs">Assinado por</p>
+                                        <p class="font-bold text-gray-800">${sig.signerName || 'Não informado'}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-500 text-xs">CPF</p>
+                                        <p class="font-bold text-gray-800 font-mono">${sig.signerCPF || '***'}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-500 text-xs">Data/Hora</p>
+                                        <p class="font-bold text-gray-800">${signedDate}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-500 text-xs">IP de Origem</p>
+                                        <p class="font-bold text-gray-800 font-mono text-xs">${sig.ip || 'N/A'}</p>
+                                    </div>
                                 </div>
-                                <div class="flex justify-between border-b border-gray-100 pb-2">
-                                    <span class="text-gray-600">CPF:</span>
-                                    <span class="font-mono text-gray-900">${sig.signerCPF || '***'}</span>
-                                </div>
-                                <div class="flex justify-between border-b border-gray-100 pb-2">
-                                    <span class="text-gray-600">Data/Hora:</span>
-                                    <span class="text-gray-900">${signedDate}</span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-600">IP de Origem:</span>
-                                    <span class="font-mono text-xs text-gray-500">${sig.ip || 'N/A'}</span>
-                                </div>
-                                ${sig.photo ? `<div class="mt-4 text-center"><p class="text-xs text-gray-500 mb-1">Registro Biométrico:</p><img src="${sig.photo}" class="w-32 h-32 object-cover rounded-lg mx-auto border-2 border-gray-200 shadow-sm"></div>` : ''}
-                            </div>
-                            
-                            <div class="mt-6">
-                                <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Comprovante de Assinatura: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
-                                    <i class="fab fa-whatsapp text-2xl"></i> 
-                                    <span>Enviar Comprovante (WhatsApp)</span>
-                                </button>
+                                ${sig.photo ? `<div class="mt-4 pt-4 border-t flex flex-col items-center"><p class="text-xs text-gray-400 mb-2">Registro Biométrico Facial</p><img src="${sig.photo}" class="w-24 h-24 object-cover rounded-lg border shadow-sm"></div>` : ''}
                             </div>
 
-                            <div class="mt-4 text-center">
-                                <p class="text-[10px] text-gray-400">Este recibo digital tem validade jurídica.</p>
-                            </div>
+                            <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Olá, segue o link para acessar o documento assinado digitalmente: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
+                                <i class="fab fa-whatsapp text-2xl"></i> 
+                                <span>Enviar para mim (WhatsApp)</span>
+                            </button>
+                            
+                            <p class="text-[10px] text-gray-400 text-center mt-4">Este documento possui validade jurídica assegurada pelo registro digital.</p>
                         </div>
                     </div>
+
+                    <!-- Área Invisível para Impressão (Mantida igual para consistência) -->
+                    <div id="print-area-signed" class="hidden print:block print:w-full print:h-auto bg-white p-8">
+                            ${docSnapshot.htmlContent}
+                            <div class="mt-8 pt-4 border-t border-gray-300">
+                            <p class="font-bold text-sm">Assinado Digitalmente por:</p>
+                            <p class="text-sm">${sig.signerName}</p>
+                            <p class="text-sm">CPF: ${sig.signerCPF}</p>
+                            <p class="text-xs text-gray-500 mt-1">Data: ${signedDate}</p>
+                            ${sig.photo ? `<div class="mt-4"><p class="font-bold text-xs text-gray-400">Registro Biométrico:</p><img src="${sig.photo}" class="w-24 h-24 object-contain border rounded"></div>` : ''}
+                            </div>
+                    </div>
                 `;
+                    return;
+                }
                 return;
             }
 
