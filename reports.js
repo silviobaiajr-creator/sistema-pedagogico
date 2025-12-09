@@ -90,7 +90,7 @@ const checkForRemoteSignParams = async () => {
                 const signedDate = new Date(sig.timestamp).toLocaleString();
 
                 container.innerHTML = `
-                    <div class="w-full max-w-md bg-white shadow-xl rounded-xl overflow-hidden border-t-4 border-green-600 mt-10 mx-auto">
+                    <div class="w-full max-w-md bg-white shadow-xl rounded-xl overflow-hidden border-t-4 border-green-600 mt-10 mx-auto font-sans">
                         <div class="bg-gray-50 p-8 text-center">
                             <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <i class="fas fa-file-signature text-4xl text-green-600"></i>
@@ -119,7 +119,15 @@ const checkForRemoteSignParams = async () => {
                                 </div>
                                 ${sig.photo ? `<div class="mt-4 text-center"><p class="text-xs text-gray-500 mb-1">Registro Biométrico:</p><img src="${sig.photo}" class="w-32 h-32 object-cover rounded-lg mx-auto border-2 border-gray-200 shadow-sm"></div>` : ''}
                             </div>
-                            <div class="mt-6 text-center">
+                            
+                            <div class="mt-6">
+                                <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Comprovante de Assinatura: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
+                                    <i class="fab fa-whatsapp text-2xl"></i> 
+                                    <span>Enviar Comprovante (WhatsApp)</span>
+                                </button>
+                            </div>
+
+                            <div class="mt-4 text-center">
                                 <p class="text-[10px] text-gray-400">Este recibo digital tem validade jurídica.</p>
                             </div>
                         </div>
@@ -289,11 +297,6 @@ const checkForRemoteSignParams = async () => {
                                 <p class="text-gray-600 text-sm mb-6">O documento foi registrado no sistema.</p>
                                 
                                 <div class="space-y-3">
-                                    <button onclick="window.print()" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
-                                        <i class="fas fa-file-download text-lg"></i> 
-                                        <span>Baixar cópia (PDF)</span>
-                                    </button>
-                                    
                                     <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Olá, segue o link para acessar o documento assinado digitalmente: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
                                         <i class="fab fa-whatsapp text-2xl"></i> 
                                         <span>Enviar para mim (WhatsApp)</span>
