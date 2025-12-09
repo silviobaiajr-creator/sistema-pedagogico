@@ -1,31 +1,50 @@
-
-
 /* ============================================================================== */
 /* ARQUIVO: style.css                                                             */
 
 /* --- ESTILOS GERAIS E FONTES --- */
 body {
-    font-family: 'Inter', sans-serif; /* Define a fonte padrão da página */
-    background-color: #f3f4f6; /* Cor de fundo suave */
+    font-family: 'Inter', sans-serif;
+    /* Define a fonte padrão da página */
+    background-color: #f3f4f6;
+    /* Cor de fundo suave */
 }
 
 /* --- CLASSES DE CORES PERSONALIZADAS (FALLBACK/AJUSTE FINO) --- */
 .border-l-4 {
     border-left-width: 4px;
 }
+
 /* Tailwind já cobre essas cores, mas definimos explícito caso necessário para impressão ou fallback */
-.border-red-500 { border-color: #ef4444 !important; }
-.border-red-600 { border-color: #dc2626 !important; }
-.border-yellow-500 { border-color: #eab308 !important; }
-.border-orange-500 { border-color: #f97316 !important; }
-.border-emerald-500 { border-color: #10b981 !important; }
-.border-sky-500 { border-color: #0ea5e9 !important; }
+.border-red-500 {
+    border-color: #ef4444 !important;
+}
+
+.border-red-600 {
+    border-color: #dc2626 !important;
+}
+
+.border-yellow-500 {
+    border-color: #eab308 !important;
+}
+
+.border-orange-500 {
+    border-color: #f97316 !important;
+}
+
+.border-emerald-500 {
+    border-color: #10b981 !important;
+}
+
+.border-sky-500 {
+    border-color: #0ea5e9 !important;
+}
 
 /* --- EFEITOS DE TRANSIÇÃO PARA MODAIS --- */
 .modal-backdrop {
-    background-color: rgba(0,0,0,0.5);
+    background-color: rgba(0, 0, 0, 0.5);
     transition: opacity 0.3s ease-in-out;
 }
+
 .modal-content {
     transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
 }
@@ -34,6 +53,7 @@ body {
 #toast-notification {
     transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
 }
+
 #toast-notification.show {
     transform: translateY(0);
     opacity: 1;
@@ -41,12 +61,17 @@ body {
 
 /* --- ESTILOS DE NAVEGAÇÃO E TABELAS --- */
 .tab-active {
-    border-color: #0284c7; /* sky-600 */
-    color: #0284c7; /* sky-600 */
-    background-color: #f0f9ff; /* sky-50 */
+    border-color: #0284c7;
+    /* sky-600 */
+    color: #0284c7;
+    /* sky-600 */
+    background-color: #f0f9ff;
+    /* sky-50 */
 }
+
 tbody tr:nth-child(even) {
-    background-color: #f9fafb; /* Estilo "zebrado" */
+    background-color: #f9fafb;
+    /* Estilo "zebrado" */
 }
 
 /* --- AUTOCOMPLETAR --- */
@@ -58,13 +83,15 @@ tbody tr:nth-child(even) {
     border-radius: 0 0 0.375rem 0.375rem;
     max-height: 150px;
     overflow-y: auto;
-    z-index: 20; 
+    z-index: 20;
     width: 100%;
 }
+
 .suggestion-item {
     padding: 0.5rem;
     cursor: pointer;
 }
+
 .suggestion-item:hover {
     background-color: #eef2ff;
 }
@@ -75,11 +102,13 @@ tbody tr:nth-child(even) {
 
 /* --- TAGS DE SELEÇÃO DE ALUNOS --- */
 .student-tag {
-    white-space: nowrap; 
+    white-space: nowrap;
 }
+
 .student-tag i.fa-fw {
     text-align: center;
 }
+
 .student-tag .edit-role-btn,
 .student-tag .remove-tag-btn {
     background: none;
@@ -93,17 +122,21 @@ tbody tr:nth-child(even) {
 #role-selection-panel {
     transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 }
+
 #role-selection-panel.hidden {
     opacity: 0;
     transform: translateY(-10px);
     pointer-events: none;
 }
+
 .role-select-btn {
-     transition: background-color 0.15s ease-in-out;
+    transition: background-color 0.15s ease-in-out;
 }
+
 #role-edit-dropdown {
-     transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 }
+
 #role-edit-dropdown.hidden {
     opacity: 0;
     transform: scale(0.95);
@@ -116,16 +149,18 @@ tbody tr:nth-child(even) {
     overflow: hidden;
     transition: max-height 0.4s ease-in-out;
 }
+
 .occurrence-summary {
     list-style: none;
 }
+
 .occurrence-summary::-webkit-details-marker {
     display: none;
 }
 
 /* --- BOTÕES E MENUS --- */
 .action-btn-main {
-    font-size: 0.875rem; 
+    font-size: 0.875rem;
     padding: 0.5rem 1rem;
     border-radius: 0.5rem;
     font-weight: 600;
@@ -134,29 +169,35 @@ tbody tr:nth-child(even) {
     align-items: center;
     gap: 0.5rem;
 }
+
 .action-btn-secondary {
     padding: 0.5rem 0.75rem;
     border-radius: 0.5rem;
     background-color: #f3f4f6;
     border: 1px solid #d1d5db;
-    color: #4b5563; 
+    color: #4b5563;
     transition: background-color 0.2s;
 }
+
 .action-btn-secondary:hover {
     background-color: #e5e7eb;
 }
+
 .kebab-menu-container {
     position: relative;
     display: inline-block;
 }
+
 .kebab-menu-dropdown {
     transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 }
+
 #kebab-menu-dropdown.hidden {
     opacity: 0;
     transform: scale(0.95);
     pointer-events: none;
 }
+
 .menu-item {
     display: flex;
     align-items: center;
@@ -166,12 +207,14 @@ tbody tr:nth-child(even) {
     cursor: pointer;
     transition: background-color 0.15s ease-in-out;
 }
+
 .menu-item:hover {
     background-color: #f3f4f6;
     color: #111827;
 }
+
 .menu-item-danger:hover {
-    background-color: #fee2e2; 
+    background-color: #fee2e2;
     color: #991b1b;
 }
 
@@ -188,11 +231,14 @@ tbody tr:nth-child(even) {
     font-size: 0.85rem;
     font-family: 'Inter', sans-serif;
 }
-.report-table th, .report-table td {
+
+.report-table th,
+.report-table td {
     border: 1px solid #d1d5db;
     padding: 0.5rem;
     text-align: left;
 }
+
 .report-table th {
     background-color: #f3f4f6;
     font-weight: 600;
@@ -209,6 +255,7 @@ tbody tr:nth-child(even) {
     font-family: 'Inter', sans-serif;
     font-size: 0.85rem;
 }
+
 .student-id-card strong {
     color: #374151;
 }
@@ -221,9 +268,11 @@ tbody tr:nth-child(even) {
     margin-bottom: 0.5rem;
     padding-bottom: 0.5rem;
 }
+
 .report-timeline-item:last-child {
     border-left-color: transparent;
 }
+
 .report-timeline-dot {
     position: absolute;
     left: -5px;
@@ -236,21 +285,24 @@ tbody tr:nth-child(even) {
 
 /* --- CONFIGURAÇÃO DE IMPRESSÃO --- */
 @media print {
+
     /* 1. Reseta a página base */
-    html, body {
+    html,
+    body {
         margin: 0 !important;
         padding: 0 !important;
         height: auto !important;
         overflow: visible !important;
         background: #fff !important;
-        font-size: 11pt; /* Tamanho de fonte otimizado para leitura em papel */
+        font-size: 11pt;
+        /* Tamanho de fonte otimizado para leitura em papel */
     }
 
     /* 2. Esconde TUDO que não seja a área ativa */
-    body > *:not(.printable-area-active) {
+    body>*:not(.printable-area-active) {
         display: none !important;
     }
-    
+
     /* 3. Força a exibição da área ativa */
     .printable-area-active {
         display: block !important;
@@ -265,7 +317,7 @@ tbody tr:nth-child(even) {
         opacity: 1 !important;
         visibility: visible !important;
     }
-    
+
     /* 4. Remove Flexbox e Scroll do Modal Content (EXCETO PARA ASSINATURAS) */
     .printable-area-active .modal-content {
         display: block !important;
@@ -278,14 +330,14 @@ tbody tr:nth-child(even) {
         border: none !important;
         transform: none !important;
     }
-    
+
     /* 5. Mostra todo o conteúdo interno */
     .printable-area-active .overflow-y-auto {
         overflow: visible !important;
         height: auto !important;
         max-height: none !important;
     }
-    
+
     /* 6. Esconde elementos de UI */
     .no-print {
         display: none !important;
@@ -300,25 +352,27 @@ tbody tr:nth-child(even) {
     }
 
     /* --- ESTILOS DE CONTEÚDO IMPRESSO --- */
-    
+
     /* Garante que o bloco de assinatura use Flexbox para ficar lado a lado */
     .signature-block {
-        display: flex !important; /* Força flex na impressão */
+        display: flex !important;
+        /* Força flex na impressão */
         justify-content: space-around !important;
         width: 100% !important;
-        margin-top: 3cm !important; /* Espaço generoso */
+        margin-top: 3cm !important;
+        /* Espaço generoso */
         page-break-inside: avoid;
     }
-    
-    .signature-block > div {
+
+    .signature-block>div {
         flex: 1;
         padding: 0 1rem;
     }
-    
+
     .break-inside-avoid {
         page-break-inside: avoid;
     }
-    
+
     /* Força cores de background (para tabelas e boxes) */
     * {
         -webkit-print-color-adjust: exact !important;
@@ -328,18 +382,21 @@ tbody tr:nth-child(even) {
 
     /* --- RODAPÉ DE SEGURANÇA (FIXO EM TODAS AS PÁGINAS) --- */
     .print-footer {
-        display: none; /* Escondido na tela */
+        display: none;
+        /* Escondido na tela */
     }
 
     /* ESTILO DE IMPRESSÃO */
     @page {
-        margin: 1cm; /* Margem reduzida para caber mais conteúdo */
+        margin: 1cm;
+        /* Margem reduzida para caber mais conteúdo */
         size: A4;
     }
 
     body {
         margin: 0;
         -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
     /* 1. Mostra o rodapé apenas na impressão */
@@ -359,17 +416,33 @@ tbody tr:nth-child(even) {
         padding-right: 20px;
         z-index: 9999;
     }
-    
+
     /* 2. Conteúdo do rodapé gerado via CSS ou HTML (vamos usar HTML no js, aqui apenas estilo) */
 
     /* 3. Otimizações de Espaço */
-    h3 { font-size: 14pt !important; margin-bottom: 10px !important; }
-    h4 { font-size: 10pt !important; margin-top: 10px !important; margin-bottom: 5px !important; }
-    p, li, td, th { font-size: 10pt !important; line-height: 1.3 !important; }
-    
-    .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    h3 {
+        font-size: 14pt !important;
+        margin-bottom: 10px !important;
+    }
+
+    h4 {
+        font-size: 10pt !important;
+        margin-top: 10px !important;
+        margin-bottom: 5px !important;
+    }
+
+    p,
+    li,
+    td,
+    th {
+        font-size: 10pt !important;
+        line-height: 1.3 !important;
+    }
+
+    .space-y-6> :not([hidden])~ :not([hidden]) {
         --tw-space-y-reverse: 0;
-        margin-top: 1rem !important; /* Reduz espaçamento vertical padrão do Tailwind */
+        margin-top: 1rem !important;
+        /* Reduz espaçamento vertical padrão do Tailwind */
     }
 
     /* 4. Assinaturas Compactas */
@@ -379,11 +452,12 @@ tbody tr:nth-child(even) {
         gap: 10px;
         margin-top: 20px !important;
         page-break-inside: avoid;
-    } 
-    .signature-block > div {
-         border-top: 1px solid #000;
-         padding-top: 4px;
-         text-align: center;
-         margin-bottom: 10px;
+    }
+
+    .signature-block>div {
+        border-top: 1px solid #000;
+        padding-top: 4px;
+        text-align: center;
+        margin-bottom: 10px;
     }
 }
