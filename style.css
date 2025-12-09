@@ -1,3 +1,5 @@
+
+
 /* ============================================================================== */
 /* ARQUIVO: style.css                                                             */
 
@@ -232,63 +234,6 @@ tbody tr:nth-child(even) {
     background-color: #9ca3af;
 }
 
-/* ============================================================================== */
-/* SEÇÃO 3: NOVO SISTEMA DE ASSINATURA E SEGURANÇA (ADICIONADO)                   */
-/* ============================================================================== */
-
-/* Container de assinaturas */
-.signatures-wrapper {
-    margin-top: 30px;
-    page-break-inside: avoid;
-}
-
-/* Par de assinaturas lado a lado (Aluno + Responsável) */
-.signature-pair {
-    display: flex;
-    gap: 20px;
-    margin-bottom: 20px;
-    border-bottom: 1px dashed #eee;
-    padding-bottom: 20px;
-}
-
-.signature-pair:last-child {
-    border-bottom: none;
-}
-
-/* Caixa individual de assinatura */
-.signature-slot {
-    flex: 1;
-    border: 1px solid #ddd;
-    background: #fdfdfd;
-    border-radius: 6px;
-    overflow: hidden;
-    position: relative;
-    min-height: 120px;
-    display: flex;
-    flex-direction: column;
-}
-
-/* Rodapé de Segurança (Hash) - Fixo na Impressão */
-.security-footer {
-    display: none; /* Escondido na visualização normal */
-    border-top: 1px solid #ccc;
-    padding-top: 5px;
-    margin-top: auto; 
-    font-size: 9px;
-    color: #555;
-    text-align: center;
-    width: 100%;
-}
-
-.security-hash {
-    font-family: 'Courier New', monospace;
-    background: #eee;
-    padding: 2px 5px;
-    border-radius: 3px;
-    font-weight: bold;
-    letter-spacing: 1px;
-}
-
 /* --- CONFIGURAÇÃO DE IMPRESSÃO --- */
 @media print {
     /* 1. Reseta a página base */
@@ -356,12 +301,12 @@ tbody tr:nth-child(even) {
 
     /* --- ESTILOS DE CONTEÚDO IMPRESSO --- */
     
-    /* Bloco de Assinatura Antigo (Compatibilidade) */
+    /* Garante que o bloco de assinatura use Flexbox para ficar lado a lado */
     .signature-block {
-        display: flex !important;
+        display: flex !important; /* Força flex na impressão */
         justify-content: space-around !important;
         width: 100% !important;
-        margin-top: 2cm !important;
+        margin-top: 3cm !important; /* Espaço generoso */
         page-break-inside: avoid;
     }
     
@@ -369,42 +314,76 @@ tbody tr:nth-child(even) {
         flex: 1;
         padding: 0 1rem;
     }
-
-    /* Novo Layout Lado a Lado na Impressão */
-    .signature-pair {
-        display: flex !important;
-        flex-direction: row !important;
-        break-inside: avoid;
-    }
     
-    .signature-slot {
-        border: 1px solid #999;
-    }
-
     .break-inside-avoid {
         page-break-inside: avoid;
     }
     
-    /* Rodapé fixo no final de cada folha */
-    .security-footer {
-        display: block;
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: white;
-        padding-bottom: 5mm;
-    }
-    
-    /* Força cores de background */
+    /* Força cores de background (para tabelas e boxes) */
     * {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
+
+    /* --- RODAPÉ DE SEGURANÇA (FIXO EM TODAS AS PÁGINAS) --- */
+    .print-footer {
+        display: none; /* Escondido na tela */
+    }
+
+    /* ESTILO DE IMPRESSÃO */
     @page {
+        margin: 1cm; /* Margem reduzida para caber mais conteúdo */
         size: A4;
-        margin: 1cm;
-        margin-bottom: 2cm; /* Espaço para o rodapé */
+    }
+
+    body {
+        margin: 0;
+        -webkit-print-color-adjust: exact;
+    }
+
+    /* 1. Mostra o rodapé apenas na impressão */
+    .print-footer {
+        display: block !important;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 30px;
+        background-color: #fff;
+        border-top: 1px solid #ccc;
+        text-align: right;
+        font-size: 8pt;
+        color: #666;
+        padding-top: 5px;
+        padding-right: 20px;
+        z-index: 9999;
+    }
+    
+    /* 2. Conteúdo do rodapé gerado via CSS ou HTML (vamos usar HTML no js, aqui apenas estilo) */
+
+    /* 3. Otimizações de Espaço */
+    h3 { font-size: 14pt !important; margin-bottom: 10px !important; }
+    h4 { font-size: 10pt !important; margin-top: 10px !important; margin-bottom: 5px !important; }
+    p, li, td, th { font-size: 10pt !important; line-height: 1.3 !important; }
+    
+    .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+        --tw-space-y-reverse: 0;
+        margin-top: 1rem !important; /* Reduz espaçamento vertical padrão do Tailwind */
+    }
+
+    /* 4. Assinaturas Compactas */
+    .signature-block {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+        margin-top: 20px !important;
+        page-break-inside: avoid;
+    } 
+    .signature-block > div {
+         border-top: 1px solid #000;
+         padding-top: 4px;
+         text-align: center;
+         margin-bottom: 10px;
     }
 }
