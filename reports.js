@@ -92,10 +92,13 @@ const checkForRemoteSignParams = async () => {
                 // --- REGENERADORES ---
                 // Idealmente extraídos, mas aqui inline para garantir funcionamento sem refatoração massiva
                 if (type === 'notificacao') { // Ficha
-                    let record = state.absences.find(a => a.id === refId);
+                    // FIX: Ensure types match (refId is string from URL, aid often number)
+                    let record = state.absences.find(a => String(a.id) === String(refId));
                     if (!record) {
+                        // Retry fetching 
+                        console.log("Record not in memory, fetching...");
                         const records = await getAbsencesForReport();
-                        record = records.find(a => a.id === refId);
+                        record = records.find(a => String(a.id) === String(refId));
                     }
                     if (record) {
                         // REPLICA LÓGICA DE 'openFichaViewModal'
