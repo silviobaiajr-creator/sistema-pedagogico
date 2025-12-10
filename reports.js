@@ -71,10 +71,83 @@ const checkForRemoteSignParams = async () => {
 
         try {
             let docSnapshot = null;
+
+            // 1. TENTA BUSCAR SNAPSHOT EXISTENTE
             if (docId) {
                 docSnapshot = await getLegalDocumentById(docId);
             } else if (refId && type) {
                 docSnapshot = await findDocumentSnapshot(type, studentId, refId);
+            }
+
+            // 2. REGENERAÇÃO ON-THE-FLY (Se não achou snapshot salvo e temos REFID)
+            if (!docSnapshot && refId && type && studentId) {
+                console.log("Snapshot não encontrado. Tentando regenerar...");
+                const student = await resolveStudentData(studentId);
+
+                // Lógica de reconstrução
+                let generatedHtml = "";
+                let title = "";
+                let docTitle = "";
+
+                // --- REGENERADORES ---
+                // Idealmente extraídos, mas aqui inline para garantir funcionamento sem refatoração massiva
+                if (type === 'notificacao') { // Ficha
+                    let record = state.absences.find(a => a.id === refId);
+                    if (!record) {
+                        const records = await getAbsencesForReport();
+                        record = records.find(a => a.id === refId);
+                    }
+                    if (record) {
+                        // REPLICA LÓGICA DE 'openFichaViewModal'
+                        const currentDateStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+                        title = "Notificação de Frequência Escolar";
+                        docTitle = "Notificação - Ficha Busca Ativa";
+                        const absences = record.absenceCount || 0;
+                        const period = record.periodoFaltasStart ? `${formatDate(record.periodoFaltasStart)} a ${formatDate(record.periodoFaltasEnd)}` : 'Período não informado';
+
+                        generatedHtml = `
+                        <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
+                            ${getReportHeaderHTML(new Date())}
+                            <p class="text-right text-sm italic mb-4">${state.config?.city || "Cidade"}, ${currentDateStr}</p>
+                            <h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">${title}</h3>
+                            ${getStudentIdentityCardHTML(student)}
+                            
+                            <div class="bg-yellow-50 border border-yellow-200 p-4 rounded-lg my-6">
+                                <h4 class="font-bold text-yellow-800 uppercase text-xs mb-2"><i class="fas fa-exclamation-triangle"></i> Motivo da Notificação</h4>
+                                <p class="text-justify">
+                                    Constatamos <strong>${absences} faltas</strong> consecutivas/alternadas no período de <strong>${period}</strong>, sem justificativa legal apresentada à secretaria escolar.
+                                </p>
+                            </div>
+
+                            <div class="mb-6">
+                                <h4 class="font-bold border-b border-gray-300 mb-2 uppercase text-xs text-gray-500">Fundamentação Legal</h4>
+                                <p class="text-justify bg-gray-50 p-3 rounded border border-gray-200">
+                                    Conforme Art. 12 da LDB nº 9.394/96 e Estatuto da Criança e do Adolescente (ECA), a escola tem o dever de notificar os responsáveis legais quando a infrequência escolar ultrapassa os limites permitidos, visando garantir o direito à educação.
+                                </p>
+                            </div>
+
+                            <div class="mt-8 pt-4 border-t border-gray-300">
+                                <p class="font-bold text-xs uppercase text-gray-500 mb-2">Ciência do Responsável:</p>
+                                <p class="text-justify">
+                                    Declaro estar ciente da situação de infrequência escolar do aluno(a) supracitado(a) e comprometo-me a justificar as ausências ou garantir o retorno imediato às atividades escolares, sob pena de encaminhamento aos órgãos de proteção (Conselho Tutelar).
+                                </p>
+                            </div>
+                            
+                            ${generateSignaturesGrid([{ key: `responsible_${student.matricula}`, role: 'Responsável Legal', name: '' }])}
+                        </div>`;
+                    }
+                }
+
+                if (generatedHtml) {
+                    docSnapshot = {
+                        id: 'temp_rebuilt', // ID Temporário
+                        htmlContent: generatedHtml,
+                        signatures: {},
+                        studentId: studentId,
+                        type: type,
+                        title: docTitle || 'Documento'
+                    };
+                }
             }
 
             if (!docSnapshot) {
@@ -82,19 +155,19 @@ const checkForRemoteSignParams = async () => {
                 return;
             }
 
+            // ... (rest of logic) ...
+
+
             const container = document.getElementById('remote-sign-container');
             const targetKey = `responsible_${String(studentId || docSnapshot.studentId)}`;
+
 
             if (docSnapshot.signatures && docSnapshot.signatures[targetKey]) {
                 const sig = docSnapshot.signatures[targetKey];
                 const signedDate = new Date(sig.timestamp).toLocaleString();
 
-                if (docSnapshot.signatures && docSnapshot.signatures[targetKey]) {
-                    const sig = docSnapshot.signatures[targetKey];
-                    const signedDate = new Date(sig.timestamp).toLocaleString();
-
-                    container.classList.remove('justify-center'); container.classList.add('pt-4');
-                    container.innerHTML = `
+                container.classList.remove('justify-center'); container.classList.add('pt-4');
+                container.innerHTML = `
                     <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8 no-print font-sans">
                         <div class="bg-green-700 p-4 text-white flex justify-between items-center">
                             <div><h2 class="text-sm font-bold uppercase"><i class="fas fa-check-circle"></i> Documento Assinado</h2><p class="text-[10px] opacity-80">Registrado por: ${sig.signerName || 'Desconhecido'}</p></div>
@@ -108,7 +181,7 @@ const checkForRemoteSignParams = async () => {
                         <!-- Rodapé com Detalhes da Assinatura -->
                         <div class="bg-gray-100 p-6">
                             ${!docSnapshot.htmlContent.includes('signatures-wrapper-v2') ?
-                            `<div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+                        `<div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
                                 <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 border-b pb-2">Dados da Assinatura Digital</h3>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                                     <div>
@@ -130,7 +203,7 @@ const checkForRemoteSignParams = async () => {
                                 </div>
                                 ${sig.photo ? `<div class="mt-4 pt-4 border-t flex flex-col items-center"><p class="text-xs text-gray-400 mb-2">Registro Biométrico Facial</p><img src="${sig.photo}" class="w-24 h-24 object-cover rounded-lg border shadow-sm"></div>` : ''}
                             </div>` :
-                            `<div class="text-center mb-4 text-xs text-green-700 font-bold"><i class="fas fa-check-circle"></i> Assinatura Digital Incorporada ao Documento</div>`}
+                        `<div class="text-center mb-4 text-xs text-green-700 font-bold"><i class="fas fa-check-circle"></i> Assinatura Digital Incorporada ao Documento</div>`}
 
                             <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Olá, segue o link para acessar o documento assinado digitalmente: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
                                 <i class="fab fa-whatsapp text-2xl"></i> 
@@ -153,10 +226,9 @@ const checkForRemoteSignParams = async () => {
                             </div>
                     </div>
                 `;
-                    return;
-                }
                 return;
             }
+
 
             // FASE 1: DESAFIO DE IDENTIDADE
             const renderIdentityChallenge = () => {
@@ -346,7 +418,20 @@ const checkForRemoteSignParams = async () => {
                         newHtmlContent = newHtmlContent + signatureHtml;
                     }
 
-                    const success = await updateDocumentSignatures(docSnapshot.id, sigMap, newHtmlContent);
+                    let success = false;
+                    if (docSnapshot.id === 'temp_rebuilt') {
+                        try {
+                            const newDocRef = await saveDocumentSnapshot(docSnapshot.type, docSnapshot.title, newHtmlContent, docSnapshot.studentId, {
+                                refId: refId || docSnapshot.id,
+                                signatures: Object.fromEntries(sigMap),
+                                studentName: studentId ? (await resolveStudentData(studentId)).name : 'Aluno'
+                            });
+                            if (newDocRef && newDocRef.id) success = true;
+                        } catch (e) { console.error("Erro ao criar doc:", e); }
+                    } else {
+                        success = await updateDocumentSignatures(docSnapshot.id, sigMap, newHtmlContent);
+                    }
+
                     if (success) {
                         if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
 
@@ -982,25 +1067,38 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
 
     const contentDiv = document.getElementById(contentDivId);
     contentDiv.innerHTML = html;
-    contentDiv.setAttribute('data-doc-ref-id', docId || 'temp');
+    // contentDiv.setAttribute('data-doc-ref-id', docId || 'temp'); // removido para evitar confusão se não salvou
 
     const titleId = contentDivId.replace('content', 'title');
     const titleEl = document.getElementById(titleId);
     if (titleEl) titleEl.textContent = title;
 
-    // Salva silenciosamente em background
+    // --- MUDANÇA: NÃO SALVAR AUTOMATICAMENTE AO VISUALIZAR ---
+    // O usuário solicitou que salve APENAS ao assinar.
+    // Então comentamos o saveDocumentSnapshot aqui.
+    /*
     const signaturesToSave = Object.fromEntries(signatureMap);
-
     if (!docId) {
         const docRef = await saveDocumentSnapshot(docType, title, html, studentId, { refId, signatures: signaturesToSave });
         contentDiv.setAttribute('data-doc-ref-id', docRef.id);
     } else {
         await saveDocumentSnapshot(docType, title, html, studentId, { refId, signatures: signaturesToSave });
     }
+    */
+
+    // Para funcionar o link de assinatura, precisamos garantir que o link use REFID e TYPE
+    // E que o checkForRemoteSignParams saiba reconstruir o HTML se não achar no banco.
 
     // Reanexa os listeners para o novo HTML gerado
     attachDynamicSignatureListeners(() => renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn));
 };
+
+// ... (existing helper functions) ...
+
+// --- MODO "PARENT VIEW" (VISÃO DO PAI - LINK SEGURO) ---
+
+
+// ... restoring original implementations ...
 
 const attachDynamicSignatureListeners = (reRenderCallback) => {
     document.querySelectorAll('.signature-interaction-area').forEach(area => {
