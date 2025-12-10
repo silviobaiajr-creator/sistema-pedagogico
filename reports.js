@@ -905,6 +905,7 @@ const stopCameraStream = () => {
 };
 
 // --- ABRIR MODAL ---
+// --- ABRIR MODAL ---
 const openSignaturePad = (key, docRefId, onConfirm) => {
     ensureSignatureModalExists();
     const modal = document.getElementById('signature-pad-modal');
@@ -915,6 +916,11 @@ const openSignaturePad = (key, docRefId, onConfirm) => {
     savedPaths = [];
     currentPath = [];
 
+    // Force refresh link preview if it exists
+    const linkPreview = document.getElementById('generated-link-preview');
+    if (linkPreview) linkPreview.innerText = "Carregando...";
+
+    // Reset tabs
     document.getElementById('tab-draw').click(); // Reseta para aba de desenho
 
     const canvas = document.getElementById('signature-canvas');
