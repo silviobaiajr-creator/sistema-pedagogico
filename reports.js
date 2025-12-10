@@ -95,10 +95,37 @@ const checkForRemoteSignParams = async () => {
                     // FIX: Ensure types match (refId is string from URL, aid often number)
                     let record = state.absences.find(a => String(a.id) === String(refId));
                     if (!record) {
-                        // Retry fetching 
-                        console.log("Record not in memory, fetching...");
-                        const records = await getAbsencesForReport();
-                        record = records.find(a => String(a.id) === String(refId));
+                        try {
+                            const dataParam = new URLSearchParams(window.location.search).get('data');
+                            if (dataParam) {
+                                console.log("Using stateless data from URL...");
+                                const extraData = JSON.parse(decodeURIComponent(dataParam));
+                                record = {
+                                    id: refId,
+                                    studentId: studentId,
+                                    absenceCount: extraData.absenceCount,
+                                    periodoFaltasStart: extraData.periodoFaltasStart, // Note key mapping
+                                    periodoFaltasEnd: extraData.periodoFaltasEnd,
+                                    meetingDate: extraData.meetingDate,
+                                    meetingTime: extraData.meetingTime,
+                                    actionType: extraData.actionType || 'tentativa_1', // default fallback
+                                    visitDate: extraData.visitDate,
+                                    visitAgent: extraData.visitAgent,
+                                    visitSucceeded: extraData.visitSucceeded,
+                                    visitReason: extraData.visitReason,
+                                    visitObs: extraData.visitObs
+                                };
+                            }
+                        } catch (e) { console.error("Error parsing URL data:", e); }
+                    }
+
+                    if (!record) {
+                        // Retry fetching from DB if URL data failed or missing
+                        console.log("Record not in memory/URL, fetching from DB...");
+                        try {
+                            const records = await getAbsencesForReport();
+                            record = records.find(a => String(a.id) === String(refId));
+                        } catch (e) { console.error("DB Fetch failed:", e); }
                     }
                     if (record) {
                         // REPLICA LÓGICA DE 'openFichaViewModal'
@@ -666,13 +693,17 @@ const setupSignaturePadEvents = () => {
                 if (window.currentDocParams.refId) linkParams += `&refId=${window.currentDocParams.refId}`;
                 if (window.currentDocParams.type) linkParams = linkParams.replace('type=notificacao', `type=${window.currentDocParams.type}`);
 
-                // FIX: Force Override Student ID from Context
                 if (window.currentDocParams.studentId) {
                     if (linkParams.includes('student=')) {
                         linkParams = linkParams.replace(/student=[^&]*/, `student=${window.currentDocParams.studentId}`);
                     } else {
                         linkParams += `&student=${window.currentDocParams.studentId}`;
                     }
+                }
+
+                if (window.currentDocParams.extraData) {
+                    const payload = encodeURIComponent(JSON.stringify(window.currentDocParams.extraData));
+                    linkParams += `&data=${payload}`;
                 }
             }
 
@@ -1121,7 +1152,7 @@ async function generateSmartHTML(docType, studentId, refId, htmlGeneratorFn) {
     return { html, docId: existingDoc?.id };
 }
 
-const renderDocumentModal = async (title, contentDivId, docType, studentId, refId, generatorFn) => {
+const renderDocumentModal = async (title, contentDivId, docType, studentId, refId, generatorFn, extraData = null) => {
     // Gera o HTML já com a assinatura que está em memória (signatureMap)
     const { html, docId } = await generateSmartHTML(docType, studentId, refId, generatorFn);
 
@@ -1151,8 +1182,8 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
 
     // Reanexa os listeners para o novo HTML gerado
     attachDynamicSignatureListeners(
-        () => renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn),
-        { docType, studentId, refId, generatorFn, title }
+        () => renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn, extraData),
+        { docType, studentId, refId, generatorFn, title, extraData }
     );
 };
 
@@ -1177,7 +1208,8 @@ const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
             window.currentDocParams = {
                 refId: context.refId || context.title,
                 type: context.docType,
-                studentId: context.studentId
+                studentId: context.studentId,
+                extraData: context.extraData
             };
 
             openSignaturePad(key, currentDocRefId, async (data) => {
@@ -1196,6 +1228,7 @@ const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
                     // REGENERAR HTML ATUALIZADO (IMPORTANTE: O HTML salvo deve ter a assinatura!)
                     // Mas o 'reRenderCallback' vai gerar o visual novo. 
                     // Precisamos do HTML *string* para salvar.
+                    // O generatorFn pode ser chamado novamente.
                     // O generatorFn pode ser chamado novamente.
                     const newHtmlRaw = await generateSmartHTML(context.docType, context.studentId, context.refId, context.generatorFn);
                     // O generateSmartHTML retorna {html, docId}. O html INCLUI as assinaturas do signatureMap (que acabamos de atualizar).
@@ -1408,7 +1441,30 @@ export const openFichaViewModal = async (id) => {
         return `<div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">${getReportHeaderHTML(dateObj)}<p class="text-right text-sm italic mb-4">${state.config?.city || "Cidade"}, ${currentDateStr}</p><h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">${title}</h3>${getStudentIdentityCardHTML(student)}${bodyContent}${generateSignaturesGrid(sigSlots)}</div>`;
     };
 
-    await renderDocumentModal(title, 'ficha-view-content', 'notificacao', student.matricula, record.id, generator);
+    // Prepare extra data for stateless link regeneration
+    // Helper to serialize dates
+    const safeDate = (d) => {
+        if (!d) return null;
+        if (d.toDate) return d.toDate().toISOString();
+        if (d instanceof Date) return d.toISOString();
+        return d;
+    };
+
+    const extraData = {
+        absenceCount,
+        periodoFaltasStart: safeDate(periodoStart),
+        periodoFaltasEnd: safeDate(periodoEnd),
+        meetingDate: safeDate(record.meetingDate),
+        meetingTime: record.meetingTime,
+        actionType: record.actionType,
+        visitDate: safeDate(record.visitDate),
+        visitAgent: record.visitAgent,
+        visitSucceeded: record.visitSucceeded,
+        visitReason: record.visitReason,
+        visitObs: record.visitObs
+    };
+
+    await renderDocumentModal(title, 'ficha-view-content', 'notificacao', student.matricula, record.id, generator, extraData);
     openModal(dom.fichaViewModalBackdrop);
 };
 

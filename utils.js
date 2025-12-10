@@ -5,7 +5,11 @@
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { storage } from './firebase.js';
 
-export const formatDate = (dateString) => dateString ? new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '';
+export const formatDate = (val) => {
+    if (!val) return '';
+    const d = val && val.toDate ? val.toDate() : new Date(val);
+    return isNaN(d) ? '' : d.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+};
 export const formatTime = (timeString) => timeString || '';
 
 export const formatText = (text) => {
@@ -27,7 +31,7 @@ export const formatPeriodo = (start, end) => {
 export const showToast = (message) => {
     const toastMessage = document.getElementById('toast-message');
     const toastEl = document.getElementById('toast-notification');
-    
+
     if (toastMessage && toastEl) {
         toastMessage.textContent = message;
         toastEl.classList.add('show');
@@ -46,7 +50,7 @@ export const showAlert = (message) => {
         okBtn.onclick = closeAlert;
         openModal(alertModal);
     } else {
-        alert(message); 
+        alert(message);
     }
 };
 
@@ -55,13 +59,13 @@ export const showAlert = (message) => {
 // ==============================================================================
 
 export const openModal = (modalElement) => {
-     if (!modalElement) return console.error("Tentativa de abrir um modal nulo.");
-     document.querySelectorAll('.printable-area-active').forEach(el => {
-         el.classList.remove('printable-area-active');
-     });
-     if (modalElement.classList.contains('printable-area')) {
-         modalElement.classList.add('printable-area-active');
-     }
+    if (!modalElement) return console.error("Tentativa de abrir um modal nulo.");
+    document.querySelectorAll('.printable-area-active').forEach(el => {
+        el.classList.remove('printable-area-active');
+    });
+    if (modalElement.classList.contains('printable-area')) {
+        modalElement.classList.add('printable-area-active');
+    }
     modalElement.classList.remove('hidden');
     setTimeout(() => {
         modalElement.classList.remove('opacity-0');
@@ -74,7 +78,7 @@ export const openModal = (modalElement) => {
 export const closeModal = (modalElement) => {
     if (!modalElement) return;
     if (modalElement.classList.contains('printable-area')) {
-         modalElement.classList.remove('printable-area-active');
+        modalElement.classList.remove('printable-area-active');
     }
     modalElement.classList.add('opacity-0');
     if (modalElement.firstElementChild) {
@@ -86,18 +90,18 @@ export const closeModal = (modalElement) => {
 // --- VISUALIZADOR DE MÍDIA (Imagem/Video) ---
 export const openImageModal = (src, title = 'Anexo') => {
     const modal = document.getElementById('image-view-modal');
-    const container = document.querySelector('#image-view-modal .p-4'); 
+    const container = document.querySelector('#image-view-modal .p-4');
     const titleEl = document.getElementById('image-view-title');
-    
+
     if (modal && container) {
-        if(titleEl) titleEl.textContent = title;
-        
+        if (titleEl) titleEl.textContent = title;
+
         container.innerHTML = '';
         container.className = "p-4 overflow-auto flex justify-center bg-black/5 items-center min-h-[200px]";
 
         const isVideo = src.includes('.mp4') || src.includes('.webm') || src.includes('.mov');
         const isAudio = src.includes('.mp3') || src.includes('.wav') || src.includes('.ogg');
-        
+
         if (isVideo) {
             const video = document.createElement('video');
             video.src = src;
@@ -117,7 +121,7 @@ export const openImageModal = (src, title = 'Anexo') => {
             img.alt = "Anexo";
             container.appendChild(img);
         }
-        
+
         openModal(modal);
     }
 };
@@ -128,25 +132,25 @@ export const openImageModal = (src, title = 'Anexo') => {
 
 export const uploadToStorage = async (file, folder = 'uploads') => {
     if (!storage) throw new Error("Serviço de Armazenamento não configurado.");
-    
+
     const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
     const fileName = `${Date.now()}_${cleanName}`;
     const storageRef = ref(storage, `${folder}/${fileName}`);
-    
+
     try {
         const snapshot = await uploadBytes(storageRef, file);
         const downloadURL = await getDownloadURL(snapshot.ref);
         return downloadURL;
     } catch (error) {
         console.error("Erro no upload (Detalhes):", error);
-        
+
         // Detecção amigável de erro de CORS
         if (error.message && (error.message.includes('CORS') || error.message.includes('network') || error.code === 'storage/unknown')) {
             throw new Error("Bloqueio de Segurança (CORS): O Firebase impediu o upload. Configure o CORS no console do Google Cloud conforme as instruções.");
         } else if (error.code === 'storage/unauthorized') {
             throw new Error("Permissão Negada: Verifique as regras (Rules) do Storage no console do Firebase.");
         }
-        
+
         throw new Error("Falha ao enviar arquivo para a nuvem. Verifique sua conexão.");
     }
 };
@@ -235,15 +239,15 @@ export const shareContent = async (title, text) => {
 };
 
 export const loadScript = (url) => {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${url}"]`)) {
-      return resolve();
-    }
-    const script = document.createElement('script');
-    script.src = url;
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Falha ao carregar o script: ${url}`));
-    document.body.appendChild(script);
-  });
+    return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${url}"]`)) {
+            return resolve();
+        }
+        const script = document.createElement('script');
+        script.src = url;
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Falha ao carregar o script: ${url}`));
+        document.body.appendChild(script);
+    });
 };
