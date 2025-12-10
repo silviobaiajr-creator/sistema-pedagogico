@@ -662,7 +662,15 @@ const setupSignaturePadEvents = () => {
             if (window.currentDocParams) { // Injetado no click
                 if (window.currentDocParams.refId) linkParams += `&refId=${window.currentDocParams.refId}`;
                 if (window.currentDocParams.type) linkParams = linkParams.replace('type=notificacao', `type=${window.currentDocParams.type}`);
-                if (window.currentDocParams.studentId && !linkParams.includes('student=')) linkParams += `&student=${window.currentDocParams.studentId}`;
+
+                // FIX: Force Override Student ID from Context
+                if (window.currentDocParams.studentId) {
+                    if (linkParams.includes('student=')) {
+                        linkParams = linkParams.replace(/student=[^&]*/, `student=${window.currentDocParams.studentId}`);
+                    } else {
+                        linkParams += `&student=${window.currentDocParams.studentId}`;
+                    }
+                }
             }
 
             const fullLink = `${baseUrl}?${linkParams}`;
