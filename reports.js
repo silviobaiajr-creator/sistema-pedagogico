@@ -617,14 +617,57 @@ const setupSignaturePadEvents = () => {
             localSelfie.classList.add('hidden');
 
             // Gera Link
-            if (currentDocumentIdForRemote) {
-                const baseUrl = window.location.href.split('?')[0];
-                const sName = encodeURIComponent(state.config?.schoolName || 'Escola');
-                const sLogo = encodeURIComponent(state.config?.schoolLogoUrl || '');
-                const fullLink = `${baseUrl}?mode=sign&docId=${currentDocumentIdForRemote}&type=notificacao&student=${currentDocumentKeyForRemote.replace('responsible_', '')}&schoolInfo=${sName}&schoolLogo=${sLogo}`;
-                document.getElementById('generated-link-preview').innerText = fullLink;
-                document.getElementById('btn-send-whatsapp').onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(`Link para assinatura: ${fullLink}`)}`, '_blank');
+            const baseUrl = window.location.href.split('?')[0];
+            const sName = encodeURIComponent(state.config?.schoolName || 'Escola');
+            const sLogo = encodeURIComponent(state.config?.schoolLogoUrl || '');
+
+            // FIX: Se não temos ID (doc novo), usamos os parâmetros de referência
+            let linkParams = `mode=sign&type=notificacao&schoolInfo=${sName}&schoolLogo=${sLogo}`;
+
+            if (currentDocumentIdForRemote && currentDocumentIdForRemote !== 'temp' && !currentDocumentIdForRemote.startsWith('temp')) {
+                linkParams += `&docId=${currentDocumentIdForRemote}`;
+            } else {
+                // Tenta extrair dados do 'currentDocumentKeyForRemote' ou do contexto global se possível?
+                // O ideal é que 'openSignaturePad' receba esses dados.
+                // Mas como fallback, vamos tentar reconstruir.
+                // O 'student' está no key: responsible_123
+                const studentIdParts = currentDocumentKeyForRemote.split('_');
+                const studentId = studentIdParts.length > 1 ? studentIdParts[1] : '';
+
+                // Precisamos do REFID e TYPE.
+                // O 'renderDocumentModal' sabe disso. 
+                // Vamos tentar pegar do atributo data do container se existir.
+                const contentDiv = document.querySelector(`[data-doc-ref-id="${currentDocumentIdForRemote}"]`) || document.querySelector('.report-view-content') || document.getElementById('notification-content');
+                // Isso é frágil.
+                // Melhor: O 'openSignaturePad' deve receber esses metadados.
+                // Por enquanto, vamos assumir que o studentId é suficiente se o type for fixo 'notificacao' (que é o caso principal)
+                // Porem, precisamos do refId.
+
+                // CORREÇÃO PALIATIVA: 
+                // Vamos pegar o refId que está no container pai do botão de assinatura clicado?
+                // Não temos acesso ao elemento clicado aqui facilmente.
+
+                // MUDANÇA: O link só será gerado corretamente se passarmos os dados extras para openSignaturePad.
+                // Mas para corrigir RÁPIDO:
+                linkParams += `&student=${studentId}`;
+                // Sem refId, o link remoto vai falhar na regeneração.
+                // Vou desabilitar a geração de link se não tiver docId por enquanto, ou mostrar aviso?
+                // "Salve o documento primeiro"? Não, o requisito é não salvar.
+
+                // FIX REAL: Pegar o refId que foi passado ao renderDocumentModal.
+                // Ele está nos argumentos da função mas não aqui.
+                // Vou injetar params globais temporários quando abrir o modal.
             }
+
+            if (window.currentDocParams) { // Injetado no click
+                if (window.currentDocParams.refId) linkParams += `&refId=${window.currentDocParams.refId}`;
+                if (window.currentDocParams.type) linkParams = linkParams.replace('type=notificacao', `type=${window.currentDocParams.type}`);
+                if (window.currentDocParams.studentId && !linkParams.includes('student=')) linkParams += `&student=${window.currentDocParams.studentId}`;
+            }
+
+            const fullLink = `${baseUrl}?${linkParams}`;
+            document.getElementById('generated-link-preview').innerText = fullLink;
+            document.getElementById('btn-send-whatsapp').onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(`Link para assinatura: ${fullLink}`)}`, '_blank');
         }
     };
 
@@ -1106,25 +1149,71 @@ const attachDynamicSignatureListeners = (reRenderCallback) => {
             e.stopPropagation();
             const key = area.getAttribute('data-sig-key');
             // Busca o ID do documento renderizado na div pai
-            const contentDiv = area.closest('[data-doc-ref-id]');
+            const contentDiv = area.closest('[data-doc-ref-id]'); // Tenta achar wrapper com ID
+            // Se não achar, procura container genérico e assume 'temp'
             const currentDocRefId = contentDiv ? contentDiv.getAttribute('data-doc-ref-id') : 'temp';
 
-            openSignaturePad(key, currentDocRefId, (data) => {
-                // SALVA LOCALMENTE PRIMEIRO
-                signatureMap.set(key, data);
-                showToast("Assinatura coletada! Atualizando...");
+            // Captura contexto para geração de link
+            window.currentDocParams = {
+                refId: refId || title, // refId vem do escopo de renderDocumentModal
+                type: docType,          // docType vem do escopo
+                studentId: studentId    // studentId vem do escopo
+            };
 
-                // MÁGICA: Atualiza o objeto state.documents imediatamente para refletir na lista sem refresh
-                if (currentDocRefId && currentDocRefId !== 'temp') {
-                    const docIndex = state.documents.findIndex(d => d.id === currentDocRefId);
-                    if (docIndex > -1) {
-                        state.documents[docIndex].signatures = Object.fromEntries(signatureMap);
+            openSignaturePad(key, currentDocRefId, async (data) => {
+                // 1. ATUALIZA MEMÓRIA LOCAL
+                signatureMap.set(key, data);
+                showToast("Assinatura coletada! Processando...");
+
+                // 2. LÓGICA DE SALVAMENTO (SAVE ON SIGN)
+                // Se é 'temp' ou nulo, CRIAMOS o documento agora.
+                // Se já existe, ATUALIZAMOS.
+
+                try {
+                    let docRealId = currentDocRefId;
+                    const signaturesToSave = Object.fromEntries(signatureMap);
+
+                    // REGENERAR HTML ATUALIZADO (IMPORTANTE: O HTML salvo deve ter a assinatura!)
+                    // Mas o 'reRenderCallback' vai gerar o visual novo. 
+                    // Precisamos do HTML *string* para salvar.
+                    // O generatorFn pode ser chamado novamente.
+                    const newHtmlRaw = await generateSmartHTML(docType, studentId, refId, generatorFn);
+                    // O generateSmartHTML retorna {html, docId}. O html INCLUI as assinaturas do signatureMap (que acabamos de atualizar).
+                    // Então 'newHtmlRaw.html' é o que queremos salvar.
+
+                    if (!docRealId || docRealId === 'temp' || docRealId === 'undefined') {
+                        // CRIA NOVO
+                        console.log("Criando novo documento via assinatura local...");
+                        const newDocRef = await saveDocumentSnapshot(docType, title, newHtmlRaw.html, studentId, {
+                            refId: refId,
+                            signatures: signaturesToSave
+                        });
+                        docRealId = newDocRef.id;
+                        showToast("Documento salvo e assinado!");
                     } else {
-                        state.documents = []; // Força recarga
+                        // ATUALIZA EXISTENTE
+                        console.log("Atualizando documento existente...", docRealId);
+                        await updateDocumentSignatures(docRealId, signatureMap, newHtmlRaw.html);
+                        showToast("Assinatura registrada!");
                     }
+
+                    // 3. REFLETE NA UI GLOBAL (SE LISTA ESTIVER VISÍVEL)
+                    // Atualiza a lista de documentos em memória se necessário
+                    const docIndex = state.documents.findIndex(d => d.id === docRealId);
+                    if (docIndex > -1) {
+                        state.documents[docIndex].signatures = signaturesToSave;
+                        state.documents[docIndex].htmlContent = newHtmlRaw.html;
+                    } else {
+                        // Se era novo, adiciona? Ou força refresh? 
+                        // Melhor não mexer muito no state global complexo aqui, o refresh acontece ao abrir a aba.
+                    }
+
+                } catch (err) {
+                    console.error("Erro ao salvar assinatura local:", err);
+                    showToast("Erro ao salvar assinatura: " + err.message);
                 }
 
-                // FORÇA RE-RENDER IMEDIATO COM OS DADOS LOCAIS DO MODAL
+                // 4. RE-RENDERIZA A VISUALIZAÇÃO ATUAL
                 reRenderCallback();
             });
         };
