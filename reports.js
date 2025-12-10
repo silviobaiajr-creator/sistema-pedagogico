@@ -1133,7 +1133,10 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
     // E que o checkForRemoteSignParams saiba reconstruir o HTML se não achar no banco.
 
     // Reanexa os listeners para o novo HTML gerado
-    attachDynamicSignatureListeners(() => renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn));
+    attachDynamicSignatureListeners(
+        () => renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn),
+        { docType, studentId, refId, generatorFn, title }
+    );
 };
 
 // ... (existing helper functions) ...
@@ -1143,7 +1146,7 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
 
 // ... restoring original implementations ...
 
-const attachDynamicSignatureListeners = (reRenderCallback) => {
+const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
     document.querySelectorAll('.signature-interaction-area').forEach(area => {
         area.onclick = (e) => {
             e.stopPropagation();
@@ -1155,9 +1158,9 @@ const attachDynamicSignatureListeners = (reRenderCallback) => {
 
             // Captura contexto para geração de link
             window.currentDocParams = {
-                refId: refId || title, // refId vem do escopo de renderDocumentModal
-                type: docType,          // docType vem do escopo
-                studentId: studentId    // studentId vem do escopo
+                refId: context.refId || context.title,
+                type: context.docType,
+                studentId: context.studentId
             };
 
             openSignaturePad(key, currentDocRefId, async (data) => {
@@ -1177,15 +1180,15 @@ const attachDynamicSignatureListeners = (reRenderCallback) => {
                     // Mas o 'reRenderCallback' vai gerar o visual novo. 
                     // Precisamos do HTML *string* para salvar.
                     // O generatorFn pode ser chamado novamente.
-                    const newHtmlRaw = await generateSmartHTML(docType, studentId, refId, generatorFn);
+                    const newHtmlRaw = await generateSmartHTML(context.docType, context.studentId, context.refId, context.generatorFn);
                     // O generateSmartHTML retorna {html, docId}. O html INCLUI as assinaturas do signatureMap (que acabamos de atualizar).
                     // Então 'newHtmlRaw.html' é o que queremos salvar.
 
                     if (!docRealId || docRealId === 'temp' || docRealId === 'undefined') {
                         // CRIA NOVO
                         console.log("Criando novo documento via assinatura local...");
-                        const newDocRef = await saveDocumentSnapshot(docType, title, newHtmlRaw.html, studentId, {
-                            refId: refId,
+                        const newDocRef = await saveDocumentSnapshot(context.docType, context.title, newHtmlRaw.html, context.studentId, {
+                            refId: context.refId,
                             signatures: signaturesToSave
                         });
                         docRealId = newDocRef.id;
