@@ -181,7 +181,23 @@ const checkForRemoteSignParams = async () => {
             }
 
             if (!docSnapshot) {
-                document.getElementById('remote-sign-container').innerHTML = `<div class="bg-white p-8 rounded-lg shadow-xl mt-10 text-center"><h1 class="text-2xl font-bold text-red-600 mb-2">Link Inválido</h1><p>Documento não encontrado ou expirado.</p></div>`;
+                const debugParams = new URLSearchParams(window.location.search);
+                const hasData = debugParams.get('data');
+                const debugHtml = `
+                    <div class="bg-white p-8 rounded-lg shadow-xl mt-10 text-center">
+                        <h1 class="text-2xl font-bold text-red-600 mb-2">Link Inválido (Debug Ativo)</h1>
+                        <p class="mb-4">O sistema não conseguiu localizar ou reconstruir o documento.</p>
+                        <div class="text-left bg-gray-100 p-4 rounded text-xs font-mono overflow-auto max-h-60">
+                            <strong>Diagnóstico:</strong><br>
+                            RefID: ${refId || 'N/A'}<br>
+                            Type: ${type || 'N/A'}<br>
+                            Student: ${studentId || 'N/A'}<br>
+                            Data Param: ${hasData ? `Presente (${hasData.length} chars)` : 'AUSENTE'}<br>
+                            URL Raw: ${window.location.search}
+                        </div>
+                    </div>`;
+
+                document.getElementById('remote-sign-container').innerHTML = debugHtml;
                 return;
             }
 
@@ -402,10 +418,13 @@ const checkForRemoteSignParams = async () => {
 
                 btnSign.onclick = async function () {
                     if (!capturedPhotoBase64) return;
-                    this.disabled = true; this.innerHTML = 'Salvando...';
+                    this.disabled = true; this.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Salvando...';
                     const meta = await fetchClientMetadata();
                     const digitalSignature = { type: 'digital_ack', ip: meta.ip, device: meta.userAgent, timestamp: meta.timestamp, signerName: identityData.name, signerCPF: identityData.cpf, photo: capturedPhotoBase64, valid: true };
-                    const key = `responsible_${String(studentId || docSnapshot.studentId)}`;
+
+                    // --- UNIQUE KEY FOR MULTIPLE SIGNATURES (APPEND MODE) ---
+                    // Generates a unique key based on timestamp to allow multiple signatures from same role/person
+                    const key = `responsible_${String(studentId || docSnapshot.studentId)}_${Date.now()}`;
                     const sigMap = new Map(); sigMap.set(key, digitalSignature);
 
                     // --- HTML INJECTION ---
@@ -442,11 +461,8 @@ const checkForRemoteSignParams = async () => {
                         </div>
                     </div>`;
 
-                    // Safe approach: check if original content already has it (unlikely here but good practice)
-                    let newHtmlContent = docSnapshot.htmlContent;
-                    if (!newHtmlContent.includes('signatures-wrapper-v2')) {
-                        newHtmlContent = newHtmlContent + signatureHtml;
-                    }
+                    // --- APPEND LOGIC: ALWAYS APPEND ---
+                    let newHtmlContent = docSnapshot.htmlContent + signatureHtml;
 
                     let success = false;
                     if (docSnapshot.id === 'temp_rebuilt') {
@@ -477,7 +493,12 @@ const checkForRemoteSignParams = async () => {
                                 <div class="space-y-3">
                                     <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Olá, segue o link para acessar o documento assinado digitalmente: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
                                         <i class="fab fa-whatsapp text-2xl"></i> 
-                                        <span>Enviar para mim (WhatsApp)</span>
+                                        <span>Enviar Comprovante (WhatsApp)</span>
+                                    </button>
+                                    
+                                    <button onclick="window.print()" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
+                                        <i class="fas fa-print text-xl"></i> 
+                                        <span>Imprimir / Salvar PDF</span>
                                     </button>
                                 </div>
                                 <div class="mt-6 pt-4 border-t border-gray-100">
@@ -680,13 +701,6 @@ const setupSignaturePadEvents = () => {
                 // MUDANÇA: O link só será gerado corretamente se passarmos os dados extras para openSignaturePad.
                 // Mas para corrigir RÁPIDO:
                 linkParams += `&student=${studentId}`;
-                // Sem refId, o link remoto vai falhar na regeneração.
-                // Vou desabilitar a geração de link se não tiver docId por enquanto, ou mostrar aviso?
-                // "Salve o documento primeiro"? Não, o requisito é não salvar.
-
-                // FIX REAL: Pegar o refId que foi passado ao renderDocumentModal.
-                // Ele está nos argumentos da função mas não aqui.
-                // Vou injetar params globais temporários quando abrir o modal.
             }
 
             if (window.currentDocParams) { // Injetado no click
