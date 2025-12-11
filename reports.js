@@ -205,11 +205,11 @@ const checkForRemoteSignParams = async () => {
 
 
             const container = document.getElementById('remote-sign-container');
-            const targetKey = `responsible_${String(studentId || docSnapshot.studentId)}`;
+            const targetKeyPrefix = `responsible_${String(studentId || docSnapshot.studentId)}`;
+            const existingSignatureKey = Object.keys(docSnapshot.signatures || {}).find(k => k.startsWith(targetKeyPrefix));
 
-
-            if (docSnapshot.signatures && docSnapshot.signatures[targetKey]) {
-                const sig = docSnapshot.signatures[targetKey];
+            if (existingSignatureKey) {
+                const sig = docSnapshot.signatures[existingSignatureKey];
                 const signedDate = new Date(sig.timestamp).toLocaleString();
 
                 container.classList.remove('justify-center'); container.classList.add('pt-4');
@@ -422,47 +422,58 @@ const checkForRemoteSignParams = async () => {
                     const meta = await fetchClientMetadata();
                     const digitalSignature = { type: 'digital_ack', ip: meta.ip, device: meta.userAgent, timestamp: meta.timestamp, signerName: identityData.name, signerCPF: identityData.cpf, photo: capturedPhotoBase64, valid: true };
 
-                    // --- UNIQUE KEY FOR MULTIPLE SIGNATURES (APPEND MODE) ---
-                    // Generates a unique key based on timestamp to allow multiple signatures from same role/person
-                    const key = `responsible_${String(studentId || docSnapshot.studentId)}_${Date.now()}`;
-                    const sigMap = new Map(); sigMap.set(key, digitalSignature);
+                    // --- KEY GENERATION LOGIC ---
+                    const baseKey = `responsible_${String(studentId || docSnapshot.studentId)}`;
+                    // Check if baseKey is free (preferred)
+                    let finalKey = baseKey;
+                    if (docSnapshot.signatures && docSnapshot.signatures[baseKey]) {
+                        finalKey = `${baseKey}_${Date.now()}`; // Append mode
+                    }
+
+                    const sigMap = new Map(); sigMap.set(finalKey, digitalSignature);
 
                     // --- HTML INJECTION ---
-                    // Generate the signature card HTML
+                    // Generate the signature card HTML (Matches style in getSingleSignatureBoxHTML)
                     const signedDate = new Date(meta.timestamp).toLocaleString();
                     const signatureHtml = `
-                    <div class="mt-8 pt-6 border-t-2 border-gray-100 break-inside-avoid signatures-wrapper-v2">
-                        <div class="bg-green-50/50 p-4 rounded-lg border border-green-100">
-                             <h3 class="text-xs font-bold text-green-700 uppercase tracking-wider mb-4 border-b border-green-200 pb-2 flex items-center gap-2">
-                                <i class="fas fa-certificate"></i> Assinatura Digital Verificada
-                             </h3>
-                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <p class="text-gray-500 text-xs">Assinado por</p>
-                                    <p class="font-bold text-gray-800">${identityData.name}</p>
-                                </div>
-                                <div>
-                                    <p class="text-gray-500 text-xs">CPF</p>
-                                    <p class="font-bold text-gray-800 font-mono">${identityData.cpf}</p>
-                                </div>
-                                <div>
-                                    <p class="text-gray-500 text-xs">Data do Registro</p>
-                                    <p class="font-bold text-gray-800">${signedDate}</p>
-                                </div>
-                                <div>
-                                    <p class="text-gray-500 text-xs">IP / Dispositivo</p>
-                                    <p class="font-bold text-gray-800 font-mono text-xs truncate" title="${meta.ip}">${meta.ip || 'N/A'}</p>
-                                </div>
-                            </div>
-                            <div class="mt-4 pt-4 border-t border-green-100">
-                                <p class="text-xs text-green-700 font-bold mb-2">Registro Biométrico Facial (Selfie)</p>
-                                <img src="${capturedPhotoBase64}" class="w-24 h-24 object-cover rounded-lg border border-green-200 shadow-sm">
-                            </div>
-                        </div>
-                    </div>`;
+            <div class="bg-green-50/50 p-2 rounded-lg border border-green-100 flex-1 min-w-[200px]" data-sig-key="${finalKey}">
+                 <h3 class="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-1 border-b border-green-200 pb-1 flex items-center gap-1">
+                    <i class="fas fa-certificate"></i> Assinatura Digital
+                 </h3>
+                 <div class="text-[9px] leading-tight space-y-0.5">
+                    <div>
+                        <span class="text-gray-500">Assinado por:</span> 
+                        <span class="font-bold text-gray-800">${identityData.name}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">CPF:</span> 
+                        <span class="font-bold text-gray-800 font-mono">${identityData.cpf}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Data:</span> 
+                        <span class="font-bold text-gray-800">${signedDate}</span>
+                    </div>
+                    <div class="pt-1 flex items-center gap-2">
+                         <div class="flex items-center gap-1 text-[8px] text-green-700 font-bold bg-green-100 px-1 rounded"><i class="fas fa-camera"></i> Selfie Verificada</div>
+                         <div class="text-[8px] text-gray-400 font-mono truncate max-w-[80px]" title="${meta.ip}">IP: ${meta.ip || 'N/A'}</div>
+                    </div>
+                </div>
+            </div>`;
 
-                    // --- APPEND LOGIC: ALWAYS APPEND ---
-                    let newHtmlContent = docSnapshot.htmlContent + signatureHtml;
+                    // --- REPLACEMENT / APPEND LOGIC ---
+                    let newHtmlContent = docSnapshot.htmlContent;
+
+                    // Try to replace the placeholder
+                    const placeholderKey = baseKey;
+                    const placeholderRegex = new RegExp(`<div[^>]+data-sig-key="${placeholderKey}"[^>]*>[\\s\\S]*?<\\/div>`, 'i');
+
+                    if (finalKey === baseKey && placeholderRegex.test(newHtmlContent)) {
+                        // Slot available, replace it
+                        newHtmlContent = newHtmlContent.replace(placeholderRegex, signatureHtml);
+                    } else {
+                        // Append if slot occupied or text not found
+                        newHtmlContent = newHtmlContent + signatureHtml;
+                    }
 
                     let success = false;
                     if (docSnapshot.id === 'temp_rebuilt') {
@@ -672,54 +683,40 @@ const setupSignaturePadEvents = () => {
             const sName = encodeURIComponent(state.config?.schoolName || 'Escola');
             const sLogo = encodeURIComponent(state.config?.schoolLogoUrl || '');
 
-            // FIX: Se não temos ID (doc novo), usamos os parâmetros de referência
-            let linkParams = `mode=sign&type=notificacao&schoolInfo=${sName}&schoolLogo=${sLogo}`;
+            // MUDANÇA: Link Curto se tiver ID
+            let linkParams = `mode=sign`;
 
             if (currentDocumentIdForRemote && currentDocumentIdForRemote !== 'temp' && !currentDocumentIdForRemote.startsWith('temp')) {
                 linkParams += `&docId=${currentDocumentIdForRemote}`;
-            } else {
-                // Tenta extrair dados do 'currentDocumentKeyForRemote' ou do contexto global se possível?
-                // O ideal é que 'openSignaturePad' receba esses dados.
-                // Mas como fallback, vamos tentar reconstruir.
-                // O 'student' está no key: responsible_123
+                // Opcional: Adicionar studentId para verificação extra se falhar busca por ID
                 const studentIdParts = currentDocumentKeyForRemote.split('_');
-                const studentId = studentIdParts.length > 1 ? studentIdParts[1] : '';
+                if (studentIdParts.length > 1) linkParams += `&student=${studentIdParts[1]}`;
+            } else {
+                // Link Completo (Novo Doc)
+                const sName = encodeURIComponent(state.config?.schoolName || 'Escola');
+                const sLogo = encodeURIComponent(state.config?.schoolLogoUrl || '');
+                linkParams += `&type=notificacao&schoolInfo=${sName}&schoolLogo=${sLogo}`; // Default type
 
-                // Precisamos do REFID e TYPE.
-                // O 'renderDocumentModal' sabe disso. 
-                // Vamos tentar pegar do atributo data do container se existir.
-                const contentDiv = document.querySelector(`[data-doc-ref-id="${currentDocumentIdForRemote}"]`) || document.querySelector('.report-view-content') || document.getElementById('notification-content');
-                // Isso é frágil.
-                // Melhor: O 'openSignaturePad' deve receber esses metadados.
-                // Por enquanto, vamos assumir que o studentId é suficiente se o type for fixo 'notificacao' (que é o caso principal)
-                // Porem, precisamos do refId.
-
-                // CORREÇÃO PALIATIVA: 
-                // Vamos pegar o refId que está no container pai do botão de assinatura clicado?
-                // Não temos acesso ao elemento clicado aqui facilmente.
-
-                // MUDANÇA: O link só será gerado corretamente se passarmos os dados extras para openSignaturePad.
-                // Mas para corrigir RÁPIDO:
-                linkParams += `&student=${studentId}`;
+                // ... (rest errors fallback)
+                // Usar params injetados
             }
-
+            // Fallback params globais que podem ser úteis mesmo com ID para stateless checks
             if (window.currentDocParams) { // Injetado no click
-                if (window.currentDocParams.refId) linkParams += `&refId=${window.currentDocParams.refId}`;
-                if (window.currentDocParams.type) linkParams = linkParams.replace('type=notificacao', `type=${window.currentDocParams.type}`);
-
-                if (window.currentDocParams.studentId) {
-                    if (linkParams.includes('student=')) {
-                        linkParams = linkParams.replace(/student=[^&]*/, `student=${window.currentDocParams.studentId}`);
-                    } else {
-                        linkParams += `&student=${window.currentDocParams.studentId}`;
+                // Sobrescreve params se necessário ou adiciona
+                if (!linkParams.includes('docId=')) {
+                    if (window.currentDocParams.refId) linkParams += `&refId=${window.currentDocParams.refId}`;
+                    if (window.currentDocParams.type) {
+                        if (linkParams.includes('type=')) linkParams = linkParams.replace(/type=[^&]*/, `type=${window.currentDocParams.type}`);
+                        else linkParams += `&type=${window.currentDocParams.type}`;
+                    }
+                    if (window.currentDocParams.studentId) linkParams += `&student=${window.currentDocParams.studentId}`;
+                    if (window.currentDocParams.extraData) {
+                        const payload = encodeURIComponent(JSON.stringify(window.currentDocParams.extraData));
+                        linkParams += `&data=${payload}`;
                     }
                 }
-
-                if (window.currentDocParams.extraData) {
-                    const payload = encodeURIComponent(JSON.stringify(window.currentDocParams.extraData));
-                    linkParams += `&data=${payload}`;
-                }
             }
+
 
             const fullLink = `${baseUrl}?${linkParams}`;
             document.getElementById('generated-link-preview').innerText = fullLink;
@@ -1064,21 +1061,28 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
     // 1. Digital com Biometria
     if (sigData && sigData.type === 'digital_ack') {
         return `
-            <div class="relative group border border-green-500 bg-green-50 rounded flex flex-row overflow-hidden h-32" data-sig-key="${key}">
-                <div class="flex-1 p-2 flex flex-col justify-between overflow-hidden">
-                    <div class="overflow-y-auto">
-                        <p class="font-bold uppercase text-xs text-green-800 leading-tight">${roleTitle}</p>
-                        <p class="text-[10px] text-green-700 font-semibold mb-1 truncate">${nameSubtitle}</p>
-                        <div class="text-[10px] text-gray-700 leading-snug break-words whitespace-normal">
-                            ${sigData.signerName ? `<span class="font-bold">Nome:</span> ${sigData.signerName}<br>` : ''}
-                            ${sigData.signerCPF ? `<span class="font-bold">CPF:</span> ${sigData.signerCPF}<br>` : ''}
-                            <span class="font-bold">IP:</span> ${sigData.ip || 'N/A'}<br>
-                            ${new Date(sigData.timestamp).toLocaleString()}
-                        </div>
+            <div class="bg-green-50/50 p-2 rounded-lg border border-green-100 flex-1 min-w-[200px]" data-sig-key="${key}">
+                 <h3 class="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-1 border-b border-green-200 pb-1 flex items-center gap-1">
+                    <i class="fas fa-certificate"></i> Assinatura Digital
+                 </h3>
+                 <div class="text-[9px] leading-tight space-y-0.5">
+                    <div>
+                        <span class="text-gray-500">Assinado por:</span> 
+                        <span class="font-bold text-gray-800">${sigData.signerName}</span>
                     </div>
-                    <div class="bg-green-500 text-white text-[9px] px-2 py-0.5 rounded w-fit mt-1"><i class="fas fa-check"></i> Válido</div>
+                    <div>
+                        <span class="text-gray-500">CPF:</span> 
+                        <span class="font-bold text-gray-800 font-mono">${sigData.signerCPF}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Data:</span> 
+                        <span class="font-bold text-gray-800">${new Date(sigData.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div class="pt-1 flex items-center gap-2">
+                         ${sigData.photo ? `<div class="flex items-center gap-1 text-[8px] text-green-700 font-bold bg-green-100 px-1 rounded"><i class="fas fa-camera"></i> Selfie Verificada</div>` : ''}
+                         <div class="text-[8px] text-gray-400 font-mono truncate max-w-[80px]" title="${sigData.ip}">IP: ${sigData.ip || 'N/A'}</div>
+                    </div>
                 </div>
-                ${sigData.photo ? `<div class="w-32 min-w-[30%] border-l border-green-200"><img src="${sigData.photo}" class="w-full h-full object-cover"></div>` : ''}
             </div>`;
     }
     // 2. Desenhada
@@ -1445,7 +1449,14 @@ export const openFichaViewModal = async (id) => {
         const currentDateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
         let bodyContent = '';
         if (record.actionType.startsWith('tentativa')) {
-            bodyContent = `<p class="text-justify indent-8">Prezados Responsáveis,</p><p class="text-justify indent-8 mt-2">Comunicamos que o(a) aluno(a) acima identificado(a) atingiu o número de <strong>${formatText(absenceCount)} faltas</strong> no período de ${formatDate(periodoStart)} a ${formatDate(periodoEnd)}, configurando situação de risco escolar.</p><div class="my-4 p-3 bg-yellow-50 border-l-4 border-yellow-500 text-sm font-sans rounded"><p><strong>Fundamentação Legal:</strong> Conforme a LDB (Lei 9.394/96) e o ECA, é dever da família assegurar a frequência escolar.</p></div>${record.meetingDate ? `<p class="text-justify mt-4">Solicitamos comparecimento obrigatório na escola:</p><div class="my-4 mx-auto max-w-xs border border-gray-400 rounded p-3 text-center bg-white shadow-sm"><p class="font-bold text-lg">${formatDate(record.meetingDate)}</p><p class="font-semibold text-gray-700">${formatTime(record.meetingTime)}</p></div>` : `<p class="mt-4 font-bold text-center">Favor comparecer à secretaria da escola com urgência.</p>`}`;
+            const processActions = state.absences.filter(a => a.processId === record.processId).sort((a, b) => (a.createdAt?.toDate() || 0) - (b.createdAt?.toDate() || 0));
+            // Gera resumo das tentativas
+            let attemptsInfo = "";
+            if (processActions.length > 0) {
+                attemptsInfo = '<div class="mt-4"><p class="font-bold text-xs uppercase text-gray-500 mb-2">Tentativas de Contato Anteriores:</p>' + getAttemptsTableHTML(processActions, 'busca_ativa') + '</div>';
+            }
+
+            bodyContent = `<p class="text-justify indent-8">Prezados Responsáveis,</p><p class="text-justify indent-8 mt-2">Comunicamos que o(a) aluno(a) acima identificado(a) atingiu o número de <strong>${formatText(absenceCount)} faltas</strong> no período de ${formatDate(periodoStart)} a ${formatDate(periodoEnd)}, configurando situação de risco escolar.</p><div class="my-4 p-3 bg-yellow-50 border-l-4 border-yellow-500 text-sm font-sans rounded"><p><strong>Fundamentação Legal:</strong> Conforme a LDB (Lei 9.394/96) e o ECA, é dever da família assegurar a frequência escolar.</p></div>${attemptsInfo}${record.meetingDate ? `<p class="text-justify mt-4">Solicitamos comparecimento obrigatório na escola:</p><div class="my-4 mx-auto max-w-xs border border-gray-400 rounded p-3 text-center bg-white shadow-sm"><p class="font-bold text-lg">${formatDate(record.meetingDate)}</p><p class="font-semibold text-gray-700">${formatTime(record.meetingTime)}</p></div>` : `<p class="mt-4 font-bold text-center">Favor comparecer à secretaria da escola com urgência.</p>`}`;
         } else if (record.actionType === 'visita') {
             bodyContent = `<p class="text-justify indent-8">Certifico que, nesta data, foi realizada Visita Domiciliar referente ao aluno(a) supracitado(a).</p><div class="mt-4 p-4 border rounded bg-gray-50 font-sans text-sm"><p><strong>Data da Visita:</strong> ${formatDate(record.visitDate)}</p><p><strong>Agente:</strong> ${formatText(record.visitAgent)}</p><p><strong>Resultado:</strong> ${record.visitSucceeded === 'yes' ? 'Contato Realizado' : 'Sem sucesso'}</p><p class="mt-2"><strong>Observações/Justificativa:</strong></p><p class="italic bg-white p-2 border rounded mt-1">${formatText(record.visitReason)} ${formatText(record.visitObs)}</p></div>`;
         }
