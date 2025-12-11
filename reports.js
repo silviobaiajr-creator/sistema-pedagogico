@@ -433,31 +433,24 @@ const checkForRemoteSignParams = async () => {
                     const sigMap = new Map(); sigMap.set(finalKey, digitalSignature);
 
                     // --- HTML INJECTION ---
-                    // Generate the signature card HTML (Matches style in getSingleSignatureBoxHTML)
+                    // Generate the signature card HTML (Matches NEW style in getSingleSignatureBoxHTML)
                     const signedDate = new Date(meta.timestamp).toLocaleString();
                     const signatureHtml = `
-            <div class="bg-green-50/50 p-2 rounded-lg border border-green-100 flex-1 min-w-[200px]" data-sig-key="${finalKey}">
-                 <h3 class="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-1 border-b border-green-200 pb-1 flex items-center gap-1">
-                    <i class="fas fa-certificate"></i> Assinatura Digital
-                 </h3>
-                 <div class="text-[9px] leading-tight space-y-0.5">
-                    <div>
-                        <span class="text-gray-500">Assinado por:</span> 
-                        <span class="font-bold text-gray-800">${identityData.name}</span>
+            <div class="relative group border border-green-500 bg-green-50 rounded flex flex-row overflow-hidden h-32 break-inside-avoid" data-sig-key="${finalKey}">
+                <div class="flex-1 p-2 flex flex-col justify-between overflow-hidden relative">
+                    <div class="overflow-y-auto z-10">
+                        <p class="font-bold uppercase text-xs text-green-800 leading-tight flex items-center gap-1"><i class="fas fa-certificate"></i> Assinatura Digital</p>
+                        <p class="text-[10px] text-green-700 font-semibold mb-1 truncate">Responsável / Verificado</p>
+                        <div class="text-[9px] text-green-900 leading-snug break-words whitespace-normal font-mono">
+                            <strong>Assinado por:</strong> ${identityData.name}<br>
+                            <strong>CPF:</strong> ${identityData.cpf}<br>
+                            IP: ${meta.ip || 'N/A'}<br>
+                            ${signedDate}
+                        </div>
                     </div>
-                    <div>
-                        <span class="text-gray-500">CPF:</span> 
-                        <span class="font-bold text-gray-800 font-mono">${identityData.cpf}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500">Data:</span> 
-                        <span class="font-bold text-gray-800">${signedDate}</span>
-                    </div>
-                    <div class="pt-1 flex items-center gap-2">
-                         <div class="flex items-center gap-1 text-[8px] text-green-700 font-bold bg-green-100 px-1 rounded"><i class="fas fa-camera"></i> Selfie Verificada</div>
-                         <div class="text-[8px] text-gray-400 font-mono truncate max-w-[80px]" title="${meta.ip}">IP: ${meta.ip || 'N/A'}</div>
-                    </div>
+                     <div class="absolute bottom-1 right-1 opacity-10"><i class="fas fa-check-circle text-4xl text-green-500"></i></div>
                 </div>
+                <div class="w-32 min-w-[30%] border-l border-green-200 bg-gray-100"><img src="${capturedPhotoBase64}" class="w-full h-full object-cover"></div>
             </div>`;
 
                     // --- REPLACEMENT / APPEND LOGIC ---
@@ -703,14 +696,23 @@ const setupSignaturePadEvents = () => {
             // Fallback params globais que podem ser úteis mesmo com ID para stateless checks
             if (window.currentDocParams) { // Injetado no click
                 // Sobrescreve params se necessário ou adiciona
-                if (!linkParams.includes('docId=')) {
-                    if (window.currentDocParams.refId) linkParams += `&refId=${window.currentDocParams.refId}`;
+                // MUDANÇA: Link Curto agressivo se tiver ID
+                if (linkParams.includes('docId=')) {
+                    // Se já tem docId, NÃO precisamos de extraData, refId, type ou student para reconstrução, 
+                    // pois o documento já existe no banco.
+                    // Apenas mantemos params de configuração visual se necessário, mas o ideal é link MÍNIMO.
+                    // Vamos limpar tudo que não for essencial.
+                } else {
+                    // Se NÃO tem docId (novo doc), aí sim precisamos de tudo.
+                    if (!linkParams.includes('refId=') && window.currentDocParams.refId) linkParams += `&refId=${window.currentDocParams.refId}`;
+
                     if (window.currentDocParams.type) {
                         if (linkParams.includes('type=')) linkParams = linkParams.replace(/type=[^&]*/, `type=${window.currentDocParams.type}`);
                         else linkParams += `&type=${window.currentDocParams.type}`;
                     }
-                    if (window.currentDocParams.studentId) linkParams += `&student=${window.currentDocParams.studentId}`;
-                    if (window.currentDocParams.extraData) {
+                    if (window.currentDocParams.studentId && !linkParams.includes('student=')) linkParams += `&student=${window.currentDocParams.studentId}`;
+
+                    if (window.currentDocParams.extraData && !linkParams.includes('data=')) {
                         const payload = encodeURIComponent(JSON.stringify(window.currentDocParams.extraData));
                         linkParams += `&data=${payload}`;
                     }
@@ -1061,28 +1063,21 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
     // 1. Digital com Biometria
     if (sigData && sigData.type === 'digital_ack') {
         return `
-            <div class="bg-green-50/50 p-2 rounded-lg border border-green-100 flex-1 min-w-[200px]" data-sig-key="${key}">
-                 <h3 class="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-1 border-b border-green-200 pb-1 flex items-center gap-1">
-                    <i class="fas fa-certificate"></i> Assinatura Digital
-                 </h3>
-                 <div class="text-[9px] leading-tight space-y-0.5">
-                    <div>
-                        <span class="text-gray-500">Assinado por:</span> 
-                        <span class="font-bold text-gray-800">${sigData.signerName}</span>
+            <div class="relative group border border-green-500 bg-green-50 rounded flex flex-row overflow-hidden h-32 break-inside-avoid" data-sig-key="${key}">
+                <div class="flex-1 p-2 flex flex-col justify-between overflow-hidden relative">
+                    <div class="overflow-y-auto z-10">
+                        <p class="font-bold uppercase text-xs text-green-800 leading-tight flex items-center gap-1"><i class="fas fa-certificate"></i> ${roleTitle}</p>
+                        <p class="text-[10px] text-green-700 font-semibold mb-1 truncate">${nameSubtitle}</p>
+                        <div class="text-[9px] text-green-900 leading-snug break-words whitespace-normal font-mono">
+                            ${sigData.signerName ? `<strong>Assinado por:</strong> ${sigData.signerName}<br>` : ''}
+                            ${sigData.signerCPF ? `<strong>CPF:</strong> ${sigData.signerCPF}<br>` : ''}
+                            ${sigData.ip ? `IP: ${sigData.ip}<br>` : ''}
+                            ${new Date(sigData.timestamp).toLocaleString()}
+                        </div>
                     </div>
-                    <div>
-                        <span class="text-gray-500">CPF:</span> 
-                        <span class="font-bold text-gray-800 font-mono">${sigData.signerCPF}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500">Data:</span> 
-                        <span class="font-bold text-gray-800">${new Date(sigData.timestamp).toLocaleString()}</span>
-                    </div>
-                    <div class="pt-1 flex items-center gap-2">
-                         ${sigData.photo ? `<div class="flex items-center gap-1 text-[8px] text-green-700 font-bold bg-green-100 px-1 rounded"><i class="fas fa-camera"></i> Selfie Verificada</div>` : ''}
-                         <div class="text-[8px] text-gray-400 font-mono truncate max-w-[80px]" title="${sigData.ip}">IP: ${sigData.ip || 'N/A'}</div>
-                    </div>
+                     <div class="absolute bottom-1 right-1 opacity-10"><i class="fas fa-check-circle text-4xl text-green-500"></i></div>
                 </div>
+                ${sigData.photo ? `<div class="w-32 min-w-[30%] border-l border-green-200 bg-gray-100"><img src="${sigData.photo}" class="w-full h-full object-cover"></div>` : ''}
             </div>`;
     }
     // 2. Desenhada
