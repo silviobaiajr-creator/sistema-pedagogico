@@ -91,14 +91,14 @@ const checkForRemoteSignParams = async () => {
 
                 // --- REGENERADORES ---
                 // Idealmente extraídos, mas aqui inline para garantir funcionamento sem refatoração massiva
-                if (type === 'notificacao') { // Ficha
+                if (type === 'notificacao') { // Ficha Busca Ativa
                     // FIX: Ensure types match (refId is string from URL, aid often number)
                     let record = state.absences.find(a => String(a.id) === String(refId));
                     if (!record) {
                         try {
                             const dataParam = new URLSearchParams(window.location.search).get('data');
                             if (dataParam) {
-                                console.log("Using stateless data from URL...");
+                                console.log("Using stateless data from URL (Busca Ativa)...");
                                 const extraData = JSON.parse(decodeURIComponent(dataParam));
                                 record = {
                                     id: refId,
@@ -164,6 +164,41 @@ const checkForRemoteSignParams = async () => {
                             </div>
                             
                             ${generateSignaturesGrid([{ key: `responsible_${student.matricula}`, role: 'Responsável Legal', name: '' }])}
+                        </div>`;
+                    }
+                }
+
+                // NOVO: SUPORTE A NOTIFICAÇÃO DE OCORRÊNCIA (DISCIPLINAR)
+                if (type === 'notificacao_ocorrencia') {
+                    // Tenta dados stateless
+                    let incidentData = null;
+                    try {
+                        const dataParam = new URLSearchParams(window.location.search).get('data');
+                        if (dataParam) {
+                            console.log("Using stateless data from URL (Ocorrência)...");
+                            incidentData = JSON.parse(decodeURIComponent(dataParam));
+                        }
+                    } catch (e) { console.error("Error parsing URL data:", e); }
+
+                    if (incidentData) {
+                        const currentDateStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+                        title = "Notificação de Ocorrência Escolar";
+                        docTitle = "Notificação Disciplinar";
+
+                        const attemptText = `Esta é a <strong>${incidentData.attemptCount}ª tentativa</strong> de contato formal realizada pela escola.`;
+
+                        generatedHtml = `
+                        <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
+                            ${getReportHeaderHTML(new Date())}
+                            <p class="text-right text-sm italic mb-8">${state.config?.city || "Cidade"}, ${currentDateStr}</p>
+                            <h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">Notificação de Ocorrência Escolar</h3>
+                            ${getStudentIdentityCardHTML(student)}
+                            <p class="text-justify indent-8">Prezados Senhores Pais ou Responsáveis,</p>
+                            <p class="text-justify indent-8 mt-2">Vimos por meio desta notificá-los sobre um registro disciplinar referente ao(à) aluno(a) acima identificado(a), classificado como <strong>"${formatText(incidentData.occurrenceType)}"</strong>, ocorrido na data de <strong>${formatDate(incidentData.date)}</strong>. ${attemptText}</p>
+                            <div class="my-6 p-4 bg-gray-50 border-l-4 border-red-500 rounded text-sm font-sans"><p class="font-bold text-red-700 mb-1"><i class="fas fa-exclamation-triangle"></i> Atenção:</p><p class="text-justify text-gray-700">Conforme a Lei de Diretrizes e Bases da Educação (LDB) e o Estatuto da Criança e do Adolescente (ECA), a parceria família-escola é fundamental. O não comparecimento após as tentativas formais de contato poderá acarretar no encaminhamento do caso aos órgãos de proteção.</p></div>
+                            <p class="text-justify mt-4">Solicitamos o comparecimento urgente de um responsável na coordenação pedagógica para tratar deste assunto na seguinte data:</p>
+                            ${incidentData.meetingDate ? `<div class="my-6 mx-auto max-w-sm border-2 border-gray-800 rounded-lg p-4 text-center bg-white shadow-sm break-inside-avoid"><p class="text-xs uppercase tracking-wide text-gray-500 font-bold mb-1">Agendamento</p><div class="text-2xl font-bold text-gray-900">${formatDate(incidentData.meetingDate)}</div><div class="text-xl font-semibold text-gray-700 mt-1">${formatTime(incidentData.meetingTime)}</div></div>` : ''}
+                            ${generateSignaturesGrid([{ key: `responsible_${student.matricula}`, role: 'Responsável', name: 'Responsável Legal' }])}
                         </div>`;
                     }
                 }
@@ -1353,7 +1388,16 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
             </div>`;
     };
 
-    await renderDocumentModal('Notificação', 'notification-content', 'notificacao', student.matricula, uniqueRefId, generator);
+    // Prepare extra data for stateless link regeneration (Ocorrência)
+    const extraData = {
+        occurrenceType: data.occurrenceType,
+        date: data.date instanceof Date ? data.date.toISOString() : data.date,
+        meetingDate: meetingDate instanceof Date ? meetingDate.toISOString() : meetingDate,
+        meetingTime: meetingTime,
+        attemptCount: attemptCount
+    };
+
+    await renderDocumentModal('Notificação', 'notification-content', 'notificacao_ocorrencia', student.matricula, uniqueRefId, generator, extraData);
     openModal(dom.notificationModalBackdrop);
 };
 
