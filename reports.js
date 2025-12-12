@@ -141,20 +141,15 @@ const checkForRemoteSignParams = async () => {
                             <p class="text-right text-sm italic mb-4">${state.config?.city || "Cidade"}, ${currentDateStr}</p>
                             <h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">${title}</h3>
                             ${getStudentIdentityCardHTML(student)}
-                            
-                            <div class="bg-yellow-50 border border-yellow-200 p-4 rounded-lg my-6">
-                                <h4 class="font-bold text-yellow-800 uppercase text-xs mb-2"><i class="fas fa-exclamation-triangle"></i> Motivo da Notificação</h4>
-                                <p class="text-justify">
-                                    Constatamos <strong>${absences} faltas</strong> consecutivas/alternadas no período de <strong>${period}</strong>, sem justificativa legal apresentada à secretaria escolar.
-                                </p>
-                            </div>
 
-                            <div class="mb-6">
-                                <h4 class="font-bold border-b border-gray-300 mb-2 uppercase text-xs text-gray-500">Fundamentação Legal</h4>
-                                <p class="text-justify bg-gray-50 p-3 rounded border border-gray-200">
-                                    Conforme Art. 12 da LDB nº 9.394/96 e Estatuto da Criança e do Adolescente (ECA), a escola tem o dever de notificar os responsáveis legais quando a infrequência escolar ultrapassa os limites permitidos, visando garantir o direito à educação.
-                                </p>
-                            </div>
+                            <p class="text-justify indent-8">Prezados Senhores Pais ou Responsáveis,</p>
+                            <p class="text-justify indent-8 mt-2">
+                                Vimos por meio desta notificá-los que o(a) aluno(a) acima identificado(a) atingiu o número de <strong>${absences} faltas</strong> no período de <strong>${period}</strong>, configurando situação de risco escolar.
+                                Esta é a <strong>${record.actionType.split('_')[1] || '1'}ª tentativa</strong> de contato formal realizada pela escola.
+                            </p>
+                            <div class="my-4 p-3 bg-yellow-50 border-l-4 border-yellow-500 text-sm font-sans rounded"><p><strong>Fundamentação Legal:</strong> Conforme a LDB (Lei 9.394/96) e o ECA, é dever da família assegurar a frequência escolar.</p></div>
+
+
 
                             ${record.meetingDate ? `<p class="text-justify mt-4">Solicitamos comparecimento obrigatório na escola:</p><div class="my-4 mx-auto max-w-xs border border-gray-400 rounded p-3 text-center bg-white shadow-sm"><p class="font-bold text-lg">${formatDate(record.meetingDate)}</p><p class="font-semibold text-gray-700">${formatTime(record.meetingTime)}</p></div>` : `<div class="mt-6 p-4 text-center font-bold text-gray-800 bg-red-50 border border-red-200 rounded break-inside-avoid"><p class="uppercase text-xs text-red-600 mb-1">Atendimento Presencial</p>Favor comparecer à secretaria da escola com IMEDIATA URGÊNCIA.</div>`}
 
@@ -1497,7 +1492,14 @@ export const openFichaViewModal = async (id) => {
                 attemptsInfo = '<div class="mt-4"><p class="font-bold text-xs uppercase text-gray-500 mb-2">Tentativas de Contato Anteriores:</p>' + getAttemptsTableHTML(processActions, 'busca_ativa') + '</div>';
             }
 
-            bodyContent = `<p class="text-justify indent-8">Prezados Responsáveis,</p><p class="text-justify indent-8 mt-2">Comunicamos que o(a) aluno(a) acima identificado(a) atingiu o número de <strong>${formatText(absenceCount)} faltas</strong> no período de ${formatDate(periodoStart)} a ${formatDate(periodoEnd)}, configurando situação de risco escolar.</p><div class="my-4 p-3 bg-yellow-50 border-l-4 border-yellow-500 text-sm font-sans rounded"><p><strong>Fundamentação Legal:</strong> Conforme a LDB (Lei 9.394/96) e o ECA, é dever da família assegurar a frequência escolar.</p></div>${attemptsInfo}${record.meetingDate ? `<p class="text-justify mt-4">Solicitamos comparecimento obrigatório na escola:</p><div class="my-4 mx-auto max-w-xs border border-gray-400 rounded p-3 text-center bg-white shadow-sm"><p class="font-bold text-lg">${formatDate(record.meetingDate)}</p><p class="font-semibold text-gray-700">${formatTime(record.meetingTime)}</p></div>` : `<div class="mt-6 p-4 text-center font-bold text-gray-800 bg-red-50 border border-red-200 rounded break-inside-avoid"><p class="uppercase text-xs text-red-600 mb-1">Atendimento Presencial</p>Favor comparecer à secretaria da escola com IMEDIATA URGÊNCIA.</div>`}`;
+            const attemptNum = record.actionType.split('_')[1] || '1';
+            bodyContent = `
+            <p class="text-justify indent-8">Prezados Senhores Pais ou Responsáveis,</p>
+            <p class="text-justify indent-8 mt-2">
+                Vimos por meio desta notificá-los que o(a) aluno(a) acima identificado(a) atingiu o número de <strong>${formatText(absenceCount)} faltas</strong> no período de ${formatDate(periodoStart)} a ${formatDate(periodoEnd)}, configurando situação de risco escolar.
+                Esta é a <strong>${attemptNum}ª tentativa</strong> de contato formal realizada pela escola.
+            </p>
+            <div class="my-4 p-3 bg-yellow-50 border-l-4 border-yellow-500 text-sm font-sans rounded"><p><strong>Fundamentação Legal:</strong> Conforme a LDB (Lei 9.394/96) e o ECA, é dever da família assegurar a frequência escolar.</p></div>${attemptsInfo}${record.meetingDate ? `<p class="text-justify mt-4">Solicitamos comparecimento obrigatório na escola:</p><div class="my-4 mx-auto max-w-xs border border-gray-400 rounded p-3 text-center bg-white shadow-sm"><p class="font-bold text-lg">${formatDate(record.meetingDate)}</p><p class="font-semibold text-gray-700">${formatTime(record.meetingTime)}</p></div>` : `<div class="mt-6 p-4 text-center font-bold text-gray-800 bg-red-50 border border-red-200 rounded break-inside-avoid"><p class="uppercase text-xs text-red-600 mb-1">Atendimento Presencial</p>Favor comparecer à secretaria da escola com IMEDIATA URGÊNCIA.</div>`}`;
         } else if (record.actionType === 'visita') {
             bodyContent = `<p class="text-justify indent-8">Certifico que, nesta data, foi realizada Visita Domiciliar referente ao aluno(a) supracitado(a).</p><div class="mt-4 p-4 border rounded bg-gray-50 font-sans text-sm"><p><strong>Data da Visita:</strong> ${formatDate(record.visitDate)}</p><p><strong>Agente:</strong> ${formatText(record.visitAgent)}</p><p><strong>Resultado:</strong> ${record.visitSucceeded === 'yes' ? 'Contato Realizado' : 'Sem sucesso'}</p><p class="mt-2"><strong>Observações/Justificativa:</strong></p><p class="italic bg-white p-2 border rounded mt-1">${formatText(record.visitReason)} ${formatText(record.visitObs)}</p></div>`;
         }
