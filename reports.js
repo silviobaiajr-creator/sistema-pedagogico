@@ -156,6 +156,8 @@ const checkForRemoteSignParams = async () => {
                                 </p>
                             </div>
 
+                            ${record.meetingDate ? `<p class="text-justify mt-4">Solicitamos comparecimento obrigatório na escola:</p><div class="my-4 mx-auto max-w-xs border border-gray-400 rounded p-3 text-center bg-white shadow-sm"><p class="font-bold text-lg">${formatDate(record.meetingDate)}</p><p class="font-semibold text-gray-700">${formatTime(record.meetingTime)}</p></div>` : `<div class="mt-6 p-4 text-center font-bold text-gray-800 bg-red-50 border border-red-200 rounded break-inside-avoid"><p class="uppercase text-xs text-red-600 mb-1">Atendimento Presencial</p>Favor comparecer à secretaria da escola com IMEDIATA URGÊNCIA.</div>`}
+
                             <div class="mt-8 pt-4 border-t border-gray-300">
                                 <p class="font-bold text-xs uppercase text-gray-500 mb-2">Ciência do Responsável:</p>
                                 <p class="text-justify">
