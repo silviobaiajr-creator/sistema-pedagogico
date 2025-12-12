@@ -299,14 +299,16 @@ tbody tr:nth-child(even) {
     }
 
     /* 2. Esconde TUDO que não seja a área ativa */
-    body>*:not(.printable-area-active) {
+    /* 2. Esconde TUDO que não seja a área ativa (modal aberta) */
+    body > *:not(.printable-area) {
         display: none !important;
     }
 
     /* 3. Força a exibição da área ativa */
-    .printable-area-active {
+    /* 3. Força a exibição da área ativa (apenas a que não está hidden) */
+    .printable-area:not(.hidden) {
         display: block !important;
-        position: static !important;
+        position: absolute !important;
         top: 0 !important;
         left: 0 !important;
         width: 100% !important;
@@ -316,10 +318,13 @@ tbody tr:nth-child(even) {
         overflow: visible !important;
         opacity: 1 !important;
         visibility: visible !important;
+        z-index: 9999 !important;
+        background: white !important;
     }
 
     /* 4. Remove Flexbox e Scroll do Modal Content (EXCETO PARA ASSINATURAS) */
-    .printable-area-active .modal-content {
+    /* 4. Remove Flexbox e Scroll do Modal Content (EXCETO PARA ASSINATURAS) */
+    .printable-area:not(.hidden) .modal-content {
         display: block !important;
         position: static !important;
         width: 100% !important;
@@ -332,21 +337,22 @@ tbody tr:nth-child(even) {
     }
 
     /* 5. Mostra todo o conteúdo interno */
-    .printable-area-active .overflow-y-auto {
+    /* 5. Mostra todo o conteúdo interno */
+    .printable-area:not(.hidden) .overflow-y-auto {
         overflow: visible !important;
         height: auto !important;
         max-height: none !important;
     }
-
     /* 6. Esconde elementos de UI */
     .no-print {
         display: none !important;
     }
 
     /* 7. Zera margens internas */
-    .printable-area-active #notification-content,
-    .printable-area-active #report-view-content,
-    .printable-area-active #ficha-view-content {
+    /* 7. Zera margens internas */
+    .printable-area:not(.hidden) #notification-content,
+    .printable-area:not(.hidden) #report-view-content,
+    .printable-area:not(.hidden) #ficha-view-content {
         padding: 0 !important;
         margin: 0 !important;
     }
