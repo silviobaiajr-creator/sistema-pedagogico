@@ -1273,6 +1273,9 @@ const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
                 extraData: context.extraData
             };
 
+            // FIX: Context Extension for Save Logic
+            context.studentName = context.extraData?.studentName || context.name || 'Aluno';
+
             // Helper para salvar documento
             const saveDocLogic = async () => {
                 let docRealId = currentDocRefId;
@@ -1283,7 +1286,8 @@ const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
                     // Create
                     const newDocRef = await saveDocumentSnapshot(context.docType, context.title, newHtmlRaw.html, context.studentId, {
                         refId: context.refId,
-                        signatures: signaturesToSave
+                        signatures: signaturesToSave,
+                        studentName: context.studentName // FIX: Pass Student Name for Archive
                     });
                     docRealId = newDocRef.id;
                 } else {
@@ -1373,7 +1377,9 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
 
     let meetingDate = data[`meetingDate_${attemptCount}`] || (attemptCount === 1 ? data.meetingDate : null);
     let meetingTime = data[`meetingTime_${attemptCount}`] || (attemptCount === 1 ? data.meetingTime : null);
-    const uniqueRefId = `${incident.id}_attempt_${attemptCount}`;
+    // FIX: Include Student ID in RefID to prevent overwriting sharing the same attempt number
+    const uniqueRefId = `${incident.id}_${student.matricula}_attempt_${attemptCount}`;
+    // const uniqueRefId = `${incident.id}_attempt_${attemptCount}`;
 
     const generator = (dateObj) => {
         const currentDateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -1402,7 +1408,8 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
         date: data.date instanceof Date ? data.date.toISOString() : data.date,
         meetingDate: meetingDate instanceof Date ? meetingDate.toISOString() : meetingDate,
         meetingTime: meetingTime,
-        attemptCount: attemptCount
+        attemptCount: attemptCount,
+        studentName: student.name // FIX: Pass name for context
     };
 
     await renderDocumentModal('Notificação', 'notification-content', 'notificacao_ocorrencia', student.matricula, uniqueRefId, generator, extraData);
