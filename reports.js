@@ -45,35 +45,6 @@ const fetchClientMetadata = async () => {
     };
 };
 
-
-// --- HELPER COMPRESSÃO URL (Link Curto) ---
-const keyMap = {
-    absenceCount: 'ac', periodoFaltasStart: 'ps', periodoFaltasEnd: 'pe',
-    meetingDate: 'md', meetingTime: 'mt', actionType: 'at',
-    visitDate: 'vd', visitAgent: 'va', visitSucceeded: 'vs', visitReason: 'vr', visitObs: 'vo'
-};
-const revKeyMap = Object.entries(keyMap).reduce((acc, [k, v]) => ({ ...acc, [v]: k }), {});
-
-const compressExtraData = (data) => {
-    if (!data) return null;
-    const compressed = {};
-    for (const k in data) {
-        if (keyMap[k]) compressed[keyMap[k]] = data[k];
-        else compressed[k] = data[k]; // Mantém originais se não houver alias
-    }
-    return compressed;
-};
-
-const decompressExtraData = (data) => {
-    if (!data) return null;
-    const decompressed = {};
-    for (const k in data) {
-        if (revKeyMap[k]) decompressed[revKeyMap[k]] = data[k];
-        else decompressed[k] = data[k];
-    }
-    return decompressed;
-};
-
 // --- MODO "PARENT VIEW" (VISÃO DO PAI - LINK SEGURO) ---
 const checkForRemoteSignParams = async () => {
     const params = new URLSearchParams(window.location.search);
@@ -128,8 +99,7 @@ const checkForRemoteSignParams = async () => {
                             const dataParam = new URLSearchParams(window.location.search).get('data');
                             if (dataParam) {
                                 console.log("Using stateless data from URL (Busca Ativa)...");
-                                const rawData = JSON.parse(decodeURIComponent(dataParam));
-                                const extraData = decompressExtraData(rawData);
+                                const extraData = JSON.parse(decodeURIComponent(dataParam));
                                 record = {
                                     id: refId,
                                     studentId: studentId,
@@ -775,8 +745,7 @@ const setupSignaturePadEvents = () => {
                     if (window.currentDocParams.studentId && !linkParams.includes('student=')) linkParams += `&student=${window.currentDocParams.studentId}`;
 
                     if (window.currentDocParams.extraData && !linkParams.includes('data=')) {
-                        const compressed = compressExtraData(window.currentDocParams.extraData);
-                        const payload = encodeURIComponent(JSON.stringify(compressed));
+                        const payload = encodeURIComponent(JSON.stringify(window.currentDocParams.extraData));
                         linkParams += `&data=${payload}`;
                     }
                 }
