@@ -682,7 +682,7 @@ const setupSignaturePadEvents = () => {
     const localSelfie = document.getElementById('local-selfie-container');
 
     // --- LÓGICA DE ABAS ---
-    const switchTab = (tab) => {
+    const switchTab = async (tab) => {
         if (tab === 'draw') {
             contentDraw.classList.remove('hidden'); contentLink.classList.add('hidden');
             tabDraw.className = "flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition";
@@ -702,6 +702,21 @@ const setupSignaturePadEvents = () => {
             localOptions.classList.remove('hidden');
             localIdentity.classList.add('hidden');
             localSelfie.classList.add('hidden');
+
+            // --- AUTO-SAVE LOGIC FOR SHORT LINKS ---
+            if ((!currentDocumentIdForRemote || currentDocumentIdForRemote === 'temp' || currentDocumentIdForRemote.startsWith('temp')) && modal._onSaveCallback) {
+                const linkPreview = document.getElementById('generated-link-preview');
+                if (linkPreview) linkPreview.innerText = "Gerando Link Permanente...";
+
+                try {
+                    const newId = await modal._onSaveCallback();
+                    if (newId) {
+                        currentDocumentIdForRemote = newId;
+                    }
+                } catch (e) {
+                    console.error("Erro ao gerar link permanente:", e);
+                }
+            }
 
             // Gera Link
             const baseUrl = window.location.href.split('?')[0];
@@ -985,10 +1000,11 @@ const stopCameraStream = () => {
 
 // --- ABRIR MODAL ---
 // --- ABRIR MODAL ---
-const openSignaturePad = (key, docRefId, onConfirm) => {
+const openSignaturePad = (key, docRefId, onConfirm, onSave = null) => {
     ensureSignatureModalExists();
     const modal = document.getElementById('signature-pad-modal');
     modal._onConfirmCallback = onConfirm;
+    modal._onSaveCallback = onSave;
 
     currentDocumentKeyForRemote = key;
     currentDocumentIdForRemote = docRefId;
@@ -1257,53 +1273,45 @@ const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
                 extraData: context.extraData
             };
 
+            // Helper para salvar documento
+            const saveDocLogic = async () => {
+                let docRealId = currentDocRefId;
+                const signaturesToSave = Object.fromEntries(signatureMap);
+                const newHtmlRaw = await generateSmartHTML(context.docType, context.studentId, context.refId, context.generatorFn);
+
+                if (!docRealId || docRealId === 'temp' || docRealId === 'undefined' || docRealId.startsWith('temp')) {
+                    // Create
+                    const newDocRef = await saveDocumentSnapshot(context.docType, context.title, newHtmlRaw.html, context.studentId, {
+                        refId: context.refId,
+                        signatures: signaturesToSave
+                    });
+                    docRealId = newDocRef.id;
+                } else {
+                    // Update
+                    await updateDocumentSignatures(docRealId, signatureMap, newHtmlRaw.html);
+                }
+
+                // Atualiza referência local para próximas chamadas
+                currentDocRefId = docRealId;
+                if (contentDiv) contentDiv.setAttribute('data-doc-ref-id', docRealId);
+
+                return docRealId;
+            };
+
             openSignaturePad(key, currentDocRefId, async (data) => {
                 // 1. ATUALIZA MEMÓRIA LOCAL
                 signatureMap.set(key, data);
                 showToast("Assinatura coletada! Processando...");
 
-                // 2. LÓGICA DE SALVAMENTO (SAVE ON SIGN)
-                // Se é 'temp' ou nulo, CRIAMOS o documento agora.
-                // Se já existe, ATUALIZAMOS.
-
                 try {
-                    let docRealId = currentDocRefId;
-                    const signaturesToSave = Object.fromEntries(signatureMap);
+                    // 2. SALVA O DOCUMENTO (E ASSINATURA)
+                    const docId = await saveDocLogic();
+                    showToast("Assinatura registrada no doc " + docId);
 
-                    // REGENERAR HTML ATUALIZADO (IMPORTANTE: O HTML salvo deve ter a assinatura!)
-                    // Mas o 'reRenderCallback' vai gerar o visual novo. 
-                    // Precisamos do HTML *string* para salvar.
-                    // O generatorFn pode ser chamado novamente.
-                    // O generatorFn pode ser chamado novamente.
-                    const newHtmlRaw = await generateSmartHTML(context.docType, context.studentId, context.refId, context.generatorFn);
-                    // O generateSmartHTML retorna {html, docId}. O html INCLUI as assinaturas do signatureMap (que acabamos de atualizar).
-                    // Então 'newHtmlRaw.html' é o que queremos salvar.
-
-                    if (!docRealId || docRealId === 'temp' || docRealId === 'undefined') {
-                        // CRIA NOVO
-                        console.log("Criando novo documento via assinatura local...");
-                        const newDocRef = await saveDocumentSnapshot(context.docType, context.title, newHtmlRaw.html, context.studentId, {
-                            refId: context.refId,
-                            signatures: signaturesToSave
-                        });
-                        docRealId = newDocRef.id;
-                        showToast("Documento salvo e assinado!");
-                    } else {
-                        // ATUALIZA EXISTENTE
-                        console.log("Atualizando documento existente...", docRealId);
-                        await updateDocumentSignatures(docRealId, signatureMap, newHtmlRaw.html);
-                        showToast("Assinatura registrada!");
-                    }
-
-                    // 3. REFLETE NA UI GLOBAL (SE LISTA ESTIVER VISÍVEL)
-                    // Atualiza a lista de documentos em memória se necessário
-                    const docIndex = state.documents.findIndex(d => d.id === docRealId);
+                    // 3. REFLETE NA UI GLOBAL
+                    const docIndex = state.documents.findIndex(d => d.id === docId);
                     if (docIndex > -1) {
-                        state.documents[docIndex].signatures = signaturesToSave;
-                        state.documents[docIndex].htmlContent = newHtmlRaw.html;
-                    } else {
-                        // Se era novo, adiciona? Ou força refresh? 
-                        // Melhor não mexer muito no state global complexo aqui, o refresh acontece ao abrir a aba.
+                        // Atualiza estado se possível (opcional, pois o reRender vai buscar do banco ou usar signatureMap)
                     }
 
                 } catch (err) {
@@ -1313,6 +1321,9 @@ const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
 
                 // 4. RE-RENDERIZA A VISUALIZAÇÃO ATUAL
                 reRenderCallback();
+            }, async () => {
+                // Callback onSave (Aba Link)
+                return await saveDocLogic();
             });
         };
     });
@@ -1358,7 +1369,7 @@ export const openIndividualNotificationModal = async (incident, studentObj, spec
     if (!data) return showToast(`Erro: Registro não encontrado.`);
 
     const student = await resolveStudentData(studentObj.matricula, data);
-    let attemptCount = specificAttempt || (data.contactSucceeded_1 ? (data.contactSucceeded_2 ? 3 : 2) : 1);
+    let attemptCount = specificAttempt ? parseInt(specificAttempt) : (data.contactSucceeded_1 ? (data.contactSucceeded_2 ? 3 : 2) : 1);
 
     let meetingDate = data[`meetingDate_${attemptCount}`] || (attemptCount === 1 ? data.meetingDate : null);
     let meetingTime = data[`meetingTime_${attemptCount}`] || (attemptCount === 1 ? data.meetingTime : null);
