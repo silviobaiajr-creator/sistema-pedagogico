@@ -1213,16 +1213,30 @@ async function generateSmartHTML(docType, studentId, refId, htmlGeneratorFn) {
     const existingDoc = await findDocumentSnapshot(docType, studentId, refId);
 
     // 2. Se houver dados no banco, atualiza o mapa local APENAS se não tivermos uma versão mais nova localmente
-    // A chave aqui é que signatureMap "vence" se já tiver algo gravado na sessão atual
     if (existingDoc && existingDoc.signatures) {
         Object.entries(existingDoc.signatures).forEach(([k, v]) => {
             if (!signatureMap.has(k)) {
                 signatureMap.set(k, v);
             }
         });
+
+        // LOCK FIX: Se já tem assinatura, OBRIGA o uso do HTML salvo (Snapshot Real).
+        // Isso evita que edições no formulário de ocorrência "vazem" visualmente para um documento já assinado.
+        if (Object.keys(existingDoc.signatures).length > 0 && existingDoc.htmlContent) {
+            console.log("Documento bloqueado (assinado): Usando snapshot salvo.");
+
+            // Re-injeta rodapé de impressão se não tiver (legado) ou se for seguro
+            let safeHtml = existingDoc.htmlContent;
+            if (!safeHtml.includes('print-footer')) {
+                const newDate = existingDoc.createdAt?.toDate() || new Date();
+                safeHtml += getPrintFooterHTML(existingDoc.id, newDate);
+            }
+            return { html: safeHtml, docId: existingDoc.id };
+        }
     }
 
     // 3. Gera o HTML usando o mapa atualizado (seja do banco ou da memória local)
+    // Se chegou aqui, ou não existe doc, ou existe mas não tem signatures (então é rascunho mutável)
     const newDate = existingDoc?.createdAt?.toDate() || new Date();
     let html = htmlGeneratorFn(newDate);
 
