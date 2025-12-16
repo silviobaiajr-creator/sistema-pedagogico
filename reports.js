@@ -1314,8 +1314,8 @@ const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
             // Helper para salvar documento
             const saveDocLogic = async () => {
                 let docRealId = currentDocRefId;
-                const signaturesToSave = Object.fromEntries(signatureMap);
                 const newHtmlRaw = await generateSmartHTML(context.docType, context.studentId, context.refId, context.generatorFn);
+                const signaturesToSave = Object.fromEntries(signatureMap); // Moved AFTER generateSmartHTML to include merged DB sigs
 
                 if (!docRealId || docRealId === 'temp' || docRealId === 'undefined' || docRealId.startsWith('temp')) {
                     // Create (or Find if exists but untracked)
