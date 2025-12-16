@@ -454,7 +454,11 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
                 if (currentData.signatures && Object.keys(currentData.signatures).length > 0) {
                     // Verifica se estamos tentando mudar o conteúdo
                     if (htmlContent !== currentData.htmlContent) {
-                        throw new Error("SEGURANÇA: Este documento já foi assinado e não pode ser alterado. Crie uma nova versão se necessário.");
+                        console.warn("SEGURANÇA: Tentativa de alterar doc assinado. Retornando original.");
+                        // Em vez de erro fatal, retornamos a referência do documento existente.
+                        // Isso permite que o fluxo de geração de link obtenha o ID sem quebrar,
+                        // mas MANTÉM o conteúdo original protegido (imutabilidade).
+                        return docToUpdate.ref;
                     }
                 }
 
