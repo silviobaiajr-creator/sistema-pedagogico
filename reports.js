@@ -741,6 +741,7 @@ const setupSignaturePadEvents = () => {
                 } catch (e) {
                     console.error("Erro ao gerar link permanente:", e);
                     if (linkPreview) linkPreview.textContent = `Erro: ${e.message || "Falha ao salvar."}`;
+                    return; // STOP execution to preserve the error message
                 }
             }
 
