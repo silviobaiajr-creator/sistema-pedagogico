@@ -75,9 +75,9 @@ export const checkForRemoteSignParams = async () => {
         }
     }
 
-    const refId = params.get('refId');
-    const type = params.get('type');
-    const studentId = params.get('student');
+    let refId = params.get('refId');
+    let type = params.get('type');
+    let studentId = params.get('student');
 
     if (mode === 'sign') {
         console.log("Modo de Assinatura Remota Detectado");
