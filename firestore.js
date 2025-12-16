@@ -449,6 +449,15 @@ export const saveDocumentSnapshot = async (docType, title, htmlContent, studentI
 
                 const currentData = docToUpdate.data();
 
+                // LOCK: Se já tem assinaturas, NÃO PERMITE alterar o conteúdo (HTML/Título)
+                // Apenas updateDocumentSignatures pode alterar assinaturas.
+                if (currentData.signatures && Object.keys(currentData.signatures).length > 0) {
+                    // Verifica se estamos tentando mudar o conteúdo
+                    if (htmlContent !== currentData.htmlContent) {
+                        throw new Error("SEGURANÇA: Este documento já foi assinado e não pode ser alterado. Crie uma nova versão se necessário.");
+                    }
+                }
+
                 // Atualiza se houver mudança de conteúdo OU se tivermos novas assinaturas para gravar
                 await updateDoc(doc(documentsRef, docToUpdate.id), {
                     title: title,

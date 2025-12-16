@@ -8,6 +8,7 @@ import { state, dom } from './state.js';
 import { formatDate, formatTime, formatText, showToast, openModal, closeModal, getStatusBadge } from './utils.js';
 import { roleIcons, defaultRole, getFilteredOccurrences } from './logic.js';
 import { getIncidentByGroupId as fetchIncidentById, getStudentById, getOccurrencesForReport, getAbsencesForReport, saveDocumentSnapshot, findDocumentSnapshot, getLegalDocumentById, updateDocumentSignatures } from './firestore.js';
+import { getOrCreateShortLink, resolveShortCode } from './url_shortener.js';
 
 
 export const actionDisplayTitles = {
@@ -45,11 +46,35 @@ const fetchClientMetadata = async () => {
     };
 };
 
-// --- MODO "PARENT VIEW" (VISÃO DO PAI - LINK SEGURO) ---
-const checkForRemoteSignParams = async () => {
+// --- CHECAR ASSINATURA REMOTA AO CARREGAR ---
+export const checkForRemoteSignParams = async () => {
     const params = new URLSearchParams(window.location.search);
-    const mode = params.get('mode');
-    const docId = params.get('docId');
+    let mode = params.get('mode');
+    let docId = params.get('docId'); // Initialize docId from URL params
+
+    // NOVO: Verifica Short Code
+    const code = params.get('code');
+    if (code) {
+        showToast("Carregando documento via link curto...", "info");
+        const resolvedDocId = await resolveShortCode(code);
+        if (resolvedDocId) {
+            docId = resolvedDocId; // Override docId if resolved from short code
+            mode = 'sign'; // Ensure mode is 'sign' if we resolved a docId from a short code
+            // No need to modify params object directly, as we've updated the local variables
+        } else {
+            showToast("Link inválido ou expirado.", "error");
+            // Display a message to the user and stop processing
+            document.body.innerHTML = `
+                <div id="remote-sign-container" class="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4 font-sans">
+                    <div class="bg-white p-8 rounded-lg shadow-xl mt-10 text-center">
+                        <h1 class="text-2xl font-bold text-red-600 mb-2">Link Inválido ou Expirado</h1>
+                        <p class="mb-4">Não foi possível carregar o documento. Por favor, verifique o link ou entre em contato com a escola.</p>
+                    </div>
+                </div>`;
+            return;
+        }
+    }
+
     const refId = params.get('refId');
     const type = params.get('type');
     const studentId = params.get('student');
@@ -723,53 +748,47 @@ const setupSignaturePadEvents = () => {
             const sName = encodeURIComponent(state.config?.schoolName || 'Escola');
             const sLogo = encodeURIComponent(state.config?.schoolLogoUrl || '');
 
-            // MUDANÇA: Link Curto se tiver ID
-            let linkParams = `mode=sign`;
-
+            // MUDANÇA: Link Curto via Código 6 Dígitos
+            // 1. Garante que temos um ID real (já deve ter sido salvo pelo auto-save acima)
             if (currentDocumentIdForRemote && currentDocumentIdForRemote !== 'temp' && !currentDocumentIdForRemote.startsWith('temp')) {
-                linkParams += `&docId=${currentDocumentIdForRemote}`;
-                // Opcional: Adicionar studentId para verificação extra se falhar busca por ID
-                const studentIdParts = currentDocumentKeyForRemote.split('_');
-                if (studentIdParts.length > 1) linkParams += `&student=${studentIdParts[1]}`;
+                const linkPreview = document.getElementById('generated-link-preview');
+                const whatsappBtn = document.getElementById('btn-send-whatsapp'); // Corrected ID
+                const copyBtn = document.getElementById('copy-link-btn'); // Assuming this button exists or will be added
+
+                // 2. Gera/Busca o código curto
+                getOrCreateShortLink(currentDocumentIdForRemote).then(shortCode => {
+                    const shortLink = `${baseUrl}?code=${shortCode}`;
+
+                    // Atualiza UI com Link Curto
+                    if (linkPreview) linkPreview.textContent = shortLink;
+
+                    if (whatsappBtn) {
+                        // Mensagem mais amigável
+                        const msg = `Olá, por favor assine o documento digital da escola: ${shortLink}`;
+                        whatsappBtn.onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                    }
+
+                    if (copyBtn) {
+                        copyBtn.onclick = () => {
+                            navigator.clipboard.writeText(shortLink);
+                            showToast('Link curto copiado!');
+                        };
+                    }
+
+                }).catch(err => {
+                    console.error("Falha ao encurtar link, usando padrão:", err);
+                    // Fallback para link longo
+                    const longLink = `${baseUrl}?mode=sign&docId=${currentDocumentIdForRemote}`;
+                    if (linkPreview) linkPreview.textContent = longLink;
+                    if (whatsappBtn) {
+                        whatsappBtn.onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(`Link para assinatura: ${longLink}`)}`, '_blank');
+                    }
+                });
             } else {
-                // Link Completo (Novo Doc)
-                const sName = encodeURIComponent(state.config?.schoolName || 'Escola');
-                const sLogo = encodeURIComponent(state.config?.schoolLogoUrl || '');
-                linkParams += `&type=notificacao&schoolInfo=${sName}&schoolLogo=${sLogo}`; // Default type
-
-                // ... (rest errors fallback)
-                // Usar params injetados
-            }
-            // Fallback params globais que podem ser úteis mesmo com ID para stateless checks
-            if (window.currentDocParams) { // Injetado no click
-                // Sobrescreve params se necessário ou adiciona
-                // MUDANÇA: Link Curto agressivo se tiver ID
-                if (linkParams.includes('docId=')) {
-                    // Se já tem docId, NÃO precisamos de extraData, refId, type ou student para reconstrução, 
-                    // pois o documento já existe no banco.
-                    // Apenas mantemos params de configuração visual se necessário, mas o ideal é link MÍNIMO.
-                    // Vamos limpar tudo que não for essencial.
-                } else {
-                    // Se NÃO tem docId (novo doc), aí sim precisamos de tudo.
-                    if (!linkParams.includes('refId=') && window.currentDocParams.refId) linkParams += `&refId=${window.currentDocParams.refId}`;
-
-                    if (window.currentDocParams.type) {
-                        if (linkParams.includes('type=')) linkParams = linkParams.replace(/type=[^&]*/, `type=${window.currentDocParams.type}`);
-                        else linkParams += `&type=${window.currentDocParams.type}`;
-                    }
-                    if (window.currentDocParams.studentId && !linkParams.includes('student=')) linkParams += `&student=${window.currentDocParams.studentId}`;
-
-                    if (window.currentDocParams.extraData && !linkParams.includes('data=')) {
-                        const payload = encodeURIComponent(JSON.stringify(window.currentDocParams.extraData));
-                        linkParams += `&data=${payload}`;
-                    }
-                }
+                document.getElementById('generated-link-preview').textContent = "Erro: Salve o documento primeiro.";
+                document.getElementById('btn-send-whatsapp').onclick = null; // Disable WhatsApp button
             }
 
-
-            const fullLink = `${baseUrl}?${linkParams}`;
-            document.getElementById('generated-link-preview').innerText = fullLink;
-            document.getElementById('btn-send-whatsapp').onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(`Link para assinatura: ${fullLink}`)}`, '_blank');
         }
     };
 
