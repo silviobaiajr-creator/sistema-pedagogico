@@ -1252,7 +1252,7 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
 
     const contentDiv = document.getElementById(contentDivId);
     contentDiv.innerHTML = html;
-    // contentDiv.setAttribute('data-doc-ref-id', docId || 'temp'); // removido para evitar confusão se não salvou
+    contentDiv.setAttribute('data-doc-ref-id', docId || 'temp');
 
     const titleId = contentDivId.replace('content', 'title');
     const titleEl = document.getElementById(titleId);
