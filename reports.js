@@ -1241,8 +1241,26 @@ async function generateSmartHTML(docType, studentId, refId, htmlGeneratorFn) {
         if (Object.keys(existingDoc.signatures).length > 0 && existingDoc.htmlContent) {
             console.log("Documento bloqueado (assinado): Usando snapshot salvo.");
 
-            // Re-injeta rodapé de impressão se não tiver (legado) ou se for seguro
             let safeHtml = existingDoc.htmlContent;
+
+            // FIX: INJEÇÃO DE ASSINATURA DA GESTÃO (PREVINE QUE FIQUE INVISÍVEL EM DOCS TRAVADOS)
+            // Se temos uma assinatura de gestão recém-coletada (ou no banco), mas o HTML travado mostra "Aguardando", fazemos update visual
+            if (signatureMap.has('management')) {
+                const mgmtSig = signatureMap.get('management');
+                // Regex para achar o slot da gestão (assinada ou não)
+                const mgmtRegex = /<div[^>]+data-sig-key="management"[^>]*>[\s\S]*?<\/div>/i;
+
+                // Gera o HTML atualizado apenas deste bloco
+                const newMgmtHtml = getSingleSignatureBoxHTML('management', 'Gestão', state.config?.schoolName || 'Direção', mgmtSig);
+
+                // Substitui no HTML travado
+                if (safeHtml.match(mgmtRegex)) {
+                    safeHtml = safeHtml.replace(mgmtRegex, newMgmtHtml);
+                    console.log("Injeção de assinatura da gestão realizada com sucesso.");
+                }
+            }
+
+            // Re-injeta rodapé de impressão se não tiver (legado) ou se for seguro
             if (!safeHtml.includes('print-footer')) {
                 const newDate = existingDoc.createdAt?.toDate() || new Date();
                 safeHtml += getPrintFooterHTML(existingDoc.id, newDate);
