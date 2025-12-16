@@ -80,7 +80,7 @@ export const renderDocuments = async (filterText = '') => {
                             <p><i class="far fa-calendar-alt mr-1"></i> Emitido em: ${dateStr}</p>
                             <p><i class="far fa-user mr-1"></i> Por: ${doc.createdBy || 'Sistema'}</p>
                         </div>
-                        ${doc.studentName ? `<p class="text-xs font-semibold text-gray-600 mt-2 bg-gray-50 inline-block px-2 py-1 rounded"><i class="fas fa-user-graduate mr-1"></i> ${doc.studentName}</p>` : ''}
+                        ${doc.studentName ? `<p class="text-sm font-bold text-sky-900 mt-2 bg-sky-50 inline-block px-3 py-1 rounded border border-sky-100 shadow-sm"><i class="fas fa-user-graduate mr-2 text-sky-600"></i> ${doc.studentName.toUpperCase()}</p>` : ''}
                     </div>
                 </div>
                 <button class="view-snapshot-btn bg-white text-sky-700 hover:bg-sky-50 px-4 py-2 rounded-lg text-sm font-semibold border border-sky-200 shadow-sm transition whitespace-nowrap"

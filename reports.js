@@ -142,6 +142,7 @@ export const checkForRemoteSignParams = async () => {
                                 record = {
                                     id: refId,
                                     studentId: studentId,
+                                    studentName: extraData.studentName, // Capture name statelessly
                                     absenceCount: extraData.absenceCount,
                                     periodoFaltasStart: extraData.periodoFaltasStart, // Note key mapping
                                     periodoFaltasEnd: extraData.periodoFaltasEnd,
@@ -347,43 +348,100 @@ export const checkForRemoteSignParams = async () => {
             }
 
 
-            // FASE 1: DESAFIO DE IDENTIDADE
+            // FASE 1: DESAFIO DE IDENTIDADE (VISUAL MELHORADO PARA ANALFABETOS)
             const renderIdentityChallenge = () => {
                 const docTypeLabel = type ? type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ') : 'Documento Oficial';
 
+                // Tenta extrair dados extras para visualização
+                let studentNameDisplay = "Aluno(a)";
+                let dateDisplay = new Date().toLocaleDateString('pt-BR');
+                let timeDisplay = "";
+                let alertColor = "bg-sky-50 border-sky-200 text-sky-800";
+                let iconClass = "fa-file-alt";
+
+                // Se temos snapshot, tentamos pegar do título ou metadados
+                if (docSnapshot && docSnapshot.studentName) studentNameDisplay = docSnapshot.studentName;
+
+                // Se foi reconstruído (stateless), tentamos pegar dos parâmetros
+                const debugParams = new URLSearchParams(window.location.search); // Re-read params
+                const dataParam = debugParams.get('data');
+                if (dataParam) {
+                    try {
+                        const d = JSON.parse(decodeURIComponent(dataParam));
+                        if (d.studentName) studentNameDisplay = d.studentName;
+                        if (d.meetingDate) {
+                            const md = new Date(d.meetingDate);
+                            dateDisplay = md.toLocaleDateString('pt-BR');
+                            if (d.meetingTime) timeDisplay = d.meetingTime;
+                        }
+                    } catch (e) { }
+                }
+
+                // Definição de Cores/Ícones por Tipo
+                if (type && type.includes('notificacao')) { alertColor = "bg-orange-50 border-orange-200 text-orange-800"; iconClass = "fa-bell"; }
+                if (type === 'ocorrencia' || (type && type.includes('ocorrencia'))) { alertColor = "bg-red-50 border-red-200 text-red-800"; iconClass = "fa-exclamation-circle"; }
+
                 container.innerHTML = `
-                    <div class="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden font-sans">
-                        <div class="bg-white p-6 text-center border-b border-gray-100 pb-8 pt-8">
-                            ${urlLogo ? `<div class="mb-4 flex justify-center"><img src="${urlLogo}" class="h-24 object-contain"></div>` : '<div class="h-20 w-20 bg-sky-50 rounded-full mx-auto mb-4 flex items-center justify-center"><i class="fas fa-university text-sky-600 text-3xl"></i></div>'}
-                            <h2 class="text-xl font-extrabold text-gray-900 uppercase leading-snug px-4">${formatText(urlSchoolName)}</h2>
-                            <div class="mt-3">
-                                <span class="inline-block bg-sky-50 text-sky-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider border border-sky-100">
-                                    ${docTypeLabel}
-                                </span>
+                    <div class="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden font-sans border-t-4 border-sky-600">
+                        <div class="bg-white p-6 text-center border-b border-gray-100 pb-6 pt-8">
+                            ${urlLogo ? `<div class="mb-4 flex justify-center"><img src="${urlLogo}" class="h-28 object-contain"></div>` : '<div class="h-24 w-24 bg-sky-50 rounded-full mx-auto mb-4 flex items-center justify-center"><i class="fas fa-university text-sky-600 text-4xl"></i></div>'}
+                            <h2 class="text-xl font-black text-gray-900 uppercase leading-snug px-4">${formatText(urlSchoolName)}</h2>
+                            <p class="text-xs font-bold text-gray-400 uppercase mt-1">Sistema de Acompanhamento Escolar</p>
+                        </div>
+
+                        <!-- CARD VISUAL DE RESUMO (FACILITA LEITURA) -->
+                        <div class="px-6 py-2">
+                            <div class="${alertColor} border rounded-lg p-4 flex flex-col gap-3 shadow-sm">
+                                <div class="flex items-center gap-3 border-b border-black/10 pb-2">
+                                    <div class="bg-white p-2 rounded-full shadow-sm"><i class="fas ${iconClass} text-xl"></i></div>
+                                    <div>
+                                        <p class="text-[10px] uppercase font-bold opacity-70">Tipo do Documento</p>
+                                        <p class="text-sm font-black leading-tight uppercase">${docTypeLabel}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <div class="bg-white p-2 rounded-full shadow-sm"><i class="fas fa-user-graduate text-xl"></i></div>
+                                    <div>
+                                        <p class="text-[10px] uppercase font-bold opacity-70">Aluno(a)</p>
+                                        <p class="text-sm font-black leading-tight uppercase">${formatText(studentNameDisplay)}</p>
+                                    </div>
+                                </div>
+                                ${(timeDisplay || dateDisplay) ? `
+                                <div class="flex items-center gap-3 border-t border-black/10 pt-2">
+                                    <div class="bg-white p-2 rounded-full shadow-sm"><i class="fas fa-clock text-xl"></i></div>
+                                    <div>
+                                        <p class="text-[10px] uppercase font-bold opacity-70">Data de Comparecimento</p>
+                                        <p class="text-sm font-black leading-tight uppercase text-red-600">${dateDisplay} ${timeDisplay ? 'às ' + timeDisplay : ''}</p>
+                                    </div>
+                                </div>` : ''}
                             </div>
                         </div>
-                        <div class="p-8 space-y-5 bg-gray-50/50">
-                            <div class="text-center mb-2">
-                                <h3 class="text-lg font-bold text-gray-800">Área de Assinatura</h3>
-                                <p class="text-sm text-gray-500">Confirme sua identidade para acessar.</p>
+
+                        <div class="p-6 space-y-6">
+                            <div class="text-center">
+                                <h3 class="text-lg font-bold text-gray-800 uppercase">Assinatura do Responsável</h3>
+                                <p class="text-sm text-gray-500">Confirme sua identidade para liberar o acesso.</p>
                             </div>
                             
-                            <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Seu Nome Completo</label>
-                                <div class="relative">
-                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-user text-gray-400"></i></div>
-                                    <input id="input-signer-name" type="text" class="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none uppercase text-sm font-semibold text-gray-700 transition" placeholder="DIGITE SEU NOME">
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Seu Nome Completo</label>
+                                    <div class="relative group">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-user text-gray-400 group-focus-within:text-sky-500 transition"></i></div>
+                                        <input id="input-signer-name" type="text" class="w-full pl-10 p-4 border-2 border-gray-200 rounded-xl focus:ring-0 focus:border-sky-500 outline-none uppercase text-sm font-bold text-gray-800 transition bg-gray-50 focus:bg-white" placeholder="DIGITE SEU NOME">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Seu CPF</label>
+                                    <div class="relative group">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-id-card text-gray-400 group-focus-within:text-sky-500 transition"></i></div>
+                                        <input id="input-signer-cpf" type="tel" class="w-full pl-10 p-4 border-2 border-gray-200 rounded-xl focus:ring-0 focus:border-sky-500 outline-none text-base font-mono font-bold text-gray-800 transition bg-gray-50 focus:bg-white" placeholder="000.000.000-00" maxlength="14">
+                                    </div>
                                 </div>
                             </div>
-                            <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Seu CPF</label>
-                                <div class="relative">
-                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-id-card text-gray-400"></i></div>
-                                    <input id="input-signer-cpf" type="tel" class="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none text-sm font-mono font-semibold text-gray-700 transition" placeholder="000.000.000-00" maxlength="14">
-                                </div>
-                            </div>
-                            <button id="btn-access-doc" class="w-full mt-2 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3.5 px-4 rounded-lg shadow-lg hover:shadow-xl transition transform active:scale-95 flex justify-center items-center gap-2">
-                                <span>CONTINUAR</span> <i class="fas fa-arrow-right"></i>
+
+                            <button id="btn-access-doc" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-4 px-4 rounded-xl shadow-lg hover:shadow-xl transition transform active:scale-95 flex justify-center items-center gap-3 text-sm uppercase tracking-wide">
+                                <span>Liberar Documento</span> <i class="fas fa-arrow-right"></i>
                             </button>
                         </div>
                     </div>
@@ -399,8 +457,8 @@ export const checkForRemoteSignParams = async () => {
                 document.getElementById('btn-access-doc').onclick = () => {
                     const name = document.getElementById('input-signer-name').value.trim();
                     const cpf = document.getElementById('input-signer-cpf').value.trim();
-                    if (name.length < 5) { alert("Nome inválido."); return; }
-                    if (cpf.length < 11) { alert("CPF inválido."); return; }
+                    if (name.length < 5) { alert("Por favor, digite seu nome completo."); return; }
+                    if (cpf.length < 11) { alert("Por favor, digite um CPF válido."); return; }
                     renderDocumentView({ name, cpf });
                 };
             };
@@ -557,27 +615,25 @@ export const checkForRemoteSignParams = async () => {
                         if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
 
                         container.innerHTML = `
-                        <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans">
-                            <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full max-w-md border-t-8 border-green-500">
-                                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                                    <i class="fas fa-check text-2xl text-green-600"></i>
+                        <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans max-w-3xl mx-auto">
+                            <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full border-t-8 border-green-500">
+                                <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
+                                    <i class="fas fa-check text-4xl text-green-600"></i>
                                 </div>
-                                <h1 class="text-2xl font-bold text-gray-800 mb-2">Assinado com Sucesso!</h1>
-                                <p class="text-gray-600 text-sm mb-6">O documento foi registrado no sistema.</p>
+                                <h1 class="text-3xl font-black text-gray-900 mb-2 uppercase">Assinado com Sucesso!</h1>
+                                <p class="text-gray-600 font-medium mb-8">O documento foi registrado no sistema e já pode ser baixado.</p>
                                 
-                                <div class="space-y-3">
-                                    <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Olá, segue o link para acessar o documento assinado digitalmente: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
-                                        <i class="fab fa-whatsapp text-2xl"></i> 
-                                        <span>Enviar Comprovante (WhatsApp)</span>
+                                <div class="space-y-4 max-w-sm mx-auto">
+                                    <!-- BOTÃO UNIFICADO (VERDE) PARA DOWNLOAD/IMPRESSÃO -->
+                                    <button onclick="window.print()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
+                                        <i class="fas fa-file-download text-2xl"></i> 
+                                        <span>BAIXAR CÓPIA (PDF)</span>
                                     </button>
                                     
-                                    <button onclick="window.print()" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
-                                        <i class="fas fa-print text-xl"></i> 
-                                        <span>Imprimir / Salvar PDF</span>
-                                    </button>
+                                     <p class="text-[10px] text-gray-400 mt-4">Clique acima para salvar a imagem ou PDF do documento assinado.</p>
                                 </div>
-                                <div class="mt-6 pt-4 border-t border-gray-100">
-                                    <p class="text-[10px] text-gray-400">Escola: ${formatText(urlSchoolName)}</p>
+                                <div class="mt-8 pt-6 border-t border-gray-100">
+                                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">${formatText(urlSchoolName)}</p>
                                 </div>
                             </div>
                         </div>
@@ -780,8 +836,13 @@ const setupSignaturePadEvents = () => {
 
                     if (whatsappBtn) {
                         // Mensagem mais amigável
-                        const msg = `Olá, por favor assine o documento digital da escola: ${shortLink}`;
-                        whatsappBtn.onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                        if (whatsappBtn) {
+                            // Mensagem rica para WhatsApp (Visual para Analfabetos/Fácil Leitura)
+                            const sName = window.currentDocParams?.studentName || "Aluno";
+                            const dType = window.currentDocParams?.type ? window.currentDocParams.type.toUpperCase() : "DOCUMENTO";
+                            const msg = `🏫 *ESCOLA DIGITAL*\n\n📄 *Documento:* ${dType}\n👤 *Aluno(a):* ${sName}\n\n👇 *CLIQUE NO LINK PARA ASSINAR:*\n${shortLink}`;
+                            whatsappBtn.onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                        }
                     }
 
                     if (copyBtn) {
@@ -797,7 +858,11 @@ const setupSignaturePadEvents = () => {
                     const longLink = `${baseUrl}?mode=sign&docId=${currentDocumentIdForRemote}`;
                     if (linkPreview) linkPreview.textContent = longLink;
                     if (whatsappBtn) {
-                        whatsappBtn.onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(`Link para assinatura: ${longLink}`)}`, '_blank');
+                        // Mensagem rica para WhatsApp (Visual para Analfabetos/Fácil Leitura)
+                        const sName = window.currentDocParams?.studentName || "Aluno";
+                        const dType = window.currentDocParams?.type ? window.currentDocParams.type.toUpperCase() : "DOCUMENTO";
+                        const msg = `🏫 *ESCOLA DIGITAL*\n\n📄 *Documento:* ${dType}\n👤 *Aluno(a):* ${sName}\n\n👇 *CLIQUE NO LINK PARA ASSINAR:*\n${shortLink}`;
+                        whatsappBtn.onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
                     }
                 });
             } else {
