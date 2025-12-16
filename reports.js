@@ -97,11 +97,25 @@ export const checkForRemoteSignParams = async () => {
         try {
             let docSnapshot = null;
 
-            // 1. TENTA BUSCAR SNAPSHOT EXISTENTE
             if (docId) {
                 docSnapshot = await getLegalDocumentById(docId);
             } else if (refId && type) {
                 docSnapshot = await findDocumentSnapshot(type, studentId, refId);
+            }
+
+            // FIX: MERGE EXISTING SIGNATURES IMMEDIATELY
+            // This ensures remote signer has the full history even if generateSmartHTML's internal lookup fails or is bypassed
+            if (docSnapshot) {
+                if (docSnapshot.signatures) {
+                    Object.entries(docSnapshot.signatures).forEach(([k, v]) => {
+                        signatureMap.set(k, v);
+                    });
+                    console.log("Assinaturas remotas carregadas:", signatureMap.size);
+                }
+                // Ensure RefID is consistent (critical for short links where URL params are missing)
+                if (docSnapshot.refId && !refId) refId = docSnapshot.refId;
+                if (docSnapshot.type && !type) type = docSnapshot.type;
+                if (docSnapshot.studentId && !studentId) studentId = docSnapshot.studentId;
             }
 
             // 2. REGENERAÇÃO ON-THE-FLY (Se não achou snapshot salvo e temos REFID)
