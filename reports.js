@@ -740,6 +740,7 @@ const setupSignaturePadEvents = () => {
                     }
                 } catch (e) {
                     console.error("Erro ao gerar link permanente:", e);
+                    if (linkPreview) linkPreview.textContent = `Erro: ${e.message || "Falha ao salvar."}`;
                 }
             }
 
@@ -1316,13 +1317,30 @@ const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
                 const newHtmlRaw = await generateSmartHTML(context.docType, context.studentId, context.refId, context.generatorFn);
 
                 if (!docRealId || docRealId === 'temp' || docRealId === 'undefined' || docRealId.startsWith('temp')) {
-                    // Create
-                    const newDocRef = await saveDocumentSnapshot(context.docType, context.title, newHtmlRaw.html, context.studentId, {
-                        refId: context.refId,
-                        signatures: signaturesToSave,
-                        studentName: context.studentName // FIX: Pass Student Name for Archive
-                    });
-                    docRealId = newDocRef.id;
+                    // Create (or Find if exists but untracked)
+                    try {
+                        const newDocRef = await saveDocumentSnapshot(context.docType, context.title, newHtmlRaw.html, context.studentId, {
+                            refId: context.refId,
+                            signatures: signaturesToSave,
+                            studentName: context.studentName
+                        });
+
+                        if (newDocRef && newDocRef.id) {
+                            docRealId = newDocRef.id;
+                        } else {
+                            throw new Error("Save returned null (Lock matched?)");
+                        }
+                    } catch (saveErr) {
+                        console.warn("Falha ao salvar/criar (possível bloqueio ou cache). Tentando recuperar ID existente...", saveErr);
+                        // FALLBACK: Tenta achar o documento pelo RefID
+                        const existing = await findDocumentSnapshot(context.docType, context.studentId, context.refId);
+                        if (existing && existing.id) {
+                            docRealId = existing.id;
+                            console.log("ID recuperado via fallback:", docRealId);
+                        } else {
+                            throw saveErr; // Se não achou, então é erro real
+                        }
+                    }
                 } else {
                     // Update
                     await updateDocumentSignatures(docRealId, signatureMap, newHtmlRaw.html);
