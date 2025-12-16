@@ -1298,7 +1298,7 @@ const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
             // Busca o ID do documento renderizado na div pai
             const contentDiv = area.closest('[data-doc-ref-id]'); // Tenta achar wrapper com ID
             // Se não achar, procura container genérico e assume 'temp'
-            const currentDocRefId = contentDiv ? contentDiv.getAttribute('data-doc-ref-id') : 'temp';
+            let currentDocRefId = contentDiv ? contentDiv.getAttribute('data-doc-ref-id') : 'temp';
 
             // Captura contexto para geração de link
             window.currentDocParams = {
