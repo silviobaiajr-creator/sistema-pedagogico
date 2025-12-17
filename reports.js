@@ -285,8 +285,10 @@ export const checkForRemoteSignParams = async () => {
                 const signedDate = new Date(sig.timestamp).toLocaleString();
 
                 container.classList.remove('justify-center'); container.classList.add('pt-4');
+                container.classList.add('printable-area'); // FIX IMPRESSÃO
+
                 container.innerHTML = `
-                    <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8 no-print font-sans">
+                    <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8 no-print font-sans mx-auto" id="success-card">
                         <div class="bg-green-700 p-4 text-white flex justify-between items-center">
                             <div><h2 class="text-sm font-bold uppercase"><i class="fas fa-check-circle"></i> Documento Assinado</h2><p class="text-[10px] opacity-80">Registrado por: ${sig.signerName || 'Desconhecido'}</p></div>
                         </div>
@@ -323,16 +325,43 @@ export const checkForRemoteSignParams = async () => {
                             </div>` :
                         `<div class="text-center mb-4 text-xs text-green-700 font-bold"><i class="fas fa-check-circle"></i> Assinatura Digital Incorporada ao Documento</div>`}
 
-                            <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Olá, segue o link para acessar o documento assinado digitalmente: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
-                                <i class="fab fa-whatsapp text-2xl"></i> 
-                                <span>Enviar para mim (WhatsApp)</span>
-                            </button>
+                            <div class="space-y-3">
+                                <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Olá, segue o link para acessar o documento assinado digitalmente: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
+                                    <i class="fab fa-whatsapp text-2xl"></i> 
+                                    <span>Enviar para mim (WhatsApp)</span>
+                                </button>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <button id="btn-download-image-signed" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-2">
+                                        <i class="fas fa-image"></i> Baixar Imagem
+                                    </button>
+                                    <button onclick="window.print()" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-2">
+                                        <i class="fas fa-file-pdf"></i> Baixar PDF
+                                    </button>
+                                </div>
+                            </div>
                             
                             <p class="text-[10px] text-gray-400 text-center mt-4">Este documento possui validade jurídica assegurada pelo registro digital.</p>
                         </div>
                     </div>
 
-                    <!-- Área Invisível para Impressão (Mantida igual para consistência) -->
+                    <!-- Preview Invisível para Captura -->
+                    <div id="capture-area-signed" class="fixed top-0 left-0 -z-50 bg-white p-8 w-[800px]">
+                            <div class="text-center mb-6">
+                                <h2 class="text-2xl font-bold uppercase">${formatText(urlSchoolName)}</h2>
+                                <p class="text-sm text-gray-500">Documento Assinado Digitalmente</p>
+                            </div>
+                            ${docSnapshot.htmlContent}
+                            <div class="mt-8 pt-4 border-t border-gray-300">
+                                <p class="font-bold text-sm">Assinado Digitalmente por:</p>
+                                <p class="text-sm">${sig.signerName}</p>
+                                <p class="text-sm">CPF: ${sig.signerCPF}</p>
+                                <p class="text-xs text-gray-500 mt-1">Data: ${signedDate}</p>
+                                ${sig.photo ? `<div class="mt-4"><p class="font-bold text-xs text-gray-400">Registro Biométrico:</p><img src="${sig.photo}" class="w-32 h-32 object-contain border rounded"></div>` : ''}
+                            </div>
+                    </div>
+
+                    <!-- Área Invisível para Impressão -->
                     <div id="print-area-signed" class="hidden print:block print:w-full print:h-auto bg-white p-8">
                             ${docSnapshot.htmlContent}
                             <div class="mt-8 pt-4 border-t border-gray-300">
@@ -344,6 +373,31 @@ export const checkForRemoteSignParams = async () => {
                             </div>
                     </div>
                 `;
+
+                // Lógica de Download de Imagem (Already Signed)
+                document.getElementById('btn-download-image-signed').onclick = () => {
+                    const captureEl = document.getElementById('capture-area-signed');
+                    const btn = document.getElementById('btn-download-image-signed');
+                    const originalText = btn.innerHTML;
+
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
+
+                    html2canvas(captureEl, {
+                        scale: 2,
+                        useCORS: true,
+                        logging: false
+                    }).then(canvas => {
+                        const link = document.createElement('a');
+                        link.download = `documento_assinado.jpg`;
+                        link.href = canvas.toDataURL('image/jpeg', 0.9);
+                        link.click();
+                        btn.innerHTML = originalText;
+                    }).catch(err => {
+                        console.error(err);
+                        alert("Erro ao gerar imagem.");
+                        btn.innerHTML = originalText;
+                    });
+                };
                 return;
             }
 
@@ -354,13 +408,20 @@ export const checkForRemoteSignParams = async () => {
 
                 // Tenta extrair dados extras para visualização
                 let studentNameDisplay = "Aluno(a)";
-                let dateDisplay = new Date().toLocaleDateString('pt-BR');
-                let timeDisplay = "";
+                let dateDisplay = null;
+                let timeDisplay = null;
                 let alertColor = "bg-sky-50 border-sky-200 text-sky-800";
                 let iconClass = "fa-file-alt";
 
-                // Se temos snapshot, tentamos pegar do título ou metadados
-                if (docSnapshot && docSnapshot.studentName) studentNameDisplay = docSnapshot.studentName;
+                // Se temos snapshot, tentando extrair do conteúdo ou metadados
+                if (docSnapshot) {
+                    if (docSnapshot.studentName) studentNameDisplay = docSnapshot.studentName;
+                    // Tenta extrair data do metadado se existir
+                    if (docSnapshot.meetingDate) {
+                        dateDisplay = formatDate(docSnapshot.meetingDate);
+                        if (docSnapshot.meetingTime) timeDisplay = formatTime(docSnapshot.meetingTime);
+                    }
+                }
 
                 // Se foi reconstruído (stateless), tentamos pegar dos parâmetros
                 const debugParams = new URLSearchParams(window.location.search); // Re-read params
@@ -370,8 +431,13 @@ export const checkForRemoteSignParams = async () => {
                         const d = JSON.parse(decodeURIComponent(dataParam));
                         if (d.studentName) studentNameDisplay = d.studentName;
                         if (d.meetingDate) {
+                            // Verifica se é string ISO ou outro formato
                             const md = new Date(d.meetingDate);
-                            dateDisplay = md.toLocaleDateString('pt-BR');
+                            if (!isNaN(md)) {
+                                dateDisplay = md.toLocaleDateString('pt-BR');
+                            } else {
+                                dateDisplay = d.meetingDate; // Usa como string se não for data válida
+                            }
                             if (d.meetingTime) timeDisplay = d.meetingTime;
                         }
                     } catch (e) { }
@@ -380,6 +446,8 @@ export const checkForRemoteSignParams = async () => {
                 // Definição de Cores/Ícones por Tipo
                 if (type && type.includes('notificacao')) { alertColor = "bg-orange-50 border-orange-200 text-orange-800"; iconClass = "fa-bell"; }
                 if (type === 'ocorrencia' || (type && type.includes('ocorrencia'))) { alertColor = "bg-red-50 border-red-200 text-red-800"; iconClass = "fa-exclamation-circle"; }
+
+                container.classList.add('printable-area'); // FIX PARA IMPRESSÃO
 
                 container.innerHTML = `
                     <div class="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden font-sans border-t-4 border-sky-600">
@@ -408,10 +476,10 @@ export const checkForRemoteSignParams = async () => {
                                 </div>
                                 ${(timeDisplay || dateDisplay) ? `
                                 <div class="flex items-center gap-3 border-t border-black/10 pt-2">
-                                    <div class="bg-white p-2 rounded-full shadow-sm"><i class="fas fa-clock text-xl"></i></div>
+                                    <div class="bg-white p-2 rounded-full shadow-sm"><i class="fas fa-clock text-xl text-red-500"></i></div>
                                     <div>
-                                        <p class="text-[10px] uppercase font-bold opacity-70">Data de Comparecimento</p>
-                                        <p class="text-sm font-black leading-tight uppercase text-red-600">${dateDisplay} ${timeDisplay ? 'às ' + timeDisplay : ''}</p>
+                                        <p class="text-[10px] uppercase font-bold opacity-70 text-red-700">Data de Comparecimento</p>
+                                        <p class="text-lg font-black leading-tight uppercase text-red-600">${dateDisplay || 'Agendado'} ${timeDisplay ? '<span class="text-sm text-gray-600">às ' + timeDisplay + '</span>' : ''}</p>
                                     </div>
                                 </div>` : ''}
                             </div>
@@ -615,8 +683,8 @@ export const checkForRemoteSignParams = async () => {
                         if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
 
                         container.innerHTML = `
-                        <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans max-w-3xl mx-auto">
-                            <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full border-t-8 border-green-500">
+                        <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans max-w-3xl mx-auto printable-area">
+                            <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full border-t-8 border-green-500" id="success-card">
                                 <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
                                     <i class="fas fa-check text-4xl text-green-600"></i>
                                 </div>
@@ -624,9 +692,15 @@ export const checkForRemoteSignParams = async () => {
                                 <p class="text-gray-600 font-medium mb-8">O documento foi registrado no sistema e já pode ser baixado.</p>
                                 
                                 <div class="space-y-4 max-w-sm mx-auto">
-                                    <!-- BOTÃO UNIFICADO (VERDE) PARA DOWNLOAD/IMPRESSÃO -->
+                                    <!-- BAIXAR IMAGEM (NOVO) -->
+                                    <button id="btn-download-image" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
+                                        <i class="fas fa-image text-2xl"></i>
+                                        <span>BAIXAR COMO IMAGEM</span>
+                                    </button>
+
+                                    <!-- BOTÃO PDF -->
                                     <button onclick="window.print()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
-                                        <i class="fas fa-file-download text-2xl"></i> 
+                                        <i class="fas fa-file-pdf text-2xl"></i> 
                                         <span>BAIXAR CÓPIA (PDF)</span>
                                     </button>
                                     
@@ -634,6 +708,25 @@ export const checkForRemoteSignParams = async () => {
                                 </div>
                                 <div class="mt-8 pt-6 border-t border-gray-100">
                                     <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">${formatText(urlSchoolName)}</p>
+                                </div>
+                            </div>
+
+                            <!-- Preview Invisível para Captura -->
+                            <div id="capture-area" class="fixed top-0 left-0 -z-50 bg-white p-8 w-[800px]">
+                                <div class="text-center mb-6">
+                                    <h2 class="text-2xl font-bold uppercase">${formatText(urlSchoolName)}</h2>
+                                    <p class="text-sm text-gray-500">Documento Assinado Digitalmente</p>
+                                </div>
+                                ${newHtmlContent}
+                                <div class="mt-8 pt-4 border-t border-gray-300">
+                                    <p class="font-bold text-sm">Assinado Digitalmente por:</p>
+                                    <p class="text-sm">${identityData.name}</p>
+                                    <p class="text-sm">CPF: ${identityData.cpf}</p>
+                                    <p class="text-xs text-gray-500 mt-1">Data: ${new Date().toLocaleString()}</p>
+                                    <div class="mt-4">
+                                            <p class="font-bold text-xs text-gray-400">Registro Biométrico:</p>
+                                            <img src="${capturedPhotoBase64}" class="w-32 h-32 object-contain border rounded">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -653,6 +746,31 @@ export const checkForRemoteSignParams = async () => {
                              </div>
                         </div>
                         `;
+
+                        // Lógica de Download de Imagem
+                        document.getElementById('btn-download-image').onclick = () => {
+                            const captureEl = document.getElementById('capture-area');
+                            const btn = document.getElementById('btn-download-image');
+                            const originalText = btn.innerHTML;
+
+                            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando Imagem...';
+
+                            html2canvas(captureEl, {
+                                scale: 2, // Melhor qualidade
+                                useCORS: true,
+                                logging: false
+                            }).then(canvas => {
+                                const link = document.createElement('a');
+                                link.download = `documento_assinado_${identityData.name.split(' ')[0]}.jpg`;
+                                link.href = canvas.toDataURL('image/jpeg', 0.9);
+                                link.click();
+                                btn.innerHTML = originalText;
+                            }).catch(err => {
+                                console.error(err);
+                                alert("Erro ao gerar imagem. Tente a opção PDF.");
+                                btn.innerHTML = originalText;
+                            });
+                        };
                     } else { alert("Erro ao salvar."); this.disabled = false; }
                 };
             };
