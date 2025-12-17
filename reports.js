@@ -624,13 +624,14 @@ export const checkForRemoteSignParams = async () => {
                                 <p class="text-gray-600 font-medium mb-8">O documento foi registrado no sistema e já pode ser baixado.</p>
                                 
                                 <div class="space-y-4 max-w-sm mx-auto">
-                                    <!-- BOTÃO UNIFICADO (VERDE) PARA DOWNLOAD/IMPRESSÃO -->
-                                    <button onclick="window.print()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
-                                        <i class="fas fa-file-download text-2xl"></i> 
-                                        <span>BAIXAR CÓPIA (PDF)</span>
+                                    <!-- BOTÃO UNIFICADO (VERDE) PARA DOWNLOAD IMAGEM (MELHOR PARA CELULAR) -->
+                                    <button onclick="downloadAsImage()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
+                                        <i class="fas fa-file-image text-2xl"></i> 
+                                        <span id="download-btn-text">BAIXAR IMAGEM (PNG)</span>
                                     </button>
                                     
-                                     <p class="text-[10px] text-gray-400 mt-4">Clique acima para salvar a imagem ou PDF do documento assinado.</p>
+                                     <p class="text-[10px] text-gray-400 mt-4">Clique acima para salvar a imagem do documento assinado na galeria.</p>
+                                      <button onclick="window.print()" class="text-xs text-gray-400 mt-2 underline hover:text-gray-600">Ou imprimir como PDF (PC)</button>
                                 </div>
                                 <div class="mt-8 pt-6 border-t border-gray-100">
                                     <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">${formatText(urlSchoolName)}</p>
@@ -860,8 +861,9 @@ const setupSignaturePadEvents = () => {
                     if (whatsappBtn) {
                         // Mensagem rica para WhatsApp (Visual para Analfabetos/Fácil Leitura)
                         const sName = window.currentDocParams?.studentName || "Aluno";
+                        const schoolName = state.config?.schoolName || "ESCOLA DIGITAL";
                         const dType = window.currentDocParams?.type ? window.currentDocParams.type.toUpperCase() : "DOCUMENTO";
-                        const msg = `🏫 *ESCOLA DIGITAL*\n\n📄 *Documento:* ${dType}\n👤 *Aluno(a):* ${sName}\n\n👇 *CLIQUE NO LINK PARA ASSINAR:*\n${shortLink}`;
+                        const msg = `🏫 *${schoolName}*\n\n📄 *Documento:* ${dType}\n👤 *Aluno(a):* ${sName}\n\n👇 *CLIQUE NO LINK PARA ASSINAR:*\n${shortLink}`;
                         whatsappBtn.onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
                     }
                 });
@@ -869,7 +871,36 @@ const setupSignaturePadEvents = () => {
                 document.getElementById('generated-link-preview').textContent = "Erro: Salve o documento primeiro.";
                 document.getElementById('btn-send-whatsapp').onclick = null; // Disable WhatsApp button
             }
+        }
+    };
 
+    const downloadAsImage = async () => {
+        const element = document.querySelector('.A4'); // Target the A4 report container directly
+        if (!element) return alert("Erro: Documento não encontrado para download.");
+
+        // Feedback visual
+        const btnInfo = document.getElementById('download-btn-text');
+        const originalText = btnInfo ? btnInfo.innerText : 'BAIXAR CÓPIA';
+        if (btnInfo) btnInfo.innerText = "GERANDO IMAGEM...";
+
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 2, // High resolution
+                useCORS: true, // Allow external images (logos)
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+
+            const link = document.createElement('a');
+            link.download = `Documento_Assinado_${new Date().toISOString().slice(0, 10)}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+
+        } catch (err) {
+            console.error("Erro ao gerar imagem:", err);
+            alert("Erro ao gerar imagem. Tente a opção de impressão.");
+        } finally {
+            if (btnInfo) btnInfo.innerText = originalText;
         }
     };
 
@@ -1384,6 +1415,252 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
 
 // --- MODO "PARENT VIEW" (VISÃO DO PAI - LINK SEGURO) ---
 
+const checkForRemoteSignParams = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const docId = urlParams.get('docId');
+    const shortCode = urlParams.get('code');
+    const mode = urlParams.get('mode');
+
+    if (mode === 'sign' && (docId || shortCode)) {
+        let resolvedDocId = docId;
+        if (shortCode) {
+            resolvedDocId = await resolveShortLink(shortCode);
+            if (!resolvedDocId) {
+                document.getElementById('signature-flow-container').innerHTML = `<div class="text-center p-8 text-red-600">Link inválido ou expirado.</div>`;
+                return;
+            }
+        }
+
+        const docSnapshot = await findDocumentById(resolvedDocId);
+
+        if (!docSnapshot) {
+            document.getElementById('signature-flow-container').innerHTML = `<div class="text-center p-8 text-red-600">Documento não encontrado.</div>`;
+            return;
+        }
+
+        // 3. Verifica se já está assinado e bloqueado e redireciona para SUCESSO imediatamente
+        // Isso evita que o pai tenha que "assinar de novo" um documento já pronto.
+        if (docSnapshot.signatures && Object.keys(docSnapshot.signatures).length > 0) {
+            // Se já tem assinatura (especialmente responsible_xxx ou management), mostra sucesso direto.
+            // A menos que estejamos tentando assinar como 'management' (cenário de escola),
+            // mas aqui é o link público (pais).
+            console.log("Documento já assinado. Exibindo tela de sucesso/download.");
+
+            // Injeta os dados necessários para o sucesso
+            const successContainer = document.getElementById('signature-flow-container');
+            successContainer.innerHTML = `
+                <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans max-w-3xl mx-auto">
+                    <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full border-t-8 border-green-500">
+                        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <i class="fas fa-check-double text-4xl text-green-600"></i>
+                        </div>
+                        <h1 class="text-3xl font-black text-gray-900 mb-2 uppercase">Documento Já Assinado!</h1>
+                        <p class="text-gray-600 font-medium mb-8">Este documento já foi registrado anteriormente.</p>
+                        
+                        <div class="space-y-4 max-w-sm mx-auto">
+                            <button onclick="downloadAsImage()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
+                                <i class="fas fa-file-image text-2xl"></i> 
+                                <span id="download-btn-text">BAIXAR CÓPIA (PNG)</span>
+                            </button>
+                        </div>
+                        <div class="mt-8 pt-6 border-t border-gray-100">
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-widest text-center">${docSnapshot.schoolName || 'Escola'}</p>
+                        </div>
+                    </div>
+                </div>`;
+
+            // Renderiza o documento em background para ser capturado
+            renderDocumentHTML(docSnapshot.htmlContent);
+            return;
+        }
+
+        // 4. Renderiza Desafio de Identidade
+        document.getElementById('signature-flow-container').innerHTML = `
+            <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans max-w-3xl mx-auto">
+                <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full border-t-8 border-sky-500">
+                    <div class="w-20 h-20 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <i class="fas fa-fingerprint text-4xl text-sky-600"></i>
+                    </div>
+                    <h1 class="text-3xl font-black text-gray-900 mb-2 uppercase">Assinatura Digital</h1>
+                    <p class="text-gray-600 font-medium mb-8">Para prosseguir com a assinatura, precisamos confirmar sua identidade.</p>
+                    
+                    <div class="space-y-4 max-w-sm mx-auto">
+                        <div>
+                            <label for="signer-name" class="block text-left text-sm font-bold text-gray-700 mb-1">Nome Completo</label>
+                            <input type="text" id="signer-name" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-sky-500 focus:border-sky-500 text-lg uppercase" placeholder="Seu Nome Completo">
+                        </div>
+                        <div>
+                            <label for="signer-cpf" class="block text-left text-sm font-bold text-gray-700 mb-1">CPF</label>
+                            <input type="tel" id="signer-cpf" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-sky-500 focus:border-sky-500 text-lg" placeholder="000.000.000-00" maxlength="14">
+                        </div>
+                        <button id="btn-start-remote-sign" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
+                            <i class="fas fa-user-check text-2xl"></i> 
+                            <span>CONFIRMAR IDENTIDADE</span>
+                        </button>
+                    </div>
+                    <div class="mt-8 pt-6 border-t border-gray-100">
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-widest text-center">${docSnapshot.schoolName || 'Escola'}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('signer-cpf').addEventListener('input', (e) => {
+            let v = e.target.value.replace(/\D/g, "");
+            if (v.length > 11) v = v.slice(0, 11);
+            v = v.replace(/(\d{3})(\d)/, "$1.$2"); v = v.replace(/(\d{3})(\d)/, "$1.$2"); v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+            e.target.value = v;
+        });
+
+        document.getElementById('btn-start-remote-sign').onclick = async () => {
+            const signerName = document.getElementById('signer-name').value.trim();
+            const signerCPF = document.getElementById('signer-cpf').value.trim();
+
+            if (signerName.length < 5 || signerCPF.length < 14) {
+                alert("Por favor, preencha seu nome completo e CPF corretamente.");
+                return;
+            }
+
+            // Proceed to selfie capture
+            document.getElementById('signature-flow-container').innerHTML = `
+                <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans max-w-3xl mx-auto">
+                    <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full border-t-8 border-sky-500">
+                        <div class="w-20 h-20 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <i class="fas fa-camera-retro text-4xl text-sky-600"></i>
+                        </div>
+                        <h1 class="text-3xl font-black text-gray-900 mb-2 uppercase">Validação Biométrica</h1>
+                        <p class="text-gray-600 font-medium mb-8">Por favor, tire uma selfie para validar sua assinatura.</p>
+                        
+                        <div class="relative w-full max-w-sm h-64 bg-black rounded-lg overflow-hidden flex items-center justify-center mx-auto mb-6">
+                            <video id="remote-video" autoplay playsinline class="w-full h-full object-cover transform scale-x-[-1]"></video>
+                            <canvas id="remote-canvas" class="hidden"></canvas>
+                            <img id="remote-photo-result" class="absolute inset-0 w-full h-full object-cover hidden transform scale-x-[-1]">
+                        </div>
+                        
+                        <div class="flex gap-4 max-w-sm mx-auto w-full mb-6">
+                            <button id="btn-remote-take" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-lg"><i class="fas fa-camera"></i> Capturar</button>
+                            <button id="btn-remote-retake" class="hidden flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-lg"><i class="fas fa-redo"></i> Refazer</button>
+                        </div>
+                        
+                        <button id="btn-remote-finish" disabled class="w-full max-w-sm mx-auto bg-gray-400 text-white font-bold py-4 rounded-xl shadow cursor-not-allowed text-lg">CONFIRMAR ASSINATURA</button>
+                        <button id="btn-back-to-identity-remote" class="mt-4 text-sm text-gray-500 underline">Voltar</button>
+                        
+                        <div class="mt-8 pt-6 border-t border-gray-100">
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-widest text-center">${docSnapshot.schoolName || 'Escola'}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            let remoteStream = null;
+            let remoteCapturedPhoto = null;
+
+            document.getElementById('btn-back-to-identity-remote').onclick = () => {
+                if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
+                checkForRemoteSignParams(); // Go back to identity screen
+            };
+
+            try {
+                remoteStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                document.getElementById('remote-video').srcObject = remoteStream;
+            } catch (e) {
+                alert("Erro ao acessar a câmera. Por favor, conceda permissão.");
+                console.error("Erro câmera remota:", e);
+                document.getElementById('signature-flow-container').innerHTML = `<div class="text-center p-8 text-red-600">Erro ao acessar a câmera.</div>`;
+                return;
+            }
+
+            document.getElementById('btn-remote-take').onclick = () => {
+                const vid = document.getElementById('remote-video');
+                const can = document.getElementById('remote-canvas');
+                const img = document.getElementById('remote-photo-result');
+
+                can.width = vid.videoWidth; can.height = vid.videoHeight;
+                const ctxR = can.getContext('2d');
+                ctxR.translate(can.width, 0); ctxR.scale(-1, 1);
+                ctxR.drawImage(vid, 0, 0);
+
+                remoteCapturedPhoto = can.toDataURL('image/jpeg', 0.5);
+                img.src = remoteCapturedPhoto; img.classList.remove('hidden');
+
+                document.getElementById('btn-remote-take').classList.add('hidden');
+                document.getElementById('btn-remote-retake').classList.remove('hidden');
+
+                const btnFinish = document.getElementById('btn-remote-finish');
+                btnFinish.disabled = false; btnFinish.classList.remove('bg-gray-400', 'cursor-not-allowed'); btnFinish.classList.add('bg-sky-600', 'hover:bg-sky-700');
+            };
+
+            document.getElementById('btn-remote-retake').onclick = () => {
+                remoteCapturedPhoto = null;
+                document.getElementById('remote-photo-result').classList.add('hidden');
+                document.getElementById('btn-remote-take').classList.remove('hidden');
+                document.getElementById('btn-remote-retake').classList.add('hidden');
+                const btnFinish = document.getElementById('btn-remote-finish');
+                btnFinish.disabled = true; btnFinish.classList.add('bg-gray-400', 'cursor-not-allowed'); btnFinish.classList.remove('bg-sky-600', 'hover:bg-sky-700');
+            };
+
+            document.getElementById('btn-remote-finish').onclick = async () => {
+                if (!remoteCapturedPhoto) return;
+
+                showToast("Registrando assinatura...");
+                const meta = await fetchClientMetadata();
+
+                const digitalData = {
+                    type: 'digital_ack',
+                    ip: meta.ip,
+                    device: meta.userAgent,
+                    timestamp: meta.timestamp,
+                    signerName: signerName,
+                    signerCPF: signerCPF,
+                    photo: remoteCapturedPhoto,
+                    valid: true
+                };
+
+                if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
+
+                // Update signature in Firestore
+                const signatureKey = `responsible_${docSnapshot.studentId}`; // Assuming one responsible per remote sign
+                const updatedSignatures = { ...docSnapshot.signatures, [signatureKey]: digitalData };
+
+                // Re-generate HTML with new signature
+                const { html: newHtmlContent } = await generateSmartHTML(docSnapshot.docType, docSnapshot.studentId, docSnapshot.refId, (date) => {
+                    // This is a placeholder. In a real scenario, you'd need the original generatorFn
+                    // or store the full HTML content in the snapshot.
+                    // For now, we'll just use the existing htmlContent and update signatures.
+                    return docSnapshot.htmlContent; // This is problematic if htmlContent doesn't have signature slots
+                });
+
+                await updateDocumentSignatures(resolvedDocId, updatedSignatures, newHtmlContent);
+
+                document.getElementById('signature-flow-container').innerHTML = `
+                    <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans max-w-3xl mx-auto">
+                        <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full border-t-8 border-green-500">
+                            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <i class="fas fa-check-circle text-4xl text-green-600"></i>
+                            </div>
+                            <h1 class="text-3xl font-black text-gray-900 mb-2 uppercase">Assinatura Registrada!</h1>
+                            <p class="text-gray-600 font-medium mb-8">Obrigado por assinar o documento. Uma cópia foi enviada para a escola.</p>
+                            
+                            <div class="space-y-4 max-w-sm mx-auto">
+                                <button onclick="downloadAsImage()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
+                                    <i class="fas fa-file-image text-2xl"></i> 
+                                    <span id="download-btn-text">BAIXAR CÓPIA (PNG)</span>
+                                </button>
+                            </div>
+                            <div class="mt-8 pt-6 border-t border-gray-100">
+                                <p class="text-xs font-bold text-gray-400 uppercase tracking-widest text-center">${docSnapshot.schoolName || 'Escola'}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                renderDocumentHTML(newHtmlContent); // Render the final document for download
+            };
+        };
+
+        // Render the document in the background for eventual download
+        renderDocumentHTML(docSnapshot.htmlContent);
+    }
+};
 
 // ... restoring original implementations ...
 

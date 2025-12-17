@@ -1,6 +1,6 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,10 +18,14 @@
     <!-- Chart.js para gráficos nos relatórios -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <!-- html2canvas para baixar relatórios como imagem -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
     <!-- Folha de estilos personalizada -->
     <link rel="stylesheet" href="style.css">
 
 </head>
+
 <body class="text-gray-800">
 
     <!-- ============================================================================== -->
@@ -37,16 +41,20 @@
                     <form id="login-form" class="space-y-4">
                         <div>
                             <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
-                            <input type="email" id="login-email" name="email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
+                            <input type="email" id="login-email" name="email" required
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
                         </div>
                         <div>
                             <label for="login-password" class="block text-sm font-medium text-gray-700">Senha</label>
-                            <input type="password" id="login-password" name="password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
+                            <input type="password" id="login-password" name="password" required
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
                         </div>
-                        <button type="submit" class="w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">Entrar</button>
+                        <button type="submit"
+                            class="w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">Entrar</button>
                     </form>
                     <p class="text-center text-sm text-gray-500 mt-6">
-                        Não tem uma conta? <button id="show-register-view" class="font-semibold text-sky-600 hover:underline">Registe-se</button>
+                        Não tem uma conta? <button id="show-register-view"
+                            class="font-semibold text-sky-600 hover:underline">Registe-se</button>
                     </p>
                 </div>
 
@@ -57,16 +65,22 @@
                     <form id="register-form" class="space-y-4">
                         <div>
                             <label for="register-email" class="block text-sm font-medium text-gray-700">Email</label>
-                            <input type="email" id="register-email" name="email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
+                            <input type="email" id="register-email" name="email" required
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
                         </div>
                         <div>
-                            <label for="register-password" class="block text-sm font-medium text-gray-700">Senha (mínimo 6 caracteres)</label>
-                            <input type="password" id="register-password" name="password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
+                            <label for="register-password" class="block text-sm font-medium text-gray-700">Senha (mínimo
+                                6 caracteres)</label>
+                            <input type="password" id="register-password" name="password" required
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500 p-2 border">
                         </div>
-                        <button type="submit" class="w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">Criar Conta</button>
+                        <button type="submit"
+                            class="w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">Criar
+                            Conta</button>
                     </form>
                     <p class="text-center text-sm text-gray-500 mt-6">
-                        Já tem uma conta? <button id="show-login-view" class="font-semibold text-sky-600 hover:underline">Entrar</button>
+                        Já tem uma conta? <button id="show-login-view"
+                            class="font-semibold text-sky-600 hover:underline">Entrar</button>
                     </p>
                 </div>
             </div>
@@ -79,25 +93,31 @@
     <div id="main-content" class="hidden">
         <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
             <!-- Cabeçalho -->
-            <header class="mb-8 p-6 rounded-lg bg-gradient-to-r from-sky-500 to-teal-600 text-white shadow-lg flex flex-wrap sm:flex-nowrap justify-between items-center gap-4 text-center sm:text-left">
+            <header
+                class="mb-8 p-6 rounded-lg bg-gradient-to-r from-sky-500 to-teal-600 text-white shadow-lg flex flex-wrap sm:flex-nowrap justify-between items-center gap-4 text-center sm:text-left">
                 <div>
-                    <h1 id="header-school-name" class="text-2xl sm:text-3xl font-bold">Sistema de Acompanhamento Pedagógico</h1>
+                    <h1 id="header-school-name" class="text-2xl sm:text-3xl font-bold">Sistema de Acompanhamento
+                        Pedagógico</h1>
                     <p class="opacity-90 mt-1 text-sm sm:text-base">Painel de Controle</p>
                 </div>
                 <div class="flex items-center flex-wrap justify-center sm:justify-end gap-2 sm:gap-4">
-                     <button id="settings-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
+                    <button id="settings-btn"
+                        class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
                         <i class="fas fa-cog mr-2"></i>Config.
                     </button>
-                    <button id="manage-students-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
+                    <button id="manage-students-btn"
+                        class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hidden">
                         <i class="fas fa-users-cog mr-2"></i>Alunos
                     </button>
-                    <button id="documents-btn" class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hover:bg-white/40 transition">
+                    <button id="documents-btn"
+                        class="bg-white/20 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-white/30 text-sm hover:bg-white/40 transition">
                         <i class="fas fa-folder-open mr-2"></i>Documentos
                     </button>
                     <div id="user-profile" class="flex items-center space-x-4 hidden self-center sm:self-auto">
                         <div class="text-right">
                             <p id="user-email" class="font-semibold text-sm"></p>
-                            <button id="logout-btn" class="text-xs sm:text-sm text-sky-200 hover:text-white transition">Sair</button>
+                            <button id="logout-btn"
+                                class="text-xs sm:text-sm text-sky-200 hover:text-white transition">Sair</button>
                         </div>
                     </div>
                 </div>
@@ -118,14 +138,18 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Card 2: Ocorrências Recentes -->
-                    <div id="card-nav-occurrences" class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500 cursor-pointer hover:bg-yellow-50 transition transform hover:scale-105 group">
+                    <div id="card-nav-occurrences"
+                        class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500 cursor-pointer hover:bg-yellow-50 transition transform hover:scale-105 group">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-sm font-medium text-gray-500 uppercase group-hover:text-yellow-700">Ocorrências (Total)</p>
-                                <p id="dash-total-occurrences" class="text-3xl font-bold text-gray-800 group-hover:text-yellow-900">--</p>
-                                <span class="text-xs text-yellow-600 font-semibold mt-1 inline-block">Clique para gerir <i class="fas fa-arrow-right ml-1"></i></span>
+                                <p class="text-sm font-medium text-gray-500 uppercase group-hover:text-yellow-700">
+                                    Ocorrências (Total)</p>
+                                <p id="dash-total-occurrences"
+                                    class="text-3xl font-bold text-gray-800 group-hover:text-yellow-900">--</p>
+                                <span class="text-xs text-yellow-600 font-semibold mt-1 inline-block">Clique para gerir
+                                    <i class="fas fa-arrow-right ml-1"></i></span>
                             </div>
                             <div class="p-3 bg-yellow-100 rounded-full text-yellow-600 group-hover:bg-yellow-200">
                                 <i class="fas fa-exclamation-circle fa-2x"></i>
@@ -134,12 +158,16 @@
                     </div>
 
                     <!-- Card 3: Busca Ativa -->
-                    <div id="card-nav-absences" class="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500 cursor-pointer hover:bg-emerald-50 transition transform hover:scale-105 group">
+                    <div id="card-nav-absences"
+                        class="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500 cursor-pointer hover:bg-emerald-50 transition transform hover:scale-105 group">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-sm font-medium text-gray-500 uppercase group-hover:text-emerald-700">Busca Ativa (Abertos)</p>
-                                <p id="dash-active-absences" class="text-3xl font-bold text-gray-800 group-hover:text-emerald-900">--</p>
-                                <span class="text-xs text-emerald-600 font-semibold mt-1 inline-block">Clique para gerir <i class="fas fa-arrow-right ml-1"></i></span>
+                                <p class="text-sm font-medium text-gray-500 uppercase group-hover:text-emerald-700">
+                                    Busca Ativa (Abertos)</p>
+                                <p id="dash-active-absences"
+                                    class="text-3xl font-bold text-gray-800 group-hover:text-emerald-900">--</p>
+                                <span class="text-xs text-emerald-600 font-semibold mt-1 inline-block">Clique para gerir
+                                    <i class="fas fa-arrow-right ml-1"></i></span>
                             </div>
                             <div class="p-3 bg-emerald-100 rounded-full text-emerald-600 group-hover:bg-emerald-200">
                                 <i class="fas fa-search-location fa-2x"></i>
@@ -165,47 +193,60 @@
             <div id="tab-content-occurrences" class="hidden">
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <div class="flex items-center gap-3">
-                        <button id="btn-back-dashboard-occ" class="text-gray-500 hover:text-sky-600 transition" title="Voltar ao Início">
+                        <button id="btn-back-dashboard-occ" class="text-gray-500 hover:text-sky-600 transition"
+                            title="Voltar ao Início">
                             <i class="fas fa-arrow-left fa-lg"></i>
                         </button>
-                        <h2 id="occurrences-title" class="text-xl sm:text-2xl font-semibold text-gray-700">Ocorrências</h2>
+                        <h2 id="occurrences-title" class="text-xl sm:text-2xl font-semibold text-gray-700">Ocorrências
+                        </h2>
                     </div>
                     <div class="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
-                        <button id="general-report-btn" class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
+                        <button id="general-report-btn"
+                            class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral
                         </button>
-                        <button id="add-occurrence-btn" class="w-full sm:w-auto bg-sky-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">
+                        <button id="add-occurrence-btn"
+                            class="w-full sm:w-auto bg-sky-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-sky-700 transition duration-300">
                             <i class="fas fa-plus mr-2"></i>Nova Ocorrência
                         </button>
                     </div>
                 </div>
                 <!-- Filtros -->
-                <div id="occurrence-filters" class="mb-6 bg-gray-50 p-4 rounded-lg border grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                    <div class="md:col-span-4"><h3 class="text-md font-semibold text-gray-700">Filtros</h3></div>
+                <div id="occurrence-filters"
+                    class="mb-6 bg-gray-50 p-4 rounded-lg border grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div class="md:col-span-4">
+                        <h3 class="text-md font-semibold text-gray-700">Filtros</h3>
+                    </div>
                     <div>
                         <label for="occurrence-start-date" class="text-sm font-medium text-gray-600">De</label>
-                        <input type="date" id="occurrence-start-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
+                        <input type="date" id="occurrence-start-date"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
                     </div>
                     <div>
                         <label for="occurrence-end-date" class="text-sm font-medium text-gray-600">Até</label>
-                        <input type="date" id="occurrence-end-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
+                        <input type="date" id="occurrence-end-date"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
                     </div>
                     <div>
                         <label for="occurrence-filter-type" class="text-sm font-medium text-gray-600">Tipo</label>
-                        <select id="occurrence-filter-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
+                        <select id="occurrence-filter-type"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
                             <option value="all">Todos os Tipos</option>
                             <option value="Agressão (Física)">Agressão (Física)</option>
                             <option value="Agressão (Verbal)">Agressão (Verbal)</option>
-                            <option value="Indisciplina / Comportamento Inadequado">Indisciplina / Comportamento Inadequado</option>
+                            <option value="Indisciplina / Comportamento Inadequado">Indisciplina / Comportamento
+                                Inadequado</option>
                             <option value="Bullying">Bullying</option>
                             <option value="Dano ao Patrimônio">Dano ao Patrimônio</option>
-                            <option value="Uso inadequado de telemóvel/eletrónicos">Uso inadequado de telemóvel/eletrónicos</option>
+                            <option value="Uso inadequado de telemóvel/eletrónicos">Uso inadequado de
+                                telemóvel/eletrónicos</option>
                             <option value="Outros">Outros</option>
                         </select>
                     </div>
                     <div>
                         <label for="occurrence-filter-status" class="text-sm font-medium text-gray-600">Status</label>
-                        <select id="occurrence-filter-status" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
+                        <select id="occurrence-filter-status"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm">
                             <option value="all">Todos os Status</option>
                             <option value="Pendente">Pendente</option>
                             <option value="Finalizada">Finalizada</option>
@@ -215,12 +256,22 @@
                 <main class="bg-white rounded-lg shadow-md p-4 sm:p-6">
                     <div class="mb-4">
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
-                            <input type="text" id="search-occurrences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 sm:text-sm" placeholder="Filtrar por nome do aluno...">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i
+                                    class="fas fa-search text-gray-400"></i></div>
+                            <input type="text" id="search-occurrences"
+                                class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 sm:text-sm"
+                                placeholder="Filtrar por nome do aluno...">
                         </div>
                     </div>
-                    <div id="loading-occurrences" class="text-center p-8"><i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i><p class="mt-2 text-gray-500">A carregar registos...</p></div>
-                    <div id="empty-state-occurrences" class="text-center p-8 hidden"><i class="fas fa-file-alt fa-3x text-gray-300 mb-4"></i><h3 class="text-xl font-semibold text-gray-600">Nenhuma ocorrência encontrada</h3><p class="text-gray-500 mt-1">Use os filtros ou clique em "Nova Ocorrência" para começar.</p></div>
+                    <div id="loading-occurrences" class="text-center p-8"><i
+                            class="fas fa-spinner fa-spin fa-3x text-gray-400"></i>
+                        <p class="mt-2 text-gray-500">A carregar registos...</p>
+                    </div>
+                    <div id="empty-state-occurrences" class="text-center p-8 hidden"><i
+                            class="fas fa-file-alt fa-3x text-gray-300 mb-4"></i>
+                        <h3 class="text-xl font-semibold text-gray-600">Nenhuma ocorrência encontrada</h3>
+                        <p class="text-gray-500 mt-1">Use os filtros ou clique em "Nova Ocorrência" para começar.</p>
+                    </div>
                     <div id="occurrences-list" class="space-y-3"></div>
                 </main>
             </div>
@@ -229,27 +280,34 @@
             <div id="tab-content-absences" class="hidden">
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <div class="flex items-center gap-3">
-                        <button id="btn-back-dashboard-abs" class="text-gray-500 hover:text-emerald-600 transition" title="Voltar ao Início">
+                        <button id="btn-back-dashboard-abs" class="text-gray-500 hover:text-emerald-600 transition"
+                            title="Voltar ao Início">
                             <i class="fas fa-arrow-left fa-lg"></i>
                         </button>
                         <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Busca Ativa</h2>
                     </div>
                     <div class="flex flex-col sm:flex-row w-full sm:w-auto gap-4">
-                        <button id="general-ba-report-btn" class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
+                        <button id="general-ba-report-btn"
+                            class="w-full sm:w-auto bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition duration-300">
                             <i class="fas fa-chart-bar mr-2"></i>Relatório Geral
                         </button>
-                        <button id="add-absence-btn" class="w-full sm:w-auto bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-emerald-700 transition duration-300">
+                        <button id="add-absence-btn"
+                            class="w-full sm:w-auto bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-emerald-700 transition duration-300">
                             <i class="fas fa-plus mr-2"></i>Nova Ação
                         </button>
                     </div>
                 </div>
-                 <!-- Filtros da Busca Ativa -->
-                <div id="absence-filters" class="mb-6 bg-gray-50 p-4 rounded-lg border grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                    <div class="md:col-span-5"><h3 class="text-md font-semibold text-gray-700">Filtros</h3></div>
+                <!-- Filtros da Busca Ativa -->
+                <div id="absence-filters"
+                    class="mb-6 bg-gray-50 p-4 rounded-lg border grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                    <div class="md:col-span-5">
+                        <h3 class="text-md font-semibold text-gray-700">Filtros</h3>
+                    </div>
 
                     <div class="flex-1 min-w-[150px]">
                         <label for="filter-process-status" class="text-sm font-medium text-gray-600">Estado</label>
-                        <select id="filter-process-status" class="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm">
+                        <select id="filter-process-status"
+                            class="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm">
                             <option value="all">Todos</option>
                             <option value="in_progress">Em Andamento</option>
                             <option value="concluded">Concluídos</option>
@@ -257,7 +315,8 @@
                     </div>
                     <div class="flex-1 min-w-[150px]">
                         <label for="filter-pending-action" class="text-sm font-medium text-gray-600">Pendente</label>
-                        <select id="filter-pending-action" class="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm">
+                        <select id="filter-pending-action"
+                            class="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm">
                             <option value="all">Todos</option>
                             <option value="pending_contact">Aguardando Contato</option>
                             <option value="pending_feedback">Aguardando Devolutiva CT</option>
@@ -265,7 +324,8 @@
                     </div>
                     <div class="flex-1 min-w-[150px]">
                         <label for="filter-return-status" class="text-sm font-medium text-gray-600">Retorno</label>
-                        <select id="filter-return-status" class="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm">
+                        <select id="filter-return-status"
+                            class="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm">
                             <option value="all">Todos</option>
                             <option value="returned">Retornou</option>
                             <option value="not_returned">Não Retornou</option>
@@ -274,23 +334,35 @@
                     </div>
                     <div class="flex-1 min-w-[150px]">
                         <label for="absence-start-date-filter" class="text-sm font-medium text-gray-600">De</label>
-                        <input type="date" id="absence-start-date-filter" class="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm">
+                        <input type="date" id="absence-start-date-filter"
+                            class="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm">
                     </div>
                     <div class="flex-1 min-w-[150px]">
                         <label for="absence-end-date-filter" class="text-sm font-medium text-gray-600">Até</label>
-                        <input type="date" id="absence-end-date-filter" class="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm">
+                        <input type="date" id="absence-end-date-filter"
+                            class="mt-1 block w-full p-2 text-sm border-gray-300 rounded-md shadow-sm">
                     </div>
                 </div>
                 <main class="bg-white rounded-lg shadow-md p-4 sm:p-6">
                     <div class="mb-4">
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
-                            <input type="text" id="search-absences" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md" placeholder="Filtrar processos por nome do aluno...">
-                            <div id="absence-student-suggestions" class="autocomplete-suggestions hidden"></div> 
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i
+                                    class="fas fa-search text-gray-400"></i></div>
+                            <input type="text" id="search-absences"
+                                class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md"
+                                placeholder="Filtrar processos por nome do aluno...">
+                            <div id="absence-student-suggestions" class="autocomplete-suggestions hidden"></div>
                         </div>
                     </div>
-                    <div id="loading-absences" class="text-center p-8"><i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i><p class="mt-2 text-gray-500">A carregar registos...</p></div>
-                    <div id="empty-state-absences" class="text-center p-8 hidden"><i class="fas fa-folder-open fa-3x text-gray-300 mb-4"></i><h3 class="text-xl font-semibold text-gray-600">Nenhuma ação registada</h3><p class="text-gray-500 mt-1">Use a busca acima para registar uma nova ação.</p></div>
+                    <div id="loading-absences" class="text-center p-8"><i
+                            class="fas fa-spinner fa-spin fa-3x text-gray-400"></i>
+                        <p class="mt-2 text-gray-500">A carregar registos...</p>
+                    </div>
+                    <div id="empty-state-absences" class="text-center p-8 hidden"><i
+                            class="fas fa-folder-open fa-3x text-gray-300 mb-4"></i>
+                        <h3 class="text-xl font-semibold text-gray-600">Nenhuma ação registada</h3>
+                        <p class="text-gray-500 mt-1">Use a busca acima para registar uma nova ação.</p>
+                    </div>
                     <div id="absences-list" class="space-y-4"></div>
                 </main>
             </div>
@@ -299,12 +371,14 @@
             <div id="tab-content-documents" class="hidden">
                 <div class="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
                     <div class="flex items-center gap-3">
-                        <button onclick="document.getElementById('btn-back-dashboard-occ').click()" class="text-gray-500 hover:text-sky-600 transition" title="Voltar ao Início">
+                        <button onclick="document.getElementById('btn-back-dashboard-occ').click()"
+                            class="text-gray-500 hover:text-sky-600 transition" title="Voltar ao Início">
                             <i class="fas fa-arrow-left fa-lg"></i>
                         </button>
                         <div>
                             <h2 class="text-xl sm:text-2xl font-semibold text-gray-700">Arquivo Digital</h2>
-                            <p class="text-sm text-gray-500">Histórico de documentos emitidos (Atas, Ofícios, Notificações)</p>
+                            <p class="text-sm text-gray-500">Histórico de documentos emitidos (Atas, Ofícios,
+                                Notificações)</p>
                         </div>
                     </div>
                 </div>
@@ -312,25 +386,36 @@
                 <div class="bg-white rounded-lg shadow-md p-4 sm:p-6">
                     <div class="mb-6">
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
-                            <input type="text" id="search-documents" class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent sm:text-sm shadow-sm transition" placeholder="Pesquisar por Título, Aluno ou Tipo...">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i
+                                    class="fas fa-search text-gray-400"></i></div>
+                            <input type="text" id="search-documents"
+                                class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent sm:text-sm shadow-sm transition"
+                                placeholder="Pesquisar por Título, Aluno ou Tipo...">
                         </div>
                     </div>
 
-                    <div id="loading-documents" class="text-center p-8 hidden"><i class="fas fa-spinner fa-spin fa-3x text-gray-400"></i><p class="mt-2 text-gray-500">A carregar arquivo digital...</p></div>
-                    <div id="empty-state-documents" class="text-center p-12 bg-gray-50 rounded-lg border border-dashed border-gray-300 hidden">
-                        <div class="bg-white p-4 rounded-full inline-block mb-4 shadow-sm"><i class="fas fa-folder-open fa-3x text-gray-300"></i></div>
-                        <h3 class="text-lg font-semibold text-gray-600">Nenhum documento encontrado</h3>
-                        <p class="text-gray-500 mt-1">Os documentos gerados no sistema aparecerão automaticamente aqui.</p>
+                    <div id="loading-documents" class="text-center p-8 hidden"><i
+                            class="fas fa-spinner fa-spin fa-3x text-gray-400"></i>
+                        <p class="mt-2 text-gray-500">A carregar arquivo digital...</p>
                     </div>
-                    
+                    <div id="empty-state-documents"
+                        class="text-center p-12 bg-gray-50 rounded-lg border border-dashed border-gray-300 hidden">
+                        <div class="bg-white p-4 rounded-full inline-block mb-4 shadow-sm"><i
+                                class="fas fa-folder-open fa-3x text-gray-300"></i></div>
+                        <h3 class="text-lg font-semibold text-gray-600">Nenhum documento encontrado</h3>
+                        <p class="text-gray-500 mt-1">Os documentos gerados no sistema aparecerão automaticamente aqui.
+                        </p>
+                    </div>
+
                     <div id="documents-list" class="space-y-3">
                         <!-- Lista injetada via JS -->
                     </div>
                 </div>
             </div>
 
-            <footer class="text-center text-sm text-gray-400 mt-8"><p>Desenvolvido para Gestão Pedagógica</p></footer>
+            <footer class="text-center text-sm text-gray-400 mt-8">
+                <p>Desenvolvido para Gestão Pedagógica</p>
+            </footer>
         </div>
     </div>
 
@@ -339,93 +424,144 @@
     <!-- ============================================================================== -->
 
     <!-- Modal de Alerta Centralizado (Substitui Toast para Erros/Validações) -->
-    <div id="alert-modal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm modal-content transform scale-95 opacity-0 flex flex-col items-center p-6 text-center">
+    <div id="alert-modal"
+        class="fixed inset-0 z-[60] flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+        <div
+            class="bg-white rounded-lg shadow-2xl w-full max-w-sm modal-content transform scale-95 opacity-0 flex flex-col items-center p-6 text-center">
             <div class="mb-4 text-yellow-500">
                 <i class="fas fa-info-circle fa-3x"></i>
             </div>
             <h3 class="text-lg font-bold text-gray-800 mb-2">Aviso do Sistema</h3>
             <p id="alert-modal-message" class="text-gray-600 mb-6"></p>
-            <button id="alert-modal-ok-btn" class="bg-sky-600 text-white font-bold py-2 px-6 rounded-lg shadow hover:bg-sky-700 transition">
+            <button id="alert-modal-ok-btn"
+                class="bg-sky-600 text-white font-bold py-2 px-6 rounded-lg shadow hover:bg-sky-700 transition">
                 OK
             </button>
         </div>
     </div>
 
     <!-- Modal: Registro/Edição de Ocorrência (APENAS AÇÃO 1: Registro do Fato) -->
-    <div id="occurrence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+    <div id="occurrence-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
                 <h3 id="modal-title" class="text-xl font-semibold">Registar Nova Ocorrência</h3>
-                <button id="close-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+                <button id="close-modal-btn"
+                    class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <form id="occurrence-form" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                 <input type="hidden" id="occurrence-group-id">
 
                 <!-- Seleção Múltipla de Alunos -->
                 <div>
-                    <label for="student-search-input" class="block text-sm font-medium">Aluno(s) Envolvido(s) <span class="text-red-500">*</span></label>
-                    <div id="student-tags-container" class="mt-1 flex flex-wrap gap-2 items-center p-2 border border-gray-300 rounded-md min-h-[42px] bg-gray-50">
+                    <label for="student-search-input" class="block text-sm font-medium">Aluno(s) Envolvido(s) <span
+                            class="text-red-500">*</span></label>
+                    <div id="student-tags-container"
+                        class="mt-1 flex flex-wrap gap-2 items-center p-2 border border-gray-300 rounded-md min-h-[42px] bg-gray-50">
                         <!-- As tags dos alunos com ícones de papel serão renderizadas aqui pelo JS -->
                     </div>
                     <div class="relative">
-                        <input type="text" id="student-search-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Pesquisar nome do aluno...">
+                        <input type="text" id="student-search-input"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                            placeholder="Pesquisar nome do aluno...">
                         <div id="student-suggestions" class="autocomplete-suggestions hidden">
                             <!-- Sugestões de alunos aparecerão aqui -->
                         </div>
                         <!-- Painel Inline para Seleção de Papel -->
                         <div id="role-selection-panel" class="hidden mt-2 p-2 border rounded-md bg-gray-50 shadow-sm">
-                            <span class="text-sm font-medium text-gray-700">Definir papel para <strong id="role-selection-student-name"></strong>:</span>
+                            <span class="text-sm font-medium text-gray-700">Definir papel para <strong
+                                    id="role-selection-student-name"></strong>:</span>
                             <div class="mt-1 space-x-2">
-                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200" data-role="Vítima"><i class="fas fa-user-shield fa-fw"></i> Vítima</button>
-                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200" data-role="Agente"><i class="fas fa-gavel fa-fw"></i> Agente</button>
-                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200" data-role="Testemunha"><i class="fas fa-eye fa-fw"></i> Testemunha</button>
-                                <button type="button" class="role-select-btn px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 ring-1 ring-inset ring-sky-500" data-role="Envolvido"><i class="fas fa-user fa-fw"></i> Envolvido</button> <!-- Padrão -->
+                                <button type="button"
+                                    class="role-select-btn px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                    data-role="Vítima"><i class="fas fa-user-shield fa-fw"></i> Vítima</button>
+                                <button type="button"
+                                    class="role-select-btn px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
+                                    data-role="Agente"><i class="fas fa-gavel fa-fw"></i> Agente</button>
+                                <button type="button"
+                                    class="role-select-btn px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200"
+                                    data-role="Testemunha"><i class="fas fa-eye fa-fw"></i> Testemunha</button>
+                                <button type="button"
+                                    class="role-select-btn px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 ring-1 ring-inset ring-sky-500"
+                                    data-role="Envolvido"><i class="fas fa-user fa-fw"></i> Envolvido</button>
+                                <!-- Padrão -->
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div><label for="occurrence-type" class="block text-sm font-medium">Tipo de Ocorrência <span class="text-red-500">*</span></label><select id="occurrence-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required><option value="">Selecione um tipo...</option><option value="Agressão (Física)">Agressão (Física)</option><option value="Agressão (Verbal)">Agressão (Verbal)</option><option value="Indisciplina / Comportamento Inadequado">Indisciplina / Comportamento Inadequado</option><option value="Bullying">Bullying</option><option value="Dano ao Patrimônio">Dano ao Patrimônio</option><option value="Uso inadequado de telemóvel/eletrónicos">Uso inadequado de telemóvel/eletrónicos</option><option value="Outros">Outros</option></select></div>
-                <div><label for="occurrence-date" class="block text-sm font-medium">Data da Ocorrência <span class="text-red-500">*</span></label><input type="date" id="occurrence-date" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div>
+                <div><label for="occurrence-type" class="block text-sm font-medium">Tipo de Ocorrência <span
+                            class="text-red-500">*</span></label><select id="occurrence-type"
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
+                        <option value="">Selecione um tipo...</option>
+                        <option value="Agressão (Física)">Agressão (Física)</option>
+                        <option value="Agressão (Verbal)">Agressão (Verbal)</option>
+                        <option value="Indisciplina / Comportamento Inadequado">Indisciplina / Comportamento Inadequado
+                        </option>
+                        <option value="Bullying">Bullying</option>
+                        <option value="Dano ao Patrimônio">Dano ao Patrimônio</option>
+                        <option value="Uso inadequado de telemóvel/eletrónicos">Uso inadequado de telemóvel/eletrónicos
+                        </option>
+                        <option value="Outros">Outros</option>
+                    </select></div>
+                <div><label for="occurrence-date" class="block text-sm font-medium">Data da Ocorrência <span
+                            class="text-red-500">*</span></label><input type="date" id="occurrence-date"
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div>
 
                 <!-- Seção de Detalhes (Ação 1) -->
                 <div class="pt-4 border-t space-y-4">
-                    <div><label for="description" class="block text-sm font-medium">Descrição da Ocorrência <span class="text-red-500">*</span></label><textarea id="description" rows="4" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></textarea></div>
-                    <div><label for="providencias-escola" class="block text-sm font-medium">Providências Imediatas da Escola <span class="text-red-500">*</span></label><textarea id="providencias-escola" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="O que a escola fez imediatamente após o fato?" required></textarea></div>
+                    <div><label for="description" class="block text-sm font-medium">Descrição da Ocorrência <span
+                                class="text-red-500">*</span></label><textarea id="description" rows="4"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></textarea></div>
+                    <div><label for="providencias-escola" class="block text-sm font-medium">Providências Imediatas da
+                            Escola <span class="text-red-500">*</span></label><textarea id="providencias-escola"
+                            rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                            placeholder="O que a escola fez imediatamente após o fato?" required></textarea></div>
                 </div>
 
-                <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Fato (Ação 1)</button></div>
+                <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn"
+                        class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button
+                        type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Fato (Ação
+                        1)</button></div>
             </form>
             <!-- Dropdown Escondido para Edição de Papel -->
             <div id="role-edit-dropdown" class="hidden absolute z-20 w-32 bg-white rounded-md shadow-lg border">
-                <button class="role-edit-option menu-item w-full text-left" data-role="Vítima"><i class="fas fa-user-shield text-blue-600 mr-2 fa-fw w-4"></i>Vítima</button>
-                <button class="role-edit-option menu-item w-full text-left" data-role="Agente"><i class="fas fa-gavel text-red-600 mr-2 fa-fw w-4"></i>Agente</button>
-                <button class="role-edit-option menu-item w-full text-left" data-role="Testemunha"><i class="fas fa-eye text-green-600 mr-2 fa-fw w-4"></i>Testemunha</button>
-                <button class="role-edit-option menu-item w-full text-left" data-role="Envolvido"><i class="fas fa-user text-gray-500 mr-2 fa-fw w-4"></i>Envolvido</button>
+                <button class="role-edit-option menu-item w-full text-left" data-role="Vítima"><i
+                        class="fas fa-user-shield text-blue-600 mr-2 fa-fw w-4"></i>Vítima</button>
+                <button class="role-edit-option menu-item w-full text-left" data-role="Agente"><i
+                        class="fas fa-gavel text-red-600 mr-2 fa-fw w-4"></i>Agente</button>
+                <button class="role-edit-option menu-item w-full text-left" data-role="Testemunha"><i
+                        class="fas fa-eye text-green-600 mr-2 fa-fw w-4"></i>Testemunha</button>
+                <button class="role-edit-option menu-item w-full text-left" data-role="Envolvido"><i
+                        class="fas fa-user text-gray-500 mr-2 fa-fw w-4"></i>Envolvido</button>
             </div>
         </div>
     </div>
 
     <!-- Modal para Acompanhamento Individual da Ocorrência (Ações 2-6) -->
-    <div id="follow-up-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+    <div id="follow-up-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
                 <h3 id="follow-up-modal-title" class="text-xl font-semibold">Acompanhamento Individual</h3>
-                <button id="close-follow-up-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+                <button id="close-follow-up-modal-btn"
+                    class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <!-- Formulário de acompanhamento dinâmico -->
-            <form id="follow-up-form" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto" data-record-id="" data-student-id="" data-action-type="">
-                
+            <form id="follow-up-form" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto" data-record-id=""
+                data-student-id="" data-action-type="">
+
                 <!-- Identificação e Status -->
                 <fieldset class="p-3 border rounded-md bg-gray-50">
                     <legend class="text-sm font-semibold text-gray-700 px-2">Aluno</legend>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label for="follow-up-student-name" class="block text-sm font-medium">Aluno</label>
-                            <input type="text" id="follow-up-student-name" class="mt-1 block w-full bg-gray-100 p-2 border rounded" readonly>
+                            <input type="text" id="follow-up-student-name"
+                                class="mt-1 block w-full bg-gray-100 p-2 border rounded" readonly>
                         </div>
-                        <div id="follow-up-status-display" class="flex items-center justify-center sm:justify-end text-sm pt-5">
+                        <div id="follow-up-status-display"
+                            class="flex items-center justify-center sm:justify-end text-sm pt-5">
                             <!-- O status será preenchido pelo js aqui -->
                         </div>
                     </div>
@@ -439,220 +575,310 @@
                         <legend class="text-md font-semibold text-gray-600">Ação 2: Agendar Convocação</legend>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                             <div>
-                                <label for="follow-up-meeting-date" class="block text-sm font-medium">Data da Reunião <span class="text-red-500">*</span></label>
-                                <input type="date" id="follow-up-meeting-date" class="mt-1 w-full border-gray-300 rounded-md" required>
+                                <label for="follow-up-meeting-date" class="block text-sm font-medium">Data da Reunião
+                                    <span class="text-red-500">*</span></label>
+                                <input type="date" id="follow-up-meeting-date"
+                                    class="mt-1 w-full border-gray-300 rounded-md" required>
                             </div>
                             <div>
-                                <label for="follow-up-meeting-time" class="block text-sm font-medium">Horário da Reunião <span class="text-red-500">*</span></label>
-                                <input type="time" id="follow-up-meeting-time" class="mt-1 w-full border-gray-300 rounded-md" required>
+                                <label for="follow-up-meeting-time" class="block text-sm font-medium">Horário da Reunião
+                                    <span class="text-red-500">*</span></label>
+                                <input type="time" id="follow-up-meeting-time"
+                                    class="mt-1 w-full border-gray-300 rounded-md" required>
                             </div>
                         </div>
                     </fieldset>
 
                     <!-- Grupo Ação 3: Feedback / Contato com Família (Reutilizável) -->
                     <fieldset id="group-contato" class="dynamic-occurrence-step hidden">
-                        <legend id="legend-contato" class="text-md font-semibold text-gray-600">Ação 3: Registrar Contato</legend>
+                        <legend id="legend-contato" class="text-md font-semibold text-gray-600">Ação 3: Registrar
+                            Contato</legend>
                         <div class="mt-2">
-                            <span class="block text-sm font-medium">Conseguiu contato? <span class="text-red-500">*</span></span>
+                            <span class="block text-sm font-medium">Conseguiu contato? <span
+                                    class="text-red-500">*</span></span>
                             <div class="mt-2 space-x-4">
-                                <label><input type="radio" name="follow-up-contact-succeeded" value="yes" required> Sim</label>
-                                <label><input type="radio" name="follow-up-contact-succeeded" value="no" required> Não</label>
+                                <label><input type="radio" name="follow-up-contact-succeeded" value="yes" required>
+                                    Sim</label>
+                                <label><input type="radio" name="follow-up-contact-succeeded" value="no" required>
+                                    Não</label>
                             </div>
                         </div>
                         <!-- Campos que aparecem se "Sim" -->
                         <div id="group-contato-fields" class="space-y-4 mt-4 hidden p-3 border rounded-md bg-gray-50">
-                            <div><label for="follow-up-contact-type" class="block text-sm font-medium">Tipo de Contato <span class="text-red-500">*</span></label><select id="follow-up-contact-type" class="mt-1 w-full border-gray-300 rounded-md" required disabled><option value="">Selecione...</option><option value="WhatsApp">WhatsApp</option><option value="Ligação">Ligação</option><option value="Pessoalmente">Pessoalmente</option></select></div>
-                            <div><label for="follow-up-contact-date" class="block text-sm font-medium">Dia do Contato <span class="text-red-500">*</span></label><input type="date" id="follow-up-contact-date" class="mt-1 w-full border-gray-300 rounded-md" required disabled></div>
-                            
+                            <div><label for="follow-up-contact-type" class="block text-sm font-medium">Tipo de Contato
+                                    <span class="text-red-500">*</span></label><select id="follow-up-contact-type"
+                                    class="mt-1 w-full border-gray-300 rounded-md" required disabled>
+                                    <option value="">Selecione...</option>
+                                    <option value="WhatsApp">WhatsApp</option>
+                                    <option value="Ligação">Ligação</option>
+                                    <option value="Pessoalmente">Pessoalmente</option>
+                                </select></div>
+                            <div><label for="follow-up-contact-date" class="block text-sm font-medium">Dia do Contato
+                                    <span class="text-red-500">*</span></label><input type="date"
+                                    id="follow-up-contact-date" class="mt-1 w-full border-gray-300 rounded-md" required
+                                    disabled></div>
+
                             <!-- Campo "Com quem falou" -->
-                            <div><label for="follow-up-contact-person" class="block text-sm font-medium">Com quem falou? <span class="text-red-500">*</span></label><input type="text" id="follow-up-contact-person" class="mt-1 w-full border-gray-300 rounded-md" required disabled placeholder="Ex: Mãe (Maria), Pai, Irmão..."></div>
-                            
+                            <div><label for="follow-up-contact-person" class="block text-sm font-medium">Com quem falou?
+                                    <span class="text-red-500">*</span></label><input type="text"
+                                    id="follow-up-contact-person" class="mt-1 w-full border-gray-300 rounded-md"
+                                    required disabled placeholder="Ex: Mãe (Maria), Pai, Irmão..."></div>
+
                             <!-- Campo Anexo Arquivos (NOVO - MULTIMIDIA) -->
                             <div id="follow-up-print-container">
-                                <label class="block text-sm font-medium mb-1">Anexar Provas (Fotos/Vídeos/Áudios) (Opcional)</label>
+                                <label class="block text-sm font-medium mb-1">Anexar Provas (Fotos/Vídeos/Áudios)
+                                    (Opcional)</label>
                                 <div class="flex items-center gap-2">
-                                    <label for="follow-up-contact-print" class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-1 px-3 rounded text-sm flex items-center transition">
-                                        <i class="fas fa-paperclip mr-2 text-gray-500"></i> <span id="follow-up-print-label">Selecionar Arquivos</span>
+                                    <label for="follow-up-contact-print"
+                                        class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-1 px-3 rounded text-sm flex items-center transition">
+                                        <i class="fas fa-paperclip mr-2 text-gray-500"></i> <span
+                                            id="follow-up-print-label">Selecionar Arquivos</span>
                                     </label>
                                     <!-- Alterado para aceitar video e audio -->
-                                    <input type="file" id="follow-up-contact-print" accept="image/*,video/*,audio/*" class="hidden">
-                                    <span id="follow-up-print-check" class="hidden text-green-600"><i class="fas fa-check-circle"></i></span>
+                                    <input type="file" id="follow-up-contact-print" accept="image/*,video/*,audio/*"
+                                        class="hidden">
+                                    <span id="follow-up-print-check" class="hidden text-green-600"><i
+                                            class="fas fa-check-circle"></i></span>
                                 </div>
                                 <p class="text-xs text-gray-400 mt-1">Imagens, vídeos e áudios são suportados.</p>
                                 <div id="follow-up-print-preview" class="hidden mt-2"></div>
                             </div>
 
-                            <div><label for="follow-up-family-actions" class="block text-sm font-medium">Providências da Família <span class="text-red-500">*</span></label><textarea id="follow-up-family-actions" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="O que foi combinado com os pais/responsáveis?" required disabled></textarea></div>
+                            <div><label for="follow-up-family-actions" class="block text-sm font-medium">Providências da
+                                    Família <span class="text-red-500">*</span></label><textarea
+                                    id="follow-up-family-actions" rows="3"
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                                    placeholder="O que foi combinado com os pais/responsáveis?" required
+                                    disabled></textarea></div>
                         </div>
                     </fieldset>
 
                     <!-- Seletor de Desfecho (Ação 4/6) -->
                     <fieldset id="group-desfecho-choice" class="dynamic-occurrence-step hidden">
-                        <legend class="text-md font-semibold text-gray-600">Ação 4/6: Decisão de Desfecho <span class="text-red-500">*</span></legend>
+                        <legend class="text-md font-semibold text-gray-600">Ação 4/6: Decisão de Desfecho <span
+                                class="text-red-500">*</span></legend>
                         <p class="text-xs text-gray-500 mb-2">Escolha APENAS UMA opção.</p>
                         <div class="mt-2 space-x-4">
-                            <label><input type="radio" name="follow-up-desfecho-choice" value="ct" required> Encaminhar ao CT</label>
-                            <label><input type="radio" name="follow-up-desfecho-choice" value="parecer" required> Dar Parecer Final (Resolver)</label>
+                            <label><input type="radio" name="follow-up-desfecho-choice" value="ct" required> Encaminhar
+                                ao CT</label>
+                            <label><input type="radio" name="follow-up-desfecho-choice" value="parecer" required> Dar
+                                Parecer Final (Resolver)</label>
                         </div>
                     </fieldset>
 
                     <!-- Grupo Ação 4: Encaminhamento ao CT -->
-                    <fieldset id="group-encaminhamento-ct" class="dynamic-occurrence-step hidden border rounded-md p-3 space-y-2 bg-gray-50">
+                    <fieldset id="group-encaminhamento-ct"
+                        class="dynamic-occurrence-step hidden border rounded-md p-3 space-y-2 bg-gray-50">
                         <legend class="text-sm font-semibold px-2">Ação 4: Dados do Encaminhamento ao CT</legend>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                           <div>
-                                <label for="follow-up-oficio-number" class="block text-sm font-medium">Nº do Ofício</label>
-                                <input type="text" id="follow-up-oficio-number" class="mt-1 w-full border-gray-300 rounded-md" placeholder="Ex: 123">
+                            <div>
+                                <label for="follow-up-oficio-number" class="block text-sm font-medium">Nº do
+                                    Ofício</label>
+                                <input type="text" id="follow-up-oficio-number"
+                                    class="mt-1 w-full border-gray-300 rounded-md" placeholder="Ex: 123">
                             </div>
-                           <div>
-                                <label for="follow-up-ct-sent-date" class="block text-sm font-medium">Data de Envio</label>
-                                <input type="date" id="follow-up-ct-sent-date" class="mt-1 w-full border-gray-300 rounded-md">
+                            <div>
+                                <label for="follow-up-ct-sent-date" class="block text-sm font-medium">Data de
+                                    Envio</label>
+                                <input type="date" id="follow-up-ct-sent-date"
+                                    class="mt-1 w-full border-gray-300 rounded-md">
                             </div>
                         </div>
                     </fieldset>
 
-                     <!-- Grupo Ação 5: Devolutiva do CT -->
-                    <fieldset id="group-devolutiva-ct" class="dynamic-occurrence-step hidden border rounded-md p-3 space-y-4 bg-gray-50">
+                    <!-- Grupo Ação 5: Devolutiva do CT -->
+                    <fieldset id="group-devolutiva-ct"
+                        class="dynamic-occurrence-step hidden border rounded-md p-3 space-y-4 bg-gray-50">
                         <legend class="text-sm font-semibold px-2">Ação 5: Devolutiva do Conselho Tutelar</legend>
                         <div class="mt-2">
-                            <label for="follow-up-ct-feedback" class="block text-sm font-medium">Devolutiva do C.T. <span class="text-red-500">*</span></label>
-                            <textarea id="follow-up-ct-feedback" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Registre a resposta ou encaminhamento recebido do C.T. aqui..." required></textarea>
+                            <label for="follow-up-ct-feedback" class="block text-sm font-medium">Devolutiva do C.T.
+                                <span class="text-red-500">*</span></label>
+                            <textarea id="follow-up-ct-feedback" rows="3"
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                                placeholder="Registre a resposta ou encaminhamento recebido do C.T. aqui..."
+                                required></textarea>
                         </div>
                     </fieldset>
 
                     <!-- Grupo Ação 6: Parecer Final -->
-                    <fieldset id="group-parecer-final" class="dynamic-occurrence-step hidden border rounded-md p-3 space-y-4 bg-gray-50">
+                    <fieldset id="group-parecer-final"
+                        class="dynamic-occurrence-step hidden border rounded-md p-3 space-y-4 bg-gray-50">
                         <legend class="text-sm font-semibold px-2">Ação 6: Parecer Final / Desfecho</legend>
                         <div class="mt-2">
-                            <label for="follow-up-parecer-final" class="block text-sm font-medium">Parecer / Desfecho <span class="text-red-500">*</span></label>
-                            <textarea id="follow-up-parecer-final" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" placeholder="Conclusão do caso pela escola..." required></textarea>
+                            <label for="follow-up-parecer-final" class="block text-sm font-medium">Parecer / Desfecho
+                                <span class="text-red-500">*</span></label>
+                            <textarea id="follow-up-parecer-final" rows="3"
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                                placeholder="Conclusão do caso pela escola..." required></textarea>
                         </div>
                     </fieldset>
 
                 </div> <!-- Fim do dynamic-occurrence-fields -->
 
                 <div class="pt-4 flex justify-end space-x-3">
-                    <button type="button" id="cancel-follow-up-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button>
-                    <button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Etapa</button>
+                    <button type="button" id="cancel-follow-up-btn"
+                        class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                    <button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar
+                        Etapa</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- Modal NOVO: Busca de Aluno para Iniciar Ação de Busca Ativa -->
-     <div id="absence-search-flow-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+    <div id="absence-search-flow-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
                 <h3 class="text-xl font-semibold">Iniciar / Continuar Busca Ativa</h3>
-                <button id="close-absence-search-flow-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+                <button id="close-absence-search-flow-modal-btn"
+                    class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <div class="p-6 space-y-4">
-                <p class="text-sm text-gray-600">Pesquise o aluno para iniciar um novo ciclo de acompanhamento ou continuar um processo em aberto.</p>
-                
+                <p class="text-sm text-gray-600">Pesquise o aluno para iniciar um novo ciclo de acompanhamento ou
+                    continuar um processo em aberto.</p>
+
                 <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-search text-gray-400"></i></div>
-                    <input type="text" id="absence-search-flow-input" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm" placeholder="Pesquisar aluno por nome...">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i
+                            class="fas fa-search text-gray-400"></i></div>
+                    <input type="text" id="absence-search-flow-input"
+                        class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                        placeholder="Pesquisar aluno por nome...">
                     <div id="absence-search-flow-suggestions" class="autocomplete-suggestions hidden">
                         <!-- Sugestões de alunos aparecerão aqui -->
                     </div>
                 </div>
-                
+
                 <div id="absence-search-flow-results" class="space-y-2 mt-4">
                     <p class="text-sm text-gray-400 text-center">Comece a digitar o nome do aluno acima.</p>
                 </div>
             </div>
             <div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg">
-                <button type="button" id="cancel-absence-search-flow-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                <button type="button" id="cancel-absence-search-flow-btn"
+                    class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button>
             </div>
         </div>
     </div>
 
     <!-- Modal: Registro/Edição de Ação de Busca Ativa -->
-    <div id="absence-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0 max-h-[95vh] flex flex-col"> 
+    <div id="absence-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+        <div
+            class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0 max-h-[95vh] flex flex-col">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
                 <h3 id="absence-modal-title" class="text-xl font-semibold">Acompanhamento Busca Ativa</h3>
-                <button id="close-absence-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+                <button id="close-absence-modal-btn"
+                    class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <form id="absence-form" class="p-6 space-y-4 overflow-y-auto">
                 <input type="hidden" id="absence-id">
                 <input type="hidden" id="absence-process-id">
-                
+
                 <!-- Inputs ocultos -->
                 <input type="hidden" id="absence-student-class">
                 <input type="hidden" id="absence-student-endereco">
                 <input type="hidden" id="absence-student-contato">
-                
+
                 <!-- Identificação e Status -->
                 <fieldset class="p-3 border rounded-md bg-gray-50">
                     <legend class="text-sm font-semibold text-gray-700 px-2">Aluno</legend>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label for="absence-student-name" class="block text-sm font-medium">Aluno</label>
-                            <input type="text" id="absence-student-name" class="mt-1 block w-full bg-gray-100 p-2 border rounded" readonly>
+                            <input type="text" id="absence-student-name"
+                                class="mt-1 block w-full bg-gray-100 p-2 border rounded" readonly>
                         </div>
-                        <div id="absence-status-display" class="flex items-center justify-center sm:justify-end text-sm pt-5"></div>
+                        <div id="absence-status-display"
+                            class="flex items-center justify-center sm:justify-end text-sm pt-5"></div>
                     </div>
                 </fieldset>
-                
+
                 <!-- Dados de Faltas -->
                 <fieldset id="absence-period-data" class="p-3 border rounded-md bg-gray-50 space-y-2 hidden">
                     <legend class="text-sm font-semibold text-gray-700 px-2">Dados das Faltas</legend>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div><label class="block text-sm">Início</label><input type="date" id="absence-start-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                        <div><label class="block text-sm">Fim</label><input type="date" id="absence-end-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                        <div><label class="block text-sm">Início</label><input type="date" id="absence-start-date"
+                                class="mt-1 w-full border-gray-300 rounded-md"></div>
+                        <div><label class="block text-sm">Fim</label><input type="date" id="absence-end-date"
+                                class="mt-1 w-full border-gray-300 rounded-md"></div>
                     </div>
-                    <div class="pt-2"><label class="block text-sm">Nº de faltas</label><input type="number" id="absence-count" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                    <div class="pt-2"><label class="block text-sm">Nº de faltas</label><input type="number"
+                            id="absence-count" class="mt-1 w-full border-gray-300 rounded-md"></div>
                 </fieldset>
 
                 <!-- Campo Visual da Etapa -->
                 <div class="border-t pt-4">
                     <label class="block text-sm font-medium">Etapa Atual</label>
-                    <input type="text" id="action-type-display" class="mt-1 w-full bg-gray-100 p-2 border rounded" readonly>
+                    <input type="text" id="action-type-display" class="mt-1 w-full bg-gray-100 p-2 border rounded"
+                        readonly>
                     <input type="hidden" id="action-type">
                 </div>
 
                 <!-- Container de Campos Dinâmicos -->
                 <div id="dynamic-fields-container" class="space-y-4 pt-2">
-                    
+
                     <!-- Etapa: Tentativas (Com Convocação e Contato) -->
                     <div id="group-tentativas" class="dynamic-field-group hidden space-y-4">
-                        
+
                         <!-- Convocação -->
                         <fieldset id="convocation-section" class="border rounded-md p-3 space-y-2 bg-gray-50">
                             <legend class="text-sm font-semibold px-2">Data para notificação (Ação 1/2)</legend>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div><label class="block text-sm">Data</label><input type="date" id="meeting-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                                <div><label class="block text-sm">Horário</label><input type="time" id="meeting-time" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Data</label><input type="date" id="meeting-date"
+                                        class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Horário</label><input type="time" id="meeting-time"
+                                        class="mt-1 w-full border-gray-300 rounded-md"></div>
                             </div>
                         </fieldset>
-                        
+
                         <!-- Contato -->
                         <fieldset id="family-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
                             <legend class="text-sm font-semibold px-2">Família na escola (Ação 3)</legend>
-                            <div><span class="block text-sm">Conseguiu contato?</span><div class="mt-2 space-x-4"><label><input type="radio" name="contact-succeeded" value="yes"> Sim</label><label><input type="radio" name="contact-succeeded" value="no"> Não</label></div></div>
+                            <div><span class="block text-sm">Conseguiu contato?</span>
+                                <div class="mt-2 space-x-4"><label><input type="radio" name="contact-succeeded"
+                                            value="yes"> Sim</label><label><input type="radio" name="contact-succeeded"
+                                            value="no"> Não</label></div>
+                            </div>
                             <div id="family-contact-fields" class="space-y-4">
-                                <div><label for="absence-contact-type" class="block text-sm font-medium">Tipo de Contato</label><select id="absence-contact-type" class="mt-1 w-full border-gray-300 rounded-md"><option value="">Selecione...</option><option value="WhatsApp">WhatsApp</option><option value="Ligação">Ligação</option><option value="Pessoalmente">Pessoalmente</option></select></div>
-                                <div><label class="block text-sm">Dia do contato:</label><input type="date" id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                                <div><label class="block text-sm">Com quem falou?</label><input type="text" id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                                
+                                <div><label for="absence-contact-type" class="block text-sm font-medium">Tipo de
+                                        Contato</label><select id="absence-contact-type"
+                                        class="mt-1 w-full border-gray-300 rounded-md">
+                                        <option value="">Selecione...</option>
+                                        <option value="WhatsApp">WhatsApp</option>
+                                        <option value="Ligação">Ligação</option>
+                                        <option value="Pessoalmente">Pessoalmente</option>
+                                    </select></div>
+                                <div><label class="block text-sm">Dia do contato:</label><input type="date"
+                                        id="contact-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Com quem falou?</label><input type="text"
+                                        id="contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
+
                                 <!-- CAMPO ANEXO (BUSCA ATIVA) -->
                                 <div id="absence-print-container">
                                     <label class="block text-sm font-medium mb-1">Anexar Provas (Opcional)</label>
                                     <div class="flex items-center gap-2">
-                                        <label for="absence-contact-print" class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-1 px-3 rounded text-sm flex items-center transition">
-                                            <i class="fas fa-paperclip mr-2 text-gray-500"></i> <span id="absence-print-label">Selecionar Arquivos</span>
+                                        <label for="absence-contact-print"
+                                            class="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-1 px-3 rounded text-sm flex items-center transition">
+                                            <i class="fas fa-paperclip mr-2 text-gray-500"></i> <span
+                                                id="absence-print-label">Selecionar Arquivos</span>
                                         </label>
-                                        <input type="file" id="absence-contact-print" accept="image/*,video/*,audio/*" class="hidden">
-                                        <span id="absence-print-check" class="hidden text-green-600"><i class="fas fa-check-circle"></i></span>
+                                        <input type="file" id="absence-contact-print" accept="image/*,video/*,audio/*"
+                                            class="hidden">
+                                        <span id="absence-print-check" class="hidden text-green-600"><i
+                                                class="fas fa-check-circle"></i></span>
                                     </div>
                                     <p class="text-xs text-gray-400 mt-1">Imagens, vídeos e áudios são suportados.</p>
                                     <div id="absence-print-preview" class="hidden mt-2"></div>
                                 </div>
 
-                                <div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                                <div><label class="block text-sm">Justificativa:</label><textarea id="contact-reason"
+                                        rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
                             </div>
-                            <div><span class="block text-sm">Aluno retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="contact-returned" value="yes"> Sim</label><label><input type="radio" name="contact-returned" value="no"> Não</label></div></div>
+                            <div><span class="block text-sm">Aluno retornou?</span>
+                                <div class="mt-2 space-x-4"><label><input type="radio" name="contact-returned"
+                                            value="yes"> Sim</label><label><input type="radio" name="contact-returned"
+                                            value="no"> Não</label></div>
+                            </div>
                         </fieldset>
                     </div>
 
@@ -660,18 +886,31 @@
                     <div id="group-visita" class="dynamic-field-group hidden space-y-4">
                         <fieldset class="border rounded-md p-3 space-y-2 bg-gray-50">
                             <legend class="text-sm font-semibold px-2">Dados da Visita In Loco</legend>
-                            <div><label class="block text-sm">Agente da visita:</label><input type="text" id="visit-agent" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                            <div><label class="block text-sm">Dia da visita:</label><input type="date" id="visit-date" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                            <div><label class="block text-sm">Agente da visita:</label><input type="text"
+                                    id="visit-agent" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                            <div><label class="block text-sm">Dia da visita:</label><input type="date" id="visit-date"
+                                    class="mt-1 w-full border-gray-300 rounded-md"></div>
                         </fieldset>
                         <fieldset id="visit-contact-section" class="border rounded-md p-3 space-y-4 bg-gray-50">
                             <legend class="text-sm font-semibold px-2">Detalhes do Contato</legend>
-                            <div><span class="block text-sm">Conseguiu contato?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-succeeded" value="yes"> Sim</label><label><input type="radio" name="visit-succeeded" value="no"> Não</label></div></div>
-                            <div id="visit-contact-fields" class="space-y-4">
-                                <div><label class="block text-sm">Com quem falou?</label><input type="text" id="visit-contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
-                                <div><label class="block text-sm">Justificativa:</label><textarea id="visit-reason" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
-                                <div><label class="block text-sm">Observações:</label><textarea id="visit-obs" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                            <div><span class="block text-sm">Conseguiu contato?</span>
+                                <div class="mt-2 space-x-4"><label><input type="radio" name="visit-succeeded"
+                                            value="yes"> Sim</label><label><input type="radio" name="visit-succeeded"
+                                            value="no"> Não</label></div>
                             </div>
-                            <div><span class="block text-sm">Retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="visit-returned" value="yes"> Sim</label><label><input type="radio" name="visit-returned" value="no"> Não</label></div></div>
+                            <div id="visit-contact-fields" class="space-y-4">
+                                <div><label class="block text-sm">Com quem falou?</label><input type="text"
+                                        id="visit-contact-person" class="mt-1 w-full border-gray-300 rounded-md"></div>
+                                <div><label class="block text-sm">Justificativa:</label><textarea id="visit-reason"
+                                        rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                                <div><label class="block text-sm">Observações:</label><textarea id="visit-obs" rows="2"
+                                        class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                            </div>
+                            <div><span class="block text-sm">Retornou?</span>
+                                <div class="mt-2 space-x-4"><label><input type="radio" name="visit-returned"
+                                            value="yes"> Sim</label><label><input type="radio" name="visit-returned"
+                                            value="no"> Não</label></div>
+                            </div>
                         </fieldset>
                     </div>
 
@@ -686,108 +925,194 @@
                                 </div>
                                 <div>
                                     <label class="block text-sm">Nº do Ofício:</label>
-                                    <input type="text" id="oficio-number" class="mt-1 w-full border-gray-300 rounded-md" placeholder="Ex: 123">
+                                    <input type="text" id="oficio-number" class="mt-1 w-full border-gray-300 rounded-md"
+                                        placeholder="Ex: 123">
                                 </div>
                                 <div>
                                     <label class="block text-sm">Ano do Ofício:</label>
-                                    <input type="number" id="oficio-year" class="mt-1 w-full border-gray-300 rounded-md" placeholder="Ex: 2025" min="2020" max="2099">
+                                    <input type="number" id="oficio-year" class="mt-1 w-full border-gray-300 rounded-md"
+                                        placeholder="Ex: 2025" min="2020" max="2099">
                                 </div>
                             </div>
                         </fieldset>
                         <fieldset class="border rounded-md p-3 space-y-4 bg-gray-50">
-                             <legend class="text-sm font-semibold px-2">Devolutiva do Conselho Tutelar</legend>
-                            <div><label class="block text-sm">Devolutiva do CT:</label><textarea id="ct-feedback" rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
-                            <div><span class="block text-sm">Retornou?</span><div class="mt-2 space-x-4"><label><input type="radio" name="ct-returned" value="yes"> Sim</label><label><input type="radio" name="ct-returned" value="no"> Não</label></div></div>
+                            <legend class="text-sm font-semibold px-2">Devolutiva do Conselho Tutelar</legend>
+                            <div><label class="block text-sm">Devolutiva do CT:</label><textarea id="ct-feedback"
+                                    rows="2" class="mt-1 w-full border-gray-300 rounded-md"></textarea></div>
+                            <div><span class="block text-sm">Retornou?</span>
+                                <div class="mt-2 space-x-4"><label><input type="radio" name="ct-returned" value="yes">
+                                        Sim</label><label><input type="radio" name="ct-returned" value="no"> Não</label>
+                                </div>
+                            </div>
                         </fieldset>
                     </div>
 
                     <!-- Etapa: Análise -->
                     <div id="group-analise" class="dynamic-field-group hidden space-y-4">
                         <fieldset class="border rounded-md p-3 space-y-2 bg-gray-50">
-                             <legend class="text-sm font-semibold px-2">Parecer Final (Conclusão do Ciclo)</legend>
-                            <div><label class="block text-sm">Parecer BAE:</label><textarea id="ct-parecer" rows="3" class="mt-1 w-full border-gray-300 rounded-md" required></textarea></div>
+                            <legend class="text-sm font-semibold px-2">Parecer Final (Conclusão do Ciclo)</legend>
+                            <div><label class="block text-sm">Parecer BAE:</label><textarea id="ct-parecer" rows="3"
+                                    class="mt-1 w-full border-gray-300 rounded-md" required></textarea></div>
                         </fieldset>
                     </div>
 
                 </div> <!-- Fim dynamic-fields-container -->
 
-                <div class="pt-4 flex justify-end space-x-3 bg-white sticky bottom-0 pb-6 -mx-6 px-6 border-t"><button type="button" id="cancel-absence-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="submit" class="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Ação</button></div>
+                <div class="pt-4 flex justify-end space-x-3 bg-white sticky bottom-0 pb-6 -mx-6 px-6 border-t"><button
+                        type="button" id="cancel-absence-btn"
+                        class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button
+                        type="submit" class="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg">Salvar
+                        Ação</button></div>
             </form>
         </div>
     </div>
 
     <!-- Modal: Gerenciamento de Alunos -->
-    <div id="students-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
-            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 class="text-xl font-semibold">Gerir Lista de Alunos</h3><button id="close-students-modal-btn" class="text-gray-500 text-2xl font-bold">&times;</button></div>
+    <div id="students-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+        <div
+            class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
+            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
+                <h3 class="text-xl font-semibold">Gerir Lista de Alunos</h3><button id="close-students-modal-btn"
+                    class="text-gray-500 text-2xl font-bold">&times;</button>
+            </div>
             <div class="p-6 flex-grow overflow-y-auto space-y-6">
-                <div class="bg-gray-50 p-4 rounded-lg border"><h4 id="student-form-title" class="text-lg font-semibold mb-2">Adicionar Novo Aluno</h4><form id="student-form" class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start"><input type="hidden" id="student-id-input"><div><label class="block text-sm font-medium">Matrícula</label><input type="text" id="student-matricula-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Nome Completo</label><input type="text" id="student-name-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Turma</label><input type="text" id="student-class-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Contato</label><input type="text" id="student-contato-input" class="mt-1 w-full p-2 border"></div><div class="sm:col-span-2"><label class="block text-sm font-medium">Endereço</label><input type="text" id="student-endereco-input" class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 1</label><input type="text" id="student-resp1-input" required class="mt-1 w-full p-2 border"></div><div><label class="block text-sm font-medium">Responsável 2</label><input type="text" id="student-resp2-input" class="mt-1 w-full p-2 border"></div><div class="flex space-x-2 sm:col-span-2 self-end"><button type="submit" id="save-student-btn" class="w-full bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar</button><button type="button" id="cancel-edit-student-btn" class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hidden">Cancelar</button></div></form></div>
-                <div><h4 class="text-lg font-semibold mb-2">Alunos Registados</h4><div class="border rounded-lg overflow-hidden"><div class="overflow-y-auto max-h-64"><table class="min-w-full divide-y"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-4 py-2 text-left text-xs font-medium uppercase">Nome</th><th class="px-4 py-2 text-left text-xs font-medium uppercase">Turma</th><th class="px-4 py-2 text-right text-xs font-medium uppercase">Ações</th></tr></thead><tbody id="students-list-table" class="bg-white divide-y"></tbody></table></div></div></div>
-                <div class="border-t pt-6"><h4 class="text-lg font-semibold mb-2">Importar em Massa (CSV)</h4><p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`, `turma`, `endereco`, `contato`, `resp1`, `resp2`. Isto <strong>substituirá</strong> a lista atual.</p><div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4"><input type="file" id="csv-file" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"><button type="button" id="upload-csv-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg whitespace-nowrap">Carregar CSV</button></div><div id="csv-feedback" class="text-sm mt-2"></div></div>
+                <div class="bg-gray-50 p-4 rounded-lg border">
+                    <h4 id="student-form-title" class="text-lg font-semibold mb-2">Adicionar Novo Aluno</h4>
+                    <form id="student-form" class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start"><input
+                            type="hidden" id="student-id-input">
+                        <div><label class="block text-sm font-medium">Matrícula</label><input type="text"
+                                id="student-matricula-input" required class="mt-1 w-full p-2 border"></div>
+                        <div><label class="block text-sm font-medium">Nome Completo</label><input type="text"
+                                id="student-name-input" required class="mt-1 w-full p-2 border"></div>
+                        <div><label class="block text-sm font-medium">Turma</label><input type="text"
+                                id="student-class-input" required class="mt-1 w-full p-2 border"></div>
+                        <div><label class="block text-sm font-medium">Contato</label><input type="text"
+                                id="student-contato-input" class="mt-1 w-full p-2 border"></div>
+                        <div class="sm:col-span-2"><label class="block text-sm font-medium">Endereço</label><input
+                                type="text" id="student-endereco-input" class="mt-1 w-full p-2 border"></div>
+                        <div><label class="block text-sm font-medium">Responsável 1</label><input type="text"
+                                id="student-resp1-input" required class="mt-1 w-full p-2 border"></div>
+                        <div><label class="block text-sm font-medium">Responsável 2</label><input type="text"
+                                id="student-resp2-input" class="mt-1 w-full p-2 border"></div>
+                        <div class="flex space-x-2 sm:col-span-2 self-end"><button type="submit" id="save-student-btn"
+                                class="w-full bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar</button><button
+                                type="button" id="cancel-edit-student-btn"
+                                class="w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hidden">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+                <div>
+                    <h4 class="text-lg font-semibold mb-2">Alunos Registados</h4>
+                    <div class="border rounded-lg overflow-hidden">
+                        <div class="overflow-y-auto max-h-64">
+                            <table class="min-w-full divide-y">
+                                <thead class="bg-gray-50 sticky top-0">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-medium uppercase">Nome</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium uppercase">Turma</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium uppercase">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="students-list-table" class="bg-white divide-y"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-t pt-6">
+                    <h4 class="text-lg font-semibold mb-2">Importar em Massa (CSV)</h4>
+                    <p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: `matricula`, `nome`,
+                        `turma`, `endereco`, `contato`, `resp1`, `resp2`. Isto <strong>substituirá</strong> a lista
+                        atual.</p>
+                    <div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4"><input type="file"
+                            id="csv-file" accept=".csv"
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"><button
+                            type="button" id="upload-csv-btn"
+                            class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg whitespace-nowrap">Carregar
+                            CSV</button></div>
+                    <div id="csv-feedback" class="text-sm mt-2"></div>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Modal: Configurações -->
-    <div id="settings-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+    <div id="settings-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-xl modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
                 <h3 class="text-xl font-semibold">Configurações da Escola</h3>
-                <button id="close-settings-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+                <button id="close-settings-modal-btn"
+                    class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <form id="settings-form" class="p-6 space-y-4">
                 <div>
-                    <label for="school-name-input" class="block text-sm font-medium text-gray-700">Nome da Escola</label>
-                    <input type="text" id="school-name-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
+                    <label for="school-name-input" class="block text-sm font-medium text-gray-700">Nome da
+                        Escola</label>
+                    <input type="text" id="school-name-input"
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
                 </div>
                 <div>
                     <label for="school-city-input" class="block text-sm font-medium text-gray-700">Cidade</label>
-                    <input type="text" id="school-city-input" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
+                    <input type="text" id="school-city-input"
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
                 </div>
                 <div>
-                    <label for="school-logo-input" class="block text-sm font-medium text-gray-700">URL do Logo da Escola (Opcional)</label>
-                    <input type="url" id="school-logo-input" placeholder="https://exemplo.com/logo.png" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
-                    <p class="text-xs text-gray-500 mt-1">Insira o link completo da imagem. Deixe em branco para usar apenas o nome.</p>
+                    <label for="school-logo-input" class="block text-sm font-medium text-gray-700">URL do Logo da Escola
+                        (Opcional)</label>
+                    <input type="url" id="school-logo-input" placeholder="https://exemplo.com/logo.png"
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
+                    <p class="text-xs text-gray-500 mt-1">Insira o link completo da imagem. Deixe em branco para usar
+                        apenas o nome.</p>
                 </div>
-                
+
                 <div>
                     <label for="admin-emails-input" class="block text-sm font-medium text-gray-700">
                         Emails dos Administradores (separados por vírgula)
                     </label>
-                    <textarea id="admin-emails-input" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" placeholder="admin@escola.com, gestor@escola.com"></textarea>
+                    <textarea id="admin-emails-input" rows="3"
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border"
+                        placeholder="admin@escola.com, gestor@escola.com"></textarea>
                     <p class="text-xs text-gray-500 mt-1">
                         Apenas os emails nesta lista (e o Super Admin) terão acesso a 'Configurações' e 'Gerir Alunos'.
                     </p>
                 </div>
-                
+
                 <div class="pt-4 flex justify-end space-x-3">
-                    <button type="button" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg" id="cancel-settings-btn">Cancelar</button>
-                    <button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Configurações</button>
+                    <button type="button" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg"
+                        id="cancel-settings-btn">Cancelar</button>
+                    <button type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar
+                        Configurações</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- Modal de Seleção de Aluno para Notificação -->
-    <div id="student-selection-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+    <div id="student-selection-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
                 <h3 class="text-xl font-semibold">Gerar Notificação</h3>
-                <button id="close-student-selection-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+                <button id="close-student-selection-modal-btn"
+                    class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <div class="p-6">
-                <p class="text-sm text-gray-600 mb-4">Este incidente envolve múltiplos alunos. Selecione para qual aluno deseja gerar a notificação individual:</p>
+                <p class="text-sm text-gray-600 mb-4">Este incidente envolve múltiplos alunos. Selecione para qual aluno
+                    deseja gerar a notificação individual:</p>
                 <div id="student-selection-modal-body" class="space-y-2"></div>
             </div>
         </div>
     </div>
 
     <!-- Modal Enviar Ofício (Ocorrência) -->
-    <div id="send-occurrence-ct-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+    <div id="send-occurrence-ct-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg modal-content transform scale-95 opacity-0">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
                 <h3 id="send-ct-modal-title" class="text-xl font-semibold">Enviar ao Conselho Tutelar</h3>
-                <button id="close-send-ct-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+                <button id="close-send-ct-modal-btn"
+                    class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <form id="send-occurrence-ct-form">
                 <input type="hidden" id="send-ct-group-id">
@@ -801,11 +1126,13 @@
                     </div>
 
                     <div id="send-ct-student-selection-section" class="hidden">
-                         <label for="send-ct-student-select" class="block text-sm font-medium text-gray-700 mb-1">Selecione o Aluno:</label>
-                         <select id="send-ct-student-select" class="block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm" required>
-                             <option value="">Carregando...</option>
-                         </select>
-                         <p class="text-xs text-gray-500 mt-1">Este incidente envolve múltiplos alunos.</p>
+                        <label for="send-ct-student-select"
+                            class="block text-sm font-medium text-gray-700 mb-1">Selecione o Aluno:</label>
+                        <select id="send-ct-student-select"
+                            class="block w-full border-gray-300 rounded-md shadow-sm p-2 text-sm" required>
+                            <option value="">Carregando...</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Este incidente envolve múltiplos alunos.</p>
                     </div>
                     <div id="send-ct-selected-student-display" class="hidden">
                         <p class="text-sm font-medium text-gray-700">Aluno:</p>
@@ -813,13 +1140,19 @@
                     </div>
 
                     <div>
-                        <label for="send-ct-oficio-number" class="block text-sm font-medium">Número do Ofício <span class="text-red-500">*</span></label>
-                        <input type="text" id="send-ct-oficio-number" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required placeholder="Ex: 123">
+                        <label for="send-ct-oficio-number" class="block text-sm font-medium">Número do Ofício <span
+                                class="text-red-500">*</span></label>
+                        <input type="text" id="send-ct-oficio-number"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required
+                            placeholder="Ex: 123">
                     </div>
                 </div>
                 <div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg">
-                    <button type="button" id="cancel-send-ct-modal-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button>
-                    <button type="submit" id="confirm-send-ct-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Confirmar Envio e Gerar Ofício</button>
+                    <button type="button" id="cancel-send-ct-modal-btn"
+                        class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                    <button type="submit" id="confirm-send-ct-btn"
+                        class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Confirmar Envio e Gerar
+                        Ofício</button>
                 </div>
             </form>
         </div>
@@ -827,61 +1160,135 @@
 
 
     <!-- Modais de Visualização e Impressão -->
-    <div id="notification-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="notification-title" class="text-xl font-semibold">Notificação</h3><button id="close-notification-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="notification-content" class="p-8 overflow-y-auto bg-white"></div>
-        <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
-            <button id="share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
-            <button id="print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
+    <div id="notification-modal-backdrop"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area">
+        <div
+            class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
+            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print">
+                <h3 id="notification-title" class="text-xl font-semibold">Notificação</h3><button
+                    id="close-notification-btn" class="text-gray-500 text-2xl">&times;</button>
+            </div>
+            <div id="notification-content" class="p-8 overflow-y-auto bg-white"></div>
+            <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
+                <button id="share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i
+                        class="fas fa-share-alt mr-2"></i>Enviar</button>
+                <button id="print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i
+                        class="fas fa-print mr-2"></i>Imprimir</button>
+            </div>
         </div>
-    </div></div>
-    <div id="report-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3><button id="close-report-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="report-view-content" class="p-8 overflow-y-auto bg-white"></div>
-        <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
-            <button id="report-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
-            <button id="report-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
+    </div>
+    <div id="report-view-modal-backdrop"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area">
+        <div
+            class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
+            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print">
+                <h3 id="report-view-title" class="text-xl font-semibold">Relatório</h3><button
+                    id="close-report-view-btn" class="text-gray-500 text-2xl">&times;</button>
+            </div>
+            <div id="report-view-content" class="p-8 overflow-y-auto bg-white"></div>
+            <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
+                <button id="report-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i
+                        class="fas fa-share-alt mr-2"></i>Enviar</button>
+                <button id="report-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i
+                        class="fas fa-print mr-2"></i>Imprimir</button>
+            </div>
         </div>
-    </div></div>
-    <div id="ficha-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area"><div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print"><h3 id="ficha-view-title" class="text-xl font-semibold">Documento</h3><button id="close-ficha-view-btn" class="text-gray-500 text-2xl">&times;</button></div><div id="ficha-view-content" class="p-8 overflow-y-auto bg-white"></div>
-        <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
-            <button id="ficha-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i class="fas fa-share-alt mr-2"></i>Enviar</button>
-            <button id="ficha-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i class="fas fa-print mr-2"></i>Imprimir</button>
+    </div>
+    <div id="ficha-view-modal-backdrop"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0 printable-area">
+        <div
+            class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
+            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center no-print">
+                <h3 id="ficha-view-title" class="text-xl font-semibold">Documento</h3><button id="close-ficha-view-btn"
+                    class="text-gray-500 text-2xl">&times;</button>
+            </div>
+            <div id="ficha-view-content" class="p-8 overflow-y-auto bg-white"></div>
+            <div class="p-4 bg-gray-50 rounded-b-lg flex justify-end items-center space-x-3 no-print">
+                <button id="ficha-share-btn" class="bg-cyan-500 text-white py-2 px-4 rounded-lg"><i
+                        class="fas fa-share-alt mr-2"></i>Enviar</button>
+                <button id="ficha-print-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg"><i
+                        class="fas fa-print mr-2"></i>Imprimir</button>
+            </div>
         </div>
-    </div></div>
+    </div>
 
     <!-- Modal de Visualização de Imagem (NOVO) -->
-    <div id="image-view-modal" class="fixed inset-0 z-[70] flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
+    <div id="image-view-modal"
+        class="fixed inset-0 z-[70] flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+        <div
+            class="bg-white rounded-lg shadow-2xl w-full max-w-3xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
             <div class="bg-gray-100 p-3 rounded-t-lg flex justify-between items-center">
                 <h3 id="image-view-title" class="text-lg font-semibold text-gray-700">Anexo</h3>
-                <button onclick="document.getElementById('image-view-modal').classList.add('hidden')" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+                <button onclick="document.getElementById('image-view-modal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <!-- Container dinâmico para Imagem/Video/Audio -->
-            <div class="p-4 overflow-auto flex justify-center bg-black/5 items-center min-h-[200px]" id="image-view-content">
+            <div class="p-4 overflow-auto flex justify-center bg-black/5 items-center min-h-[200px]"
+                id="image-view-content">
                 <!-- Conteúdo injetado via JS -->
             </div>
         </div>
     </div>
 
     <!-- Modal: Visualização de Histórico -->
-    <div id="history-view-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
+    <div id="history-view-modal-backdrop"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+        <div
+            class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 opacity-0 flex flex-col max-h-[90vh]">
             <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center flex-shrink-0">
                 <div>
                     <h3 id="history-view-title" class="text-xl font-semibold">Histórico de Alterações</h3>
                     <p id="history-view-subtitle" class="text-sm text-gray-600 mt-1"></p>
                 </div>
-                <button id="close-history-view-btn" class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+                <button id="close-history-view-btn"
+                    class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
             <div id="history-view-content" class="p-6 overflow-y-auto bg-white"></div>
         </div>
     </div>
 
     <!-- Modal: Gerador de Relatório -->
-    <div id="report-generator-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center"><h3 id="report-generator-title" class="text-xl font-semibold">Gerar Relatório</h3><button id="close-report-generator-btn" class="text-gray-500 text-2xl">&times;</button></div><div class="p-6 space-y-4"><div><label class="block text-sm font-medium">Selecione o Aluno(a)</label><select id="student-select" class="mt-1 block w-full"><option value="">Carregando...</option></select></div></div><div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg"><button type="button" id="cancel-report-generator-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button type="button" id="create-report-btn" class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">Gerar</button></div></div></div>
+    <div id="report-generator-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0">
+            <div class="bg-gray-100 p-4 rounded-t-lg flex justify-between items-center">
+                <h3 id="report-generator-title" class="text-xl font-semibold">Gerar Relatório</h3><button
+                    id="close-report-generator-btn" class="text-gray-500 text-2xl">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div><label class="block text-sm font-medium">Selecione o Aluno(a)</label><select id="student-select"
+                        class="mt-1 block w-full">
+                        <option value="">Carregando...</option>
+                    </select></div>
+            </div>
+            <div class="bg-gray-50 p-4 flex justify-end space-x-3 rounded-b-lg"><button type="button"
+                    id="cancel-report-generator-btn"
+                    class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button
+                    type="button" id="create-report-btn"
+                    class="bg-teal-600 text-white font-bold py-2 px-4 rounded-lg">Gerar</button></div>
+        </div>
+    </div>
 
     <!-- Modal: Confirmação de Exclusão -->
-    <div id="delete-confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0"><div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0"><div class="p-6 text-center"><i class="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i><h3 class="text-lg font-semibold">Confirmar Exclusão</h3><p id="delete-confirm-message" class="mt-2 text-sm text-gray-500">Tem certeza?</p></div><div class="bg-gray-50 px-4 py-3 sm:px-6 flex flex-row-reverse rounded-b-lg"><button type="button" id="confirm-delete-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700">Excluir</button><button type="button" id="cancel-delete-btn" class="mt-3 sm:mt-0 w-full sm:w-auto inline-flex justify-center rounded-md px-4 py-2 bg-white text-gray-700 border hover:bg-gray-50 sm:mr-3">Cancelar</button></div></div></div>
+    <div id="delete-confirm-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95 opacity-0">
+            <div class="p-6 text-center"><i class="fas fa-exclamation-triangle fa-3x text-red-500 mb-4"></i>
+                <h3 class="text-lg font-semibold">Confirmar Exclusão</h3>
+                <p id="delete-confirm-message" class="mt-2 text-sm text-gray-500">Tem certeza?</p>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 flex flex-row-reverse rounded-b-lg"><button type="button"
+                    id="confirm-delete-btn"
+                    class="w-full sm:w-auto inline-flex justify-center rounded-md px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700">Excluir</button><button
+                    type="button" id="cancel-delete-btn"
+                    class="mt-3 sm:mt-0 w-full sm:w-auto inline-flex justify-center rounded-md px-4 py-2 bg-white text-gray-700 border hover:bg-gray-50 sm:mr-3">Cancelar</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Notificação Toast (Canto Inferior - Para Sucesso/Info) -->
-    <div id="toast-notification" class="fixed bottom-5 right-5 bg-gray-800 text-white py-3 px-5 rounded-lg shadow-lg transform translate-y-20 opacity-0 z-50 flex items-center gap-2">
+    <div id="toast-notification"
+        class="fixed bottom-5 right-5 bg-gray-800 text-white py-3 px-5 rounded-lg shadow-lg transform translate-y-20 opacity-0 z-50 flex items-center gap-2">
         <i class="fas fa-check-circle text-green-400"></i>
         <p id="toast-message"></p>
     </div>
@@ -890,4 +1297,5 @@
     <script type="module" src="main.js?v=1.0.2"></script>
 
 </body>
+
 </html>
