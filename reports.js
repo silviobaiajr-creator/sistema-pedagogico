@@ -1,3 +1,4 @@
+
 // =================================================================================
 // ARQUIVO: reports.js
 // VERSÃO: 10.5 (Dados Completos + Foto Grande + Atualização Instantânea)
@@ -45,7 +46,621 @@ const fetchClientMetadata = async () => {
     };
 };
 
+// --- CHECAR ASSINATURA REMOTA AO CARREGAR ---
+export const checkForRemoteSignParams = async () => {
+    const params = new URLSearchParams(window.location.search);
+    let mode = params.get('mode');
+    let docId = params.get('docId'); // Initialize docId from URL params
 
+    // NOVO: Verifica Short Code
+    const code = params.get('code');
+    if (code) {
+        showToast("Carregando documento via link curto...", "info");
+        const resolvedDocId = await resolveShortCode(code);
+        if (resolvedDocId) {
+            docId = resolvedDocId; // Override docId if resolved from short code
+            mode = 'sign'; // Ensure mode is 'sign' if we resolved a docId from a short code
+            // No need to modify params object directly, as we've updated the local variables
+        } else {
+            showToast("Link inválido ou expirado.", "error");
+            // Display a message to the user and stop processing
+            document.body.innerHTML = `
+                <div id="remote-sign-container" class="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4 font-sans">
+                    <div class="bg-white p-8 rounded-lg shadow-xl mt-10 text-center">
+                        <h1 class="text-2xl font-bold text-red-600 mb-2">Link Inválido ou Expirado</h1>
+                        <p class="mb-4">Não foi possível carregar o documento. Por favor, verifique o link ou entre em contato com a escola.</p>
+                    </div>
+                </div>`;
+            return;
+        }
+    }
+
+    let refId = params.get('refId');
+    let type = params.get('type');
+    let studentId = params.get('student');
+
+    if (mode === 'sign') {
+        console.log("Modo de Assinatura Remota Detectado");
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlSchoolName = urlParams.get('schoolInfo') || 'Escola';
+        const urlLogo = urlParams.get('schoolLogo') || '';
+
+        document.body.innerHTML = `
+            <div id="remote-sign-container" class="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4 font-sans">
+                <div class="animate-pulse flex flex-col items-center">
+                    ${urlLogo ? `<img src="${urlLogo}" class="w-20 h-20 object-contain mb-4">` : '<div class="h-12 w-12 bg-sky-200 rounded-full mb-4"></div>'}
+                    <p class="text-sky-800 font-bold text-lg">${formatText(urlSchoolName)}</p>
+                    <p class="text-gray-600 font-medium">Iniciando ambiente seguro...</p>
+                </div>
+            </div>`;
+
+        try {
+            let docSnapshot = null;
+
+            if (docId) {
+                docSnapshot = await getLegalDocumentById(docId);
+            } else if (refId && type) {
+                docSnapshot = await findDocumentSnapshot(type, studentId, refId);
+            }
+
+            // FIX: MERGE EXISTING SIGNATURES IMMEDIATELY
+            // This ensures remote signer has the full history even if generateSmartHTML's internal lookup fails or is bypassed
+            if (docSnapshot) {
+                if (docSnapshot.signatures) {
+                    Object.entries(docSnapshot.signatures).forEach(([k, v]) => {
+                        signatureMap.set(k, v);
+                    });
+                    console.log("Assinaturas remotas carregadas:", signatureMap.size);
+                }
+                // Ensure RefID is consistent (critical for short links where URL params are missing)
+                if (docSnapshot.refId && !refId) refId = docSnapshot.refId;
+                if (docSnapshot.type && !type) type = docSnapshot.type;
+                if (docSnapshot.studentId && !studentId) studentId = docSnapshot.studentId;
+            }
+
+            // 2. REGENERAÇÃO ON-THE-FLY (Se não achou snapshot salvo e temos REFID)
+            if (!docSnapshot && refId && type && studentId) {
+                console.log("Snapshot não encontrado. Tentando regenerar...");
+                const student = await resolveStudentData(studentId);
+
+                // Lógica de reconstrução
+                let generatedHtml = "";
+                let title = "";
+                let docTitle = "";
+
+                // --- REGENERADORES ---
+                // Idealmente extraídos, mas aqui inline para garantir funcionamento sem refatoração massiva
+                if (type === 'notificacao') { // Ficha Busca Ativa
+                    // FIX: Ensure types match (refId is string from URL, aid often number)
+                    let record = state.absences.find(a => String(a.id) === String(refId));
+                    if (!record) {
+                        try {
+                            const dataParam = new URLSearchParams(window.location.search).get('data');
+                            if (dataParam) {
+                                console.log("Using stateless data from URL (Busca Ativa)...");
+                                const extraData = JSON.parse(decodeURIComponent(dataParam));
+                                record = {
+                                    id: refId,
+                                    studentId: studentId,
+                                    studentName: extraData.studentName, // Capture name statelessly
+                                    absenceCount: extraData.absenceCount,
+                                    periodoFaltasStart: extraData.periodoFaltasStart, // Note key mapping
+                                    periodoFaltasEnd: extraData.periodoFaltasEnd,
+                                    meetingDate: extraData.meetingDate,
+                                    meetingTime: extraData.meetingTime,
+                                    actionType: extraData.actionType || 'tentativa_1', // default fallback
+                                    visitDate: extraData.visitDate,
+                                    visitAgent: extraData.visitAgent,
+                                    visitSucceeded: extraData.visitSucceeded,
+                                    visitReason: extraData.visitReason,
+                                    visitObs: extraData.visitObs
+                                };
+                            }
+                        } catch (e) { console.error("Error parsing URL data:", e); }
+                    }
+
+                    if (!record) {
+                        // Retry fetching from DB if URL data failed or missing
+                        console.log("Record not in memory/URL, fetching from DB...");
+                        try {
+                            const records = await getAbsencesForReport();
+                            record = records.find(a => String(a.id) === String(refId));
+                        } catch (e) { console.error("DB Fetch failed:", e); }
+                    }
+                    if (record) {
+                        // REPLICA LÓGICA DE 'openFichaViewModal'
+                        const currentDateStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+                        title = "Notificação de Frequência Escolar";
+                        docTitle = "Notificação - Ficha Busca Ativa";
+                        const absences = record.absenceCount || 0;
+                        const period = record.periodoFaltasStart ? `${formatDate(record.periodoFaltasStart)} a ${formatDate(record.periodoFaltasEnd)}` : 'Período não informado';
+
+                        generatedHtml = `
+                        <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
+                            ${getReportHeaderHTML(new Date())}
+                            <p class="text-right text-sm italic mb-4">${state.config?.city || "Cidade"}, ${currentDateStr}</p>
+                            <h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">${title}</h3>
+                            ${getStudentIdentityCardHTML(student)}
+
+                            <p class="text-justify indent-8">Prezados Senhores Pais ou Responsáveis,</p>
+                            <p class="text-justify indent-8 mt-2">
+                                Vimos por meio desta notificá-los que o(a) aluno(a) acima identificado(a) atingiu o número de <strong>${absences} faltas</strong> no período de <strong>${period}</strong>, configurando situação de risco escolar.
+                                Esta é a <strong>${record.actionType.split('_')[1] || '1'}ª tentativa</strong> de contato formal realizada pela escola.
+                            </p>
+                            <div class="my-4 p-3 bg-yellow-50 border-l-4 border-yellow-500 text-sm font-sans rounded"><p><strong>Fundamentação Legal:</strong> Conforme a LDB (Lei 9.394/96) e o ECA, é dever da família assegurar a frequência escolar.</p></div>
+
+
+
+                            ${record.meetingDate ? `<p class="text-justify mt-4">Solicitamos comparecimento obrigatório na escola:</p><div class="my-4 mx-auto max-w-xs border border-gray-400 rounded p-3 text-center bg-white shadow-sm"><p class="font-bold text-lg">${formatDate(record.meetingDate)}</p><p class="font-semibold text-gray-700">${formatTime(record.meetingTime)}</p></div>` : `<div class="mt-6 p-4 text-center font-bold text-gray-800 bg-red-50 border border-red-200 rounded break-inside-avoid"><p class="uppercase text-xs text-red-600 mb-1">Atendimento Presencial</p>Favor comparecer à secretaria da escola com IMEDIATA URGÊNCIA.</div>`}
+
+                            <div class="mt-8 pt-4 border-t border-gray-300">
+                                <p class="font-bold text-xs uppercase text-gray-500 mb-2">Ciência do Responsável:</p>
+                                <p class="text-justify">
+                                    Declaro estar ciente da situação de infrequência escolar do aluno(a) supracitado(a) e comprometo-me a justificar as ausências ou garantir o retorno imediato às atividades escolares, sob pena de encaminhamento aos órgãos de proteção (Conselho Tutelar).
+                                </p>
+                            </div>
+                            
+                            ${generateSignaturesGrid([{ key: `responsible_${student.matricula}`, role: 'Responsável Legal', name: '' }])}
+                        </div>`;
+                    }
+                }
+
+                // NOVO: SUPORTE A NOTIFICAÇÃO DE OCORRÊNCIA (DISCIPLINAR)
+                if (type === 'notificacao_ocorrencia') {
+                    // Tenta dados stateless
+                    let incidentData = null;
+                    try {
+                        const dataParam = new URLSearchParams(window.location.search).get('data');
+                        if (dataParam) {
+                            console.log("Using stateless data from URL (Ocorrência)...");
+                            incidentData = JSON.parse(decodeURIComponent(dataParam));
+                        }
+                    } catch (e) { console.error("Error parsing URL data:", e); }
+
+                    if (incidentData) {
+                        const currentDateStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+                        title = "Notificação de Ocorrência Escolar";
+                        docTitle = "Notificação Disciplinar";
+
+                        const attemptText = `Esta é a <strong>${incidentData.attemptCount}ª tentativa</strong> de contato formal realizada pela escola.`;
+
+                        generatedHtml = `
+                        <div class="space-y-6 text-sm font-serif leading-relaxed text-gray-900">
+                            ${getReportHeaderHTML(new Date())}
+                            <p class="text-right text-sm italic mb-8">${state.config?.city || "Cidade"}, ${currentDateStr}</p>
+                            <h3 class="text-xl font-bold text-center uppercase border-b-2 border-gray-300 pb-2 mb-6">Notificação de Ocorrência Escolar</h3>
+                            ${getStudentIdentityCardHTML(student)}
+                            <p class="text-justify indent-8">Prezados Senhores Pais ou Responsáveis,</p>
+                            <p class="text-justify indent-8 mt-2">Vimos por meio desta notificá-los sobre um registro disciplinar referente ao(à) aluno(a) acima identificado(a), classificado como <strong>"${formatText(incidentData.occurrenceType)}"</strong>, ocorrido na data de <strong>${formatDate(incidentData.date)}</strong>. ${attemptText}</p>
+                            <div class="my-6 p-4 bg-gray-50 border-l-4 border-red-500 rounded text-sm font-sans"><p class="font-bold text-red-700 mb-1"><i class="fas fa-exclamation-triangle"></i> Atenção:</p><p class="text-justify text-gray-700">Conforme a Lei de Diretrizes e Bases da Educação (LDB) e o Estatuto da Criança e do Adolescente (ECA), a parceria família-escola é fundamental. O não comparecimento após as tentativas formais de contato poderá acarretar no encaminhamento do caso aos órgãos de proteção.</p></div>
+                            <p class="text-justify mt-4">Solicitamos o comparecimento urgente de um responsável na coordenação pedagógica para tratar deste assunto na seguinte data:</p>
+                            ${incidentData.meetingDate ? `<div class="my-6 mx-auto max-w-sm border-2 border-gray-800 rounded-lg p-4 text-center bg-white shadow-sm break-inside-avoid"><p class="text-xs uppercase tracking-wide text-gray-500 font-bold mb-1">Agendamento</p><div class="text-2xl font-bold text-gray-900">${formatDate(incidentData.meetingDate)}</div><div class="text-xl font-semibold text-gray-700 mt-1">${formatTime(incidentData.meetingTime)}</div></div>` : ''}
+                            ${generateSignaturesGrid([{ key: `responsible_${student.matricula}`, role: 'Responsável', name: 'Responsável Legal' }])}
+                        </div>`;
+                    }
+                }
+
+                if (generatedHtml) {
+                    docSnapshot = {
+                        id: 'temp_rebuilt', // ID Temporário
+                        htmlContent: generatedHtml,
+                        signatures: {},
+                        studentId: studentId,
+                        type: type,
+                        title: docTitle || 'Documento'
+                    };
+                }
+            }
+
+            if (!docSnapshot) {
+                const debugParams = new URLSearchParams(window.location.search);
+                const hasData = debugParams.get('data');
+                const debugHtml = `
+                    <div class="bg-white p-8 rounded-lg shadow-xl mt-10 text-center">
+                        <h1 class="text-2xl font-bold text-red-600 mb-2">Link Inválido (Debug Ativo)</h1>
+                        <p class="mb-4">O sistema não conseguiu localizar ou reconstruir o documento.</p>
+                        <div class="text-left bg-gray-100 p-4 rounded text-xs font-mono overflow-auto max-h-60">
+                            <strong>Diagnóstico:</strong><br>
+                            RefID: ${refId || 'N/A'}<br>
+                            Type: ${type || 'N/A'}<br>
+                            Student: ${studentId || 'N/A'}<br>
+                            Data Param: ${hasData ? `Presente (${hasData.length} chars)` : 'AUSENTE'}<br>
+                            URL Raw: ${window.location.search}
+                        </div>
+                    </div>`;
+
+                document.getElementById('remote-sign-container').innerHTML = debugHtml;
+                return;
+            }
+
+            // ... (rest of logic) ...
+
+
+            const container = document.getElementById('remote-sign-container');
+            const targetKeyPrefix = `responsible_${String(studentId || docSnapshot.studentId)}`;
+            const existingSignatureKey = Object.keys(docSnapshot.signatures || {}).find(k => k.startsWith(targetKeyPrefix));
+
+            if (existingSignatureKey) {
+                const sig = docSnapshot.signatures[existingSignatureKey];
+                const signedDate = new Date(sig.timestamp).toLocaleString();
+
+                container.classList.remove('justify-center'); container.classList.add('pt-4');
+                container.innerHTML = `
+                    <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8 no-print font-sans">
+                        <div class="bg-green-700 p-4 text-white flex justify-between items-center">
+                            <div><h2 class="text-sm font-bold uppercase"><i class="fas fa-check-circle"></i> Documento Assinado</h2><p class="text-[10px] opacity-80">Registrado por: ${sig.signerName || 'Desconhecido'}</p></div>
+                        </div>
+                        
+                        <!-- Conteúdo do Documento -->
+                        <div class="p-6 md:p-10 text-sm bg-gray-50 border-b overflow-auto max-h-[60vh]">
+                            ${docSnapshot.htmlContent}
+                        </div>
+
+                        <!-- Rodapé com Detalhes da Assinatura -->
+                        <div class="bg-gray-100 p-6">
+                            ${!docSnapshot.htmlContent.includes('signatures-wrapper-v2') ?
+                        `<div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+                                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 border-b pb-2">Dados da Assinatura Digital</h3>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <p class="text-gray-500 text-xs">Assinado por</p>
+                                        <p class="font-bold text-gray-800">${sig.signerName || 'Não informado'}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-500 text-xs">CPF</p>
+                                        <p class="font-bold text-gray-800 font-mono">${sig.signerCPF || '***'}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-500 text-xs">Data/Hora</p>
+                                        <p class="font-bold text-gray-800">${signedDate}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-500 text-xs">IP de Origem</p>
+                                        <p class="font-bold text-gray-800 font-mono text-xs">${sig.ip || 'N/A'}</p>
+                                    </div>
+                                </div>
+                                ${sig.photo ? `<div class="mt-4 pt-4 border-t flex flex-col items-center"><p class="text-xs text-gray-400 mb-2">Registro Biométrico Facial</p><img src="${sig.photo}" class="w-24 h-24 object-cover rounded-lg border shadow-sm"></div>` : ''}
+                            </div>` :
+                        `<div class="text-center mb-4 text-xs text-green-700 font-bold"><i class="fas fa-check-circle"></i> Assinatura Digital Incorporada ao Documento</div>`}
+
+                            <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Olá, segue o link para acessar o documento assinado digitalmente: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
+                                <i class="fab fa-whatsapp text-2xl"></i> 
+                                <span>Enviar para mim (WhatsApp)</span>
+                            </button>
+                            
+                            <p class="text-[10px] text-gray-400 text-center mt-4">Este documento possui validade jurídica assegurada pelo registro digital.</p>
+                        </div>
+                    </div>
+
+                    <!-- Área Invisível para Impressão (Mantida igual para consistência) -->
+                    <div id="print-area-signed" class="hidden print:block print:w-full print:h-auto bg-white p-8">
+                            ${docSnapshot.htmlContent}
+                            <div class="mt-8 pt-4 border-t border-gray-300">
+                            <p class="font-bold text-sm">Assinado Digitalmente por:</p>
+                            <p class="text-sm">${sig.signerName}</p>
+                            <p class="text-sm">CPF: ${sig.signerCPF}</p>
+                            <p class="text-xs text-gray-500 mt-1">Data: ${signedDate}</p>
+                            ${sig.photo ? `<div class="mt-4"><p class="font-bold text-xs text-gray-400">Registro Biométrico:</p><img src="${sig.photo}" class="w-24 h-24 object-contain border rounded"></div>` : ''}
+                            </div>
+                    </div>
+                `;
+                return;
+            }
+
+
+            // FASE 1: DESAFIO DE IDENTIDADE (VISUAL MELHORADO PARA ANALFABETOS)
+            const renderIdentityChallenge = () => {
+                const docTypeLabel = type ? type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ') : 'Documento Oficial';
+
+                // Tenta extrair dados extras para visualização
+                let studentNameDisplay = "Aluno(a)";
+                let dateDisplay = new Date().toLocaleDateString('pt-BR');
+                let timeDisplay = "";
+                let alertColor = "bg-sky-50 border-sky-200 text-sky-800";
+                let iconClass = "fa-file-alt";
+
+                // Se temos snapshot, tentamos pegar do título ou metadados
+                if (docSnapshot && docSnapshot.studentName) studentNameDisplay = docSnapshot.studentName;
+
+                // Se foi reconstruído (stateless), tentamos pegar dos parâmetros
+                const debugParams = new URLSearchParams(window.location.search); // Re-read params
+                const dataParam = debugParams.get('data');
+                if (dataParam) {
+                    try {
+                        const d = JSON.parse(decodeURIComponent(dataParam));
+                        if (d.studentName) studentNameDisplay = d.studentName;
+                        if (d.meetingDate) {
+                            const md = new Date(d.meetingDate);
+                            dateDisplay = md.toLocaleDateString('pt-BR');
+                            if (d.meetingTime) timeDisplay = d.meetingTime;
+                        }
+                    } catch (e) { }
+                }
+
+                // Definição de Cores/Ícones por Tipo
+                if (type && type.includes('notificacao')) { alertColor = "bg-orange-50 border-orange-200 text-orange-800"; iconClass = "fa-bell"; }
+                if (type === 'ocorrencia' || (type && type.includes('ocorrencia'))) { alertColor = "bg-red-50 border-red-200 text-red-800"; iconClass = "fa-exclamation-circle"; }
+
+                container.innerHTML = `
+                    <div class="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden font-sans border-t-4 border-sky-600">
+                        <div class="bg-white p-6 text-center border-b border-gray-100 pb-6 pt-8">
+                            ${urlLogo ? `<div class="mb-4 flex justify-center"><img src="${urlLogo}" class="h-28 object-contain"></div>` : '<div class="h-24 w-24 bg-sky-50 rounded-full mx-auto mb-4 flex items-center justify-center"><i class="fas fa-university text-sky-600 text-4xl"></i></div>'}
+                            <h2 class="text-xl font-black text-gray-900 uppercase leading-snug px-4">${formatText(urlSchoolName)}</h2>
+                            <p class="text-xs font-bold text-gray-400 uppercase mt-1">Sistema de Acompanhamento Escolar</p>
+                        </div>
+
+                        <!-- CARD VISUAL DE RESUMO (FACILITA LEITURA) -->
+                        <div class="px-6 py-2">
+                            <div class="${alertColor} border rounded-lg p-4 flex flex-col gap-3 shadow-sm">
+                                <div class="flex items-center gap-3 border-b border-black/10 pb-2">
+                                    <div class="bg-white p-2 rounded-full shadow-sm"><i class="fas ${iconClass} text-xl"></i></div>
+                                    <div>
+                                        <p class="text-[10px] uppercase font-bold opacity-70">Tipo do Documento</p>
+                                        <p class="text-sm font-black leading-tight uppercase">${docTypeLabel}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <div class="bg-white p-2 rounded-full shadow-sm"><i class="fas fa-user-graduate text-xl"></i></div>
+                                    <div>
+                                        <p class="text-[10px] uppercase font-bold opacity-70">Aluno(a)</p>
+                                        <p class="text-sm font-black leading-tight uppercase">${formatText(studentNameDisplay)}</p>
+                                    </div>
+                                </div>
+                                ${(timeDisplay || dateDisplay) ? `
+                                <div class="flex items-center gap-3 border-t border-black/10 pt-2">
+                                    <div class="bg-white p-2 rounded-full shadow-sm"><i class="fas fa-clock text-xl"></i></div>
+                                    <div>
+                                        <p class="text-[10px] uppercase font-bold opacity-70">Data de Comparecimento</p>
+                                        <p class="text-sm font-black leading-tight uppercase text-red-600">${dateDisplay} ${timeDisplay ? 'às ' + timeDisplay : ''}</p>
+                                    </div>
+                                </div>` : ''}
+                            </div>
+                        </div>
+
+                        <div class="p-6 space-y-6">
+                            <div class="text-center">
+                                <h3 class="text-lg font-bold text-gray-800 uppercase">Assinatura do Responsável</h3>
+                                <p class="text-sm text-gray-500">Confirme sua identidade para liberar o acesso.</p>
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Seu Nome Completo</label>
+                                    <div class="relative group">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-user text-gray-400 group-focus-within:text-sky-500 transition"></i></div>
+                                        <input id="input-signer-name" type="text" class="w-full pl-10 p-4 border-2 border-gray-200 rounded-xl focus:ring-0 focus:border-sky-500 outline-none uppercase text-sm font-bold text-gray-800 transition bg-gray-50 focus:bg-white" placeholder="DIGITE SEU NOME">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Seu CPF</label>
+                                    <div class="relative group">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i class="fas fa-id-card text-gray-400 group-focus-within:text-sky-500 transition"></i></div>
+                                        <input id="input-signer-cpf" type="tel" class="w-full pl-10 p-4 border-2 border-gray-200 rounded-xl focus:ring-0 focus:border-sky-500 outline-none text-base font-mono font-bold text-gray-800 transition bg-gray-50 focus:bg-white" placeholder="000.000.000-00" maxlength="14">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button id="btn-access-doc" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-4 px-4 rounded-xl shadow-lg hover:shadow-xl transition transform active:scale-95 flex justify-center items-center gap-3 text-sm uppercase tracking-wide">
+                                <span>Liberar Documento</span> <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('input-signer-cpf').addEventListener('input', (e) => {
+                    let v = e.target.value.replace(/\D/g, "");
+                    if (v.length > 11) v = v.slice(0, 11);
+                    v = v.replace(/(\d{3})(\d)/, "$1.$2");
+                    v = v.replace(/(\d{3})(\d)/, "$1.$2");
+                    v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+                    e.target.value = v;
+                });
+                document.getElementById('btn-access-doc').onclick = () => {
+                    const name = document.getElementById('input-signer-name').value.trim();
+                    const cpf = document.getElementById('input-signer-cpf').value.trim();
+                    if (name.length < 5) { alert("Por favor, digite seu nome completo."); return; }
+                    if (cpf.length < 11) { alert("Por favor, digite um CPF válido."); return; }
+                    renderDocumentView({ name, cpf });
+                };
+            };
+
+            // FASE 2: VISUALIZAÇÃO E ASSINATURA
+            const renderDocumentView = (identityData) => {
+                container.classList.remove('justify-center'); container.classList.add('pt-4');
+                container.innerHTML = `
+                    <div class="w-full max-w-3xl bg-white shadow-2xl rounded-xl overflow-hidden mb-8 no-print">
+                        <div class="bg-green-700 p-4 text-white flex justify-between items-center">
+                            <div><h2 class="text-sm font-bold uppercase"><i class="fas fa-file-contract"></i> Documento Liberado</h2><p class="text-[10px] opacity-80">Acesso por: ${identityData.name}</p></div>
+                        </div>
+                        <div class="p-6 md:p-10 text-sm bg-gray-50 border-b overflow-auto max-h-[60vh]">${docSnapshot.htmlContent}</div>
+                        <div class="bg-gray-100 p-6 flex flex-col items-center gap-6">
+                            <div class="w-full max-w-sm bg-white p-4 rounded-lg shadow-md border border-gray-300">
+                                <div class="text-center mb-2"><p class="font-bold text-gray-800 text-sm uppercase"><i class="fas fa-camera"></i> Registro Biométrico Facial</p><p class="text-[10px] text-gray-500">Obrigatório para validar a assinatura.</p></div>
+                                <div class="relative w-full h-64 bg-black rounded-lg overflow-hidden flex items-center justify-center mb-3">
+                                    <video id="remote-video" autoplay playsinline class="w-full h-full object-cover transform scale-x-[-1]"></video>
+                                    <canvas id="remote-canvas" class="hidden"></canvas>
+                                    <img id="remote-photo-result" class="absolute inset-0 w-full h-full object-cover hidden transform scale-x-[-1]">
+                                    <div id="camera-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400"><i class="fas fa-user-circle text-4xl mb-2"></i><p class="text-xs">Aguardando Câmera</p></div>
+                                </div>
+                                <div class="flex gap-2 justify-center">
+                                    <button id="btn-start-remote-cam" class="bg-sky-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-sky-700 w-full"><i class="fas fa-video"></i> ATIVAR CÂMERA</button>
+                                    <button id="btn-take-remote-pic" class="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-green-700 w-full hidden"><i class="fas fa-camera"></i> TIRAR SELFIE</button>
+                                    <button id="btn-retake-remote-pic" class="bg-yellow-500 text-white px-4 py-2 rounded text-xs font-bold hover:bg-yellow-600 w-full hidden"><i class="fas fa-redo"></i> REFAZER</button>
+                                </div>
+                            </div>
+                            <div class="text-center w-full">
+                                <p class="text-xs text-gray-600 max-w-md mx-auto text-justify mb-4">Eu, <strong>${identityData.name}</strong>, CPF <strong>${identityData.cpf}</strong>, declaro ter lido o documento acima e concordo com seu teor.</p>
+                                <button id="btn-remote-agree" disabled class="w-full max-w-md bg-gray-400 text-white text-lg font-bold py-4 px-10 rounded-full shadow-lg flex items-center justify-center gap-2 cursor-not-allowed transition-all"><i class="fas fa-lock"></i> TIRE A SELFIE PARA ASSINAR</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Área Invisível para Impressão -->
+                    <div id="print-area" class="hidden print:block print:w-full print:h-auto bg-white p-8">
+                         ${docSnapshot.htmlContent}
+                         <div class="mt-8 pt-4 border-t border-gray-300">
+                            <p class="font-bold text-sm">Assinado Digitalmente por:</p>
+                            <p class="text-sm">${identityData.name}</p>
+                            <p class="text-sm">CPF: ${identityData.cpf}</p>
+                            <p class="text-xs text-gray-500 mt-1">Data: ${new Date().toLocaleString()}</p>
+                         </div>
+                    </div>
+                    `;
+
+                let remoteStream = null;
+                let capturedPhotoBase64 = null;
+                const videoEl = document.getElementById('remote-video');
+                const canvasEl = document.getElementById('remote-canvas');
+                const imgEl = document.getElementById('remote-photo-result');
+                const phEl = document.getElementById('camera-placeholder');
+                const btnStart = document.getElementById('btn-start-remote-cam');
+                const btnTake = document.getElementById('btn-take-remote-pic');
+                const btnRetake = document.getElementById('btn-retake-remote-pic');
+                const btnSign = document.getElementById('btn-remote-agree');
+
+                btnStart.onclick = async () => {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                        remoteStream = stream;
+                        videoEl.srcObject = stream;
+                        phEl.classList.add('hidden');
+                        btnStart.classList.add('hidden');
+                        btnTake.classList.remove('hidden');
+                    } catch (err) { alert("Erro na câmera."); }
+                };
+
+                btnTake.onclick = () => {
+                    if (!remoteStream) return;
+                    canvasEl.width = videoEl.videoWidth;
+                    canvasEl.height = videoEl.videoHeight;
+                    const ctx = canvasEl.getContext('2d');
+                    ctx.translate(canvasEl.width, 0); ctx.scale(-1, 1);
+                    ctx.drawImage(videoEl, 0, 0);
+                    capturedPhotoBase64 = canvasEl.toDataURL('image/jpeg', 0.5);
+                    imgEl.src = capturedPhotoBase64; imgEl.classList.remove('hidden');
+                    btnTake.classList.add('hidden'); btnRetake.classList.remove('hidden');
+                    btnSign.disabled = false; btnSign.classList.remove('bg-gray-400', 'cursor-not-allowed'); btnSign.classList.add('bg-green-600', 'hover:bg-green-700', 'transform', 'hover:scale-105'); btnSign.innerHTML = '<i class="fas fa-check-double"></i> CONFIRMAR E ASSINAR';
+                };
+
+                btnRetake.onclick = () => {
+                    capturedPhotoBase64 = null; imgEl.classList.add('hidden'); btnRetake.classList.add('hidden'); btnTake.classList.remove('hidden');
+                    btnSign.disabled = true; btnSign.classList.add('bg-gray-400', 'cursor-not-allowed'); btnSign.classList.remove('bg-green-600', 'hover:bg-green-700', 'transform', 'hover:scale-105'); btnSign.innerHTML = '<i class="fas fa-lock"></i> TIRE A SELFIE PARA ASSINAR';
+                };
+
+                btnSign.onclick = async function () {
+                    if (!capturedPhotoBase64) return;
+                    this.disabled = true; this.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Salvando...';
+                    const meta = await fetchClientMetadata();
+                    const digitalSignature = { type: 'digital_ack', ip: meta.ip, device: meta.userAgent, timestamp: meta.timestamp, signerName: identityData.name, signerCPF: identityData.cpf, photo: capturedPhotoBase64, valid: true };
+
+                    // --- KEY GENERATION LOGIC ---
+                    const baseKey = `responsible_${String(studentId || docSnapshot.studentId)}`;
+                    // Check if baseKey is free (preferred)
+                    let finalKey = baseKey;
+                    if (docSnapshot.signatures && docSnapshot.signatures[baseKey]) {
+                        finalKey = `${baseKey}_${Date.now()}`; // Append mode
+                    }
+
+                    const sigMap = new Map(); sigMap.set(finalKey, digitalSignature);
+
+                    // --- HTML INJECTION ---
+                    // Generate the signature card HTML (Matches NEW style in getSingleSignatureBoxHTML)
+                    const signedDate = new Date(meta.timestamp).toLocaleString();
+                    const signatureHtml = `
+            <div class="relative group border border-green-500 bg-green-50 rounded flex flex-row overflow-hidden h-32 break-inside-avoid" data-sig-key="${finalKey}">
+                <div class="flex-1 p-2 flex flex-col justify-between overflow-hidden relative">
+                    <div class="overflow-y-auto z-10">
+                        <p class="font-bold uppercase text-xs text-green-800 leading-tight flex items-center gap-1"><i class="fas fa-certificate"></i> Assinatura Digital</p>
+                        <p class="text-[10px] text-green-700 font-semibold mb-1 truncate">Responsável / Verificado</p>
+                        <div class="text-[9px] text-green-900 leading-snug break-words whitespace-normal font-mono">
+                            <strong>Assinado por:</strong> ${identityData.name}<br>
+                            <strong>CPF:</strong> ${identityData.cpf}<br>
+                            IP: ${meta.ip || 'N/A'}<br>
+                            ${signedDate}
+                        </div>
+                    </div>
+                     <div class="absolute bottom-1 right-1 opacity-10"><i class="fas fa-check-circle text-4xl text-green-500"></i></div>
+                </div>
+                <div class="w-32 min-w-[30%] border-l border-green-200 bg-gray-100"><img src="${capturedPhotoBase64}" class="w-full h-full object-cover"></div>
+            </div>`;
+
+                    // --- REPLACEMENT / APPEND LOGIC ---
+                    let newHtmlContent = docSnapshot.htmlContent;
+
+                    // Try to replace the placeholder
+                    const placeholderKey = baseKey;
+                    const placeholderRegex = new RegExp(`<div[^>]+data-sig-key="${placeholderKey}"[^>]*>[\\s\\S]*?<\\/div>`, 'i');
+
+                    if (finalKey === baseKey && placeholderRegex.test(newHtmlContent)) {
+                        // Slot available, replace it
+                        newHtmlContent = newHtmlContent.replace(placeholderRegex, signatureHtml);
+                    } else {
+                        // Append if slot occupied or text not found
+                        newHtmlContent = newHtmlContent + signatureHtml;
+                    }
+
+                    let success = false;
+                    if (docSnapshot.id === 'temp_rebuilt') {
+                        try {
+                            const newDocRef = await saveDocumentSnapshot(docSnapshot.type, docSnapshot.title, newHtmlContent, docSnapshot.studentId, {
+                                refId: refId || docSnapshot.id,
+                                signatures: Object.fromEntries(sigMap),
+                                studentName: studentId ? (await resolveStudentData(studentId)).name : 'Aluno'
+                            });
+                            if (newDocRef && newDocRef.id) success = true;
+                        } catch (e) { console.error("Erro ao criar doc:", e); }
+                    } else {
+                        success = await updateDocumentSignatures(docSnapshot.id, sigMap, newHtmlContent);
+                    }
+
+                    if (success) {
+                        if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
+
+                        container.innerHTML = `
+                        <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans max-w-3xl mx-auto">
+                            <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full border-t-8 border-green-500">
+                                <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
+                                    <i class="fas fa-check text-4xl text-green-600"></i>
+                                </div>
+                                <h1 class="text-3xl font-black text-gray-900 mb-2 uppercase">Assinado com Sucesso!</h1>
+                                <p class="text-gray-600 font-medium mb-8">O documento foi registrado no sistema e já pode ser baixado.</p>
+                                
+                                <div class="space-y-4 max-w-sm mx-auto">
+                                    <!-- BOTÃO UNIFICADO (VERDE) PARA DOWNLOAD/IMPRESSÃO -->
+                                    <button onclick="window.print()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
+                                        <i class="fas fa-file-download text-2xl"></i> 
+                                        <span>BAIXAR CÓPIA (PDF)</span>
+                                    </button>
+                                    
+                                     <p class="text-[10px] text-gray-400 mt-4">Clique acima para salvar a imagem ou PDF do documento assinado.</p>
+                                </div>
+                                <div class="mt-8 pt-6 border-t border-gray-100">
+                                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">${formatText(urlSchoolName)}</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Mantemos a área de impressão oculta mas presente -->
+                        <div id="print-area-success" class="hidden print:block print:w-full print:h-auto bg-white p-8">
+                             ${docSnapshot.htmlContent}
+                             <div class="mt-8 pt-4 border-t border-gray-300">
+                                <p class="font-bold text-sm">Assinado Digitalmente por:</p>
+                                <p class="text-sm">${identityData.name}</p>
+                                <p class="text-sm">CPF: ${identityData.cpf}</p>
+                                <p class="text-xs text-gray-500 mt-1">Data: ${new Date().toLocaleString()}</p>
+                                <div class="mt-4">
+                                     <p class="font-bold text-xs text-gray-400">Registro Biométrico:</p>
+                                     <img src="${capturedPhotoBase64}" class="w-32 h-32 object-contain border rounded">
+                                </div>
+                             </div>
+                        </div>
+                        `;
+                    } else { alert("Erro ao salvar."); this.disabled = false; }
+                };
+            };
+            renderIdentityChallenge();
+        } catch (e) { alert("Erro fatal."); }
+    }
+};
+setTimeout(checkForRemoteSignParams, 500);
 
 
 // --- MODAL DE ASSINATURA ---
@@ -245,9 +860,8 @@ const setupSignaturePadEvents = () => {
                     if (whatsappBtn) {
                         // Mensagem rica para WhatsApp (Visual para Analfabetos/Fácil Leitura)
                         const sName = window.currentDocParams?.studentName || "Aluno";
-                        const schoolName = state.config?.schoolName || "ESCOLA DIGITAL";
                         const dType = window.currentDocParams?.type ? window.currentDocParams.type.toUpperCase() : "DOCUMENTO";
-                        const msg = `🏫 *${schoolName}*\n\n📄 *Documento:* ${dType}\n👤 *Aluno(a):* ${sName}\n\n👇 *CLIQUE NO LINK PARA ASSINAR:*\n${shortLink}`;
+                        const msg = `🏫 *ESCOLA DIGITAL*\n\n📄 *Documento:* ${dType}\n👤 *Aluno(a):* ${sName}\n\n👇 *CLIQUE NO LINK PARA ASSINAR:*\n${shortLink}`;
                         whatsappBtn.onclick = () => window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
                     }
                 });
@@ -255,36 +869,7 @@ const setupSignaturePadEvents = () => {
                 document.getElementById('generated-link-preview').textContent = "Erro: Salve o documento primeiro.";
                 document.getElementById('btn-send-whatsapp').onclick = null; // Disable WhatsApp button
             }
-        }
-    };
 
-    const downloadAsImage = async () => {
-        const element = document.querySelector('.A4'); // Target the A4 report container directly
-        if (!element) return alert("Erro: Documento não encontrado para download.");
-
-        // Feedback visual
-        const btnInfo = document.getElementById('download-btn-text');
-        const originalText = btnInfo ? btnInfo.innerText : 'BAIXAR CÓPIA';
-        if (btnInfo) btnInfo.innerText = "GERANDO IMAGEM...";
-
-        try {
-            const canvas = await html2canvas(element, {
-                scale: 2, // High resolution
-                useCORS: true, // Allow external images (logos)
-                logging: false,
-                backgroundColor: '#ffffff'
-            });
-
-            const link = document.createElement('a');
-            link.download = `Documento_Assinado_${new Date().toISOString().slice(0, 10)}.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-
-        } catch (err) {
-            console.error("Erro ao gerar imagem:", err);
-            alert("Erro ao gerar imagem. Tente a opção de impressão.");
-        } finally {
-            if (btnInfo) btnInfo.innerText = originalText;
         }
     };
 
@@ -799,252 +1384,7 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
 
 // --- MODO "PARENT VIEW" (VISÃO DO PAI - LINK SEGURO) ---
 
-export const checkForRemoteSignParams = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const docId = urlParams.get('docId');
-    const shortCode = urlParams.get('code');
-    const mode = urlParams.get('mode');
 
-    if (mode === 'sign' && (docId || shortCode)) {
-        let resolvedDocId = docId;
-        if (shortCode) {
-            resolvedDocId = await resolveShortCode(shortCode);
-            if (!resolvedDocId) {
-                document.getElementById('signature-flow-container').innerHTML = `<div class="text-center p-8 text-red-600">Link inválido ou expirado.</div>`;
-                return;
-            }
-        }
-
-        const docSnapshot = await findDocumentById(resolvedDocId);
-
-        if (!docSnapshot) {
-            document.getElementById('signature-flow-container').innerHTML = `<div class="text-center p-8 text-red-600">Documento não encontrado.</div>`;
-            return;
-        }
-
-        // 3. Verifica se já está assinado e bloqueado e redireciona para SUCESSO imediatamente
-        // Isso evita que o pai tenha que "assinar de novo" um documento já pronto.
-        if (docSnapshot.signatures && Object.keys(docSnapshot.signatures).length > 0) {
-            // Se já tem assinatura (especialmente responsible_xxx ou management), mostra sucesso direto.
-            // A menos que estejamos tentando assinar como 'management' (cenário de escola),
-            // mas aqui é o link público (pais).
-            console.log("Documento já assinado. Exibindo tela de sucesso/download.");
-
-            // Injeta os dados necessários para o sucesso
-            const successContainer = document.getElementById('signature-flow-container');
-            successContainer.innerHTML = `
-                <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans max-w-3xl mx-auto">
-                    <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full border-t-8 border-green-500">
-                        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <i class="fas fa-check-double text-4xl text-green-600"></i>
-                        </div>
-                        <h1 class="text-3xl font-black text-gray-900 mb-2 uppercase">Documento Já Assinado!</h1>
-                        <p class="text-gray-600 font-medium mb-8">Este documento já foi registrado anteriormente.</p>
-                        
-                        <div class="space-y-4 max-w-sm mx-auto">
-                            <button onclick="downloadAsImage()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
-                                <i class="fas fa-file-image text-2xl"></i> 
-                                <span id="download-btn-text">BAIXAR CÓPIA (PNG)</span>
-                            </button>
-                        </div>
-                        <div class="mt-8 pt-6 border-t border-gray-100">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-widest text-center">${docSnapshot.schoolName || 'Escola'}</p>
-                        </div>
-                    </div>
-                </div>`;
-
-            // Renderiza o documento em background para ser capturado
-            renderDocumentHTML(docSnapshot.htmlContent);
-            return;
-        }
-
-        // 4. Renderiza Desafio de Identidade
-        document.getElementById('signature-flow-container').innerHTML = `
-            <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans max-w-3xl mx-auto">
-                <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full border-t-8 border-sky-500">
-                    <div class="w-20 h-20 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <i class="fas fa-fingerprint text-4xl text-sky-600"></i>
-                    </div>
-                    <h1 class="text-3xl font-black text-gray-900 mb-2 uppercase">Assinatura Digital</h1>
-                    <p class="text-gray-600 font-medium mb-8">Para prosseguir com a assinatura, precisamos confirmar sua identidade.</p>
-                    
-                    <div class="space-y-4 max-w-sm mx-auto">
-                        <div>
-                            <label for="signer-name" class="block text-left text-sm font-bold text-gray-700 mb-1">Nome Completo</label>
-                            <input type="text" id="signer-name" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-sky-500 focus:border-sky-500 text-lg uppercase" placeholder="Seu Nome Completo">
-                        </div>
-                        <div>
-                            <label for="signer-cpf" class="block text-left text-sm font-bold text-gray-700 mb-1">CPF</label>
-                            <input type="tel" id="signer-cpf" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-sky-500 focus:border-sky-500 text-lg" placeholder="000.000.000-00" maxlength="14">
-                        </div>
-                        <button id="btn-start-remote-sign" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
-                            <i class="fas fa-user-check text-2xl"></i> 
-                            <span>CONFIRMAR IDENTIDADE</span>
-                        </button>
-                    </div>
-                    <div class="mt-8 pt-6 border-t border-gray-100">
-                        <p class="text-xs font-bold text-gray-400 uppercase tracking-widest text-center">${docSnapshot.schoolName || 'Escola'}</p>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        document.getElementById('signer-cpf').addEventListener('input', (e) => {
-            let v = e.target.value.replace(/\D/g, "");
-            if (v.length > 11) v = v.slice(0, 11);
-            v = v.replace(/(\d{3})(\d)/, "$1.$2"); v = v.replace(/(\d{3})(\d)/, "$1.$2"); v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-            e.target.value = v;
-        });
-
-        document.getElementById('btn-start-remote-sign').onclick = async () => {
-            const signerName = document.getElementById('signer-name').value.trim();
-            const signerCPF = document.getElementById('signer-cpf').value.trim();
-
-            if (signerName.length < 5 || signerCPF.length < 14) {
-                alert("Por favor, preencha seu nome completo e CPF corretamente.");
-                return;
-            }
-
-            // Proceed to selfie capture
-            document.getElementById('signature-flow-container').innerHTML = `
-                <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans max-w-3xl mx-auto">
-                    <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full border-t-8 border-sky-500">
-                        <div class="w-20 h-20 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <i class="fas fa-camera-retro text-4xl text-sky-600"></i>
-                        </div>
-                        <h1 class="text-3xl font-black text-gray-900 mb-2 uppercase">Validação Biométrica</h1>
-                        <p class="text-gray-600 font-medium mb-8">Por favor, tire uma selfie para validar sua assinatura.</p>
-                        
-                        <div class="relative w-full max-w-sm h-64 bg-black rounded-lg overflow-hidden flex items-center justify-center mx-auto mb-6">
-                            <video id="remote-video" autoplay playsinline class="w-full h-full object-cover transform scale-x-[-1]"></video>
-                            <canvas id="remote-canvas" class="hidden"></canvas>
-                            <img id="remote-photo-result" class="absolute inset-0 w-full h-full object-cover hidden transform scale-x-[-1]">
-                        </div>
-                        
-                        <div class="flex gap-4 max-w-sm mx-auto w-full mb-6">
-                            <button id="btn-remote-take" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-lg"><i class="fas fa-camera"></i> Capturar</button>
-                            <button id="btn-remote-retake" class="hidden flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-lg"><i class="fas fa-redo"></i> Refazer</button>
-                        </div>
-                        
-                        <button id="btn-remote-finish" disabled class="w-full max-w-sm mx-auto bg-gray-400 text-white font-bold py-4 rounded-xl shadow cursor-not-allowed text-lg">CONFIRMAR ASSINATURA</button>
-                        <button id="btn-back-to-identity-remote" class="mt-4 text-sm text-gray-500 underline">Voltar</button>
-                        
-                        <div class="mt-8 pt-6 border-t border-gray-100">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-widest text-center">${docSnapshot.schoolName || 'Escola'}</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            let remoteStream = null;
-            let remoteCapturedPhoto = null;
-
-            document.getElementById('btn-back-to-identity-remote').onclick = () => {
-                if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
-                checkForRemoteSignParams(); // Go back to identity screen
-            };
-
-            try {
-                remoteStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-                document.getElementById('remote-video').srcObject = remoteStream;
-            } catch (e) {
-                alert("Erro ao acessar a câmera. Por favor, conceda permissão.");
-                console.error("Erro câmera remota:", e);
-                document.getElementById('signature-flow-container').innerHTML = `<div class="text-center p-8 text-red-600">Erro ao acessar a câmera.</div>`;
-                return;
-            }
-
-            document.getElementById('btn-remote-take').onclick = () => {
-                const vid = document.getElementById('remote-video');
-                const can = document.getElementById('remote-canvas');
-                const img = document.getElementById('remote-photo-result');
-
-                can.width = vid.videoWidth; can.height = vid.videoHeight;
-                const ctxR = can.getContext('2d');
-                ctxR.translate(can.width, 0); ctxR.scale(-1, 1);
-                ctxR.drawImage(vid, 0, 0);
-
-                remoteCapturedPhoto = can.toDataURL('image/jpeg', 0.5);
-                img.src = remoteCapturedPhoto; img.classList.remove('hidden');
-
-                document.getElementById('btn-remote-take').classList.add('hidden');
-                document.getElementById('btn-remote-retake').classList.remove('hidden');
-
-                const btnFinish = document.getElementById('btn-remote-finish');
-                btnFinish.disabled = false; btnFinish.classList.remove('bg-gray-400', 'cursor-not-allowed'); btnFinish.classList.add('bg-sky-600', 'hover:bg-sky-700');
-            };
-
-            document.getElementById('btn-remote-retake').onclick = () => {
-                remoteCapturedPhoto = null;
-                document.getElementById('remote-photo-result').classList.add('hidden');
-                document.getElementById('btn-remote-take').classList.remove('hidden');
-                document.getElementById('btn-remote-retake').classList.add('hidden');
-                const btnFinish = document.getElementById('btn-remote-finish');
-                btnFinish.disabled = true; btnFinish.classList.add('bg-gray-400', 'cursor-not-allowed'); btnFinish.classList.remove('bg-sky-600', 'hover:bg-sky-700');
-            };
-
-            document.getElementById('btn-remote-finish').onclick = async () => {
-                if (!remoteCapturedPhoto) return;
-
-                showToast("Registrando assinatura...");
-                const meta = await fetchClientMetadata();
-
-                const digitalData = {
-                    type: 'digital_ack',
-                    ip: meta.ip,
-                    device: meta.userAgent,
-                    timestamp: meta.timestamp,
-                    signerName: signerName,
-                    signerCPF: signerCPF,
-                    photo: remoteCapturedPhoto,
-                    valid: true
-                };
-
-                if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
-
-                // Update signature in Firestore
-                const signatureKey = `responsible_${docSnapshot.studentId}`; // Assuming one responsible per remote sign
-                const updatedSignatures = { ...docSnapshot.signatures, [signatureKey]: digitalData };
-
-                // Re-generate HTML with new signature
-                const { html: newHtmlContent } = await generateSmartHTML(docSnapshot.docType, docSnapshot.studentId, docSnapshot.refId, (date) => {
-                    // This is a placeholder. In a real scenario, you'd need the original generatorFn
-                    // or store the full HTML content in the snapshot.
-                    // For now, we'll just use the existing htmlContent and update signatures.
-                    return docSnapshot.htmlContent; // This is problematic if htmlContent doesn't have signature slots
-                });
-
-                await updateDocumentSignatures(resolvedDocId, updatedSignatures, newHtmlContent);
-
-                document.getElementById('signature-flow-container').innerHTML = `
-                    <div class="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans max-w-3xl mx-auto">
-                        <div class="bg-white p-8 rounded-2xl shadow-xl text-center w-full border-t-8 border-green-500">
-                            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <i class="fas fa-check-circle text-4xl text-green-600"></i>
-                            </div>
-                            <h1 class="text-3xl font-black text-gray-900 mb-2 uppercase">Assinatura Registrada!</h1>
-                            <p class="text-gray-600 font-medium mb-8">Obrigado por assinar o documento. Uma cópia foi enviada para a escola.</p>
-                            
-                            <div class="space-y-4 max-w-sm mx-auto">
-                                <button onclick="downloadAsImage()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 flex items-center justify-center gap-3 text-lg">
-                                    <i class="fas fa-file-image text-2xl"></i> 
-                                    <span id="download-btn-text">BAIXAR CÓPIA (PNG)</span>
-                                </button>
-                            </div>
-                            <div class="mt-8 pt-6 border-t border-gray-100">
-                                <p class="text-xs font-bold text-gray-400 uppercase tracking-widest text-center">${docSnapshot.schoolName || 'Escola'}</p>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                renderDocumentHTML(newHtmlContent); // Render the final document for download
-            };
-        };
-
-        // Render the document in the background for eventual download
-        renderDocumentHTML(docSnapshot.htmlContent);
-    }
-};
 // ... restoring original implementations ...
 
 const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
@@ -1575,4 +1915,3 @@ export const openAbsenceHistoryModal = (processId) => {
     document.getElementById('history-view-content').innerHTML = historyHTML || '<p class="text-center p-4">Sem histórico.</p>';
     openModal(document.getElementById('history-view-modal-backdrop'));
 };
-setTimeout(checkForRemoteSignParams, 500);
