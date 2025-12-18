@@ -325,13 +325,14 @@ export const checkForRemoteSignParams = async () => {
                             </div>` :
                         `<div class="text-center mb-4 text-xs text-green-700 font-bold"><i class="fas fa-check-circle"></i> Assinatura Digital Incorporada ao Documento</div>`}
 
-                            <div class="space-y-3">
-                                <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Olá, segue o link para acessar o documento assinado digitalmente: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
-                                    <i class="fab fa-whatsapp text-2xl"></i> 
-                                    <span>Enviar para mim (WhatsApp)</span>
-                                </button>
-
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <button id="btn-download-image-signed" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-2">
+                                        <i class="fas fa-image"></i> Baixar Imagem
+                                    </button>
+                                    <button onclick="window.print()" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-2">
+                                        <i class="fas fa-file-pdf"></i> Baixar PDF
+                                    </button>
+                                </div>
                                     <button id="btn-download-image-signed" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-2">
                                         <i class="fas fa-image"></i> Baixar Imagem
                                     </button>
@@ -452,8 +453,8 @@ export const checkForRemoteSignParams = async () => {
                 container.innerHTML = `
                     <div class="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden font-sans border-t-4 border-sky-600">
                         <div class="bg-white p-6 text-center border-b border-gray-100 pb-6 pt-8">
-                            ${urlLogo ? `<div class="mb-4 flex justify-center"><img src="${urlLogo}" class="h-28 object-contain"></div>` : '<div class="h-24 w-24 bg-sky-50 rounded-full mx-auto mb-4 flex items-center justify-center"><i class="fas fa-university text-sky-600 text-4xl"></i></div>'}
-                            <h2 class="text-xl font-black text-gray-900 uppercase leading-snug px-4">${formatText(urlSchoolName)}</h2>
+                            ${(urlLogo || state.config?.schoolLogoUrl) ? `<div class="mb-4 flex justify-center"><img src="${urlLogo || state.config?.schoolLogoUrl}" class="h-28 object-contain"></div>` : '<div class="h-24 w-24 bg-sky-50 rounded-full mx-auto mb-4 flex items-center justify-center"><i class="fas fa-university text-sky-600 text-4xl"></i></div>'}
+                            <h2 class="text-xl font-black text-gray-900 uppercase leading-snug px-4">${formatText(urlSchoolName || state.config?.schoolName)}</h2>
                             <p class="text-xs font-bold text-gray-400 uppercase mt-1">Sistema de Acompanhamento Escolar</p>
                         </div>
 
@@ -551,6 +552,9 @@ export const checkForRemoteSignParams = async () => {
                                 </div>
                                 <div class="flex gap-2 justify-center">
                                     <button id="btn-start-remote-cam" class="bg-sky-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-sky-700 w-full"><i class="fas fa-video"></i> ATIVAR CÂMERA</button>
+                                    <input type="file" id="remote-upload-input" accept="image/*" class="hidden">
+                                    <button id="btn-remote-upload" class="bg-indigo-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-indigo-700 w-full mt-2"><i class="fas fa-upload"></i> UPLOAD FOTO</button>
+                                    
                                     <button id="btn-take-remote-pic" class="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-green-700 w-full hidden"><i class="fas fa-camera"></i> TIRAR SELFIE</button>
                                     <button id="btn-retake-remote-pic" class="bg-yellow-500 text-white px-4 py-2 rounded text-xs font-bold hover:bg-yellow-600 w-full hidden"><i class="fas fa-redo"></i> REFAZER</button>
                                 </div>
@@ -580,9 +584,60 @@ export const checkForRemoteSignParams = async () => {
                 const imgEl = document.getElementById('remote-photo-result');
                 const phEl = document.getElementById('camera-placeholder');
                 const btnStart = document.getElementById('btn-start-remote-cam');
+                const btnUpload = document.getElementById('btn-remote-upload');
+                const inputUpload = document.getElementById('remote-upload-input');
                 const btnTake = document.getElementById('btn-take-remote-pic');
                 const btnRetake = document.getElementById('btn-retake-remote-pic');
                 const btnSign = document.getElementById('btn-remote-agree');
+
+                // LÓGICA DE UPLOAD
+                btnUpload.onclick = () => inputUpload.click();
+                inputUpload.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (readerEvent) => {
+                        // Create Image to Resize/Validate
+                        const tempImg = new Image();
+                        tempImg.onload = () => {
+                            // Resize logic
+                            const MAX_WIDTH = 640;
+                            const MAX_HEIGHT = 480;
+                            let width = tempImg.width;
+                            let height = tempImg.height;
+
+                            if (width > height) {
+                                if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                            } else {
+                                if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                            }
+                            canvasEl.width = width;
+                            canvasEl.height = height;
+                            const ctx = canvasEl.getContext('2d');
+                            ctx.drawImage(tempImg, 0, 0, width, height);
+                            capturedPhotoBase64 = canvasEl.toDataURL('image/jpeg', 0.7);
+
+                            // Atualiza UI
+                            imgEl.src = capturedPhotoBase64;
+                            imgEl.classList.remove('hidden', 'scale-x-[-1]'); // Remover espelhamento em upload
+                            phEl.classList.add('hidden');
+
+                            // Esconde botões iniciais, mostra refazer
+                            btnStart.classList.add('hidden');
+                            btnUpload.classList.add('hidden');
+                            btnRetake.classList.remove('hidden');
+
+                            // Libera assinatura
+                            btnSign.disabled = false;
+                            btnSign.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                            btnSign.classList.add('bg-green-600', 'hover:bg-green-700', 'transform', 'hover:scale-105');
+                            btnSign.innerHTML = '<i class="fas fa-check-double"></i> CONFIRMAR E ASSINAR';
+                        };
+                        tempImg.src = readerEvent.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                };
 
                 btnStart.onclick = async () => {
                     try {
@@ -591,6 +646,7 @@ export const checkForRemoteSignParams = async () => {
                         videoEl.srcObject = stream;
                         phEl.classList.add('hidden');
                         btnStart.classList.add('hidden');
+                        btnUpload.classList.add('hidden');
                         btnTake.classList.remove('hidden');
                     } catch (err) { alert("Erro na câmera."); }
                 };
@@ -609,7 +665,14 @@ export const checkForRemoteSignParams = async () => {
                 };
 
                 btnRetake.onclick = () => {
-                    capturedPhotoBase64 = null; imgEl.classList.add('hidden'); btnRetake.classList.add('hidden'); btnTake.classList.remove('hidden');
+                    capturedPhotoBase64 = null; imgEl.classList.add('hidden'); btnRetake.classList.add('hidden');
+                    // Mostra opções iniciais novamente
+                    btnStart.classList.remove('hidden');
+                    btnUpload.classList.remove('hidden');
+
+                    btnTake.classList.add('hidden'); // Garante que a de tirar foto suma
+                    phEl.classList.remove('hidden');
+
                     btnSign.disabled = true; btnSign.classList.add('bg-gray-400', 'cursor-not-allowed'); btnSign.classList.remove('bg-green-600', 'hover:bg-green-700', 'transform', 'hover:scale-105'); btnSign.innerHTML = '<i class="fas fa-lock"></i> TIRE A SELFIE PARA ASSINAR';
                 };
 

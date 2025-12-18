@@ -10,12 +10,12 @@ import { getStatusBadge } from './utils.js';
 
 export const roleIcons = {
     'Vítima': 'fas fa-user-shield text-blue-600',
-    'Agente': 'fas fa-gavel text-red-600', 
+    'Agente': 'fas fa-gavel text-red-600',
     'Testemunha': 'fas fa-eye text-green-600',
     'Envolvido': 'fas fa-user text-gray-500'
 };
 
-export const defaultRole = 'Envolvido'; 
+export const defaultRole = 'Envolvido';
 
 // --- FUNÇÃO DE PROCESSAMENTO DE OCORRÊNCIAS (OTIMIZADA) ---
 
@@ -28,19 +28,21 @@ export const defaultRole = 'Envolvido';
  */
 export const getFilteredOccurrences = (externalData = null, customFilters = null) => {
     const groupedByIncident = new Map();
-    
+
     // Usa dados externos (para relatórios completos) ou o estado atual (para visualização rápida)
     const sourceData = externalData || state.occurrences;
-    
+
+    // Usa filtros passados ou os do estado global
     // Usa filtros passados ou os do estado global
     const filters = customFilters || state.filtersOccurrences;
-    const studentSearchRaw = (customFilters ? '' : state.filterOccurrences) || ''; // Busca de texto só aplica na UI principal geralmente
+    // Permite que o search global seja usado se não houver um específico no customFilters, ou se customFilters for nulo
+    const studentSearchRaw = (customFilters && customFilters.search !== undefined) ? customFilters.search : (state.filterOccurrences || '');
 
     for (const occ of sourceData) {
         if (!occ || !occ.studentId) continue;
 
         const groupId = occ.occurrenceGroupId || `individual-${occ.id}`;
-        
+
         let incident = groupedByIncident.get(groupId);
         if (!incident) {
             incident = {
@@ -51,14 +53,14 @@ export const getFilteredOccurrences = (externalData = null, customFilters = null
             };
             groupedByIncident.set(groupId, incident);
         }
-        
+
         incident.records.push(occ);
 
         // Lógica resiliente para alunos não carregados (paginação)
         if (!incident.participantsInvolved.has(occ.studentId)) {
             // 1. Tenta encontrar na lista carregada (Memória)
             let student = state.students.find(s => s.matricula === occ.studentId);
-            
+
             // 2. Se não achar, tenta usar os dados cacheados no próprio registro (Desnormalização)
             if (!student) {
                 const participantData = occ.participants?.find(p => p.studentId === occ.studentId);
@@ -70,14 +72,14 @@ export const getFilteredOccurrences = (externalData = null, customFilters = null
                         matricula: occ.studentId,
                         name: cachedName,
                         class: cachedClass || '?',
-                        isPlaceholder: true 
+                        isPlaceholder: true
                     };
                 } else if (state.selectedStudents && state.selectedStudents.has(occ.studentId)) {
-                     student = state.selectedStudents.get(occ.studentId).student;
+                    student = state.selectedStudents.get(occ.studentId).student;
                 } else {
-                     student = {
+                    student = {
                         matricula: occ.studentId,
-                        name: `Aluno (${occ.studentId})`, 
+                        name: `Aluno (${occ.studentId})`,
                         class: '?',
                         isPlaceholder: true
                     };
@@ -85,18 +87,34 @@ export const getFilteredOccurrences = (externalData = null, customFilters = null
             }
 
             const participantData = occ.participants?.find(p => p.studentId === occ.studentId);
-            
+
             incident.participantsInvolved.set(occ.studentId, {
                 student: student,
-                role: participantData?.role || defaultRole 
+                role: participantData?.role || defaultRole
             });
         }
     }
 
     // 2. Filtragem e Processamento
     const filteredIncidents = new Map();
-    const { startDate, endDate, status, type } = filters;
+    const { startDate, endDate, status, type, class: filterClass, shift: filterShift, year: filterYear } = filters;
     const studentSearch = studentSearchRaw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    // Helper para extrair Turma/Ano/Turno de uma string de classe "9A" ou "9A (Manhã)"
+    const parseClassInfo = (classStr) => {
+        if (!classStr) return { year: '', classChar: '', shift: '' };
+        const clean = classStr.toUpperCase();
+        const yearMatch = clean.match(/(\d+)/);
+        const year = yearMatch ? yearMatch[0] : '';
+        const classCharMatch = clean.match(/[0-9]+([A-Z])/); // Ex: 9A -> A
+        const classChar = classCharMatch ? classCharMatch[1] : (year ? clean.replace(year, '').trim().charAt(0) : ''); // Fallback
+
+        let shift = 'Manhã'; // Default assumido se não especificado, ou tratar como 'Indefinido'
+        if (clean.includes('TARDE') || clean.includes('T')) shift = 'Tarde';
+        if (clean.includes('NOITE') || clean.includes('N')) shift = 'Noite';
+
+        return { year, classChar, shift };
+    };
 
     for (const [groupId, incident] of groupedByIncident.entries()) {
         const mainRecord = incident.records && incident.records.length > 0 ? incident.records[0] : null;
@@ -107,10 +125,32 @@ export const getFilteredOccurrences = (externalData = null, customFilters = null
 
         if (status && status !== 'all' && incident.overallStatus !== status) continue;
         if (type && type !== 'all' && mainRecord.occurrenceType !== type) continue;
-        
+
         // Filtro de data rigoroso para relatórios
         if (startDate && mainRecord.date < startDate) continue;
         if (endDate && mainRecord.date > endDate) continue;
+
+        // Filtro por Dados do Aluno (Turma, Ano, Turno)
+        // Como um incidente pode ter múltiplos alunos, verificamos se PELO MENOS UM aluno atende aos critérios
+        let matchesMetaFilter = true;
+
+        if ((filterClass && filterClass !== 'all') || (filterYear && filterYear !== 'all') || (filterShift && filterShift !== 'all')) {
+            let hasQualifiedStudent = false;
+            for (const p of incident.participantsInvolved.values()) {
+                const sInfo = parseClassInfo(p.student.class);
+
+                let classMatch = (filterClass === 'all' || !filterClass) ? true : sInfo.classChar === filterClass;
+                let yearMatch = (filterYear === 'all' || !filterYear) ? true : sInfo.year === filterYear;
+                // Para simplificar, assumimos que 'Manhã' é o padrão se não detetarmos 'Tarde'/'Noite'
+                let shiftMatch = (filterShift === 'all' || !filterShift) ? true : (filterShift === 'Manhã' ? !p.student.class.toUpperCase().includes('TARDE') : p.student.class.toUpperCase().includes('TARDE'));
+
+                if (classMatch && yearMatch && shiftMatch) {
+                    hasQualifiedStudent = true;
+                    break;
+                }
+            }
+            if (!hasQualifiedStudent) continue;
+        }
 
         if (studentSearch) {
             let hasMatchingStudent = false;
@@ -143,9 +183,9 @@ export const getStudentProcessInfo = (studentId) => {
             break;
         }
     }
-    
+
     const currentCycleActions = studentActions.slice(lastAnaliseIndex + 1);
-    
+
     let processId;
     const existingProcessAction = currentCycleActions.find(a => a.processId);
 
@@ -156,11 +196,11 @@ export const getStudentProcessInfo = (studentId) => {
             .filter(a => a.studentId === studentId)
             .map(a => a.processId)
             .filter(Boolean);
-        
+
         const processNumbers = allProcessIdsForStudent
             .map(pid => parseInt(pid.split('-')[1] || 0, 10))
             .filter(num => !isNaN(num));
-            
+
         const maxNumber = processNumbers.length > 0 ? Math.max(...processNumbers) : 0;
         processId = `${studentId}-${maxNumber + 1}`;
     }
@@ -189,8 +229,8 @@ export const determineNextActionForStudent = (studentId) => {
             return action;
         }
     }
-    
-    return 'analise'; 
+
+    return 'analise';
 };
 
 
@@ -201,14 +241,14 @@ export const determineNextActionForStudent = (studentId) => {
 // Mapeia o Status Atual para a PRÓXIMA AÇÃO necessária
 const occurrenceNextActionMap = {
     'Aguardando Convocação 1': 'convocacao_1',
-    'Aguardando Feedback 1': 'feedback_1', 
+    'Aguardando Feedback 1': 'feedback_1',
     'Aguardando Convocação 2': 'convocacao_2',
     'Aguardando Feedback 2': 'feedback_2',
     'Aguardando Convocação 3': 'convocacao_3',
     'Aguardando Feedback 3': 'feedback_3',
-    'Aguardando Desfecho': 'desfecho_ou_ct', 
-    'Aguardando Devolutiva CT': 'devolutiva_ct', 
-    'Aguardando Parecer Final': 'parecer_final', 
+    'Aguardando Desfecho': 'desfecho_ou_ct',
+    'Aguardando Devolutiva CT': 'devolutiva_ct',
+    'Aguardando Parecer Final': 'parecer_final',
     'Resolvido': null
 };
 
@@ -220,14 +260,14 @@ export const determineNextOccurrenceStep = (currentStatus) => {
 
 // Mapeia o Status Atual para a AÇÃO QUE O GEROU (para edição)
 const occurrencePreviousActionMap = {
-    'Aguardando Convocação 1': null, 
+    'Aguardando Convocação 1': null,
     'Aguardando Feedback 1': 'convocacao_1', // Edita a Convocação 1
     'Aguardando Convocação 2': 'feedback_1', // Edita o Feedback da 1 (que falhou)
     'Aguardando Feedback 2': 'convocacao_2', // Edita a Convocação 2
     'Aguardando Convocação 3': 'feedback_2', // Edita o Feedback da 2
     'Aguardando Feedback 3': 'convocacao_3', // Edita a Convocação 3
     'Aguardando Desfecho': 'feedback_3',     // Edita o Feedback da 3 (Sucesso ou Falha->Desfecho)
-    'Aguardando Devolutiva CT': 'desfecho_ou_ct', 
+    'Aguardando Devolutiva CT': 'desfecho_ou_ct',
     'Aguardando Parecer Final': 'devolutiva_ct',
     'Resolvido': 'parecer_final'
 };
@@ -235,9 +275,9 @@ const occurrencePreviousActionMap = {
 export const determineCurrentActionFromStatus = (currentStatus) => {
     if (!currentStatus) return 'convocacao_1';
     if (currentStatus === 'Resolvido') return 'parecer_final';
-    
+
     // Tratamento especial para status legados ou genéricos
-    if (currentStatus === 'Aguardando Contato 1') return 'convocacao_1'; 
+    if (currentStatus === 'Aguardando Contato 1') return 'convocacao_1';
     if (currentStatus === 'Aguardando Contato 2') return 'convocacao_2';
     if (currentStatus === 'Aguardando Contato 3') return 'convocacao_3';
 
@@ -263,7 +303,7 @@ const getActionMainDate = (action) => {
 export const validateOccurrenceChronology = (record, actionType, newDate) => {
     if (!newDate) return { isValid: true, message: '' };
 
-    const dateToCheck = new Date(newDate + 'T00:00:00'); 
+    const dateToCheck = new Date(newDate + 'T00:00:00');
     const occurrenceDate = new Date(record.date + 'T00:00:00');
 
     // Nenhuma ação pode ser antes da ocorrência em si
@@ -315,24 +355,24 @@ export const validateAbsenceChronology = (currentCycleActions, newActionData) =>
     }
 
     const previousActions = currentCycleActions.filter(a => a.id !== newActionData.id);
-    
+
     previousActions.sort((a, b) => {
         const dateA = getActionMainDate(a) || a.createdAt?.seconds || 0;
         const dateB = getActionMainDate(b) || b.createdAt?.seconds || 0;
-        const timeA = typeof dateA === 'string' ? new Date(dateA+'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
-        const timeB = typeof dateB === 'string' ? new Date(dateB+'T00:00:00Z').getTime() : (dateB instanceof Date ? dateB.getTime() : (dateB || 0) * 1000);
+        const timeA = typeof dateA === 'string' ? new Date(dateA + 'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
+        const timeB = typeof dateB === 'string' ? new Date(dateB + 'T00:00:00Z').getTime() : (dateB instanceof Date ? dateB.getTime() : (dateB || 0) * 1000);
         return timeA - timeB;
     });
 
     if (previousActions.length > 0) {
         const lastAction = previousActions[previousActions.length - 1];
         const lastDateStr = getActionMainDate(lastAction);
-        
+
         if (lastDateStr) {
             const lastDate = new Date(lastDateStr + 'T00:00:00');
             if (newDateToCheck < lastDate) {
-                return { 
-                    isValid: false, 
+                return {
+                    isValid: false,
                     message: `A data desta ação (${formatDate(newMainDateStr)}) não pode ser anterior à data da ação anterior: "${getActionTitle(lastAction.actionType)}" em ${formatDate(lastDateStr)}.`
                 };
             }
@@ -359,7 +399,7 @@ const getActionTitle = (type) => {
 // Definição dos campos para cada etapa de Ocorrência (Reset Cascata Reverso)
 const camposAcao6 = ['parecerFinal'];
 const camposAcao5 = ['ctFeedback', ...camposAcao6];
-const camposAcao4 = ['oficioNumber', 'oficioYear', 'ctSentDate', 'desfechoChoice', ...camposAcao5]; 
+const camposAcao4 = ['oficioNumber', 'oficioYear', 'ctSentDate', 'desfechoChoice', ...camposAcao5];
 
 // Campos da Convocação 3 (e tudo que vem depois)
 // ** ATUALIZADO: contactPrints_3
@@ -378,15 +418,15 @@ const camposConvocacao1 = ['meetingDate_1', 'meetingTime_1', ...camposFeedback1]
 
 export const occurrenceStepLogic = {
     'convocacao_1': { fieldsToClear: camposConvocacao1, statusAfterReset: 'Aguardando Convocação 1' },
-    'feedback_1':   { fieldsToClear: camposFeedback1,   statusAfterReset: 'Aguardando Feedback 1' },
-    
+    'feedback_1': { fieldsToClear: camposFeedback1, statusAfterReset: 'Aguardando Feedback 1' },
+
     'convocacao_2': { fieldsToClear: camposConvocacao2, statusAfterReset: 'Aguardando Convocação 2' },
-    'feedback_2':   { fieldsToClear: camposFeedback2,   statusAfterReset: 'Aguardando Feedback 2' },
-    
+    'feedback_2': { fieldsToClear: camposFeedback2, statusAfterReset: 'Aguardando Feedback 2' },
+
     'convocacao_3': { fieldsToClear: camposConvocacao3, statusAfterReset: 'Aguardando Convocação 3' },
-    'feedback_3':   { fieldsToClear: camposFeedback3,   statusAfterReset: 'Aguardando Feedback 3' },
+    'feedback_3': { fieldsToClear: camposFeedback3, statusAfterReset: 'Aguardando Feedback 3' },
 
     'desfecho_ou_ct': { fieldsToClear: camposAcao4, statusAfterReset: 'Aguardando Desfecho' },
-    'devolutiva_ct':  { fieldsToClear: camposAcao5, statusAfterReset: 'Aguardando Devolutiva CT' },
-    'parecer_final':  { fieldsToClear: camposAcao6, statusAfterReset: 'Aguardando Parecer Final' }
+    'devolutiva_ct': { fieldsToClear: camposAcao5, statusAfterReset: 'Aguardando Devolutiva CT' },
+    'parecer_final': { fieldsToClear: camposAcao6, statusAfterReset: 'Aguardando Parecer Final' }
 };
