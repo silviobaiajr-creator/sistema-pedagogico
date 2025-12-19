@@ -1426,57 +1426,60 @@ async function generateSmartHTML(docType, studentId, refId, htmlGeneratorFn) {
 
             let safeHtml = existingDoc.htmlContent;
 
-            // FIX 2.0: RE-PINTURA INTELIGENTE DE TODAS AS ASSINATURAS
-            // Itera sobre TODAS as assinaturas conhecidas (do banco + locais) para garantir que
-            // documentos coletivos (como Ata) mostrem as novas assinaturas mesmo com HTML travado.
+            // FIX 2.0 (REVISADO): RE-PINTURA SEGURA VIA DOM
+            // Regex quebrava HTML aninhado em docs complexos. Agora usamos DOM parser.
             if (signatureMap.size > 0) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = safeHtml;
+                let hasChanges = false;
+
                 signatureMap.forEach((sigValue, sigKey) => {
-                    // Ignora se não tiver valor válido
                     if (!sigValue) return;
 
-                    // Regex genérico para encontrar o slot desta chave específica
-                    // Procura por <div ... data-sig-key="A_CHAVE" ... > CONTEUDO </div>
-                    const slotRegex = new RegExp(`<div[^>]+data-sig-key="${sigKey}"[^>]*>[\\s\\S]*?<\\/div>`, 'i');
+                    // Encontra o elemento pelo atributo data-sig-key
+                    const slotEl = tempDiv.querySelector(`[data-sig-key="${sigKey}"]`);
 
-                    // Se o slot existe no HTML travado, regeramos seu conteúdo visual
-                    if (safeHtml.match(slotRegex)) {
-                        // Tenta extrair metadados básicos do slot existente se possível, ou usa defaults
-                        // Para simplificar, vamos reconstruir o box com os dados que temos.
-                        // Precisamos saber o 'role' e 'name' originais para não perder info.
-                        // O 'getSingleSignatureBoxHTML' pede (key, role, name, status/dataUrl).
+                    if (slotEl) {
+                        try {
+                            // Tenta preservar Role e Name originais do HTML para não perder info visual
+                            let role = "Assinatura";
+                            let name = "";
 
-                        // Tentativa de extrair Role e Name do HTML antigo para preservar UI 
-                        // (Isso é um parser simples, pode precisar de ajuste se o HTML mudar muito)
-                        const match = safeHtml.match(slotRegex)[0];
-                        let role = "Assinatura";
-                        let name = "";
+                            // Extração segura via DOM
+                            const roleEl = slotEl.querySelector('.font-bold'); // Geralmente o papel está em negrito
+                            if (roleEl) role = roleEl.innerText;
 
-                        // Tenta achar <p class="...font-bold...">ROLE</p>
-                        const roleMatch = match.match(/<p[^>]*font-bold[^>]*>(.*?)<\/p>/i);
-                        if (roleMatch) role = roleMatch[1];
+                            // Nome: Se for gestão, forçamos o do config. Se não, tentamos extrair.
+                            if (sigKey === 'management') {
+                                role = 'Gestão';
+                                name = state.config?.schoolName || 'Direção';
+                            } else {
+                                // Tenta regex no texto do elemento para achar "Nome: Sobrenome"
+                                const nameMatch = slotEl.innerText.match(/Nome:\s*([^\n]+)/);
+                                if (nameMatch) name = nameMatch[1].trim();
+                            }
 
-                        // Tenta achar <p class="...text-sm...">(Nome: )?(.*?)(<\/p>|<br>)/i
-                        // O layout padrão tem o nome logo abaixo. Vamos tentar ser resilientes.
-                        // Se for gestão/escola, o nome vem do config.
+                            // Gera novo HTML do box
+                            const newSigHtml = getSingleSignatureBoxHTML(sigKey, role, name, sigValue);
 
-                        // Caso especial: Management
-                        if (sigKey === 'management') {
-                            role = 'Gestão';
-                            name = state.config?.schoolName || 'Direção';
-                        } else {
-                            // Para outros, tenta extrair ou usa placeholder se falhar
-                            const nameMatch = match.match(/Nome:\s*([^<]+)/i);
-                            if (nameMatch) name = nameMatch[1].trim();
+                            // Cria wrapper para converter string em elemento DOM
+                            const newBoxWrapper = document.createElement('div');
+                            newBoxWrapper.innerHTML = newSigHtml;
+
+                            if (newBoxWrapper.firstElementChild) {
+                                slotEl.replaceWith(newBoxWrapper.firstElementChild);
+                                hasChanges = true;
+                                console.log(`[Re-pintura DOM] Assinatura atualizada: ${sigKey}`);
+                            }
+                        } catch (err) {
+                            console.error(`Erro ao atualizar assinatura DOM para ${sigKey}:`, err);
                         }
-
-                        // Gera o novo HTML apenas deste box
-                        const newSigHtml = getSingleSignatureBoxHTML(sigKey, role, name, sigValue);
-
-                        // Substitui no HTML principal
-                        safeHtml = safeHtml.replace(slotRegex, newSigHtml);
-                        console.log(`[Re-pintura] Assinatura atualizada visualmente: ${sigKey}`);
                     }
                 });
+
+                if (hasChanges) {
+                    safeHtml = tempDiv.innerHTML;
+                }
             }
 
             // Re-injeta rodapé de impressão se necessário
