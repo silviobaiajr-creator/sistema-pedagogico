@@ -11,7 +11,6 @@ import { formatDate } from './utils.js';
 
 let chartTypes = null;
 let chartStatus = null;
-let activeFilters = { year: 'all', class: 'all', shift: 'all' };
 
 export const initDashboard = async () => {
     // Estado de Loading
@@ -20,105 +19,18 @@ export const initDashboard = async () => {
     document.getElementById('dash-total-occurrences').innerHTML = loadingIcon;
     document.getElementById('dash-active-absences').innerHTML = loadingIcon;
     
-    // Mostra barra de filtros
-    const filtersDiv = document.getElementById('dashboard-global-filters');
-    if (filtersDiv) {
-        filtersDiv.classList.remove('hidden');
-        setupDashboardFilterListeners();
-    }
+    // Limpa alertas anteriores
+    const alertContainer = document.getElementById('urgent-alerts-container');
+    if(alertContainer) alertContainer.remove();
 
-    // Refresh Data com Filtros Atuais
-    await refreshDashboardData();
-};
-
-const setupDashboardFilterListeners = () => {
-    document.getElementById('apply-dash-filters-btn').onclick = () => {
-        activeFilters.year = document.getElementById('filter-dash-year').value;
-        activeFilters.class = document.getElementById('filter-dash-class').value;
-        activeFilters.shift = document.getElementById('filter-dash-shift').value;
-        refreshDashboardData();
-    };
-    
-    document.getElementById('clear-dash-filters-btn').onclick = () => {
-        document.getElementById('filter-dash-year').value = 'all';
-        document.getElementById('filter-dash-class').value = 'all';
-        document.getElementById('filter-dash-shift').value = 'all';
-        activeFilters = { year: 'all', class: 'all', shift: 'all' };
-        refreshDashboardData();
-    };
-};
-
-const refreshDashboardData = async () => {
-    // Recarrega estatísticas (simulado filtro em memória pois firestore.js retorna tudo ou counts)
-    // NOTA: Idealmente o getDashboardStats aceitaria filtros na query. 
-    // Como getCountFromServer é global, faremos uma aproximação baseada em state.occurrences se disponível,
-    // ou manteremos os Cards totais e filtraremos apenas os gráficos e listas de alerta.
-    
-    const stats = await getDashboardStats(); 
+    const stats = await getDashboardStats();
 
     if (!stats) {
         document.getElementById('dash-total-students').textContent = 'Erro';
         return;
     }
 
-    // --- APLICAÇÃO DE FILTROS (Memória/Simulação) ---
-    // Precisamos filtrar stats.chartDataOccurrences e stats.chartDataAbsences baseado nos dados do aluno.
-    // Como os gráficos usam listas pequenas, podemos filtrar aqui.
-    // Para os Totais (Cards), se quisermos precisão, teríamos que baixar tudo. 
-    // Por enquanto, vamos manter Totais Globais ou Tentar Filtrar se o dado do aluno estiver anexado.
-
-    // Carregar alunos para cruzar dados de turma/turno se necessário
-    // Se state.students estiver vazio, carregue-os (pode ser pesado, cuidado)
-    /* 
-       Optim: Gráficos serão filtrados.
-       Cards: Serão globais (avisar usuário) ou 
-       filtrados se tivermos cache.
-    */
-
-    let filteredOccurrences = stats.chartDataOccurrences; // Array de amostra (50)
-    let filteredAbsences = stats.chartDataAbsences;
-
-    // Filtra ocorrências (precisa buscar dados do aluno se não estiverem no objeto da ocorrência)
-    // occurrences usually have studentName and studentId. We need student Class/Shift.
-    // We will trust 'studentClass' if saved in occurrence, or look up in state.students.
-    
-    // Filtro Lógico:
-    const matchesFilter = (itemClass, itemShift, itemYear) => {
-        // Normalização simples
-        const iClass = itemClass ? itemClass.toUpperCase() : '';
-        // Turno/Ano podem não estar salvos explicitamente na ocorrência antiga.
-        // Se crítico, precisaria fazer join. Assumiremos que 'studentClass' contém ex "9A" => Ano 9, Turma A.
-        // Implementação heurística:
-        
-        // Ano: Pega números de itemClass (ex: "9A" -> "9")
-        // Turma: Pega letras (ex: "9A" -> "A")
-        
-        // Se o filtro for 'all', passa.
-        let passYear = activeFilters.year === 'all';
-        let passClass = activeFilters.class === 'all';
-        let passShift = activeFilters.shift === 'all';
-        
-        if (!passYear || !passClass) {
-             const digits = iClass.replace(/\D/g, '');
-             const letters = iClass.replace(/[^a-zA-Z]/g, '');
-             
-             if (!passYear && digits !== activeFilters.year) passYear = false;
-             if (!passClass && !letters.includes(activeFilters.class)) passClass = false;
-        }
-
-        // Turno: Difícil sem campo explícito. Se não tem campo 'shift', ignora filtro ou reprova?
-        // Vamos ignorar filtro de turno por enquanto se não houver dados, ou implementar no student.js
-        if (!passShift) {
-             // Placeholder: Tentar verificar se existe propriedade shift ou inferir
-             // passShift = false; // Rigoroso
-             passShift = true; // Permissivo por falta de dado
-        }
-        
-        return passYear && passClass && passShift;
-    };
-
-    filteredOccurrences = filteredOccurrences.filter(o => matchesFilter(o.studentClass));
-    filteredAbsences = filteredAbsences.filter(a => matchesFilter(a.studentClass)); // Assumindo campo studentClass em absence
+    // 1. Atualiza Cards Principais com Contexto
     
     // Alunos
     animateValue('dash-total-students', 0, stats.totalStudents, 800);
@@ -151,63 +63,36 @@ const refreshDashboardData = async () => {
     absCard.insertAdjacentHTML('beforeend', absContextHtml);
 
 
-    // 2. Renderiza Alertas / Gestão Rápida (Expandido)
-    // Passar filtros para alertas também? Sim.
-    renderUrgentAlerts(activeFilters);
+    // 2. Renderiza Alertas Urgentes
+    renderUrgentAlerts();
 
-    // 3. Renderiza Gráficos (Usando dados filtrados)
-    renderCharts(filteredOccurrences, filteredAbsences);
+    // 3. Renderiza Gráficos
+    renderCharts(stats.chartDataOccurrences, stats.chartDataAbsences);
 };
 
-const renderUrgentAlerts = async (filters) => {
-    // Busca dados reais do state (cache) para alertas, pois stats só traz amostra
-    // Precisamos garantir que state.occurrences tenha dados.
-    if (!state.occurrences || state.occurrences.length === 0) {
-        // Se vazio, não renderiza ou tenta fetch (evitar loop infinito)
-    }
-
+const renderUrgentAlerts = () => {
     const today = new Date();
-    
-    // Filtro auxiliar para os itens de lista
-    const filterItem = (item) => {
-        let passYear = filters.year === 'all';
-        let passClass = filters.class === 'all';
-        // logica de filtro de turma repetida
-        if (!passYear || !passClass) {
-             const iClass = item.studentClass ? item.studentClass.toUpperCase() : '';
-             const digits = iClass.replace(/\D/g, '');
-             const letters = iClass.replace(/[^a-zA-Z]/g, '');
-             if (!passYear && digits !== filters.year) passYear = false;
-             if (!passClass && !letters.includes(filters.class)) passClass = false;
-        }
-        return passYear && passClass;
-    }
+    const urgentOccurrences = state.occurrences
+        .filter(o => o.statusIndividual !== 'Resolvido' && o.statusIndividual !== 'Finalizada')
+        .filter(o => {
+            const date = new Date(o.date);
+            const diffTime = Math.abs(today - date);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays > 7;
+        })
+        .slice(0, 3); 
 
-    // LISTAS DE GESTÃO RÁPIDA
-    
-    // 1. Assinaturas Pendentes (Próximo de vencer ou antigas)
-    const pendingSignatures = state.occurrences
-        .filter(o => o.statusIndividual === 'Pendente' && !o.isSigned)
-        .filter(filterItem)
-        .slice(0, 5);
-
-    // 2. Busca Ativa Parada (Sem movimentação > 5 dias)
-    const stalledAbsences = state.absences
+    const urgentAbsences = state.absences
         .filter(a => a.actionType !== 'analise') 
         .filter(a => {
-            const date = a.updatedAt ? (a.updatedAt.toDate ? a.updatedAt.toDate() : new Date(a.updatedAt)) : new Date(a.createdAt); // Fallback createdAt
+            const date = a.createdAt ? (a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt)) : new Date();
             const diffTime = Math.abs(today - date);
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             return diffDays > 5;
         })
-        .filter(filterItem)
-        .slice(0, 5);
+        .slice(0, 3);
 
-    if (pendingSignatures.length === 0 && stalledAbsences.length === 0) {
-        const existing = document.getElementById('urgent-alerts-container');
-        if(existing) existing.remove();
-        return;
-    }
+    if (urgentOccurrences.length === 0 && urgentAbsences.length === 0) return;
 
     const cardsRow = document.querySelector('#tab-content-dashboard > .grid:first-child');
     const existingContainer = document.getElementById('urgent-alerts-container');
@@ -215,60 +100,42 @@ const renderUrgentAlerts = async (filters) => {
 
     const alertSection = document.createElement('div');
     alertSection.id = 'urgent-alerts-container';
-    alertSection.className = 'mb-8 bg-sky-50 border border-sky-200 rounded-lg p-4 shadow-sm';
+    alertSection.className = 'mb-8 bg-red-50 border border-red-200 rounded-lg p-4';
     
-    let alertsHtml = `<div class="flex justify-between items-center mb-4"><h3 class="text-md font-bold text-sky-800 uppercase"><i class="fas fa-tasks mr-2"></i> Gestão Rápida / Pendências</h3></div><div class="grid grid-cols-1 md:grid-cols-2 gap-6">`;
+    let alertsHtml = `<h3 class="text-sm font-bold text-red-800 uppercase mb-3"><i class="fas fa-bell animate-pulse mr-2"></i> Atenção Necessária</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
 
-    // BLOCO 1: ASSINATURAS / OCORRÊNCIAS
-    if (pendingSignatures.length > 0) {
+    if (urgentOccurrences.length > 0) {
         alertsHtml += `
             <div>
-                <h4 class="text-sm font-semibold text-orange-700 mb-2 border-b border-orange-200 pb-1">Assinaturas / Pendentes</h4>
+                <h4 class="text-xs font-semibold text-red-700 mb-2">Ocorrências Pendentes (+7 dias)</h4>
                 <ul class="space-y-2">
-                    ${pendingSignatures.map(o => `
-                        <li class="bg-white p-3 rounded border-l-4 border-orange-400 shadow-sm text-xs flex justify-between items-center cursor-pointer hover:bg-orange-50 dashboard-jump-link transition" 
+                    ${urgentOccurrences.map(o => `
+                        <li class="bg-white p-2 rounded border border-red-100 shadow-sm text-xs flex justify-between items-center cursor-pointer hover:bg-red-50 dashboard-jump-link" 
                             data-tab="occurrences" data-student-name="${o.studentName}">
-                            <div>
-                                <span class="font-bold text-gray-800 block">${o.studentName}</span>
-                                <span class="text-gray-500">${o.occurrenceType}</span>
-                            </div>
-                            <div class="text-right">
-                                <span class="block font-mono text-orange-600 text-[10px] uppercase">Aguardando Assinatura</span>
-                                <span class="text-gray-400">${formatDate(o.date)}</span>
-                            </div>
+                            <span><strong>${o.studentName}</strong>: ${o.statusIndividual}</span>
+                            <span class="text-gray-400">${formatDate(o.date)}</span>
                         </li>
                     `).join('')}
                 </ul>
             </div>`;
-    } else {
-         alertsHtml += `<div class="text-center py-4 text-gray-400 text-sm">Nenhuma ocorrência pendente de assinatura.</div>`;
     }
 
-    // BLOCO 2: BUSCA ATIVA PARADA
-    if (stalledAbsences.length > 0) {
+    if (urgentAbsences.length > 0) {
         alertsHtml += `
             <div>
-                <h4 class="text-sm font-semibold text-red-700 mb-2 border-b border-red-200 pb-1">Busca Ativa Parada (+5 dias)</h4>
+                <h4 class="text-xs font-semibold text-red-700 mb-2">Busca Ativa Parada (+5 dias)</h4>
                 <ul class="space-y-2">
-                    ${stalledAbsences.map(a => {
-                         const date = a.updatedAt?.toDate ? a.updatedAt.toDate() : (a.createdAt?.toDate ? a.createdAt.toDate() : new Date());
+                    ${urgentAbsences.map(a => {
+                         const date = a.createdAt?.toDate ? a.createdAt.toDate() : new Date();
                          return `
-                        <li class="bg-white p-3 rounded border-l-4 border-red-500 shadow-sm text-xs flex justify-between items-center cursor-pointer hover:bg-red-50 dashboard-jump-link transition" 
+                        <li class="bg-white p-2 rounded border border-red-100 shadow-sm text-xs flex justify-between items-center cursor-pointer hover:bg-red-50 dashboard-jump-link" 
                             data-tab="absences" data-student-name="${a.studentName}">
-                            <div>
-                                <span class="font-bold text-gray-800 block">${a.studentName || 'Aluno'}</span>
-                                <span class="text-gray-500">Etapa: ${a.actionType || 'Inicial'}</span>
-                            </div>
-                            <div class="text-right">
-                                <span class="block font-mono text-red-600 text-[10px] uppercase">Sem Movimentação</span>
-                                <span class="text-gray-400">${formatDate(date)}</span>
-                            </div>
+                            <span><strong>${a.studentName || 'Aluno'}</strong>: Aguardando ação</span>
+                            <span class="text-gray-400">${formatDate(date)}</span>
                         </li>
                     `}).join('')}
                 </ul>
             </div>`;
-    } else {
-        alertsHtml += `<div class="text-center py-4 text-gray-400 text-sm">Nenhuma busca ativa parada.</div>`;
     }
     
     alertsHtml += `</div>`;

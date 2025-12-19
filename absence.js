@@ -5,9 +5,9 @@
 
 import { state, dom } from './state.js';
 import { showToast, showAlert, openModal, closeModal, formatDate, formatTime, getStatusBadge, openImageModal, uploadToStorage } from './utils.js';
-import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js';
+import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js'; 
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
-import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName, getStudentById } from './firestore.js';
+import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName, getStudentById } from './firestore.js'; 
 import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
 
@@ -15,27 +15,11 @@ import { db } from './firebase.js';
 // --- Funções Auxiliares ---
 
 // Lista de ARQUIVOS BRUTOS (não mais Base64)
-let pendingAbsenceFiles = [];
+let pendingAbsenceFiles = []; 
 
 const normalizeText = (text) => {
     if (!text) return '';
     return text.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-};
-
-const parseClassInfo = (classStr) => {
-    if (!classStr) return { year: '', classChar: '', shift: '' };
-    const clean = classStr.toUpperCase();
-    const yearMatch = clean.match(/(\d+)/);
-    const year = yearMatch ? yearMatch[0] : '';
-    const classCharMatch = clean.match(/[0-9]+([A-Z])/);
-    const classChar = classCharMatch ? classCharMatch[1] : (year ? clean.replace(year, '').trim().charAt(0) : '');
-
-    let shift = 'Manhã';
-    if (clean.includes('TARDE') || clean.includes('T')) shift = 'Tarde';
-    if (clean.includes('NOITE') || clean.includes('N')) shift = 'Noite';
-    if (clean.includes('INTEGRAL') || clean.includes('I')) shift = 'Integral';
-
-    return { year, classChar, shift };
 };
 
 // ... (getActionMainDate e getDateInputForActionType mantidos) ...
@@ -49,7 +33,7 @@ const getActionMainDate = (action) => {
         case 'encaminhamento_ct':
             return action.ctSentDate;
         case 'analise':
-            return action.createdAt?.toDate ? action.createdAt.toDate().toISOString().split('T')[0] : null;
+             return action.createdAt?.toDate ? action.createdAt.toDate().toISOString().split('T')[0] : null;
         default:
             return null;
     }
@@ -58,7 +42,7 @@ const getActionMainDate = (action) => {
 const getDateInputForActionType = (actionType) => {
     switch (actionType) {
         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
-            return document.getElementById('contact-date') || document.getElementById('meeting-date');
+             return document.getElementById('contact-date') || document.getElementById('meeting-date');
         case 'visita':
             return document.getElementById('visit-date');
         case 'encaminhamento_ct':
@@ -75,9 +59,9 @@ const getDateInputForActionType = (actionType) => {
 const renderFilePreviews = (containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
-
+    
     container.innerHTML = '';
-
+    
     if (pendingAbsenceFiles.length === 0) {
         container.classList.add('hidden');
         return;
@@ -89,7 +73,7 @@ const renderFilePreviews = (containerId) => {
     pendingAbsenceFiles.forEach((file, index) => {
         const wrapper = document.createElement('div');
         wrapper.className = "relative group w-16 h-16 border rounded bg-gray-100 overflow-hidden";
-
+        
         let mediaElement;
         const objectUrl = URL.createObjectURL(file);
 
@@ -109,7 +93,7 @@ const renderFilePreviews = (containerId) => {
             mediaElement.innerHTML = '<i class="fas fa-music"></i>';
             mediaElement.onclick = () => window.viewImage(objectUrl, file.name);
         }
-
+        
         const removeBtn = document.createElement('button');
         removeBtn.className = "absolute top-0 right-0 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center opacity-80 hover:opacity-100 z-10";
         removeBtn.innerHTML = "&times;";
@@ -117,16 +101,16 @@ const renderFilePreviews = (containerId) => {
         removeBtn.onclick = (e) => {
             e.stopPropagation();
             pendingAbsenceFiles.splice(index, 1);
-
+            
             const labelEl = document.getElementById('absence-print-label');
-            if (labelEl) labelEl.textContent = pendingAbsenceFiles.length > 0 ? `${pendingAbsenceFiles.length} Arq.` : 'Selecionar';
-
+            if(labelEl) labelEl.textContent = pendingAbsenceFiles.length > 0 ? `${pendingAbsenceFiles.length} Arq.` : 'Selecionar';
+            
             const checkEl = document.getElementById('absence-print-check');
-            if (checkEl && pendingAbsenceFiles.length === 0) checkEl.classList.add('hidden');
+            if(checkEl && pendingAbsenceFiles.length === 0) checkEl.classList.add('hidden');
 
             renderFilePreviews(containerId);
         };
-
+        
         wrapper.appendChild(mediaElement);
         wrapper.appendChild(removeBtn);
         container.appendChild(wrapper);
@@ -147,7 +131,7 @@ export const openAbsenceSearchFlowModal = () => {
     resultsContainer.innerHTML = '<p class="text-sm text-gray-400 text-center">Comece a digitar o nome do aluno acima.</p>';
 
     setupAbsenceSearchFlowAutocomplete(input, suggestionsContainer);
-
+    
     const closeBtn = document.getElementById('close-absence-search-flow-modal-btn');
     const cancelBtn = document.getElementById('cancel-absence-search-flow-btn');
     if (closeBtn) closeBtn.onclick = () => closeModal(dom.absenceSearchFlowModal);
@@ -160,9 +144,9 @@ const setupAbsenceSearchFlowAutocomplete = (input, suggestionsContainer) => {
     input.addEventListener('input', () => {
         const rawValue = input.value;
         suggestionsContainer.innerHTML = '';
-
+        
         if (absenceSearchTimeout) clearTimeout(absenceSearchTimeout);
-
+        
         if (!rawValue.trim()) {
             suggestionsContainer.classList.add('hidden');
             return;
@@ -174,21 +158,21 @@ const setupAbsenceSearchFlowAutocomplete = (input, suggestionsContainer) => {
 
             try {
                 const results = await searchStudentsByName(rawValue);
-                suggestionsContainer.innerHTML = '';
-
+                suggestionsContainer.innerHTML = ''; 
+                
                 if (results.length > 0) {
                     results.forEach(student => {
                         const item = document.createElement('div');
                         item.className = 'suggestion-item p-2 cursor-pointer hover:bg-emerald-50 border-b border-gray-100';
                         item.innerHTML = `<span class="font-semibold text-gray-800">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
-
+                        
                         item.addEventListener('click', () => {
                             if (!state.students.find(s => s.matricula === student.matricula)) {
                                 state.students.push(student);
                             }
-                            handleNewAbsenceAction(student);
-                            closeModal(dom.absenceSearchFlowModal);
-                            dom.searchAbsences.value = '';
+                            handleNewAbsenceAction(student); 
+                            closeModal(dom.absenceSearchFlowModal); 
+                            dom.searchAbsences.value = ''; 
                             state.filterAbsences = '';
                             renderAbsences();
                             suggestionsContainer.classList.add('hidden');
@@ -202,7 +186,7 @@ const setupAbsenceSearchFlowAutocomplete = (input, suggestionsContainer) => {
                 console.error("Erro no autocomplete:", error);
                 suggestionsContainer.innerHTML = '<div class="p-2 text-red-500 text-xs">Erro na busca.</div>';
             }
-        }, 400);
+        }, 400); 
     });
 
     document.addEventListener('click', (e) => {
@@ -219,7 +203,7 @@ const getTimeSinceUpdate = (dateString) => {
     const now = new Date();
     const diffTime = Math.abs(now - date);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
+    
     if (diffDays <= 1) return { text: 'Hoje', days: 0 };
     return { text: `${diffDays}d parado`, days: diffDays };
 };
@@ -271,44 +255,33 @@ export const renderAbsences = () => {
     const filteredGroupKeys = Object.keys(groupedByProcess).filter(processId => {
         const actions = groupedByProcess[processId];
         if (!actions || actions.length === 0) return false;
-
+        
         actions.sort((a, b) => {
             const timeA = (a.createdAt?.seconds || new Date(a.createdAt).getTime());
             const timeB = (b.createdAt?.seconds || new Date(b.createdAt).getTime());
-            return timeA - timeB;
+            return timeA - timeB; 
         });
 
-        const { startDate, endDate, processStatus, pendingAction, returnStatus, year: filterYear, class: filterClass, shift: filterShift } = state.filtersAbsences;
+        const { startDate, endDate, processStatus, pendingAction, returnStatus } = state.filtersAbsences;
         const firstAction = actions[0];
-
-        // --- FILTRO DE TURMA/ANO/TURNO (Item 5) ---
-        const student = state.students.find(s => s.matricula === firstAction.studentId);
-        const sClass = firstAction.studentClass || (student ? student.class : '');
-        const sInfo = parseClassInfo(sClass);
-
-        if (filterYear && filterYear !== 'all') { if (sInfo.year !== filterYear) return false; }
-        if (filterClass && filterClass !== 'all') { if (sInfo.classChar !== filterClass) return false; }
-        if (filterShift && filterShift !== 'all') { if (sInfo.shift !== filterShift) return false; }
-        // -------------------------------------------
-
         const processStartDateRaw = getActionMainDate(firstAction) || firstAction.createdAt;
         let processStartDate;
         if (processStartDateRaw instanceof Date) {
             processStartDate = processStartDateRaw;
         } else if (typeof processStartDateRaw === 'string') {
-            try { processStartDate = new Date(processStartDateRaw + 'T00:00:00Z'); } catch { processStartDate = new Date(0); }
+             try { processStartDate = new Date(processStartDateRaw + 'T00:00:00Z'); } catch { processStartDate = new Date(0); } 
         } else if (processStartDateRaw?.seconds) {
-            processStartDate = new Date(processStartDateRaw.seconds * 1000);
+             processStartDate = new Date(processStartDateRaw.seconds * 1000);
         } else {
-            processStartDate = new Date(0);
+             processStartDate = new Date(0); 
         }
 
         if (startDate) {
-            const filterStartDate = new Date(startDate + 'T00:00:00Z');
+            const filterStartDate = new Date(startDate + 'T00:00:00Z'); 
             if (processStartDate < filterStartDate) return false;
         }
         if (endDate) {
-            const filterEndDate = new Date(endDate + 'T23:59:59Z');
+            const filterEndDate = new Date(endDate + 'T23:59:59Z'); 
             if (processStartDate > filterEndDate) return false;
         }
 
@@ -316,9 +289,9 @@ export const renderAbsences = () => {
         if (processStatus === 'in_progress' && isConcluded) return false;
         if (processStatus === 'concluded' && !isConcluded) return false;
 
-        const lastAction = actions[actions.length - 1];
+        const lastAction = actions[actions.length - 1]; 
         if (pendingAction !== 'all') {
-            if (isConcluded) return false;
+            if (isConcluded) return false; 
             let isCurrentlyPendingContact = (lastAction.actionType.startsWith('tentativa') && lastAction.contactSucceeded == null) || (lastAction.actionType === 'visita' && lastAction.visitSucceeded == null);
             let isCurrentlyPendingFeedback = false;
             const ctAction = actions.find(a => a.actionType === 'encaminhamento_ct');
@@ -327,25 +300,21 @@ export const renderAbsences = () => {
             if (pendingAction === 'pending_feedback' && !isCurrentlyPendingFeedback) return false;
         }
         if (returnStatus !== 'all') {
-            const lastActionWithReturnInfo = [...actions].reverse().find(a => a.contactReturned === 'yes' || a.contactReturned === 'no' || a.visitReturned === 'yes' || a.visitReturned === 'no' || a.ctReturned === 'yes' || a.ctReturned === 'no');
-            if (lastActionWithReturnInfo) {
-                const lastDefinitiveStatus = lastActionWithReturnInfo.contactReturned || lastActionWithReturnInfo.visitReturned || lastActionWithReturnInfo.ctReturned;
-                if (returnStatus === 'returned' && lastDefinitiveStatus !== 'yes') return false;
-                if (returnStatus === 'not_returned' && lastDefinitiveStatus !== 'no') return false;
-                if (returnStatus === 'pending') return false;
-            } else {
-                if (returnStatus === 'returned' || returnStatus === 'not_returned') return false;
-            }
+             const lastActionWithReturnInfo = [...actions].reverse().find(a => a.contactReturned === 'yes' || a.contactReturned === 'no' || a.visitReturned === 'yes' || a.visitReturned === 'no' || a.ctReturned === 'yes' || a.ctReturned === 'no');
+             if (lastActionWithReturnInfo) {
+                 const lastDefinitiveStatus = lastActionWithReturnInfo.contactReturned || lastActionWithReturnInfo.visitReturned || lastActionWithReturnInfo.ctReturned;
+                 if (returnStatus === 'returned' && lastDefinitiveStatus !== 'yes') return false;
+                 if (returnStatus === 'not_returned' && lastDefinitiveStatus !== 'no') return false;
+                 if (returnStatus === 'pending') return false; 
+             } else {
+                 if (returnStatus === 'returned' || returnStatus === 'not_returned') return false; 
+             }
         }
         return true;
     });
 
     if (filteredGroupKeys.length === 0) {
-        const hasActiveFilters = state.filterAbsences !== '' || state.filtersAbsences.processStatus !== 'all' ||
-            state.filtersAbsences.pendingAction !== 'all' || state.filtersAbsences.returnStatus !== 'all' ||
-            state.filtersAbsences.startDate || state.filtersAbsences.endDate ||
-            state.filtersAbsences.year !== 'all' || state.filtersAbsences.class !== 'all' || state.filtersAbsences.shift !== 'all';
-
+        const hasActiveFilters = state.filterAbsences !== '' || state.filtersAbsences.processStatus !== 'all' || state.filtersAbsences.pendingAction !== 'all' || state.filtersAbsences.returnStatus !== 'all' || state.filtersAbsences.startDate || state.filtersAbsences.endDate;
         if (hasActiveFilters) {
             dom.emptyStateAbsences.classList.remove('hidden');
             dom.emptyStateAbsences.querySelector('h3').textContent = 'Nenhum processo encontrado';
@@ -353,21 +322,21 @@ export const renderAbsences = () => {
         } else {
             dom.emptyStateAbsences.classList.remove('hidden');
             dom.emptyStateAbsences.querySelector('h3').textContent = 'Nenhuma ação registada';
-            dom.emptyStateAbsences.querySelector('p').textContent = 'Use o botão "Nova Ação" para começar.';
+            dom.emptyStateAbsences.querySelector('p').textContent = 'Use o botão "Nova Ação" para começar.'; 
         }
-        dom.absencesListDiv.innerHTML = '';
+        dom.absencesListDiv.innerHTML = ''; 
     } else {
         dom.emptyStateAbsences.classList.add('hidden');
 
         const sortedGroupKeys = filteredGroupKeys.sort((a, b) => {
             const actionsA = groupedByProcess[a];
             const actionsB = groupedByProcess[b];
-
+            
             const isConcludedA = actionsA.some(action => action.actionType === 'analise');
             const isConcludedB = actionsB.some(action => action.actionType === 'analise');
 
             if (isConcludedA !== isConcludedB) {
-                return isConcludedA ? 1 : -1;
+                return isConcludedA ? 1 : -1; 
             }
 
             const lastActionA = actionsA[actionsA.length - 1];
@@ -376,7 +345,7 @@ export const renderAbsences = () => {
             const timeA = lastActionA.createdAt?.seconds || 0;
             const timeB = lastActionB.createdAt?.seconds || 0;
 
-            return timeB - timeA;
+            return timeB - timeA; 
         });
 
         let html = '';
@@ -385,16 +354,16 @@ export const renderAbsences = () => {
             if (!actions || actions.length === 0) continue;
 
             const firstAction = actions[0];
-            const lastProcessAction = actions[actions.length - 1];
+            const lastProcessAction = actions[actions.length - 1]; 
             const student = state.students.find(s => s.matricula === firstAction.studentId);
-
+            
             const studentName = firstAction.studentName || (student ? student.name : `Aluno (${firstAction.studentId})`);
             const studentClass = firstAction.studentClass || (student ? student.class : 'N/A');
             const isConcluded = actions.some(a => a.actionType === 'analise');
 
             const lastUpdateDate = lastProcessAction.createdAt?.toDate ? lastProcessAction.createdAt.toDate() : (new Date(lastProcessAction.createdAt) || new Date());
             const { text: timeText, days: stalledDays } = getTimeSinceUpdate(lastUpdateDate);
-
+            
             const lastReturnAction = [...actions].reverse().find(a => a.contactReturned != null || a.visitReturned != null || a.ctReturned != null);
             const didNotReturn = lastReturnAction && (lastReturnAction.contactReturned === 'no' || lastReturnAction.visitReturned === 'no' || lastReturnAction.ctReturned === 'no');
 
@@ -406,24 +375,24 @@ export const renderAbsences = () => {
 
             const nextActionType = determineNextActionForStudent(firstAction.studentId);
             const nextActionText = isConcluded ? "Finalizado" : `Ir para: ${getNextActionDisplay(nextActionType)}`;
-
+            
             let historyHtml = '';
-
+            
             actions.forEach(abs => {
                 const actionDisplayDate = getActionMainDate(abs) || (abs.createdAt?.toDate() ? abs.createdAt.toDate().toISOString().split('T')[0] : '');
                 const returned = abs.contactReturned === 'yes' || abs.visitReturned === 'yes' || abs.ctReturned === 'yes';
                 const notReturned = abs.contactReturned === 'no' || abs.visitReturned === 'no' || abs.ctReturned === 'no';
-
+                
                 let statusHtml = '';
                 let showQuickButtons = false;
 
                 if (abs.actionType.startsWith('tentativa')) {
                     if (abs.contactSucceeded === 'yes') statusHtml = `<span class="text-green-600 font-bold text-xs"><i class="fas fa-check"></i> Contato OK</span>`;
                     else if (abs.contactSucceeded === 'no') statusHtml = `<span class="text-red-600 font-bold text-xs"><i class="fas fa-times"></i> Sem Contato</span>`;
-                    else if (abs.meetingDate) { statusHtml = `<span class="text-yellow-600 font-medium text-xs"><i class="fas fa-clock"></i> Aguardando</span>`; showQuickButtons = true; }
+                    else if (abs.meetingDate) { statusHtml = `<span class="text-yellow-600 font-medium text-xs"><i class="fas fa-clock"></i> Aguardando</span>`; showQuickButtons = true; } 
                     else statusHtml = `<span class="text-blue-600 font-medium text-xs">Agendando...</span>`;
                 } else if (abs.actionType === 'visita') {
-                    if (abs.visitSucceeded === 'yes') statusHtml = `<span class="text-green-600 font-bold text-xs"><i class="fas fa-check"></i> Visita OK</span>`;
+                     if (abs.visitSucceeded === 'yes') statusHtml = `<span class="text-green-600 font-bold text-xs"><i class="fas fa-check"></i> Visita OK</span>`;
                     else if (abs.visitSucceeded === 'no') statusHtml = `<span class="text-red-600 font-bold text-xs"><i class="fas fa-times"></i> Falhou</span>`;
                     else { statusHtml = `<span class="text-yellow-600 font-medium text-xs">Pendente</span>`; showQuickButtons = true; }
                 } else if (abs.actionType === 'encaminhamento_ct') {
@@ -434,15 +403,15 @@ export const renderAbsences = () => {
                 }
 
                 let viewButtonHtml = '';
-                if (abs.actionType.startsWith('tentativa') && abs.meetingDate && abs.meetingTime) viewButtonHtml = `<button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-800 ml-2" data-id="${abs.id}" title="Ver Notificação"><i class="fas fa-eye"></i></button>`;
+                if (abs.actionType.startsWith('tentativa') && abs.meetingDate && abs.meetingTime) viewButtonHtml = `<button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-800 ml-2" data-id="${abs.id}" title="Ver Notificação"><i class="fas fa-eye"></i></button>`; 
                 if (abs.actionType === 'encaminhamento_ct' && abs.oficioNumber) viewButtonHtml = `<button type="button" class="view-oficio-btn-hist text-green-600 hover:text-green-800 ml-2" data-id="${abs.id}" title="Ver Ofício"><i class="fas fa-file-alt"></i></button>`;
-
+                
                 let imagesToShow = [];
                 if (abs.contactPrints && Array.isArray(abs.contactPrints) && abs.contactPrints.length > 0) imagesToShow = abs.contactPrints;
                 else if (abs.contactPrint) imagesToShow = [abs.contactPrint];
                 if (imagesToShow.length > 0) {
-                    const btnLabel = imagesToShow.length > 1 ? `[${imagesToShow.length} Anexos]` : `[Anexo]`;
-                    viewButtonHtml += `<button type="button" class="text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${imagesToShow[0]}', 'Anexo')"><i class="fas fa-paperclip"></i> ${btnLabel}</button>`;
+                     const btnLabel = imagesToShow.length > 1 ? `[${imagesToShow.length} Anexos]` : `[Anexo]`;
+                     viewButtonHtml += `<button type="button" class="text-purple-600 hover:text-purple-800 text-xs font-semibold ml-2 cursor-pointer" onclick="window.viewImage('${imagesToShow[0]}', 'Anexo')"><i class="fas fa-paperclip"></i> ${btnLabel}</button>`;
                 }
 
                 const iconClass = getActionIcon(abs.actionType);
@@ -472,13 +441,13 @@ export const renderAbsences = () => {
                     ` : ''}
                 `;
             });
-
+            
             const disableEditDelete = isConcluded || !lastProcessAction;
-
-            const avancarBtn = `<button type="button" class="avancar-etapa-btn flex-1 bg-sky-600 text-white hover:bg-sky-700 text-xs font-semibold py-2 px-2 rounded transition shadow-sm ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}" ${isConcluded ? 'disabled' : ''} data-student-id="${firstAction.studentId}"><i class="fas fa-forward mr-1"></i> ${nextActionText}</button>`;
+            
+            const avancarBtn = `<button type="button" class="avancar-etapa-btn flex-1 bg-sky-600 text-white hover:bg-sky-700 text-xs font-semibold py-2 px-2 rounded transition shadow-sm ${isConcluded ? 'opacity-50 cursor-not-allowed' : ''}" ${isConcluded ? 'disabled' : ''} data-student-id="${firstAction.studentId}"><i class="fas fa-forward mr-1"></i> ${nextActionText}</button>`; 
             const editBtn = `<button type="button" class="edit-absence-action-btn bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs font-semibold py-2 px-3 rounded transition ${disableEditDelete ? 'opacity-50 cursor-not-allowed' : ''}" ${disableEditDelete ? 'disabled' : ''} data-id="${lastProcessAction.id}" title="Editar"><i class="fas fa-pencil-alt"></i></button>`;
             const limparBtn = `<button type="button" class="reset-absence-action-btn bg-gray-100 text-red-500 hover:bg-red-50 text-xs font-semibold py-2 px-3 rounded transition ${disableEditDelete ? 'opacity-50 cursor-not-allowed' : ''}" ${disableEditDelete ? 'disabled' : ''} data-id="${lastProcessAction.id}" title="Excluir"><i class="fas fa-trash"></i></button>`;
-
+            
             const contentId = `ba-content-${processId}`;
 
             html += `
@@ -521,20 +490,20 @@ export const renderAbsences = () => {
                     </div>
                 </div>
             `;
-        }
-        dom.absencesListDiv.innerHTML = html;
+        } 
+        dom.absencesListDiv.innerHTML = html; 
     }
 };
 
 export const handleNewAbsenceAction = (student) => {
     // ... (Mantido igual)
     const { currentCycleActions } = getStudentProcessInfo(student.matricula);
-    currentCycleActions.sort((a, b) => {
+    currentCycleActions.sort((a, b) => { 
         const dateA = getActionMainDate(a) || a.createdAt?.seconds || 0;
         const dateB = getActionMainDate(b) || b.createdAt?.seconds || 0;
-        const timeA = typeof dateA === 'string' ? new Date(dateA + 'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
-        const timeB = typeof dateB === 'string' ? new Date(dateB + 'T00:00:00Z').getTime() : (dateB instanceof Date ? dateB.getTime() : (dateB || 0) * 1000);
-        if (timeA === timeB) {
+        const timeA = typeof dateA === 'string' ? new Date(dateA+'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
+        const timeB = typeof dateB === 'string' ? new Date(dateB+'T00:00:00Z').getTime() : (dateB instanceof Date ? dateB.getTime() : (dateB || 0) * 1000);
+         if (timeA === timeB) {
             const createA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
             const createB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
             return (createA || 0) - (createB || 0);
@@ -547,107 +516,21 @@ export const handleNewAbsenceAction = (student) => {
         let pendingActionMessage = "Complete a etapa anterior para poder prosseguir.";
         if (lastAction.actionType.startsWith('tentativa')) {
             if (lastAction.meetingDate == null) { isPending = true; pendingActionMessage = "Registre a Data/Hora da Convocação."; }
-            else if (lastAction.contactSucceeded == null) { isPending = true; pendingActionMessage = "Registre se houve sucesso no contato."; }
+            else if (lastAction.contactSucceeded == null) { isPending = true; pendingActionMessage = "Registre se houve sucesso no contato."; } 
             else if (lastAction.contactReturned == null && lastAction.contactSucceeded === 'yes') { isPending = true; pendingActionMessage = "Registre se o aluno retornou após o contato."; }
         } else if (lastAction.actionType === 'visita') {
-            if (lastAction.visitSucceeded == null) { isPending = true; pendingActionMessage = "Registre se houve sucesso no contato da visita."; }
+            if (lastAction.visitSucceeded == null) { isPending = true; pendingActionMessage = "Registre se houve sucesso no contato da visita."; } 
             else if (lastAction.visitReturned == null) { isPending = true; pendingActionMessage = "Registre se o aluno retornou após a visita."; }
         } else if (lastAction.actionType === 'encaminhamento_ct') {
-            if (lastAction.ctSentDate == null) { isPending = true; pendingActionMessage = "Registre a Data, Nº e Ano do Ofício."; }
-            else if (lastAction.ctFeedback == null) { isPending = true; pendingActionMessage = "Registre a devolutiva recebida do Conselho Tutelar."; }
+             if (lastAction.ctSentDate == null) { isPending = true; pendingActionMessage = "Registre a Data, Nº e Ano do Ofício."; }
+            else if (lastAction.ctFeedback == null) { isPending = true; pendingActionMessage = "Registre a devolutiva recebida do Conselho Tutelar."; } 
             else if (lastAction.ctReturned == null) { isPending = true; pendingActionMessage = "Registre se o aluno retornou."; }
         }
         if (isPending) { showAlert(pendingActionMessage); openAbsenceModalForStudent(student, lastAction.actionType, lastAction); return; }
-
-        // --- VALIDAÇÃO DE ASSINATURA ANTES DE PROSSEGUIR (Item 4) ---
-        // Verifica se a última ação foi uma convocação e se existe documento assinado correspondente
-        if (lastAction.actionType.startsWith('tentativa') && lastAction.meetingDate) {
-            // Procura documentos de notificação para este aluno criados perto da data de criação da ação
-            // Como não temos link direto, usamos uma heurística de tempo e aluno
-            const actionTime = lastAction.createdAt?.toDate ? lastAction.createdAt.toDate().getTime() : new Date(lastAction.createdAt).getTime();
-
-            const hasSignedDocument = state.documents.some(doc => {
-                if (doc.type !== 'notificacao' && doc.type !== 'notificacao_frequencia') return false;
-                // Verifica se o documento menciona o aluno (pela busca de texto no title ou metadados se houver)
-                // Melhor: assumimos que documents carregados têm studentName ou ID. Se não, pelo título.
-                const docStudentMatch = (doc.studentId === student.matricula) || (doc.studentName && doc.studentName.includes(student.name)) || (doc.title && doc.title.includes(student.name));
-                if (!docStudentMatch) return false;
-
-                // Verifica assinaturas
-                const isSigned = doc.signatures && Object.keys(doc.signatures).length > 0;
-                if (!isSigned) return false;
-
-                // Verifica data (documento criado depois ou no mesmo dia da ação)
-                const docTime = doc.createdAt?.toDate ? doc.createdAt.toDate().getTime() : new Date(doc.createdAt).getTime();
-                const timeDiff = Math.abs(docTime - actionTime);
-                const isRecent = timeDiff < (7 * 24 * 60 * 60 * 1000); // 7 dias de janela
-
-                return isRecent;
-            });
-
-            // Se for admin, pode pular (opcional, mas seguro manter a regra)
-            // if (!hasSignedDocument && !state.isAdmin) { ... }
-
-            // REGRA: Se não achou documento assinado, verificar se o usuário confirma ter a assinatura física ou se quer barrar.
-            // Para "Registro de Contato" (Feedback), precisamos ter a Ciência (Assinatura).
-            // Se o usuário está tentando "Avançar" (ir para próxima etapa), significa que a atual foi concluída.
-            // Se a atual era Convocação, o "Avançar" leva para Feedback ou Próxima Convocação?
-            // "handleNewAbsenceAction" determina a PROXIMA.
-            // Se Last = Tentativa (Com MeetingDate) -> Next = Analisar Feedback (que é editar a Tentativa).
-            // Se Last = Tentativa (Com Feedback 'Não') -> Next = Tentativa 2.
-
-            // O bloqueio deve ser: Não deixar REGISTRAR O FEEDBACK DE CONTATO se não houver assinatura na convocação.
-            // Mas `handleNewAbsenceAction` abre o modal. O bloqueio deve estar AO ABRIR o modal de feedback ou AO SALVAR.
-            // O cliente pediu: "Se a notificação não tiver assinaturas, app não pode permitir o registro de contato".
-
-            // Se nextActionType é para editar a mesma (feedback), verificamos assinatura.
-        }
-        // -----------------------------------------------------------
     }
     const nextActionType = determineNextActionForStudent(student.matricula);
-
-    // Bloqueio efetivo para Registro de Contato sem Assinatura
-    if (currentCycleActions.length > 0) {
-        const last = currentCycleActions[currentCycleActions.length - 1];
-        if (last.actionType.startsWith('tentativa') && last.meetingDate && last.contactSucceeded == null) {
-            // Estamos indo registrar o contato (Feedback)
-            // Reutilizando a lógica de verificação de documento
-            const actionTime = last.createdAt?.toDate ? last.createdAt.toDate().getTime() : new Date(last.createdAt).getTime();
-            const hasSignedDocument = state.documents.some(doc => {
-                if (!doc.type?.includes('notificacao')) return false;
-                const docStudentMatch = (doc.studentId === student.matricula) || (doc.studentName && normalizeText(doc.studentName).includes(normalizeText(student.name)));
-                if (!docStudentMatch) return false;
-                const isSigned = doc.signatures && Object.keys(doc.signatures).length > 0;
-                const docTime = doc.createdAt?.toDate ? doc.createdAt.toDate().getTime() : new Date(doc.createdAt).getTime();
-                // Janela maior pois a assinatura pode ter ocorrido dias depois
-                return isSigned && Math.abs(docTime - actionTime) < (30 * 24 * 60 * 60 * 1000);
-            });
-
-            if (!hasSignedDocument) {
-                // AVISO BLOQUEANTE (ou apenas aviso forte?)
-                // O usuario pediu "não pode permitir".
-                // Vamos mostrar um alerta e impedir a abertura do modal de feedback, MAS permitir a visualização para imprimir de novo.
-                // Como handleNewAbsenceAction redireciona para "openAbsenceModalForStudent" que edita o registro...
-
-                // Se não tem documento assinado, talvez o usuário queira assinar AGORA (Gerar link).
-                // Então permitimos abrir o modal, mas bloqueamos o salvamento do PREENCHIMENTO DO CONTATO?
-                // Ou simplesmente bloqueamos de entrar na tela de "Feedback"?
-                // "Primeiro, precisa ter a ciência dos responsáveis."
-
-                // Decisão: Bloquear e oferecer opção de "Ver Notificação" para assinar.
-                showAlert(`Atenção: Não foi detectada assinatura digital para esta convocação.\n\nÉ necessário obter a ciência (assinatura) dos responsáveis antes de registrar o resultado do contato.\n\nCertifique-se de que o documento foi assinado digitalmente.`);
-                // Poderíamos retornar aqui para bloquear totalmente.
-                // return; 
-                // Mas, e se for assinatura física? O sistema não saberia. 
-                // Assumindo que o sistema quer forçar digital. 
-                // Vou barrar com return.
-                return;
-            }
-        }
-    }
-
-    if (nextActionType) openAbsenceModalForStudent(student, nextActionType);
-    else showAlert("Processo já concluído ou em etapa final.");
+    if (nextActionType) openAbsenceModalForStudent(student, nextActionType); 
+    else showAlert("Processo já concluído ou em etapa final."); 
 };
 
 export const toggleFamilyContactFields = (enable, fieldsContainer) => {
@@ -656,22 +539,22 @@ export const toggleFamilyContactFields = (enable, fieldsContainer) => {
     const detailFields = fieldsContainer.querySelectorAll('input, textarea, select');
     const returnedRadioGroup = document.querySelectorAll('input[name="contact-returned"]');
     detailFields.forEach(input => {
-        if (input.type === 'file') return;
-        input.disabled = !enable; input.required = enable;
-        if (!enable) { input.classList.add('bg-gray-200', 'cursor-not-allowed'); input.value = ''; }
+        if(input.type === 'file') return;
+        input.disabled = !enable; input.required = enable; 
+        if (!enable) { input.classList.add('bg-gray-200', 'cursor-not-allowed'); input.value = ''; } 
         else input.classList.remove('bg-gray-200', 'cursor-not-allowed');
     });
     returnedRadioGroup.forEach(radio => { radio.required = false; radio.disabled = false; if (!enable) radio.checked = false; });
 };
 
 export const toggleVisitContactFields = (enable, fieldsContainer) => {
-    if (!fieldsContainer) return;
-    fieldsContainer.classList.toggle('hidden', !enable);
-    const detailFields = fieldsContainer.querySelectorAll('input[type="text"], textarea');
-    const returnedRadioGroup = document.querySelectorAll('input[name="visit-returned"]');
-    detailFields.forEach(input => {
-        input.disabled = !enable; input.required = enable;
-        if (!enable) { input.classList.add('bg-gray-200', 'cursor-not-allowed'); input.value = ''; }
+     if (!fieldsContainer) return;
+     fieldsContainer.classList.toggle('hidden', !enable);
+     const detailFields = fieldsContainer.querySelectorAll('input[type="text"], textarea');
+     const returnedRadioGroup = document.querySelectorAll('input[name="visit-returned"]');
+     detailFields.forEach(input => {
+        input.disabled = !enable; input.required = enable; 
+        if (!enable) { input.classList.add('bg-gray-200', 'cursor-not-allowed'); input.value = ''; } 
         else input.classList.remove('bg-gray-200', 'cursor-not-allowed');
     });
     returnedRadioGroup.forEach(radio => radio.required = enable);
@@ -679,17 +562,17 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
 
 export const openAbsenceModalForStudent = (student, forceActionType = null, data = null, preFilledData = null) => {
     dom.absenceForm.reset();
-
+    
     // Reseta arquivos
-    pendingAbsenceFiles = [];
+    pendingAbsenceFiles = []; 
     document.getElementById('absence-print-label').textContent = 'Selecionar Arquivos';
     document.getElementById('absence-print-check').classList.add('hidden');
-
+    
     let previewContainer = document.getElementById('absence-print-preview');
     if (!previewContainer) {
         const fileInput = document.getElementById('absence-contact-print');
         if (fileInput) {
-            fileInput.setAttribute('multiple', 'multiple');
+             fileInput.setAttribute('multiple', 'multiple');
             previewContainer = document.createElement('div');
             previewContainer.id = 'absence-print-preview';
             previewContainer.className = 'flex flex-wrap gap-2 mt-2 hidden';
@@ -698,18 +581,18 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     } else { previewContainer.innerHTML = ''; previewContainer.classList.add('hidden'); }
 
     // ... (restante do setup do modal mantido)
-    ['meeting-date', 'contact-date', 'visit-date', 'ct-sent-date'].forEach(id => {
+    ['meeting-date', 'contact-date', 'visit-date', 'ct-sent-date'].forEach(id => { 
         const input = document.getElementById(id); if (input) input.removeAttribute('min');
     });
     dom.absenceForm.querySelectorAll('[required]').forEach(el => el.required = false);
     document.querySelectorAll('.dynamic-field-group').forEach(group => group.classList.add('hidden'));
-
+    
     const statusDisplay = document.getElementById('absence-status-display');
     const finalActionType = forceActionType || (data ? data.actionType : determineNextActionForStudent(student.matricula));
-
+    
     let statusText = 'Em Andamento';
     let statusColor = 'bg-blue-100 text-blue-800';
-    if (finalActionType === 'analise') { statusText = 'Aguardando Análise BAE'; statusColor = 'bg-purple-100 text-purple-800'; }
+    if (finalActionType === 'analise') { statusText = 'Aguardando Análise BAE'; statusColor = 'bg-purple-100 text-purple-800'; } 
     else if (finalActionType.startsWith('tentativa')) statusText = `Tentativa ${finalActionType.split('_')[1]}`;
     else if (finalActionType === 'encaminhamento_ct') statusText = 'Encaminhamento CT';
     else if (finalActionType === 'visita') statusText = 'Visita Domiciliar';
@@ -726,17 +609,17 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     document.getElementById('absence-student-class').value = student.class || '';
     document.getElementById('absence-student-endereco').value = student.endereco || '';
     document.getElementById('absence-student-contato').value = student.contato || '';
-
+    
     const { processId, currentCycleActions } = getStudentProcessInfo(student.matricula);
     document.getElementById('absence-process-id').value = data?.processId || processId;
     document.getElementById('action-type').value = finalActionType;
     document.getElementById('action-type-display').value = actionDisplayTitles[finalActionType] || '';
-
+    
     const isFirstStep = finalActionType === 'tentativa_1';
     const firstAbsenceRecordInCycle = currentCycleActions.find(a => a.periodoFaltasStart);
-    const isAbsenceDataEditable = isFirstStep && !firstAbsenceRecordInCycle;
-
-    if (isFirstStep) { if (studentIdentityBlock) studentIdentityBlock.classList.remove('hidden'); absencePeriodData.classList.remove('hidden'); }
+    const isAbsenceDataEditable = isFirstStep && !firstAbsenceRecordInCycle; 
+    
+    if (isFirstStep) { if (studentIdentityBlock) studentIdentityBlock.classList.remove('hidden'); absencePeriodData.classList.remove('hidden'); } 
     else { if (studentIdentityBlock) studentIdentityBlock.classList.add('hidden'); absencePeriodData.classList.add('hidden'); }
 
     const absenceInputs = absencePeriodData.querySelectorAll('input');
@@ -745,7 +628,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     document.getElementById('absence-end-date').required = shouldRequireAbsenceData;
     document.getElementById('absence-count').required = shouldRequireAbsenceData;
 
-    if (isAbsenceDataEditable) { absenceInputs.forEach(input => { input.readOnly = false; input.classList.remove('bg-gray-100'); }); }
+    if (isAbsenceDataEditable) { absenceInputs.forEach(input => { input.readOnly = false; input.classList.remove('bg-gray-100'); }); } 
     else {
         const sourceData = isEditing && data.actionType === 'tentativa_1' ? data : firstAbsenceRecordInCycle;
         document.getElementById('absence-start-date').value = sourceData?.periodoFaltasStart || '';
@@ -757,7 +640,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
     const groupElement = document.getElementById(finalActionType.startsWith('tentativa') ? 'group-tentativas' : `group-${finalActionType}`);
     if (groupElement) groupElement.classList.remove('hidden');
     const printContainer = document.getElementById('absence-print-container');
-    if (printContainer) printContainer.classList.add('hidden');
+    if(printContainer) printContainer.classList.add('hidden');
 
     switch (finalActionType) {
         case 'tentativa_1': case 'tentativa_2': case 'tentativa_3':
@@ -769,7 +652,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 convocationSection.classList.add('hidden'); familyContactSection.classList.remove('hidden');
                 document.querySelectorAll('input[name="contact-succeeded"]').forEach(r => r.required = true);
                 document.querySelectorAll('input[name="contact-returned"]').forEach(r => r.required = false);
-                if (printContainer) printContainer.classList.remove('hidden');
+                if(printContainer) printContainer.classList.remove('hidden'); 
             } else {
                 convocationSection.classList.remove('hidden'); familyContactSection.classList.add('hidden');
                 document.getElementById('meeting-date').required = true; document.getElementById('meeting-time').required = true;
@@ -794,7 +677,7 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 ctSendSection.classList.remove('hidden'); ctFeedbackSection.classList.add('hidden');
                 document.getElementById('ct-sent-date').required = true; document.getElementById('oficio-number').required = true;
                 document.getElementById('oficio-year').required = true;
-                if (!isEditing) document.getElementById('oficio-year').value = new Date().getFullYear();
+                if(!isEditing) document.getElementById('oficio-year').value = new Date().getFullYear();
             }
             break;
         case 'analise': document.getElementById('ct-parecer').required = true; break;
@@ -812,15 +695,15 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
         const previousDateString = getActionMainDate(previousAction);
         if (previousDateString) {
             try {
-                const previousDate = new Date(previousDateString + 'T00:00:00Z');
-                previousDate.setUTCDate(previousDate.getUTCDate() + 1);
+                const previousDate = new Date(previousDateString + 'T00:00:00Z'); 
+                previousDate.setUTCDate(previousDate.getUTCDate() + 1); 
                 const minDateString = previousDate.toISOString().split('T')[0];
                 const currentActionDateInput = getDateInputForActionType(finalActionType);
                 if (currentActionDateInput) currentActionDateInput.min = minDateString;
-                if (finalActionType.startsWith('tentativa')) {
-                    const contactDateInput = document.getElementById('contact-date');
-                    if (contactDateInput) contactDateInput.min = minDateString;
-                }
+                 if (finalActionType.startsWith('tentativa')) {
+                     const contactDateInput = document.getElementById('contact-date');
+                     if (contactDateInput) contactDateInput.min = minDateString;
+                 }
             } catch (e) { console.error("Erro ao calcular data mínima:", e); }
         }
     }
@@ -831,26 +714,26 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 document.getElementById('meeting-date').value = data.meetingDate || '';
                 document.getElementById('meeting-time').value = data.meetingTime || '';
                 const contactSucceededRadio = document.querySelector(`input[name="contact-succeeded"][value="${data.contactSucceeded}"]`);
-                if (contactSucceededRadio) { contactSucceededRadio.checked = true; toggleFamilyContactFields(data.contactSucceeded === 'yes', document.getElementById('family-contact-fields')); }
+                if (contactSucceededRadio) { contactSucceededRadio.checked = true; toggleFamilyContactFields(data.contactSucceeded === 'yes', document.getElementById('family-contact-fields')); } 
                 else { document.querySelectorAll(`input[name="contact-succeeded"]`).forEach(r => r.checked = false); toggleFamilyContactFields(false, document.getElementById('family-contact-fields')); }
                 document.getElementById('absence-contact-type').value = data.contactType || '';
                 document.getElementById('contact-date').value = data.contactDate || '';
                 document.getElementById('contact-person').value = data.contactPerson || '';
                 document.getElementById('contact-reason').value = data.contactReason || '';
                 const contactReturnedRadio = document.querySelector(`input[name="contact-returned"][value="${data.contactReturned}"]`);
-                if (contactReturnedRadio) contactReturnedRadio.checked = true;
+                if(contactReturnedRadio) contactReturnedRadio.checked = true;
                 else document.querySelectorAll(`input[name="contact-returned"]`).forEach(r => r.checked = false);
                 break;
             case 'visita':
                 document.getElementById('visit-agent').value = data.visitAgent || '';
                 document.getElementById('visit-date').value = data.visitDate || '';
                 const visitSucceededRadio = document.querySelector(`input[name="visit-succeeded"][value="${data.visitSucceeded}"]`);
-                if (visitSucceededRadio) { visitSucceededRadio.checked = true; toggleVisitContactFields(data.visitSucceeded === 'yes', document.getElementById('visit-contact-fields')); }
+                if(visitSucceededRadio) { visitSucceededRadio.checked = true; toggleVisitContactFields(data.visitSucceeded === 'yes', document.getElementById('visit-contact-fields')); } 
                 else { document.querySelectorAll(`input[name="visit-succeeded"]`).forEach(r => r.checked = false); toggleVisitContactFields(false, document.getElementById('visit-contact-fields')); }
                 document.getElementById('visit-contact-person').value = data.visitContactPerson || '';
                 document.getElementById('visit-reason').value = data.visitReason || '';
                 document.getElementById('visit-obs').value = data.visitObs || '';
-                const visitReturnedRadio = document.querySelector(`input[name="visit-returned"][value="${data.visitReturned}"]`);
+                 const visitReturnedRadio = document.querySelector(`input[name="visit-returned"][value="${data.visitReturned}"]`);
                 if (visitReturnedRadio) visitReturnedRadio.checked = true;
                 else document.querySelectorAll(`input[name="visit-returned"]`).forEach(r => r.checked = false);
                 break;
@@ -858,14 +741,14 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
                 document.getElementById('ct-sent-date').value = data.ctSentDate || '';
                 document.getElementById('oficio-number').value = data.oficioNumber || '';
                 document.getElementById('oficio-year').value = data.oficioYear || '';
-                document.getElementById('ct-feedback').value = data.ctFeedback || '';
+                document.getElementById('ct-feedback').value = data.ctFeedback || ''; 
                 const ctReturnedRadio = document.querySelector(`input[name="ct-returned"][value="${data.ctReturned}"]`);
                 if (ctReturnedRadio) ctReturnedRadio.checked = true;
                 else document.querySelectorAll(`input[name="ct-returned"]`).forEach(r => r.checked = false);
                 break;
             case 'analise': document.getElementById('ct-parecer').value = data.ctParecer || ''; break;
         }
-    } else {
+    } else { 
         toggleFamilyContactFields(false, document.getElementById('family-contact-fields'));
         toggleVisitContactFields(false, document.getElementById('visit-contact-fields'));
         document.querySelectorAll('input[name="contact-succeeded"], input[name="visit-succeeded"], input[name="contact-returned"], input[name="visit-returned"], input[name="ct-returned"]').forEach(r => r.checked = false);
@@ -884,19 +767,19 @@ export const openAbsenceModalForStudent = (student, forceActionType = null, data
 };
 
 async function handleAbsenceSubmit(e) {
-    e.preventDefault();
+    e.preventDefault(); 
     const form = e.target;
     let firstInvalidField = null;
     form.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled])').forEach(el => {
-        if (el.type === 'file') return;
-        if (el.offsetParent === null) return;
+        if (el.type === 'file') return; 
+        if (el.offsetParent === null) return; 
         if (el.required && !el.value && el.type !== 'radio') { if (!firstInvalidField) firstInvalidField = el; }
-        if (el.type === 'radio' && el.required) {
-            const groupName = el.name;
-            const group = form.querySelectorAll(`input[name="${groupName}"]:not([disabled])`);
-            const isGroupChecked = Array.from(group).some(radio => radio.checked);
-            if (!isGroupChecked && !firstInvalidField) firstInvalidField = group[0];
-        }
+         if (el.type === 'radio' && el.required) {
+             const groupName = el.name;
+             const group = form.querySelectorAll(`input[name="${groupName}"]:not([disabled])`);
+             const isGroupChecked = Array.from(group).some(radio => radio.checked);
+             if (!isGroupChecked && !firstInvalidField) firstInvalidField = group[0];
+         }
     });
     if (firstInvalidField) { showAlert(`Por favor, preencha o campo obrigatório: ${firstInvalidField.labels?.[0]?.textContent || firstInvalidField.name || firstInvalidField.placeholder || 'Campo Requerido'}`); firstInvalidField.focus(); return; }
 
@@ -918,7 +801,7 @@ async function handleAbsenceSubmit(e) {
     if (pendingAbsenceFiles.length > 0) {
         submitBtn.disabled = true;
         submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Enviando arquivos...`;
-
+        
         try {
             const uploadPromises = pendingAbsenceFiles.map(file => uploadToStorage(file, 'absences'));
             uploadedUrls = await Promise.all(uploadPromises);
@@ -938,11 +821,11 @@ async function handleAbsenceSubmit(e) {
     }
 
     // Salva URLs em vez de base64
-    if (uploadedUrls.length > 0) {
-        data.contactPrints = uploadedUrls;
+    if (uploadedUrls.length > 0) { 
+        data.contactPrints = uploadedUrls; 
     }
 
-    const id = data.id;
+    const id = data.id; 
     // ... (lógica de mesclagem mantida para updates parciais se necessário)
     if (id) {
         const existingAction = state.absences.find(a => a.id === id);
@@ -952,8 +835,8 @@ async function handleAbsenceSubmit(e) {
             }
             // Se não subiu novos, mantém os antigos
             if (uploadedUrls.length === 0) {
-                if (existingAction.contactPrints) data.contactPrints = existingAction.contactPrints;
-                else if (existingAction.contactPrint) data.contactPrints = [existingAction.contactPrint];
+                if(existingAction.contactPrints) data.contactPrints = existingAction.contactPrints;
+                else if(existingAction.contactPrint) data.contactPrints = [existingAction.contactPrint]; 
             }
         }
     }
@@ -968,24 +851,24 @@ async function handleAbsenceSubmit(e) {
 
     try {
         const historyAction = id ? "Dados da ação atualizados." : `Ação de Busca Ativa registada (${actionDisplayTitles[data.actionType]}).`;
-        if (id) { const updateData = { ...data }; delete updateData.id; await updateRecordWithHistory('absence', id, updateData, historyAction, state.userEmail); }
+        if (id) { const updateData = { ...data }; delete updateData.id; await updateRecordWithHistory('absence', id, updateData, historyAction, state.userEmail); } 
         else { const addData = { ...data }; delete addData.id; await addRecordWithHistory('absence', addData, historyAction, state.userEmail); }
 
         showToast(`Ação ${id ? 'atualizada' : 'registada'} com sucesso!`);
         closeModal(dom.absenceModal);
 
-        if (data.actionType === 'encaminhamento_ct' && data.oficioNumber && !id) {
-            const student = state.students.find(s => s.matricula === data.studentId);
-            if (student) generateAndShowOficio(data, data.oficioNumber);
+        if (data.actionType === 'encaminhamento_ct' && data.oficioNumber && !id) { 
+             const student = state.students.find(s => s.matricula === data.studentId);
+             if (student) generateAndShowOficio(data, data.oficioNumber);
         }
 
         const studentReturned = (data.contactReturned === 'yes' || data.visitReturned === 'yes' || data.ctReturned === 'yes');
         if (studentReturned && data.actionType !== 'analise') {
             const student = state.students.find(s => s.matricula === data.studentId);
-            setTimeout(() => {
-                const { currentCycleActions: updatedActions } = getStudentProcessInfo(data.studentId);
-                if (student && !updatedActions.some(a => a.actionType === 'analise')) openAbsenceModalForStudent(student, 'analise');
-            }, 400);
+             setTimeout(() => {
+                 const { currentCycleActions: updatedActions } = getStudentProcessInfo(data.studentId); 
+                 if (student && !updatedActions.some(a => a.actionType === 'analise')) openAbsenceModalForStudent(student, 'analise'); 
+             }, 400); 
         }
     } catch (error) {
         console.error("Erro ao salvar ação de BA:", error);
@@ -1012,7 +895,7 @@ function getAbsenceFormData() {
         visitAgent: null, visitDate: null, visitSucceeded: null, visitContactPerson: null, visitReason: null, visitObs: null, visitReturned: null,
         ctSentDate: null, ctFeedback: null, ctReturned: null, oficioNumber: null, oficioYear: null, ctParecer: null
     };
-
+    
     const actionType = data.actionType;
     if (actionType.startsWith('tentativa')) {
         if (!document.getElementById('convocation-section').classList.contains('hidden')) { data.meetingDate = document.getElementById('meeting-date').value || null; data.meetingTime = document.getElementById('meeting-time').value || null; }
@@ -1041,7 +924,7 @@ function getAbsenceFormData() {
 
 function handleViewOficio(id) {
     const ctAction = state.absences.find(a => a.id === id);
-    if (ctAction && ctAction.oficioNumber) generateAndShowOficio(ctAction, ctAction.oficioNumber);
+    if (ctAction && ctAction.oficioNumber) generateAndShowOficio(ctAction, ctAction.oficioNumber); 
     else showAlert("Registro de encaminhamento ou número do ofício não encontrado.");
 }
 
@@ -1065,31 +948,31 @@ async function handleQuickFeedbackAbsence(id, actionType, value) {
 function handleEditAbsence(id) {
     const data = state.absences.find(a => a.id === id);
     if (!data) return showAlert("Ação não encontrada.");
-    const processActions = state.absences.filter(a => a.processId === data.processId).sort((a, b) => {
-        const dateA = getActionMainDate(a) || a.createdAt?.seconds || 0; const dateB = getActionMainDate(b) || b.createdAt?.seconds || 0;
-        const timeA = typeof dateA === 'string' ? new Date(dateA + 'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
-        const timeB = typeof dateB === 'string' ? new Date(dateB + 'T00:00:00Z').getTime() : (dateB instanceof Date ? dateB.getTime() : (dateB || 0) * 1000);
-        if (timeA === timeB) { const createA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0); const createB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0); return (createA || 0) - (createB || 0); }
-        return (timeA || 0) - (timeB || 0);
-    });
+    const processActions = state.absences.filter(a => a.processId === data.processId).sort((a, b) => { 
+            const dateA = getActionMainDate(a) || a.createdAt?.seconds || 0; const dateB = getActionMainDate(b) || b.createdAt?.seconds || 0;
+            const timeA = typeof dateA === 'string' ? new Date(dateA+'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
+            const timeB = typeof dateB === 'string' ? new Date(dateB+'T00:00:00Z').getTime() : (dateB instanceof Date ? dateB.getTime() : (dateB || 0) * 1000);
+             if (timeA === timeB) { const createA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0); const createB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0); return (createA || 0) - (createB || 0); }
+            return (timeA || 0) - (timeB || 0);
+        });
     const lastProcessAction = processActions[processActions.length - 1];
     const isConcluded = processActions.some(a => a.actionType === 'analise');
     if (isConcluded || data.id !== lastProcessAction?.id) return showAlert(isConcluded ? "Processo concluído, não pode editar." : "Apenas a última ação pode ser editada.");
     let student = state.students.find(s => s.matricula === data.studentId);
     if (!student) { student = { matricula: data.studentId, name: data.studentName || `Aluno (${data.studentId})`, class: data.studentClass || '', endereco: '', contato: '' }; }
-    if (student) openAbsenceModalForStudent(student, data.actionType, data);
+    if (student) openAbsenceModalForStudent(student, data.actionType, data); 
 }
 
 function handleDeleteAbsence(id) {
     const actionToDelete = state.absences.find(a => a.id === id);
     if (!actionToDelete) return;
-    const processActions = state.absences.filter(a => a.processId === actionToDelete.processId).sort((a, b) => {
-        const dateA = getActionMainDate(a) || a.createdAt?.seconds || 0; const dateB = getActionMainDate(b) || b.createdAt?.seconds || 0;
-        const timeA = typeof dateA === 'string' ? new Date(dateA + 'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
-        const timeB = typeof dateB === 'string' ? new Date(dateB + 'T00:00:00Z').getTime() : (dateB instanceof Date ? dateB.getTime() : (dateB || 0) * 1000);
-        if (timeA === timeB) { const createA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0); const createB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0); return (createA || 0) - (createB || 0); }
-        return (timeA || 0) - (timeB || 0);
-    });
+    const processActions = state.absences.filter(a => a.processId === actionToDelete.processId).sort((a, b) => { 
+            const dateA = getActionMainDate(a) || a.createdAt?.seconds || 0; const dateB = getActionMainDate(b) || b.createdAt?.seconds || 0;
+            const timeA = typeof dateA === 'string' ? new Date(dateA+'T00:00:00Z').getTime() : (dateA instanceof Date ? dateA.getTime() : (dateA || 0) * 1000);
+            const timeB = typeof dateB === 'string' ? new Date(dateB+'T00:00:00Z').getTime() : (dateB instanceof Date ? dateB.getTime() : (dateB || 0) * 1000);
+             if (timeA === timeB) { const createA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0); const createB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0); return (createA || 0) - (createB || 0); }
+            return (timeA || 0) - (timeB || 0);
+        });
     const lastProcessAction = processActions.length > 0 ? processActions[processActions.length - 1] : null;
     const isConcluded = processActions.some(a => a.actionType === 'analise');
     if (isConcluded || !lastProcessAction || actionToDelete.id !== lastProcessAction.id) return showAlert(isConcluded ? "Processo concluído, não pode excluir." : "Apenas a última ação pode ser excluída.");
@@ -1108,37 +991,8 @@ export const initAbsenceListeners = () => {
     document.getElementById('filter-return-status').addEventListener('change', (e) => { state.filtersAbsences.returnStatus = e.target.value; renderAbsences(); });
     document.getElementById('absence-start-date-filter').addEventListener('change', (e) => { state.filtersAbsences.startDate = e.target.value; renderAbsences(); });
     document.getElementById('absence-end-date-filter').addEventListener('change', (e) => { state.filtersAbsences.endDate = e.target.value; renderAbsences(); });
-
-    // Listeners dos Novos Filtros (Item 5)
-    const baYearFilter = document.getElementById('filter-ba-year');
-    const baClassFilter = document.getElementById('filter-ba-class');
-    const baShiftFilter = document.getElementById('filter-ba-shift');
-    const clearBaFiltersBtn = document.getElementById('clear-abs-filters-btn');
-
-    if (baYearFilter) baYearFilter.addEventListener('change', (e) => { state.filtersAbsences.year = e.target.value; renderAbsences(); });
-    if (baClassFilter) baClassFilter.addEventListener('change', (e) => { state.filtersAbsences.class = e.target.value; renderAbsences(); });
-    if (baShiftFilter) baShiftFilter.addEventListener('change', (e) => { state.filtersAbsences.shift = e.target.value; renderAbsences(); });
-
-    if (clearBaFiltersBtn) {
-        clearBaFiltersBtn.addEventListener('click', () => {
-            state.filterAbsences = '';
-            state.filtersAbsences = { processStatus: 'all', pendingAction: 'all', returnStatus: 'all', startDate: null, endDate: null, year: 'all', class: 'all', shift: 'all' };
-
-            if (dom.searchAbsences) dom.searchAbsences.value = '';
-            ['filter-process-status', 'filter-pending-action', 'filter-return-status', 'filter-ba-year', 'filter-ba-class', 'filter-ba-shift'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = 'all';
-            });
-            ['absence-start-date-filter', 'absence-end-date-filter'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = '';
-            });
-            renderAbsences();
-        });
-    }
-
     if (dom.absenceForm) dom.absenceForm.addEventListener('submit', handleAbsenceSubmit);
-
+    
     // LISTENER DE UPLOAD (ATUALIZADO)
     const absenceFileInput = document.getElementById('absence-contact-print');
     if (absenceFileInput) {
@@ -1154,17 +1008,17 @@ export const initAbsenceListeners = () => {
             absenceFileInput.value = '';
         });
     }
-
+    
     document.querySelectorAll('input[name="contact-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleFamilyContactFields(e.target.value === 'yes', document.getElementById('family-contact-fields'))));
     document.querySelectorAll('input[name="visit-succeeded"]').forEach(radio => radio.addEventListener('change', (e) => toggleVisitContactFields(e.target.value === 'yes', document.getElementById('visit-contact-fields'))));
-
+    
     dom.absencesListDiv.addEventListener('click', (e) => {
         // ... (Listener inalterado)
         const button = e.target.closest('button');
         if (button) {
-            e.stopPropagation();
+            e.stopPropagation(); 
             if (button.closest('.process-content')) {
-                const id = button.dataset.id;
+                const id = button.dataset.id; 
                 if (button.classList.contains('view-notification-btn-hist')) { if (id) openFichaViewModal(id); else showAlert("ID da notificação não encontrado."); return; }
                 if (button.classList.contains('view-oficio-btn-hist')) { if (id) handleViewOficio(id); return; }
                 if (button.classList.contains('quick-feedback-ba-btn')) { handleQuickFeedbackAbsence(id, button.dataset.actionType, button.dataset.value); return; }
@@ -1173,13 +1027,13 @@ export const initAbsenceListeners = () => {
                 if (button.classList.contains('reset-absence-action-btn') && !button.disabled) { handleDeleteAbsence(id); return; }
             }
             if (button.classList.contains('generate-ficha-btn-row')) { generateAndShowConsolidatedFicha(button.dataset.studentId, button.dataset.processId); return; }
-            return;
-        }
+            return; 
+        } 
         const header = e.target.closest('.process-header');
         if (header) {
             const contentId = header.dataset.contentId; const content = document.getElementById(contentId); const icon = header.querySelector('i.fa-chevron-down');
             if (content) { const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px'; if (isHidden) { content.style.maxHeight = `${content.scrollHeight}px`; content.style.overflow = 'visible'; } else { content.style.maxHeight = null; setTimeout(() => content.style.overflow = 'hidden', 300); } icon?.classList.toggle('rotate-180', isHidden); }
-            return;
+            return; 
         }
-    });
+    }); 
 };

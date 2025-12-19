@@ -12,7 +12,7 @@ const firebaseConfig = {
     authDomain: "acompanhamento-vida-escolar.firebaseapp.com",
     projectId: "acompanhamento-vida-escolar",
     // CORREÇÃO: O bucket criado no console usa o domínio .firebasestorage.app
-    storageBucket: "acompanhamento-vida-escolar.firebasestorage.app",
+    storageBucket: "acompanhamento-vida-escolar.firebasestorage.app", 
     messagingSenderId: "315669308837",
     appId: "1:315669308837:web:053497df9ceea4df5c4c9c"
 };
@@ -42,7 +42,7 @@ try {
 } catch (error) {
     // Se qualquer parte da inicialização falhar, este bloco será executado.
     console.error("Falha ao inicializar o Firebase:", error);
-
+    
     // Exibe uma mensagem de erro clara e visível para o utilizador.
     document.body.innerHTML = `<div style="padding: 2rem; text-align: center; color: #b91c1c; background-color: #fee2e2; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
         <h1 style="font-size: 1.5rem; font-weight: bold;">Erro Crítico na Aplicação</h1>
@@ -53,4 +53,4 @@ try {
 }
 
 // Exporta as instâncias do Firebase.
-export { app, auth, db, storage, firebaseConfig };
+export { app, auth, db, storage };

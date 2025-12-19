@@ -2,12 +2,10 @@
 // =================================================================================
 // ARQUIVO: auth.js
 
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification, signOut, getAuth, updatePassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { setDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showAlert, showToast, openModal, closeModal } from './utils.js';
-import { auth, firebaseConfig } from './firebase.js'; // Precisamos do config para o app secundário
-import { dom, state } from './state.js';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { showAlert, showToast } from './utils.js';
+import { auth } from './firebase.js';
+import { dom } from './state.js';
 
 /**
  * Funções de exibição das telas de login/registro.
@@ -16,15 +14,15 @@ const showLoginView = () => {
     dom.registerView.classList.add('hidden');
     dom.loginView.classList.remove('hidden');
     // Limpa os formulários ao trocar de tela
-    if (dom.registerForm) dom.registerForm.reset();
-    if (dom.loginForm) dom.loginForm.reset();
+    if(dom.registerForm) dom.registerForm.reset();
+    if(dom.loginForm) dom.loginForm.reset();
 };
 
 const showRegisterView = () => {
     dom.loginView.classList.add('hidden');
     dom.registerView.classList.remove('hidden');
-    if (dom.registerForm) dom.registerForm.reset();
-    if (dom.loginForm) dom.loginForm.reset();
+    if(dom.registerForm) dom.registerForm.reset();
+    if(dom.loginForm) dom.loginForm.reset();
 };
 
 /**
@@ -104,86 +102,5 @@ export const initAuthListeners = () => {
     }
     if (showLoginViewBtn) {
         showLoginViewBtn.addEventListener('click', showLoginView);
-    }
-};
-
-/**
- * Cria um usuário usando uma instância secundária do Firebase App
- * para evitar que o administrador atual seja desconectado.
- */
-async function handleCreateUserAsAdmin(e) {
-    e.preventDefault();
-
-    // Verifica permissão (redundância de segurança)
-    if (!state.isAdmin) return showAlert("Apenas administradores podem realizar esta ação.");
-
-    const email = document.getElementById('new-user-email').value;
-    const password = document.getElementById('new-user-password').value;
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-
-    if (password.length < 6) return showAlert("A senha deve ter no mínimo 6 caracteres.");
-
-    const originalText = submitBtn.innerHTML;
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Criando...';
-
-    // 1. Inicializa App Secundário
-    const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
-    const secondaryAuth = getAuth(secondaryApp);
-
-    try {
-        // 2. Cria usuário no app secundário
-        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-        const newUser = userCredential.user;
-
-        // 3. Envia verificação
-        await sendEmailVerification(newUser);
-
-        // 3.1 Cria documento do usuário no Firestore (usando credenciais do Admin atual)
-        // Isso marca o usuário para troca de senha no primeiro login
-        await setDoc(doc(state.db, 'users', newUser.uid), {
-            email: email,
-            isFirstAccess: true,
-            createdAt: new Date(),
-            role: 'teacher' // Default role
-        });
-
-        // 4. Feedback e Limpeza
-        showAlert(`Usuário ${email} criado com sucesso! Um e-mail de verificação foi enviado.`);
-        dom.createUserForm.reset();
-        closeModal(dom.userManagementModal);
-
-        // 5. Opcional: Deslogar do app secundário (boa prática)
-        await signOut(secondaryAuth);
-
-    } catch (error) {
-        console.error("Erro ao criar usuário:", error);
-        let msg = getAuthErrorMessage(error.code);
-        showAlert("Erro: " + msg);
-    } finally {
-        // 6. Limpa instância secundária (Delete app logic if needed, but simple dereference usually allows GC)
-        // Note: deleteApp is async, but usually optional for lightweight short-lived ops if not creating many names.
-        // A simple way is to reuse a singleton or delete it. For now, we leave it since it's a rare action.
-
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
-    }
-}
-
-export const initUserManagementListeners = () => {
-    if (dom.manageUsersBtn) {
-        dom.manageUsersBtn.addEventListener('click', () => {
-            openModal(dom.userManagementModal);
-        });
-    }
-
-    if (dom.createUserForm) {
-        dom.createUserForm.addEventListener('submit', handleCreateUserAsAdmin);
-    }
-
-    // Fechamento do modal
-    const closeBtn = document.getElementById('close-user-management-btn');
-    if (closeBtn && dom.userManagementModal) {
-        closeBtn.addEventListener('click', () => closeModal(dom.userManagementModal));
     }
 };

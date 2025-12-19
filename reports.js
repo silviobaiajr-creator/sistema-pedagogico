@@ -325,14 +325,13 @@ export const checkForRemoteSignParams = async () => {
                             </div>` :
                         `<div class="text-center mb-4 text-xs text-green-700 font-bold"><i class="fas fa-check-circle"></i> Assinatura Digital Incorporada ao Documento</div>`}
 
+                            <div class="space-y-3">
+                                <button onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('Olá, segue o link para acessar o documento assinado digitalmente: ' + window.location.href), '_blank')" class="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-3">
+                                    <i class="fab fa-whatsapp text-2xl"></i> 
+                                    <span>Enviar para mim (WhatsApp)</span>
+                                </button>
+
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <button id="btn-download-image-signed" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-2">
-                                        <i class="fas fa-image"></i> Baixar Imagem
-                                    </button>
-                                    <button onclick="window.print()" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-2">
-                                        <i class="fas fa-file-pdf"></i> Baixar PDF
-                                    </button>
-                                </div>
                                     <button id="btn-download-image-signed" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg shadow hover:shadow-lg transition flex items-center justify-center gap-2">
                                         <i class="fas fa-image"></i> Baixar Imagem
                                     </button>
@@ -453,8 +452,8 @@ export const checkForRemoteSignParams = async () => {
                 container.innerHTML = `
                     <div class="w-full max-w-md bg-white shadow-2xl rounded-xl overflow-hidden font-sans border-t-4 border-sky-600">
                         <div class="bg-white p-6 text-center border-b border-gray-100 pb-6 pt-8">
-                            ${(urlLogo || state.config?.schoolLogoUrl) ? `<div class="mb-4 flex justify-center"><img src="${urlLogo || state.config?.schoolLogoUrl}" class="h-28 object-contain"></div>` : '<div class="h-24 w-24 bg-sky-50 rounded-full mx-auto mb-4 flex items-center justify-center"><i class="fas fa-university text-sky-600 text-4xl"></i></div>'}
-                            <h2 class="text-xl font-black text-gray-900 uppercase leading-snug px-4">${formatText(urlSchoolName || state.config?.schoolName)}</h2>
+                            ${urlLogo ? `<div class="mb-4 flex justify-center"><img src="${urlLogo}" class="h-28 object-contain"></div>` : '<div class="h-24 w-24 bg-sky-50 rounded-full mx-auto mb-4 flex items-center justify-center"><i class="fas fa-university text-sky-600 text-4xl"></i></div>'}
+                            <h2 class="text-xl font-black text-gray-900 uppercase leading-snug px-4">${formatText(urlSchoolName)}</h2>
                             <p class="text-xs font-bold text-gray-400 uppercase mt-1">Sistema de Acompanhamento Escolar</p>
                         </div>
 
@@ -552,7 +551,6 @@ export const checkForRemoteSignParams = async () => {
                                 </div>
                                 <div class="flex gap-2 justify-center">
                                     <button id="btn-start-remote-cam" class="bg-sky-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-sky-700 w-full"><i class="fas fa-video"></i> ATIVAR CÂMERA</button>
-                                    
                                     <button id="btn-take-remote-pic" class="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-green-700 w-full hidden"><i class="fas fa-camera"></i> TIRAR SELFIE</button>
                                     <button id="btn-retake-remote-pic" class="bg-yellow-500 text-white px-4 py-2 rounded text-xs font-bold hover:bg-yellow-600 w-full hidden"><i class="fas fa-redo"></i> REFAZER</button>
                                 </div>
@@ -586,9 +584,6 @@ export const checkForRemoteSignParams = async () => {
                 const btnRetake = document.getElementById('btn-retake-remote-pic');
                 const btnSign = document.getElementById('btn-remote-agree');
 
-                // LÓGICA DE CÂMERA MANTIDA
-                // Upload removido por segurança (Item 8)
-
                 btnStart.onclick = async () => {
                     try {
                         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
@@ -614,13 +609,7 @@ export const checkForRemoteSignParams = async () => {
                 };
 
                 btnRetake.onclick = () => {
-                    capturedPhotoBase64 = null; imgEl.classList.add('hidden'); btnRetake.classList.add('hidden');
-                    // Mostra opções iniciais novamente
-                    btnStart.classList.remove('hidden');
-
-                    btnTake.classList.add('hidden'); // Garante que a de tirar foto suma
-                    phEl.classList.remove('hidden');
-
+                    capturedPhotoBase64 = null; imgEl.classList.add('hidden'); btnRetake.classList.add('hidden'); btnTake.classList.remove('hidden');
                     btnSign.disabled = true; btnSign.classList.add('bg-gray-400', 'cursor-not-allowed'); btnSign.classList.remove('bg-green-600', 'hover:bg-green-700', 'transform', 'hover:scale-105'); btnSign.innerHTML = '<i class="fas fa-lock"></i> TIRE A SELFIE PARA ASSINAR';
                 };
 
@@ -1385,27 +1374,24 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
 };
 
 const generateSignaturesGrid = (slots) => {
-    // LAYOUT REFINADO: Grid flexível centralizado
-    // Removemos fundos cinzas para um look mais "documento oficial"
-
-    const validSlots = slots || [];
-
-    let itemsHTML = validSlots.map(slot => {
+    let itemsHTML = slots.map(slot => {
         const sigData = signatureMap.get(slot.key);
         return getSingleSignatureBoxHTML(slot.key, slot.role, slot.name, sigData);
     }).join('');
 
     const mgmtData = signatureMap.get('management');
-
     return `
-        <div class="mt-12 pt-4 break-inside-avoid">
-             <div class="flex flex-wrap justify-center gap-x-8 gap-y-6 mb-6">
-                ${itemsHTML}
-             </div>
+        <div class="mt-6 mb-4 break-inside-avoid p-3 bg-gray-50 rounded border border-gray-200">
+             <h5 class="text-[9px] font-bold uppercase text-gray-500 mb-3 border-b border-gray-300 pb-1 flex justify-between">
+                <span>Registro de Validação</span>
+                <span class="font-normal"><i class="fas fa-shield-alt"></i> Biometria</span>
+             </h5>
+             <!-- LAYOUT: 3 COLUNAS (Ajustado p/ 4 em telas grandes) -->
+             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">${itemsHTML}</div>
              
-             <div class="mt-6 pt-2 flex justify-center w-full">
-                <div class="w-full max-w-[300px]">
-                    <p class="text-[9px] text-gray-400 text-center mb-1 uppercase tracking-wider">Gestão Escolar</p>
+             <div class="mt-4 pt-2 border-t border-gray-200 flex justify-center">
+                <div class="w-full max-w-[250px]">
+                    <p class="text-[8px] text-gray-400 text-center mb-1 uppercase">Gestão Escolar</p>
                     ${getSingleSignatureBoxHTML('management', 'Gestão', state.config?.schoolName || 'Direção', mgmtData)}
                 </div>
              </div>

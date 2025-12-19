@@ -68,40 +68,19 @@ export const renderDocuments = async (filterText = '') => {
             else if (doc.type === 'ata') { iconClass = 'fa-file-signature'; colorClass = 'text-purple-700 bg-purple-100'; }
             else if (doc.type === 'notificacao') { iconClass = 'fa-envelope-open-text'; colorClass = 'text-orange-700 bg-orange-100'; }
 
-            // Tenta encontrar dados atualizados do aluno na memória
-            const student = state.students.find(s => s.matricula === doc.studentId);
-            const studentClass = student ? student.class : (doc.studentClass || ''); // Tenta pegar do doc se existir snapshot
-
-            const hasSignatures = doc.signatures && Object.keys(doc.signatures).length > 0;
-            const signatureBadge = hasSignatures
-                ? `<span class="bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-200 inline-flex items-center gap-1"><i class="fas fa-check-circle"></i> Assinado Digitalmente</span>`
-                : `<span class="bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-0.5 rounded-full border border-gray-200 inline-flex items-center gap-1"><i class="far fa-clock"></i> Pendente</span>`;
-
             return `
             <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:shadow-md transition">
-                <div class="flex items-start gap-3 w-full sm:w-auto">
-                    <div class="p-3 rounded-full ${colorClass} shrink-0 relative">
+                <div class="flex items-start gap-3">
+                    <div class="p-3 rounded-full ${colorClass} shrink-0">
                         <i class="fas ${iconClass}"></i>
-                        ${hasSignatures ? '<div class="absolute -bottom-1 -right-1 bg-green-500 text-white text-[8px] p-1 rounded-full w-4 h-4 flex items-center justify-center border-2 border-white"><i class="fas fa-lock"></i></div>' : ''}
                     </div>
-                    <div class="w-full">
-                        <div class="flex flex-wrap items-center gap-2 mb-1">
-                            <h4 class="font-bold text-gray-800 text-sm sm:text-base break-words">${doc.title}</h4>
-                            ${signatureBadge}
-                        </div>
+                    <div>
+                        <h4 class="font-bold text-gray-800 text-sm sm:text-base">${doc.title}</h4>
                         <div class="text-xs text-gray-500 mt-1 space-y-1">
                             <p><i class="far fa-calendar-alt mr-1"></i> Emitido em: ${dateStr}</p>
                             <p><i class="far fa-user mr-1"></i> Por: ${doc.createdBy || 'Sistema'}</p>
                         </div>
-                        ${doc.studentName ? `
-                        <div class="flex flex-wrap gap-2 mt-2">
-                             <p class="text-xs font-bold text-sky-900 bg-sky-50 inline-flex items-center px-2 py-1 rounded border border-sky-100 shadow-sm">
-                                <i class="fas fa-user-graduate mr-1 text-sky-600"></i> ${doc.studentName.toUpperCase()}
-                             </p>
-                             ${studentClass ? `<p class="text-xs font-bold text-gray-600 bg-gray-100 inline-flex items-center px-2 py-1 rounded border border-gray-200">
-                                <i class="fas fa-users mr-1 text-gray-400"></i> ${studentClass}
-                             </p>` : ''}
-                        </div>` : ''}
+                        ${doc.studentName ? `<p class="text-sm font-bold text-sky-900 mt-2 bg-sky-50 inline-block px-3 py-1 rounded border border-sky-100 shadow-sm"><i class="fas fa-user-graduate mr-2 text-sky-600"></i> ${doc.studentName.toUpperCase()}</p>` : ''}
                     </div>
                 </div>
                 <button class="view-snapshot-btn bg-white text-sky-700 hover:bg-sky-50 px-4 py-2 rounded-lg text-sm font-semibold border border-sky-200 shadow-sm transition whitespace-nowrap"
