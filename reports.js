@@ -1381,7 +1381,7 @@ const generateSignaturesGrid = (slots) => {
 
     const mgmtData = signatureMap.get('management');
     return `
-        <div class="mt-6 mb-4 break-inside-avoid p-3 bg-gray-50 rounded border border-gray-200">
+        <div class="signatures-wrapper-v2 mt-6 mb-4 break-inside-avoid p-3 bg-gray-50 rounded border border-gray-200">
              <h5 class="text-[9px] font-bold uppercase text-gray-500 mb-3 border-b border-gray-300 pb-1 flex justify-between">
                 <span>Registro de Validação</span>
                 <span class="font-normal"><i class="fas fa-shield-alt"></i> Biometria</span>
@@ -1426,24 +1426,60 @@ async function generateSmartHTML(docType, studentId, refId, htmlGeneratorFn) {
 
             let safeHtml = existingDoc.htmlContent;
 
-            // FIX: INJEÇÃO DE ASSINATURA DA GESTÃO (PREVINE QUE FIQUE INVISÍVEL EM DOCS TRAVADOS)
-            // Se temos uma assinatura de gestão recém-coletada (ou no banco), mas o HTML travado mostra "Aguardando", fazemos update visual
-            if (signatureMap.has('management')) {
-                const mgmtSig = signatureMap.get('management');
-                // Regex para achar o slot da gestão (assinada ou não)
-                const mgmtRegex = /<div[^>]+data-sig-key="management"[^>]*>[\s\S]*?<\/div>/i;
+            // FIX 2.0: RE-PINTURA INTELIGENTE DE TODAS AS ASSINATURAS
+            // Itera sobre TODAS as assinaturas conhecidas (do banco + locais) para garantir que
+            // documentos coletivos (como Ata) mostrem as novas assinaturas mesmo com HTML travado.
+            if (signatureMap.size > 0) {
+                signatureMap.forEach((sigValue, sigKey) => {
+                    // Ignora se não tiver valor válido
+                    if (!sigValue) return;
 
-                // Gera o HTML atualizado apenas deste bloco
-                const newMgmtHtml = getSingleSignatureBoxHTML('management', 'Gestão', state.config?.schoolName || 'Direção', mgmtSig);
+                    // Regex genérico para encontrar o slot desta chave específica
+                    // Procura por <div ... data-sig-key="A_CHAVE" ... > CONTEUDO </div>
+                    const slotRegex = new RegExp(`<div[^>]+data-sig-key="${sigKey}"[^>]*>[\\s\\S]*?<\\/div>`, 'i');
 
-                // Substitui no HTML travado
-                if (safeHtml.match(mgmtRegex)) {
-                    safeHtml = safeHtml.replace(mgmtRegex, newMgmtHtml);
-                    console.log("Injeção de assinatura da gestão realizada com sucesso.");
-                }
+                    // Se o slot existe no HTML travado, regeramos seu conteúdo visual
+                    if (safeHtml.match(slotRegex)) {
+                        // Tenta extrair metadados básicos do slot existente se possível, ou usa defaults
+                        // Para simplificar, vamos reconstruir o box com os dados que temos.
+                        // Precisamos saber o 'role' e 'name' originais para não perder info.
+                        // O 'getSingleSignatureBoxHTML' pede (key, role, name, status/dataUrl).
+
+                        // Tentativa de extrair Role e Name do HTML antigo para preservar UI 
+                        // (Isso é um parser simples, pode precisar de ajuste se o HTML mudar muito)
+                        const match = safeHtml.match(slotRegex)[0];
+                        let role = "Assinatura";
+                        let name = "";
+
+                        // Tenta achar <p class="...font-bold...">ROLE</p>
+                        const roleMatch = match.match(/<p[^>]*font-bold[^>]*>(.*?)<\/p>/i);
+                        if (roleMatch) role = roleMatch[1];
+
+                        // Tenta achar <p class="...text-sm...">(Nome: )?(.*?)(<\/p>|<br>)/i
+                        // O layout padrão tem o nome logo abaixo. Vamos tentar ser resilientes.
+                        // Se for gestão/escola, o nome vem do config.
+
+                        // Caso especial: Management
+                        if (sigKey === 'management') {
+                            role = 'Gestão';
+                            name = state.config?.schoolName || 'Direção';
+                        } else {
+                            // Para outros, tenta extrair ou usa placeholder se falhar
+                            const nameMatch = match.match(/Nome:\s*([^<]+)/i);
+                            if (nameMatch) name = nameMatch[1].trim();
+                        }
+
+                        // Gera o novo HTML apenas deste box
+                        const newSigHtml = getSingleSignatureBoxHTML(sigKey, role, name, sigValue);
+
+                        // Substitui no HTML principal
+                        safeHtml = safeHtml.replace(slotRegex, newSigHtml);
+                        console.log(`[Re-pintura] Assinatura atualizada visualmente: ${sigKey}`);
+                    }
+                });
             }
 
-            // Re-injeta rodapé de impressão se não tiver (legado) ou se for seguro
+            // Re-injeta rodapé de impressão se necessário
             if (!safeHtml.includes('print-footer')) {
                 const newDate = existingDoc.createdAt?.toDate() || new Date();
                 safeHtml += getPrintFooterHTML(existingDoc.id, newDate);

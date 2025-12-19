@@ -5,45 +5,36 @@
 
 import { state, dom } from './state.js';
 import { showToast, showAlert, openModal, closeModal, getStatusBadge, formatDate, formatTime, openImageModal, uploadToStorage } from './utils.js';
-import { 
-    getCollectionRef, 
-    getCounterDocRef, 
-    updateRecordWithHistory, 
-    addRecordWithHistory, 
-    deleteRecord, 
+import {
+    getCollectionRef,
+    getCounterDocRef,
+    updateRecordWithHistory,
+    addRecordWithHistory,
+    deleteRecord,
     getIncidentByGroupId as fetchIncidentById,
-    searchStudentsByName 
-} from './firestore.js'; 
-import { 
-    determineNextOccurrenceStep, 
-    determineCurrentActionFromStatus, 
+    searchStudentsByName
+} from './firestore.js';
+import {
+    determineNextOccurrenceStep,
+    determineCurrentActionFromStatus,
     occurrenceStepLogic,
-    roleIcons,          
-    defaultRole,        
+    roleIcons,
+    defaultRole,
     getFilteredOccurrences,
-    validateOccurrenceChronology
+    validateOccurrenceChronology,
+    occurrenceStepLogic,
+    determineNextOccurrenceStep
 } from './logic.js';
 import {
     openOccurrenceRecordModal,
     openHistoryModal,
     generateAndShowGeneralReport,
     generateAndShowOccurrenceOficio,
-    openIndividualNotificationModal 
+    openIndividualNotificationModal,
+    occurrenceActionTitles
 } from './reports.js';
 import { writeBatch, doc, collection, query, where, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
-
-export const occurrenceActionTitles = { 
-    'convocacao_1': 'Ação 2: 1ª Convocação',
-    'feedback_1':   'Ação 3: Feedback da 1ª Tentativa',
-    'convocacao_2': 'Ação 2: 2ª Convocação',
-    'feedback_2':   'Ação 3: Feedback da 2ª Tentativa',
-    'convocacao_3': 'Ação 2: 3ª Convocação',
-    'feedback_3':   'Ação 3: Feedback da 3ª Tentativa',
-    'desfecho_ou_ct': 'Ação 4 ou 6: Encaminhar ao CT ou Dar Parecer',
-    'devolutiva_ct': 'Ação 5: Registrar Devolutiva do CT',
-    'parecer_final': 'Ação 6: Dar Parecer Final'
-};
 
 const nextStepLabels = {
     'convocacao_1': 'Agendar 1ª Conv.',
@@ -58,7 +49,7 @@ const nextStepLabels = {
 };
 
 let studentPendingRoleSelection = null;
-let editingRoleId = null; 
+let editingRoleId = null;
 let studentSearchTimeout = null;
 let pendingFiles = [];
 
@@ -98,7 +89,7 @@ const renderTags = () => {
         });
 
         tag.querySelector('.edit-role-btn').addEventListener('click', (e) => {
-            e.stopPropagation(); 
+            e.stopPropagation();
             openRoleEditDropdown(e.currentTarget, studentId);
         });
 
@@ -108,7 +99,7 @@ const renderTags = () => {
 
 const openRoleEditDropdown = (buttonElement, studentId) => {
     const dropdown = document.getElementById('role-edit-dropdown');
-    editingRoleId = studentId; 
+    editingRoleId = studentId;
 
     const rect = buttonElement.getBoundingClientRect();
     dropdown.style.top = `${rect.bottom + window.scrollY}px`;
@@ -137,11 +128,11 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
     roleEditDropdown.classList.add('hidden');
 
     inputElement.addEventListener('input', () => {
-        const value = inputElement.value; 
+        const value = inputElement.value;
         const normalizedValue = normalizeText(value);
-        
+
         suggestionsElement.innerHTML = '';
-        roleSelectionPanel.classList.add('hidden'); 
+        roleSelectionPanel.classList.add('hidden');
         studentPendingRoleSelection = null;
 
         if (!normalizedValue) {
@@ -158,15 +149,15 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             try {
                 const results = await searchStudentsByName(value);
                 suggestionsElement.innerHTML = '';
-                
+
                 const filteredResults = results.filter(s => !state.selectedStudents.has(s.matricula));
 
                 if (filteredResults.length > 0) {
                     filteredResults.forEach(student => {
                         const item = document.createElement('div');
-                        item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50 border-b border-gray-100'; 
+                        item.className = 'suggestion-item p-2 cursor-pointer hover:bg-sky-50 border-b border-gray-100';
                         item.innerHTML = `<span class="font-semibold text-gray-800">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
-                        
+
                         item.addEventListener('click', () => {
                             if (!state.students.find(s => s.matricula === student.matricula)) {
                                 state.students.push(student);
@@ -175,9 +166,9 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
                             studentPendingRoleSelection = student;
                             roleSelectionStudentName.textContent = student.name;
                             roleSelectionPanel.classList.remove('hidden');
-                            suggestionsElement.classList.add('hidden'); 
-                            inputElement.value = ''; 
-                            inputElement.focus(); 
+                            suggestionsElement.classList.add('hidden');
+                            inputElement.value = '';
+                            inputElement.focus();
                         });
                         suggestionsElement.appendChild(item);
                     });
@@ -199,9 +190,9 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
                     student: studentPendingRoleSelection,
                     role: selectedRole
                 });
-                studentPendingRoleSelection = null; 
-                roleSelectionPanel.classList.add('hidden'); 
-                renderTags(); 
+                studentPendingRoleSelection = null;
+                roleSelectionPanel.classList.add('hidden');
+                renderTags();
             }
         });
     });
@@ -211,11 +202,11 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             if (editingRoleId && state.selectedStudents.has(editingRoleId)) {
                 const newRole = option.dataset.role;
                 const currentData = state.selectedStudents.get(editingRoleId);
-                currentData.role = newRole; 
-                state.selectedStudents.set(editingRoleId, currentData); 
-                roleEditDropdown.classList.add('hidden'); 
-                renderTags(); 
-                editingRoleId = null; 
+                currentData.role = newRole;
+                state.selectedStudents.set(editingRoleId, currentData);
+                roleEditDropdown.classList.add('hidden');
+                renderTags();
+                editingRoleId = null;
             }
         });
     });
@@ -237,9 +228,9 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
 const renderFilePreviews = (containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
-    
+
     container.innerHTML = '';
-    
+
     if (pendingFiles.length === 0) {
         container.classList.add('hidden');
         return;
@@ -251,7 +242,7 @@ const renderFilePreviews = (containerId) => {
     pendingFiles.forEach((file, index) => {
         const wrapper = document.createElement('div');
         wrapper.className = "relative group w-16 h-16 border rounded bg-gray-100 overflow-hidden";
-        
+
         let mediaElement = document.createElement('div');
         mediaElement.className = "w-full h-full flex items-center justify-center bg-gray-200 text-gray-500 cursor-pointer";
         const objectUrl = URL.createObjectURL(file);
@@ -282,16 +273,16 @@ const renderFilePreviews = (containerId) => {
         removeBtn.onclick = (e) => {
             e.stopPropagation();
             pendingFiles.splice(index, 1);
-            
+
             const labelEl = document.getElementById(containerId.replace('-preview', '-label'));
-            if(labelEl) labelEl.textContent = pendingFiles.length > 0 ? `${pendingFiles.length} Arq.` : 'Selecionar';
-            
+            if (labelEl) labelEl.textContent = pendingFiles.length > 0 ? `${pendingFiles.length} Arq.` : 'Selecionar';
+
             const checkEl = document.getElementById(containerId.replace('-preview', '-check'));
-            if(checkEl && pendingFiles.length === 0) checkEl.classList.add('hidden');
+            if (checkEl && pendingFiles.length === 0) checkEl.classList.add('hidden');
 
             renderFilePreviews(containerId);
         };
-        
+
         wrapper.appendChild(mediaElement);
         wrapper.appendChild(removeBtn);
         container.appendChild(wrapper);
@@ -304,7 +295,7 @@ const getTypeColorClass = (type) => {
     if (lowerType.includes('agressão') || lowerType.includes('bullying')) return 'border-red-500';
     if (lowerType.includes('indisciplina') || lowerType.includes('comportamento') || lowerType.includes('telemóvel')) return 'border-yellow-500';
     if (lowerType.includes('dano')) return 'border-orange-500';
-    return 'border-sky-500'; 
+    return 'border-sky-500';
 };
 
 const getStepIndicator = (status) => {
@@ -328,11 +319,11 @@ const getTimeSinceUpdate = (dateString, updateDate) => {
     const now = new Date();
     const diffTime = Math.abs(now - refDate);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     let color = 'text-gray-400';
     if (diffDays > 7) color = 'text-red-500 font-bold';
     else if (diffDays > 4) color = 'text-orange-500';
-    
+
     if (diffDays <= 1) return { text: 'Hoje', class: 'text-green-600' };
     return { text: `${diffDays}d parado`, class: color };
 };
@@ -343,9 +334,9 @@ export const renderOccurrences = () => {
     dom.occurrencesTitle.textContent = `Exibindo ${filteredIncidents.size} Incidente(s)`;
 
     if (filteredIncidents.size === 0) {
-         dom.emptyStateOccurrences.classList.remove('hidden');
-         dom.occurrencesListDiv.innerHTML = '';
-         return;
+        dom.emptyStateOccurrences.classList.remove('hidden');
+        dom.occurrencesListDiv.innerHTML = '';
+        return;
     }
     dom.emptyStateOccurrences.classList.add('hidden');
 
@@ -365,7 +356,7 @@ export const renderOccurrences = () => {
         const studentAccordionsHTML = [...incident.participantsInvolved.values()]
             .filter(participant => {
                 if (studentSearch && !normalizeText(participant.student.name).includes(studentSearch)) return false;
-                return true; 
+                return true;
             })
             .map(participant => {
                 const { student, role } = participant;
@@ -373,28 +364,28 @@ export const renderOccurrences = () => {
                 const record = incident.records.find(r => r && r.studentId === student.matricula);
                 const recordId = record?.id || '';
                 const status = record?.statusIndividual || 'Aguardando Convocação';
-                
+
                 const isMatch = studentSearch && normalizeText(student.name).includes(studentSearch);
                 const iconClass = roleIcons[role] || roleIcons[defaultRole];
                 const isIndividualResolvido = record?.statusIndividual === 'Resolvido';
-                
+
                 const stepInfo = getStepIndicator(status);
                 const timeInfo = getTimeSinceUpdate(null, record?.updatedAt || record?.createdAt);
-                
+
                 const nextStepKey = determineNextOccurrenceStep(status);
                 const nextActionText = nextStepLabels[nextStepKey] || 'Avançar / Agendar';
 
                 let historyHtml = '';
-                
+
                 const renderAttemptBlock = (index, mDate, mTime, succeeded, contactDate, contactPerson, contactPrints, legacyContactPrint) => {
                     if (!mDate) return '';
-                    const attemptNum = index; 
+                    const attemptNum = index;
                     const notificationBtn = `
                         <button type="button" class="view-notification-btn-hist text-sky-600 hover:text-sky-800 ml-2" 
                                 data-record-id="${recordId}" data-student-id="${student.matricula}" data-group-id="${incident.id}" data-attempt="${attemptNum}" title="Ver Notificação">
                             <i class="fas fa-eye"></i>
                         </button>`;
-                    
+
                     let statusContent = '';
                     let statusIcon = '<i class="fas fa-bullhorn text-gray-400"></i>';
 
@@ -444,18 +435,18 @@ export const renderOccurrences = () => {
                 if (record?.oficioNumber) historyHtml += `<div class="flex items-center gap-2 mb-2"><div class="w-5 text-center"><i class="fas fa-landmark text-blue-500"></i></div><div class="text-xs text-gray-600"><strong>Encaminhado CT:</strong> Ofício ${record.oficioNumber}/${record.oficioYear}</div></div>`;
                 if (record?.ctFeedback) historyHtml += `<div class="flex items-center gap-2 mb-2"><div class="w-5 text-center"><i class="fas fa-reply text-purple-500"></i></div><div class="text-xs text-gray-600"><strong>Devolutiva:</strong> Recebida</div></div>`;
                 if (record?.parecerFinal) historyHtml += `<div class="flex items-center gap-2 mb-2"><div class="w-5 text-center"><i class="fas fa-gavel text-green-600"></i></div><div class="text-xs text-gray-600"><strong>Parecer Final:</strong> Registrado</div></div>`;
-                
+
                 if (historyHtml === '') historyHtml = `<p class="text-xs text-gray-400 italic pl-2">Aguardando início do acompanhamento.</p>`;
-                
+
                 const avancarBtn = `<button type="button" class="avancar-etapa-btn flex-1 bg-sky-600 text-white hover:bg-sky-700 text-xs font-semibold py-2 px-2 rounded transition shadow-sm ${isIndividualResolvido ? 'opacity-50 cursor-not-allowed' : ''}" ${isIndividualResolvido ? 'disabled' : ''} data-group-id="${incident.id}" data-student-id="${student.matricula}" data-record-id="${recordId}"><i class="fas fa-forward mr-1"></i> ${nextActionText}</button>`;
-                
+
                 const viewOficioBtn = record?.oficioNumber ? `<button type="button" class="view-occurrence-oficio-btn bg-green-50 text-green-700 hover:bg-green-100 text-xs font-semibold py-2 px-3 rounded border border-green-200 transition flex items-center gap-1" data-record-id="${recordId}" title="Ver Ofício"><i class="fas fa-file-alt"></i> Ver Ofício</button>` : '';
-                
+
                 const editActionBtn = `<button type="button" class="edit-occurrence-action-btn bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs font-semibold py-2 px-3 rounded transition ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}" data-group-id="${incident.id}" data-student-id="${student.matricula}" data-record-id="${recordId}" ${isFinalizada ? 'disabled' : ''} title="Editar"><i class="fas fa-pencil-alt"></i></button>`;
                 const resetActionBtn = `<button type="button" class="reset-occurrence-action-btn bg-gray-100 text-red-500 hover:bg-red-100 text-xs font-semibold py-2 px-3 rounded transition ${isFinalizada ? 'opacity-50 cursor-not-allowed' : ''}" data-group-id="${incident.id}" data-student-id="${student.matricula}" data-record-id="${recordId}" ${isFinalizada ? 'disabled' : ''} title="Limpar"><i class="fas fa-undo-alt"></i></button>`;
-                
-                const contentId = `occ-content-${recordId || student.matricula}`; 
-                
+
+                const contentId = `occ-content-${recordId || student.matricula}`;
+
                 return `
                     <div class="bg-gray-50 rounded-lg border border-gray-200 mt-2 hover:shadow-sm transition-shadow">
                         <div class="occurrence-summary p-3 cursor-pointer hover:bg-gray-100 flex justify-between items-center" data-content-id="${contentId}">
@@ -535,7 +526,7 @@ export const renderOccurrences = () => {
 
 export const openOccurrenceModal = (incidentToEdit = null) => {
     dom.occurrenceForm.reset();
-    state.selectedStudents.clear(); 
+    state.selectedStudents.clear();
 
     const occurrenceDateInput = document.getElementById('occurrence-date');
     const todayLocal = new Date().toLocaleDateString('en-CA');
@@ -551,7 +542,7 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
         });
 
         document.getElementById('occurrence-type').value = mainRecord.occurrenceType || '';
-        occurrenceDateInput.value = mainRecord.date || ''; 
+        occurrenceDateInput.value = mainRecord.date || '';
         document.getElementById('description').value = mainRecord.description || '';
         document.getElementById('providencias-escola').value = mainRecord.providenciasEscola || '';
     } else {
@@ -563,7 +554,7 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     const studentInput = document.getElementById('student-search-input');
     const suggestionsDiv = document.getElementById('student-suggestions');
     const tagsContainer = document.getElementById('student-tags-container');
-    setupStudentTagInput(studentInput, suggestionsDiv, tagsContainer); 
+    setupStudentTagInput(studentInput, suggestionsDiv, tagsContainer);
 
     openModal(dom.occurrenceModal);
 };
@@ -599,18 +590,48 @@ const toggleDesfechoFields = (choice) => {
 
     if (oficioInput) { oficioInput.disabled = !showCt; oficioInput.required = showCt; }
     if (dateCtInput) { dateCtInput.disabled = !showCt; dateCtInput.required = showCt; }
-    
+
     if (parecerInput) { parecerInput.disabled = !showParecer; parecerInput.required = showParecer; }
 };
 
-export const openOccurrenceStepModal = (student, record, actionType, preFilledData = null) => {
+export const openOccurrenceStepModal = async (student, record, actionType, preFilledData = null) => {
+    // -------------------------------------------------------------------------
+    // BLOQUEIO DE SEGURANÇA: Verificar Assinatura (Feedback)
+    // -------------------------------------------------------------------------
+    if (actionType.startsWith('feedback_')) {
+        const attemptNum = actionType.split('_')[1];
+        const incidentId = record.incidentId || record.occurrenceGroupId; // Ensure this is passed
+
+        if (incidentId) {
+            const uniqueRefId = `${incidentId}_${student.matricula}_attempt_${attemptNum}`;
+            const notifDoc = await findDocumentSnapshot('notificacao_ocorrencia', student.matricula, uniqueRefId);
+
+            // Regra: Deve document existir E ter assinatura do responsável específico
+            let isSigned = false;
+            if (notifDoc && notifDoc.signatures) {
+                // Validação Estrita: Verifica se o responsável DESTE aluno assinou
+                const requiredKey = `responsible_${student.matricula}`;
+                isSigned = !!notifDoc.signatures[requiredKey];
+
+                // isSigned deve ser true apenas se a propriedade existir e for true
+                isSigned = notifDoc.signatures[requiredKey] === true;
+            }
+
+            if (!isSigned) {
+                await showAlert(`Ação Bloqueada: A Notificação da ${attemptNum}ª Tentativa não possui a assinatura do responsável (Aluno: ${student.name}).\n\nÉ obrigatória a assinatura do responsável para registrar o feedback.`);
+                return; // ABORTAR ABERTURA
+            }
+        }
+    }
+    // -------------------------------------------------------------------------
+
     const followUpForm = document.getElementById('follow-up-form');
     followUpForm.reset();
-    
-    pendingFiles = []; 
+
+    pendingFiles = [];
     document.getElementById('follow-up-print-label').textContent = 'Selecionar Arquivos';
     document.getElementById('follow-up-print-check').classList.add('hidden');
-    
+
     let previewContainer = document.getElementById('follow-up-print-preview');
     if (!previewContainer) {
         const fileInput = document.getElementById('follow-up-contact-print');
@@ -634,7 +655,7 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
 
     const statusDisplay = document.getElementById('follow-up-status-display');
     const modalTitle = document.getElementById('follow-up-modal-title');
-    
+
     modalTitle.textContent = occurrenceActionTitles[actionType] || 'Acompanhamento Individual';
     statusDisplay.innerHTML = `<strong>Status:</strong> ${getStatusBadge(record.statusIndividual || 'Aguardando Convocação')}`;
 
@@ -649,36 +670,36 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
     document.querySelectorAll('.dynamic-occurrence-step').forEach(group => {
         group.classList.add('hidden');
         group.querySelectorAll('input, select, textarea, button').forEach(el => {
-            if (el.type !== 'file') el.disabled = true; 
+            if (el.type !== 'file') el.disabled = true;
             el.required = false;
         });
         group.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
     });
-    toggleDesfechoFields(null); 
+    toggleDesfechoFields(null);
     toggleOccurrenceContactFields(false);
 
     let currentGroup = null;
 
-    if (actionType.startsWith('convocacao_')) { 
+    if (actionType.startsWith('convocacao_')) {
         const attemptNum = actionType.split('_')[1];
         currentGroup = document.getElementById('group-convocacao');
         if (currentGroup) {
             currentGroup.classList.remove('hidden');
             currentGroup.querySelector('legend').textContent = `Ação 2: Agendar ${attemptNum}ª Convocação`;
-            
+
             const dateInput = document.getElementById('follow-up-meeting-date');
             const timeInput = document.getElementById('follow-up-meeting-time');
-            
+
             const existingDate = record[`meetingDate_${attemptNum}`] || (attemptNum == 1 ? record.meetingDate : null);
             const existingTime = record[`meetingTime_${attemptNum}`] || (attemptNum == 1 ? record.meetingTime : null);
-            
+
             dateInput.value = existingDate || '';
             timeInput.value = existingTime || '';
             dateInput.disabled = false; dateInput.required = true;
             timeInput.disabled = false; timeInput.required = true;
-            
+
             if (attemptNum == 1) {
-                if(record.date) dateInput.min = record.date;
+                if (record.date) dateInput.min = record.date;
             } else {
                 const prevAttempt = attemptNum - 1;
                 const prevDate = record[`meetingDate_${prevAttempt}`] || (prevAttempt == 1 ? record.meetingDate : null);
@@ -686,7 +707,7 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
             }
         }
 
-    } else if (actionType.startsWith('feedback_')) { 
+    } else if (actionType.startsWith('feedback_')) {
         const attemptNum = parseInt(actionType.split('_')[1]);
         currentGroup = document.getElementById('group-contato');
         if (currentGroup) {
@@ -699,27 +720,27 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
 
             if (preFilledData && preFilledData.succeeded) {
                 const radio = currentGroup.querySelector(`input[value="${preFilledData.succeeded}"]`);
-                if(radio) radio.checked = true;
+                if (radio) radio.checked = true;
                 toggleOccurrenceContactFields(preFilledData.succeeded === 'yes');
             } else {
-                const currentSucceededValue = record[`contactSucceeded_${attemptNum}`]; 
+                const currentSucceededValue = record[`contactSucceeded_${attemptNum}`];
                 const radioChecked = document.querySelector(`input[name="follow-up-contact-succeeded"][value="${currentSucceededValue}"]`);
                 if (radioChecked) radioChecked.checked = true;
                 toggleOccurrenceContactFields(currentSucceededValue === 'yes');
             }
-            
+
             document.getElementById('follow-up-contact-type').value = record[`contactType_${attemptNum}`] || '';
             const contactDateInput = document.getElementById('follow-up-contact-date');
             contactDateInput.value = record[`contactDate_${attemptNum}`] || '';
             document.getElementById('follow-up-contact-person').value = record[`contactPerson_${attemptNum}`] || '';
-            
+
             const meetingDate = record[`meetingDate_${attemptNum}`] || (attemptNum == 1 ? record.meetingDate : null);
             if (meetingDate) contactDateInput.min = meetingDate;
 
             document.getElementById('follow-up-family-actions').value = record[`providenciasFamilia_${attemptNum}`] || '';
         }
 
-    } else if (actionType === 'desfecho_ou_ct') { 
+    } else if (actionType === 'desfecho_ou_ct') {
         const choiceGroup = document.getElementById('group-desfecho-choice');
         if (choiceGroup) {
             choiceGroup.classList.remove('hidden');
@@ -732,23 +753,23 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
                 if (radioToCheck) radioToCheck.checked = true;
                 toggleDesfechoFields(currentChoice);
             } else {
-                 toggleDesfechoFields(null);
+                toggleDesfechoFields(null);
             }
         }
 
         const oficioInput = document.getElementById('follow-up-oficio-number');
         const dateCtInput = document.getElementById('follow-up-ct-sent-date');
         const parecerInput = document.getElementById('follow-up-parecer-final');
-        if(oficioInput) oficioInput.value = record.oficioNumber || '';
-        if(dateCtInput) dateCtInput.value = record.ctSentDate || '';
-        if(parecerInput) parecerInput.value = record.parecerFinal || '';
-        
+        if (oficioInput) oficioInput.value = record.oficioNumber || '';
+        if (dateCtInput) dateCtInput.value = record.ctSentDate || '';
+        if (parecerInput) parecerInput.value = record.parecerFinal || '';
+
         if (dateCtInput) {
             let lastContactDate = record.contactDate_3 || record.contactDate_2 || record.contactDate_1 || record.meetingDate;
             if (lastContactDate) dateCtInput.min = lastContactDate;
         }
 
-    } else if (actionType === 'devolutiva_ct') { 
+    } else if (actionType === 'devolutiva_ct') {
         currentGroup = document.getElementById('group-devolutiva-ct');
         if (currentGroup) {
             currentGroup.classList.remove('hidden');
@@ -757,7 +778,7 @@ export const openOccurrenceStepModal = (student, record, actionType, preFilledDa
             feedbackInput.disabled = false; feedbackInput.required = true;
         }
 
-    } else if (actionType === 'parecer_final') { 
+    } else if (actionType === 'parecer_final') {
         currentGroup = document.getElementById('group-parecer-final');
         if (currentGroup) {
             currentGroup.classList.remove('hidden');
@@ -786,8 +807,8 @@ async function handleOccurrenceSubmit(e) {
     const participants = Array.from(state.selectedStudents.entries()).map(([studentId, data]) => ({
         studentId: studentId,
         role: data.role,
-        studentName: data.student.name, 
-        studentClass: data.student.class 
+        studentName: data.student.name,
+        studentClass: data.student.class
     }));
 
     const collectiveData = {
@@ -797,7 +818,7 @@ async function handleOccurrenceSubmit(e) {
         providenciasEscola: document.getElementById('providencias-escola').value.trim(),
         participants: participants
     };
-    
+
     const today = new Date().toISOString().split('T')[0];
     if (collectiveData.date > today) {
         return showAlert("Erro: A data da ocorrência não pode ser no futuro.");
@@ -832,10 +853,10 @@ async function handleOccurrenceSubmit(e) {
                         studentId,
                         studentName: participant.studentName,
                         studentClass: participant.studentClass,
-                        
+
                         occurrenceGroupId: groupId,
                         statusIndividual: 'Aguardando Convocação 1',
-                        meetingDate: null, meetingTime: null, 
+                        meetingDate: null, meetingTime: null,
                         contactSucceeded_1: null, contactType_1: null, contactDate_1: null, contactPerson_1: null, providenciasFamilia_1: null,
                         contactSucceeded_2: null, contactType_2: null, contactDate_2: null, contactPerson_2: null, providenciasFamilia_2: null,
                         contactSucceeded_3: null, contactType_3: null, contactDate_3: null, contactPerson_3: null, providenciasFamilia_3: null,
@@ -863,11 +884,11 @@ async function handleOccurrenceSubmit(e) {
             const recordsToUpdateHistoryQuery = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', groupId));
             const recordsToUpdateHistorySnap = await getDocs(recordsToUpdateHistoryQuery);
             recordsToUpdateHistorySnap.docs.forEach(docSnapshot => {
-                 if (currentParticipantIds.includes(docSnapshot.data().studentId)) {
+                if (currentParticipantIds.includes(docSnapshot.data().studentId)) {
                     const newHistoryEntry = { action: historyAction, user: state.userEmail, timestamp: new Date() };
                     const currentHistory = docSnapshot.data().history || [];
                     batch.update(docSnapshot.ref, { history: [...currentHistory, newHistoryEntry] });
-                 }
+                }
             });
 
             await batch.commit();
@@ -888,7 +909,7 @@ async function handleOccurrenceSubmit(e) {
 
             for (const participant of participants) {
                 const recordData = {
-                    ...collectiveData, 
+                    ...collectiveData,
                     studentId: participant.studentId,
                     studentName: participant.studentName,
                     studentClass: participant.studentClass,
@@ -936,14 +957,14 @@ async function handleOccurrenceStepSubmit(e) {
     if (pendingFiles.length > 0) {
         submitBtn.disabled = true;
         submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Enviando arquivos...`;
-        
+
         try {
             const uploadPromises = pendingFiles.map(file => uploadToStorage(file));
             uploadedUrls = await Promise.all(uploadPromises);
         } catch (uploadError) {
             submitBtn.disabled = false;
             submitBtn.innerText = originalBtnText;
-            
+
             // O erro já vem tratado do utils.js, então mostramos direto
             return showAlert(uploadError.message);
         }
@@ -951,7 +972,7 @@ async function handleOccurrenceStepSubmit(e) {
 
     let dataToUpdate = {};
     let historyAction = "";
-    let nextStatus = record.statusIndividual; 
+    let nextStatus = record.statusIndividual;
 
     try {
         if (actionType.startsWith('convocacao_')) {
@@ -963,13 +984,13 @@ async function handleOccurrenceStepSubmit(e) {
             const inputTime = document.getElementById('follow-up-meeting-time').value;
 
             if (!inputDate || !inputTime) throw new Error('Data e Horário obrigatórios.');
-            
+
             const dateCheck = validateOccurrenceChronology(record, actionType, inputDate);
             if (!dateCheck.isValid) throw new Error(dateCheck.message);
 
             if (attemptNum == 1) {
                 const incident = await fetchIncidentById(record.occurrenceGroupId);
-                const otherPendingRecords = incident.records.filter(r => 
+                const otherPendingRecords = incident.records.filter(r =>
                     r.id !== recordId && r.statusIndividual === 'Aguardando Convocação 1'
                 );
 
@@ -988,7 +1009,7 @@ async function handleOccurrenceStepSubmit(e) {
                         const ref = doc(getCollectionRef('occurrence'), otherRec.id);
                         batch.update(ref, {
                             ...batchUpdateData,
-                            history: [...(otherRec.history||[]), { action: batchHistoryAction, user: state.userEmail, timestamp: new Date() }]
+                            history: [...(otherRec.history || []), { action: batchHistoryAction, user: state.userEmail, timestamp: new Date() }]
                         });
                     });
                     await batch.commit();
@@ -998,7 +1019,7 @@ async function handleOccurrenceStepSubmit(e) {
 
             dataToUpdate = { [dateField]: inputDate, [timeField]: inputTime };
             historyAction = `Ação 2 (${attemptNum}ª Convocação) agendada para ${formatDate(inputDate)} às ${formatTime(inputTime)}.`;
-            nextStatus = `Aguardando Feedback ${attemptNum}`; 
+            nextStatus = `Aguardando Feedback ${attemptNum}`;
 
         } else if (actionType.startsWith('feedback_')) {
             const attemptNum = parseInt(actionType.split('_')[1]);
@@ -1011,13 +1032,13 @@ async function handleOccurrenceStepSubmit(e) {
                 succeeded: `contactSucceeded_${attemptNum}`,
                 type: `contactType_${attemptNum}`,
                 date: `contactDate_${attemptNum}`,
-                person: `contactPerson_${attemptNum}`, 
+                person: `contactPerson_${attemptNum}`,
                 providencias: `providenciasFamilia_${attemptNum}`,
                 prints: `contactPrints_${attemptNum}`
             };
 
             if (contactSucceeded === 'yes') {
-                 dataToUpdate = {
+                dataToUpdate = {
                     [fields.succeeded]: 'yes',
                     [fields.type]: document.getElementById('follow-up-contact-type').value,
                     [fields.date]: document.getElementById('follow-up-contact-date').value,
@@ -1030,27 +1051,27 @@ async function handleOccurrenceStepSubmit(e) {
                 }
 
                 if (!dataToUpdate[fields.type] || !dataToUpdate[fields.date] || !dataToUpdate[fields.providencias] || !dataToUpdate[fields.person]) {
-                     throw new Error('Preencha Tipo, Data, Com quem falou e Providências.');
+                    throw new Error('Preencha Tipo, Data, Com quem falou e Providências.');
                 }
-                
+
                 const dateCheck = validateOccurrenceChronology(record, actionType, dataToUpdate[fields.date]);
                 if (!dateCheck.isValid) throw new Error(dateCheck.message);
 
                 historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato realizado com ${dataToUpdate[fields.person]}.`;
-                if(uploadedUrls.length > 0) historyAction += ` (${uploadedUrls.length} anexos enviados).`;
-                
-                nextStatus = 'Aguardando Desfecho'; 
+                if (uploadedUrls.length > 0) historyAction += ` (${uploadedUrls.length} anexos enviados).`;
 
-            } else { 
+                nextStatus = 'Aguardando Desfecho';
+
+            } else {
                 dataToUpdate = {
                     [fields.succeeded]: 'no',
                     [fields.type]: null, [fields.date]: null, [fields.person]: null, [fields.providencias]: null, [fields.prints]: null
                 };
                 historyAction = `Ação 3 (Feedback da ${attemptNum}ª Tentativa): Contato sem sucesso.`;
-                
+
                 if (attemptNum === 1) nextStatus = 'Aguardando Convocação 2';
                 else if (attemptNum === 2) nextStatus = 'Aguardando Convocação 3';
-                else nextStatus = 'Aguardando Desfecho'; 
+                else nextStatus = 'Aguardando Desfecho';
             }
 
         } else if (actionType === 'desfecho_ou_ct') {
@@ -1076,34 +1097,34 @@ async function handleOccurrenceStepSubmit(e) {
                 };
                 historyAction = `Ação 4 (Encaminhamento ao CT) registrada. Ofício: ${oficioNumber}/${dataToUpdate.oficioYear}.`;
                 nextStatus = 'Aguardando Devolutiva CT';
-                
-            } else { 
-                 const parecerFinal = document.getElementById('follow-up-parecer-final').value.trim();
-                 if (!parecerFinal) throw new Error("Erro: Preencha o Parecer.");
-                 dataToUpdate = {
+
+            } else {
+                const parecerFinal = document.getElementById('follow-up-parecer-final').value.trim();
+                if (!parecerFinal) throw new Error("Erro: Preencha o Parecer.");
+                dataToUpdate = {
                     parecerFinal,
                     oficioNumber: null, ctSentDate: null, oficioYear: null, ctFeedback: null,
                     desfechoChoice: 'parecer'
                 };
                 historyAction = `Ação 6 (Parecer Final) registrada diretamente.`;
-                nextStatus = 'Resolvido'; 
+                nextStatus = 'Resolvido';
             }
 
         } else if (actionType === 'devolutiva_ct') {
             dataToUpdate = {
                 ctFeedback: document.getElementById('follow-up-ct-feedback').value.trim(),
             };
-             if (!dataToUpdate.ctFeedback) throw new Error("Erro: Preencha a Devolutiva.");
+            if (!dataToUpdate.ctFeedback) throw new Error("Erro: Preencha a Devolutiva.");
             historyAction = `Ação 5 (Devolutiva do CT) registrada.`;
             nextStatus = 'Aguardando Parecer Final';
 
-        } else if (actionType === 'parecer_final') { 
+        } else if (actionType === 'parecer_final') {
             dataToUpdate = {
                 parecerFinal: document.getElementById('follow-up-parecer-final').value.trim(),
             };
-             if (!dataToUpdate.parecerFinal) throw new Error("Erro: Preencha o Parecer final.");
+            if (!dataToUpdate.parecerFinal) throw new Error("Erro: Preencha o Parecer final.");
             historyAction = `Ação 6 (Parecer Final) registrada após devolutiva do CT.`;
-            nextStatus = 'Resolvido'; 
+            nextStatus = 'Resolvido';
         }
 
         dataToUpdate.statusIndividual = nextStatus;
@@ -1123,8 +1144,8 @@ async function handleOccurrenceStepSubmit(e) {
                 // A função openIndividualNotificationModal agora lida com a busca do registro correto e o salvamento.
                 openIndividualNotificationModal(updatedIncident, student, attemptNum);
             }
-        } 
-        
+        }
+
         closeModal(dom.followUpModal);
 
     } catch (collectError) {
@@ -1140,7 +1161,7 @@ async function handleEditOccurrence(groupId) {
     const incident = await fetchIncidentById(groupId);
     if (incident) {
         if (incident.overallStatus === 'Finalizada') return showAlert('Ocorrência finalizada. Não é possível editar.');
-        openOccurrenceModal(incident); 
+        openOccurrenceModal(incident);
     } else {
         showAlert('Incidente não encontrado.');
     }
@@ -1159,11 +1180,11 @@ async function handleEditOccurrenceAction(studentId, groupId, recordId) {
     if (!record) return showAlert('Erro: Registro não encontrado.');
 
     let actionToEdit = determineCurrentActionFromStatus(record.statusIndividual);
-    
+
     if (!actionToEdit) {
         return showAlert('Estado inválido para edição direta.');
     }
-    
+
     openOccurrenceStepModal(student, record, actionToEdit);
 }
 
@@ -1171,10 +1192,10 @@ async function handleResetActionConfirmation(studentId, groupId, recordId) {
     const incident = await fetchIncidentById(groupId);
     if (!incident) return showAlert('Erro: Incidente não encontrado.');
     if (incident.overallStatus === 'Finalizada') return showAlert('Ocorrência finalizada. Não é possível limpar.');
-    
+
     const record = incident.records.find(r => r.id === recordId);
     if (!record) return showAlert('Erro: Registro não encontrado.');
-    
+
     let actionToReset = determineCurrentActionFromStatus(record.statusIndividual);
 
     if (actionToReset === null) {
@@ -1182,31 +1203,31 @@ async function handleResetActionConfirmation(studentId, groupId, recordId) {
     }
 
     const actionTitle = occurrenceActionTitles[actionToReset] || `Etapa '${actionToReset}'`;
-    
+
     document.getElementById('delete-confirm-message').textContent = `Tem certeza que deseja Limpar a etapa: "${actionTitle}"?
         Isso limpará permanentemente todos os dados desta etapa e de quaisquer etapas futuras.`;
-    
+
     state.recordToDelete = {
-        type: 'occurrence-reset', 
+        type: 'occurrence-reset',
         recordId: recordId,
-        actionToReset: actionToReset, 
+        actionToReset: actionToReset,
         historyAction: `Etapa "${actionTitle}" resetada pelo utilizador.`
     };
-    
+
     openModal(dom.deleteConfirmModal);
 }
 
 function handleDelete(type, id) {
-    const incident = state.occurrences.find(occ => occ.occurrenceGroupId === id || occ.id === id); 
+    const incident = state.occurrences.find(occ => occ.occurrenceGroupId === id || occ.id === id);
     if (incident && incident.overallStatus === 'Finalizada') return showAlert('Ocorrência finalizada. Não é possível excluir.');
-    
+
     document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja excluir este incidente e todos os seus registros associados?';
     state.recordToDelete = { type, id };
     openModal(dom.deleteConfirmModal);
 }
 
 async function handleNewOccurrenceAction(studentId, groupId, recordId) {
-    const incident = await fetchIncidentById(groupId); 
+    const incident = await fetchIncidentById(groupId);
     if (!incident) return showAlert('Erro: Incidente não encontrado.');
 
     const participantData = incident.participantsInvolved.get(studentId);
@@ -1222,18 +1243,19 @@ async function handleNewOccurrenceAction(studentId, groupId, recordId) {
         showAlert('Processo finalizado. Use "Editar Ação" ou "Limpar Ação".');
         return;
     }
-    openOccurrenceStepModal(student, record, nextAction);
+    record.incidentId = incident.id; // Pass incident ID for uniqueRefId generation
+    await openOccurrenceStepModal(student, record, nextAction);
 }
 
 async function handleQuickFeedback(studentId, groupId, recordId, actionType, value) {
     if (value === 'no') {
-        const incident = await fetchIncidentById(groupId); 
+        const incident = await fetchIncidentById(groupId);
         const record = incident ? incident.records.find(r => r.id === recordId) : null;
         if (!record) return showAlert('Erro: Registro não encontrado.');
 
         const attemptNum = parseInt(actionType.split('_')[1]);
         const fields = { succeeded: `contactSucceeded_${attemptNum}` };
-        
+
         let nextStatus = 'Aguardando Desfecho';
         if (attemptNum === 1) nextStatus = 'Aguardando Convocação 2';
         else if (attemptNum === 2) nextStatus = 'Aguardando Convocação 3';
@@ -1251,10 +1273,10 @@ async function handleQuickFeedback(studentId, groupId, recordId, actionType, val
             console.error(e);
             showAlert('Erro ao salvar feedback.');
         }
-        return; 
+        return;
     }
 
-    const incident = await fetchIncidentById(groupId); 
+    const incident = await fetchIncidentById(groupId);
     if (!incident) return showAlert('Erro: Incidente não encontrado.');
 
     const participantData = incident.participantsInvolved.get(studentId);
@@ -1264,12 +1286,13 @@ async function handleQuickFeedback(studentId, groupId, recordId, actionType, val
     const record = incident.records.find(r => r.id === recordId);
     if (!record) return showAlert('Erro: Registro não encontrado.');
 
-    openOccurrenceStepModal(student, record, actionType, { succeeded: value });
+    record.incidentId = incident.id; // Pass incident ID for uniqueRefId generation
+    await openOccurrenceStepModal(student, record, actionType, { succeeded: value });
 }
 
 async function handleGenerateNotification(recordId, studentId, groupId, attemptNum) {
-    const incident = await fetchIncidentById(groupId); 
-     if (!incident) return showAlert('Erro: Incidente não encontrado.');
+    const incident = await fetchIncidentById(groupId);
+    if (!incident) return showAlert('Erro: Incidente não encontrado.');
 
     const participantData = incident.participantsInvolved.get(studentId);
     const student = participantData?.student;
@@ -1285,14 +1308,14 @@ async function handleViewOccurrenceOficio(recordId) {
 
         const recordFromState = state.occurrences.find(r => r.id === recordId);
         if (!recordFromState || !recordFromState.occurrenceGroupId) {
-             return showAlert('Registro não encontrado localmente.');
+            return showAlert('Registro não encontrado localmente.');
         }
 
         targetIncident = await fetchIncidentById(recordFromState.occurrenceGroupId);
         if (!targetIncident) return showAlert('Incidente não encontrado no servidor.');
 
         targetRecord = targetIncident.records.find(r => r.id === recordId);
-        if (!targetRecord) return showAlert('Registro específico não encontrado.'); 
+        if (!targetRecord) return showAlert('Registro específico não encontrado.');
 
         if (!targetRecord.oficioNumber) return showAlert('Este registro não possui um ofício associado.');
 
@@ -1305,15 +1328,15 @@ async function handleViewOccurrenceOficio(recordId) {
                 matricula: targetRecord.studentId,
                 name: targetRecord.studentName || `Aluno (${targetRecord.studentId})`,
                 class: targetRecord.studentClass || 'N/A',
-                endereco: '', 
+                endereco: '',
                 contato: ''
             };
         }
 
         await generateAndShowOccurrenceOficio(
-            targetRecord, 
-            student, 
-            targetRecord.oficioNumber, 
+            targetRecord,
+            student,
+            targetRecord.oficioNumber,
             targetRecord.oficioYear
         );
 
@@ -1336,23 +1359,23 @@ export const initOccurrenceListeners = () => {
 
     dom.occurrenceForm.addEventListener('submit', handleOccurrenceSubmit);
     dom.followUpForm.addEventListener('submit', handleOccurrenceStepSubmit);
-    
+
     // LISTENER DE ARQUIVOS
     const fileInput = document.getElementById('follow-up-contact-print');
     if (fileInput) {
         fileInput.addEventListener('change', (e) => {
             const files = e.target.files;
             if (!files || files.length === 0) return;
-            
+
             for (let i = 0; i < files.length; i++) {
                 pendingFiles.push(files[i]);
             }
-            
+
             document.getElementById('follow-up-print-label').textContent = `${pendingFiles.length} Arq.`;
             document.getElementById('follow-up-print-check').classList.remove('hidden');
-            
+
             renderFilePreviews('follow-up-print-preview');
-            
+
             fileInput.value = '';
         });
     }
@@ -1367,11 +1390,11 @@ export const initOccurrenceListeners = () => {
     }
 
     dom.occurrencesListDiv.addEventListener('click', (e) => {
-        window.viewImage = (src, title) => openImageModal(src, title); 
+        window.viewImage = (src, title) => openImageModal(src, title);
 
         const button = e.target.closest('button');
         if (button) {
-            e.stopPropagation(); 
+            e.stopPropagation();
 
             const studentIdBtn = button.dataset.studentId;
             const groupIdBtn = button.dataset.groupId;
@@ -1397,16 +1420,16 @@ export const initOccurrenceListeners = () => {
                     return;
                 }
                 if (button.classList.contains('view-notification-btn-hist')) {
-                     const attemptNum = button.dataset.attempt;
-                     handleGenerateNotification(recordIdBtn, studentIdBtn, groupIdBtn, attemptNum);
-                     return;
+                    const attemptNum = button.dataset.attempt;
+                    handleGenerateNotification(recordIdBtn, studentIdBtn, groupIdBtn, attemptNum);
+                    return;
                 }
                 if (button.classList.contains('view-occurrence-oficio-btn')) {
-                     handleViewOccurrenceOficio(recordIdBtn);
-                     return;
+                    handleViewOccurrenceOficio(recordIdBtn);
+                    return;
                 }
             }
-            
+
             if (button.classList.contains('kebab-menu-btn')) {
                 const dropdown = button.nextElementSibling;
                 if (dropdown) {
@@ -1415,25 +1438,25 @@ export const initOccurrenceListeners = () => {
                 }
                 return;
             }
-            
+
             const groupId = button.dataset.groupId;
-            if (!groupId) return; 
+            if (!groupId) return;
 
             if (button.classList.contains('record-btn')) {
                 openOccurrenceRecordModal(groupId);
                 return;
             } else if (button.classList.contains('kebab-action-btn')) {
                 const action = button.dataset.action;
-                if (action === 'edit' && !button.disabled) handleEditOccurrence(groupId); 
-                else if (action === 'delete' && !button.disabled) handleDelete('occurrence', groupId); 
+                if (action === 'edit' && !button.disabled) handleEditOccurrence(groupId);
+                else if (action === 'delete' && !button.disabled) handleDelete('occurrence', groupId);
                 else if (action === 'history') openHistoryModal(groupId);
 
                 const dropdown = button.closest('.kebab-menu-dropdown');
-                if(dropdown) dropdown.classList.add('hidden');
+                if (dropdown) dropdown.classList.add('hidden');
                 return;
             }
-        } 
-        
+        }
+
         const summary = e.target.closest('div.occurrence-summary');
         if (summary) {
             const contentId = summary.dataset.contentId;
@@ -1442,22 +1465,22 @@ export const initOccurrenceListeners = () => {
             const content = document.getElementById(contentId);
             const icon = summary.querySelector('i.fa-chevron-down');
             if (!content) return;
-            
+
             const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px';
             if (isHidden) {
                 content.style.maxHeight = `${content.scrollHeight}px`;
-                content.style.overflow = 'visible'; 
+                content.style.overflow = 'visible';
                 icon?.classList.add('rotate-180');
             } else {
-                content.style.maxHeight = null; 
+                content.style.maxHeight = null;
                 setTimeout(() => {
-                   if (!content.style.maxHeight || content.style.maxHeight === '0px') {
-                       content.style.overflow = 'hidden';
-                   }
-                }, 400); 
+                    if (!content.style.maxHeight || content.style.maxHeight === '0px') {
+                        content.style.overflow = 'hidden';
+                    }
+                }, 400);
                 icon?.classList.remove('rotate-180');
             }
-            return; 
+            return;
         }
     });
 
