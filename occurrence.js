@@ -28,11 +28,22 @@ import {
     openHistoryModal,
     generateAndShowGeneralReport,
     generateAndShowOccurrenceOficio,
-    openIndividualNotificationModal,
-    occurrenceActionTitles
+    openIndividualNotificationModal
 } from './reports.js';
 import { writeBatch, doc, collection, query, where, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
+
+const occurrenceActionTitles = {
+    'convocacao_1': 'Ação 2: 1ª Convocação',
+    'feedback_1': 'Ação 3: Feedback da 1ª Tentativa',
+    'convocacao_2': 'Ação 2: 2ª Convocação',
+    'feedback_2': 'Ação 3: Feedback da 2ª Tentativa',
+    'convocacao_3': 'Ação 2: 3ª Convocação',
+    'feedback_3': 'Ação 3: Feedback da 3ª Tentativa',
+    'desfecho_ou_ct': 'Ação 4 ou 6: Encaminhar ao CT ou Dar Parecer',
+    'devolutiva_ct': 'Ação 5: Registrar Devolutiva do CT',
+    'parecer_final': 'Ação 6: Dar Parecer Final'
+};
 
 const nextStepLabels = {
     'convocacao_1': 'Agendar 1ª Conv.',
