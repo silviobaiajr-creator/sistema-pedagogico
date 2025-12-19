@@ -537,7 +537,7 @@ export const handleNewAbsenceAction = async (student) => {
                 let isSigned = false;
                 if (docSnapshot && docSnapshot.signatures) {
                     const requiredKey = `responsible_${student.matricula}`;
-                    isSigned = docSnapshot.signatures[requiredKey] === true; // Verifica explicitamente true
+                    isSigned = !!docSnapshot.signatures[requiredKey]; // Verifica existência (objeto ou true)
                 }
 
                 if (!isSigned) {

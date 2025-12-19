@@ -623,9 +623,10 @@ export const openOccurrenceStepModal = async (student, record, actionType, preFi
                 const requiredKey = `responsible_${student.matricula}`;
                 // DEBUG: Log para verificar o que está vindo
                 console.log(`[Validação Ocorrência] Checando assinatura. Refs: UniqueRefId=${uniqueRefId}, RequiredKey=${requiredKey}`);
-                console.log(`[Validação Ocorrência] Assinaturas encontradas no doc:`, Object.keys(notifDoc.signatures));
+                if (notifDoc.signatures) console.log(`[Validação Ocorrência] Assinaturas encontradas no doc:`, Object.keys(notifDoc.signatures));
 
-                isSigned = notifDoc.signatures[requiredKey] === true;
+                // CORREÇÃO: Assinatura é um objeto, não boolean true.
+                isSigned = !!notifDoc.signatures[requiredKey];
                 console.log(`[Validação Ocorrência] Resultado da verificação para ${student.name}: ${isSigned}`);
             } else {
                 console.log(`[Validação Ocorrência] Documento de notificação não encontrado ou sem campo signatures para ref: ${uniqueRefId}`);
@@ -1287,10 +1288,12 @@ async function handleQuickFeedback(studentId, groupId, recordId, actionType, val
             const uniqueRefId = `${incidentIdForRef}_${student.matricula}_attempt_${attemptNum}`;
             const notifDoc = await findDocumentSnapshot('notificacao_ocorrencia', student.matricula, uniqueRefId);
 
+
             let isSigned = false;
             if (notifDoc && notifDoc.signatures) {
                 const requiredKey = `responsible_${student.matricula}`;
-                isSigned = notifDoc.signatures[requiredKey] === true;
+                // CORREÇÃO: Assinatura é um objeto, não boolean true. Usar !! para verificar existência.
+                isSigned = !!notifDoc.signatures[requiredKey];
             }
 
             if (!isSigned) {
