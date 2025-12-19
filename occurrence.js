@@ -617,13 +617,18 @@ export const openOccurrenceStepModal = async (student, record, actionType, preFi
 
             // Regra: Deve document existir E ter assinatura do responsável específico
             let isSigned = false;
+
             if (notifDoc && notifDoc.signatures) {
                 // Validação Estrita: Verifica se o responsável DESTE aluno assinou
                 const requiredKey = `responsible_${student.matricula}`;
-                isSigned = !!notifDoc.signatures[requiredKey];
+                // DEBUG: Log para verificar o que está vindo
+                console.log(`[Validação Ocorrência] Checando assinatura. Refs: UniqueRefId=${uniqueRefId}, RequiredKey=${requiredKey}`);
+                console.log(`[Validação Ocorrência] Assinaturas encontradas no doc:`, Object.keys(notifDoc.signatures));
 
-                // isSigned deve ser true apenas se a propriedade existir e for true
                 isSigned = notifDoc.signatures[requiredKey] === true;
+                console.log(`[Validação Ocorrência] Resultado da verificação para ${student.name}: ${isSigned}`);
+            } else {
+                console.log(`[Validação Ocorrência] Documento de notificação não encontrado ou sem campo signatures para ref: ${uniqueRefId}`);
             }
 
             if (!isSigned) {
