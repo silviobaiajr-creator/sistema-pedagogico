@@ -21,9 +21,7 @@ import {
     roleIcons,
     defaultRole,
     getFilteredOccurrences,
-    validateOccurrenceChronology,
-    occurrenceStepLogic,
-    determineNextOccurrenceStep
+    validateOccurrenceChronology
 } from './logic.js';
 import {
     openOccurrenceRecordModal,
