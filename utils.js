@@ -224,13 +224,28 @@ export const enhanceTextForSharing = (title, text) => {
 };
 
 export const shareContent = async (title, text) => {
-    const enhancedText = enhanceTextForSharing(title, text);
+    let enhancedText = enhanceTextForSharing(title, text);
+
+    // Permitir personalização da mensagem (Item 11)
+    // Usamos prompt nativo para simplicidade e garantir que funciona em mobile sem complicar DOM
+    // O usuário pode editar todo o texto, incluindo adicionar saudações personalizadas
+    const userText = window.prompt("Personalize a mensagem antes de enviar:", enhancedText);
+
+    // Se usuário cancelar o prompt, abortamos o envio
+    if (userText === null) return;
+
+    enhancedText = userText;
+
     if (navigator.share) {
         try {
             await navigator.share({ title, text: enhancedText });
         } catch (error) {
-            console.error('Erro ao partilhar:', error);
-            showAlert('Erro ao partilhar o conteúdo.');
+            console.error('Erro ao partilhar (nativo):', error);
+            // Se falhar o nativo (ex: desktop sem suporte), tenta fallback para WhatsApp Web apenas se não foi aborto do usuário
+            if (error.name !== 'AbortError') {
+                const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(enhancedText)}`;
+                window.open(whatsappUrl, '_blank');
+            }
         }
     } else {
         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(enhancedText)}`;

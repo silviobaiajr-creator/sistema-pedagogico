@@ -3,8 +3,8 @@
 // ARQUIVO: main.js
 // VERSÃO: 3.5 (Suporte Completo ao Arquivo Digital)
 
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { onSnapshot, query, limit, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { onSnapshot, query, limit, orderBy, getDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db } from './firebase.js';
 import { state, dom, initializeDOMReferences } from './state.js';
 import { showToast, closeModal, showAlert } from './utils.js';
@@ -55,9 +55,73 @@ document.addEventListener('DOMContentLoaded', () => {
                     state.isAdmin = dbAdminList.includes(user.email);
                 }
                 dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
+                dom.headerSchoolName.textContent = state.config.schoolName || 'Sistema de Acompanhamento';
             } catch (configError) {
                 console.warn("Aviso: Configurações não carregadas.", configError);
             }
+
+            // --- VERIFICAÇÃO DE PRIMEIRO ACESSO (Item 1) ---
+            try {
+                const userDocRef = doc(db, 'users', user.uid);
+                const userDocSnap = await getDoc(userDocRef);
+
+                if (userDocSnap.exists() && userDocSnap.data().isFirstAccess) {
+                    const faModal = document.getElementById('first-access-modal');
+                    const faForm = document.getElementById('first-access-form');
+                    const faError = document.getElementById('fa-error-msg');
+                    const faPass = document.getElementById('fa-new-password');
+                    const faConfirm = document.getElementById('fa-confirm-password');
+
+                    if (faModal) {
+                        faModal.classList.remove('hidden');
+
+                        // Lógica exclusiva do form de primeiro acesso
+                        faForm.onsubmit = async (e) => {
+                            e.preventDefault();
+                            faError.classList.add('hidden');
+
+                            if (faPass.value !== faConfirm.value) {
+                                faError.textContent = "As senhas não coincidem.";
+                                faError.classList.remove('hidden');
+                                return;
+                            }
+
+                            if (faPass.value.length < 6) {
+                                faError.textContent = "A senha deve ter no mínimo 6 caracteres.";
+                                faError.classList.remove('hidden');
+                                return;
+                            }
+
+                            const btn = faForm.querySelector('button');
+                            const originalText = btn.innerHTML;
+                            btn.disabled = true;
+                            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Atualizando...';
+
+                            try {
+                                await updatePassword(user, faPass.value);
+                                await updateDoc(userDocRef, { isFirstAccess: false });
+
+                                showAlert("Senha atualizada com sucesso! Você já pode usar o sistema.");
+                                faModal.classList.add('hidden');
+                            } catch (err) {
+                                console.error("Erro ao atualizar senha:", err);
+                                faError.textContent = "Erro ao atualizar senha. Necessário fazer login novamente.";
+                                faError.classList.remove('hidden');
+                                // Se der erro de "requires recent login", forçar logout
+                                if (err.code === 'auth/requires-recent-login') {
+                                    setTimeout(() => signOut(auth), 2000);
+                                }
+                            } finally {
+                                btn.disabled = false;
+                                btn.innerHTML = originalText;
+                            }
+                        };
+                    }
+                }
+            } catch (faError) {
+                console.error("Erro ao verificar primeiro acesso:", faError);
+            }
+            // -----------------------------------------------
 
             if (state.isAdmin) {
                 if (dom.settingsBtn) dom.settingsBtn.classList.remove('hidden');

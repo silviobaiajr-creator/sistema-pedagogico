@@ -100,18 +100,31 @@ export const getFilteredOccurrences = (externalData = null, customFilters = null
     const { startDate, endDate, status, type, class: filterClass, shift: filterShift, year: filterYear } = filters;
     const studentSearch = studentSearchRaw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    // Helper para extrair Turma/Ano/Turno de uma string de classe "9A" ou "9A (Manhã)"
+    // Helper robusto e consistente com o usado em absence.js
     const parseClassInfo = (classStr) => {
         if (!classStr) return { year: '', classChar: '', shift: '' };
         const clean = classStr.toUpperCase();
+
+        // Ano: Pega o primeiro número encontrado
         const yearMatch = clean.match(/(\d+)/);
         const year = yearMatch ? yearMatch[0] : '';
-        const classCharMatch = clean.match(/[0-9]+([A-Z])/); // Ex: 9A -> A
-        const classChar = classCharMatch ? classCharMatch[1] : (year ? clean.replace(year, '').trim().charAt(0) : ''); // Fallback
 
-        let shift = 'Manhã'; // Default assumido se não especificado, ou tratar como 'Indefinido'
+        // Turma: Pega a primeira letra após números ou isolada
+        // Ex: "9A" -> A, "9 A" -> A, "Turma A" -> A
+        let classChar = '';
+        const classCharMatch = clean.match(/[0-9]+[\s-]*([A-Z])/);
+        if (classCharMatch) classChar = classCharMatch[1];
+        else {
+            // Fallback: remove ano e pega primeira letra
+            const noYear = year ? clean.replace(year, '') : clean;
+            const letterMatch = noYear.match(/[A-Z]/);
+            if (letterMatch) classChar = letterMatch[0];
+        }
+
+        let shift = 'Manhã'; // Default seguro
         if (clean.includes('TARDE') || clean.includes('T')) shift = 'Tarde';
         if (clean.includes('NOITE') || clean.includes('N')) shift = 'Noite';
+        if (clean.includes('INTEGRAL') || clean.includes('I')) shift = 'Integral'; // Futuro
 
         return { year, classChar, shift };
     };
@@ -141,8 +154,7 @@ export const getFilteredOccurrences = (externalData = null, customFilters = null
 
                 let classMatch = (filterClass === 'all' || !filterClass) ? true : sInfo.classChar === filterClass;
                 let yearMatch = (filterYear === 'all' || !filterYear) ? true : sInfo.year === filterYear;
-                // Para simplificar, assumimos que 'Manhã' é o padrão se não detetarmos 'Tarde'/'Noite'
-                let shiftMatch = (filterShift === 'all' || !filterShift) ? true : (filterShift === 'Manhã' ? !p.student.class.toUpperCase().includes('TARDE') : p.student.class.toUpperCase().includes('TARDE'));
+                let shiftMatch = (filterShift === 'all' || !filterShift) ? true : sInfo.shift === filterShift;
 
                 if (classMatch && yearMatch && shiftMatch) {
                     hasQualifiedStudent = true;

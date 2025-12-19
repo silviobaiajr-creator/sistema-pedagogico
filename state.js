@@ -43,7 +43,10 @@ export const state = {
         pendingAction: 'all',
         returnStatus: 'all',
         startDate: null,
-        endDate: null
+        endDate: null,
+        year: 'all',
+        class: 'all',
+        shift: 'all'
     },
 
     // Controle de estado da UI

@@ -552,8 +552,6 @@ export const checkForRemoteSignParams = async () => {
                                 </div>
                                 <div class="flex gap-2 justify-center">
                                     <button id="btn-start-remote-cam" class="bg-sky-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-sky-700 w-full"><i class="fas fa-video"></i> ATIVAR CÂMERA</button>
-                                    <input type="file" id="remote-upload-input" accept="image/*" class="hidden">
-                                    <button id="btn-remote-upload" class="bg-indigo-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-indigo-700 w-full mt-2"><i class="fas fa-upload"></i> UPLOAD FOTO</button>
                                     
                                     <button id="btn-take-remote-pic" class="bg-green-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-green-700 w-full hidden"><i class="fas fa-camera"></i> TIRAR SELFIE</button>
                                     <button id="btn-retake-remote-pic" class="bg-yellow-500 text-white px-4 py-2 rounded text-xs font-bold hover:bg-yellow-600 w-full hidden"><i class="fas fa-redo"></i> REFAZER</button>
@@ -584,60 +582,12 @@ export const checkForRemoteSignParams = async () => {
                 const imgEl = document.getElementById('remote-photo-result');
                 const phEl = document.getElementById('camera-placeholder');
                 const btnStart = document.getElementById('btn-start-remote-cam');
-                const btnUpload = document.getElementById('btn-remote-upload');
-                const inputUpload = document.getElementById('remote-upload-input');
                 const btnTake = document.getElementById('btn-take-remote-pic');
                 const btnRetake = document.getElementById('btn-retake-remote-pic');
                 const btnSign = document.getElementById('btn-remote-agree');
 
-                // LÓGICA DE UPLOAD
-                btnUpload.onclick = () => inputUpload.click();
-                inputUpload.onchange = (e) => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-
-                    const reader = new FileReader();
-                    reader.onload = (readerEvent) => {
-                        // Create Image to Resize/Validate
-                        const tempImg = new Image();
-                        tempImg.onload = () => {
-                            // Resize logic
-                            const MAX_WIDTH = 640;
-                            const MAX_HEIGHT = 480;
-                            let width = tempImg.width;
-                            let height = tempImg.height;
-
-                            if (width > height) {
-                                if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-                            } else {
-                                if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
-                            }
-                            canvasEl.width = width;
-                            canvasEl.height = height;
-                            const ctx = canvasEl.getContext('2d');
-                            ctx.drawImage(tempImg, 0, 0, width, height);
-                            capturedPhotoBase64 = canvasEl.toDataURL('image/jpeg', 0.7);
-
-                            // Atualiza UI
-                            imgEl.src = capturedPhotoBase64;
-                            imgEl.classList.remove('hidden', 'scale-x-[-1]'); // Remover espelhamento em upload
-                            phEl.classList.add('hidden');
-
-                            // Esconde botões iniciais, mostra refazer
-                            btnStart.classList.add('hidden');
-                            btnUpload.classList.add('hidden');
-                            btnRetake.classList.remove('hidden');
-
-                            // Libera assinatura
-                            btnSign.disabled = false;
-                            btnSign.classList.remove('bg-gray-400', 'cursor-not-allowed');
-                            btnSign.classList.add('bg-green-600', 'hover:bg-green-700', 'transform', 'hover:scale-105');
-                            btnSign.innerHTML = '<i class="fas fa-check-double"></i> CONFIRMAR E ASSINAR';
-                        };
-                        tempImg.src = readerEvent.target.result;
-                    };
-                    reader.readAsDataURL(file);
-                };
+                // LÓGICA DE CÂMERA MANTIDA
+                // Upload removido por segurança (Item 8)
 
                 btnStart.onclick = async () => {
                     try {
@@ -646,7 +596,6 @@ export const checkForRemoteSignParams = async () => {
                         videoEl.srcObject = stream;
                         phEl.classList.add('hidden');
                         btnStart.classList.add('hidden');
-                        btnUpload.classList.add('hidden');
                         btnTake.classList.remove('hidden');
                     } catch (err) { alert("Erro na câmera."); }
                 };
@@ -668,7 +617,6 @@ export const checkForRemoteSignParams = async () => {
                     capturedPhotoBase64 = null; imgEl.classList.add('hidden'); btnRetake.classList.add('hidden');
                     // Mostra opções iniciais novamente
                     btnStart.classList.remove('hidden');
-                    btnUpload.classList.remove('hidden');
 
                     btnTake.classList.add('hidden'); // Garante que a de tirar foto suma
                     phEl.classList.remove('hidden');
@@ -1437,24 +1385,27 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
 };
 
 const generateSignaturesGrid = (slots) => {
-    let itemsHTML = slots.map(slot => {
+    // LAYOUT REFINADO: Grid flexível centralizado
+    // Removemos fundos cinzas para um look mais "documento oficial"
+
+    const validSlots = slots || [];
+
+    let itemsHTML = validSlots.map(slot => {
         const sigData = signatureMap.get(slot.key);
         return getSingleSignatureBoxHTML(slot.key, slot.role, slot.name, sigData);
     }).join('');
 
     const mgmtData = signatureMap.get('management');
+
     return `
-        <div class="mt-6 mb-4 break-inside-avoid p-3 bg-gray-50 rounded border border-gray-200">
-             <h5 class="text-[9px] font-bold uppercase text-gray-500 mb-3 border-b border-gray-300 pb-1 flex justify-between">
-                <span>Registro de Validação</span>
-                <span class="font-normal"><i class="fas fa-shield-alt"></i> Biometria</span>
-             </h5>
-             <!-- LAYOUT: 3 COLUNAS (Ajustado p/ 4 em telas grandes) -->
-             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">${itemsHTML}</div>
+        <div class="mt-12 pt-4 break-inside-avoid">
+             <div class="flex flex-wrap justify-center gap-x-8 gap-y-6 mb-6">
+                ${itemsHTML}
+             </div>
              
-             <div class="mt-4 pt-2 border-t border-gray-200 flex justify-center">
-                <div class="w-full max-w-[250px]">
-                    <p class="text-[8px] text-gray-400 text-center mb-1 uppercase">Gestão Escolar</p>
+             <div class="mt-6 pt-2 flex justify-center w-full">
+                <div class="w-full max-w-[300px]">
+                    <p class="text-[9px] text-gray-400 text-center mb-1 uppercase tracking-wider">Gestão Escolar</p>
                     ${getSingleSignatureBoxHTML('management', 'Gestão', state.config?.schoolName || 'Direção', mgmtData)}
                 </div>
              </div>

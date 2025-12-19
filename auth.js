@@ -2,8 +2,9 @@
 // =================================================================================
 // ARQUIVO: auth.js
 
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification, signOut, getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification, signOut, getAuth, updatePassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { setDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { showAlert, showToast, openModal, closeModal } from './utils.js';
 import { auth, firebaseConfig } from './firebase.js'; // Precisamos do config para o app secundário
 import { dom, state } from './state.js';
@@ -137,6 +138,15 @@ async function handleCreateUserAsAdmin(e) {
 
         // 3. Envia verificação
         await sendEmailVerification(newUser);
+
+        // 3.1 Cria documento do usuário no Firestore (usando credenciais do Admin atual)
+        // Isso marca o usuário para troca de senha no primeiro login
+        await setDoc(doc(state.db, 'users', newUser.uid), {
+            email: email,
+            isFirstAccess: true,
+            createdAt: new Date(),
+            role: 'teacher' // Default role
+        });
 
         // 4. Feedback e Limpeza
         showAlert(`Usuário ${email} criado com sucesso! Um e-mail de verificação foi enviado.`);
