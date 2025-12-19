@@ -1266,11 +1266,42 @@ async function handleNewOccurrenceAction(studentId, groupId, recordId) {
 }
 
 async function handleQuickFeedback(studentId, groupId, recordId, actionType, value) {
-    if (value === 'no') {
-        const incident = await fetchIncidentById(groupId);
-        const record = incident ? incident.records.find(r => r.id === recordId) : null;
-        if (!record) return showAlert('Erro: Registro não encontrado.');
+    // 1. Busca dados preliminares para validação
+    const incident = await fetchIncidentById(groupId);
+    if (!incident) return showAlert('Erro: Incidente não encontrado.');
 
+    const participantData = incident.participantsInvolved.get(studentId);
+    const student = participantData?.student;
+    if (!student) return showAlert('Erro: Aluno não encontrado.');
+
+    const record = incident.records.find(r => r.id === recordId);
+    if (!record) return showAlert('Erro: Registro não encontrado.');
+
+    // 2. BLOQUEIO DE SEGURANÇA (Igual ao Modal)
+    if (actionType.startsWith('feedback_')) {
+        const attemptNum = actionType.split('_')[1];
+        // Garantir ID do incidente para o Ref
+        const incidentIdForRef = incident.id || record.incidentId || record.occurrenceGroupId;
+
+        if (incidentIdForRef) {
+            const uniqueRefId = `${incidentIdForRef}_${student.matricula}_attempt_${attemptNum}`;
+            const notifDoc = await findDocumentSnapshot('notificacao_ocorrencia', student.matricula, uniqueRefId);
+
+            let isSigned = false;
+            if (notifDoc && notifDoc.signatures) {
+                const requiredKey = `responsible_${student.matricula}`;
+                isSigned = notifDoc.signatures[requiredKey] === true;
+            }
+
+            if (!isSigned) {
+                await showAlert(`Ação Bloqueada: A Notificação da ${attemptNum}ª Tentativa não possui a assinatura do responsável (Aluno: ${student.name}).\n\nÉ obrigatória a assinatura do responsável para registrar o feedback (Sim ou Não).`);
+                return; // ABORTA TUDO
+            }
+        }
+    }
+
+    // 3. Processamento da Ação
+    if (value === 'no') {
         const attemptNum = parseInt(actionType.split('_')[1]);
         const fields = { succeeded: `contactSucceeded_${attemptNum}` };
 
@@ -1294,17 +1325,8 @@ async function handleQuickFeedback(studentId, groupId, recordId, actionType, val
         return;
     }
 
-    const incident = await fetchIncidentById(groupId);
-    if (!incident) return showAlert('Erro: Incidente não encontrado.');
-
-    const participantData = incident.participantsInvolved.get(studentId);
-    const student = participantData?.student;
-    if (!student) return showAlert('Erro: Aluno não encontrado.');
-
-    const record = incident.records.find(r => r.id === recordId);
-    if (!record) return showAlert('Erro: Registro não encontrado.');
-
-    record.incidentId = incident.id; // Pass incident ID for uniqueRefId generation
+    // Pass incident ID safely
+    record.incidentId = incident.id;
     await openOccurrenceStepModal(student, record, actionType, { succeeded: value });
 }
 
