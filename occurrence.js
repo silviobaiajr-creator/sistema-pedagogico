@@ -635,6 +635,10 @@ export const openOccurrenceStepModal = async (student, record, actionType, preFi
                 await showAlert(`Ação Bloqueada: A Notificação da ${attemptNum}ª Tentativa não possui a assinatura do responsável (Aluno: ${student.name}).\n\nÉ obrigatória a assinatura do responsável para registrar o feedback.`);
                 return; // ABORTAR ABERTURA
             }
+        } else {
+            console.error("[Validação Ocorrência] Erro Crítico: Incident ID não encontrado no registro.", record);
+            await showAlert("Erro de Validação: Não foi possível identificar o ID da ocorrência para verificar as assinaturas.\n\nPor favor, recarregue a página e tente novamente.");
+            return;
         }
     }
     // -------------------------------------------------------------------------
