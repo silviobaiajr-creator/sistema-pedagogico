@@ -1035,6 +1035,26 @@ async function handleOccurrenceStepSubmit(e) {
 
         } else if (actionType.startsWith('feedback_')) {
             const attemptNum = parseInt(actionType.split('_')[1]);
+            
+            // --- VALIDAÇÃO DE ASSINATURA OBRIGATÓRIA (SALVAMENTO) ---
+            const studentId = form.dataset.studentId;
+            const incidentId = record.incidentId || record.occurrenceGroupId;
+
+            if (incidentId && studentId) {
+                const uniqueRefId = `${incidentId}_${studentId}_attempt_${attemptNum}`;
+                const notifDoc = await findDocumentSnapshot('notificacao_ocorrencia', studentId, uniqueRefId);
+                let isSigned = false;
+                if (notifDoc && notifDoc.signatures) {
+                    const requiredKey = `responsible_${studentId}`;
+                    isSigned = !!notifDoc.signatures[requiredKey];
+                }
+
+                if (!isSigned) {
+                     throw new Error(`Ação Bloqueada: A Notificação não foi assinada pelo responsável.\n\nÉ obrigatória a assinatura para registrar o feedback.`);
+                }
+            }
+            // ---------------------------------------------------------
+
             const contactSucceededRadio = document.querySelector('input[name="follow-up-contact-succeeded"]:checked');
             const contactSucceeded = contactSucceededRadio ? contactSucceededRadio.value : null;
 
