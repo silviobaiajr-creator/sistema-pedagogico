@@ -12,7 +12,8 @@ import {
     addRecordWithHistory,
     deleteRecord,
     getIncidentByGroupId as fetchIncidentById,
-    searchStudentsByName
+    searchStudentsByName,
+    findDocumentSnapshot
 } from './firestore.js';
 import {
     determineNextOccurrenceStep,
@@ -1035,7 +1036,7 @@ async function handleOccurrenceStepSubmit(e) {
 
         } else if (actionType.startsWith('feedback_')) {
             const attemptNum = parseInt(actionType.split('_')[1]);
-            
+
             // --- VALIDAÇÃO DE ASSINATURA OBRIGATÓRIA (SALVAMENTO) ---
             const studentId = form.dataset.studentId;
             const incidentId = record.incidentId || record.occurrenceGroupId;
@@ -1050,7 +1051,7 @@ async function handleOccurrenceStepSubmit(e) {
                 }
 
                 if (!isSigned) {
-                     throw new Error(`Ação Bloqueada: A Notificação não foi assinada pelo responsável.\n\nÉ obrigatória a assinatura para registrar o feedback.`);
+                    throw new Error(`Ação Bloqueada: A Notificação não foi assinada pelo responsável.\n\nÉ obrigatória a assinatura para registrar o feedback.`);
                 }
             }
             // ---------------------------------------------------------
