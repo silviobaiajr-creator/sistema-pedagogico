@@ -227,7 +227,7 @@ export const saveSchoolConfig = (data) => {
 };
 
 export const getIncidentByGroupId = async (groupId) => {
-    const incidentQuery = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', groupId), where('deleted', '!=', true));
+    const incidentQuery = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', groupId));
 
     try {
         const querySnapshot = await getDocs(incidentQuery);
@@ -240,7 +240,10 @@ export const getIncidentByGroupId = async (groupId) => {
         };
 
         querySnapshot.forEach(doc => {
-            incident.records.push({ id: doc.id, ...doc.data() });
+            const data = doc.data();
+            if (!data.deleted) {
+                incident.records.push({ id: doc.id, ...data });
+            }
         });
 
         if (incident.records.length === 0) return null;

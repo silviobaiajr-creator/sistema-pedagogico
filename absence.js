@@ -632,19 +632,18 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
 
 export const openAbsenceModalForStudent = async (student, forceActionType = null, data = null, preFilledData = null) => {
     // -------------------------------------------------------------------------
-    // BLOQUEIO DE EDIÇÃO: Verificar se já existe Ata Assinada (Busca Ativa)
+    // BLOQUEIO PARCIAL: Se assinado, bloqueia dados do agendamento, mas libera feedback
     // -------------------------------------------------------------------------
     const finalActionTypeCheck = forceActionType || (data ? data.actionType : null);
+    let isLockedBySignature = false;
 
     if (data && data.id && finalActionTypeCheck && finalActionTypeCheck.startsWith('tentativa')) {
-        // Se tem ID (data.id), é uma edição.
         const docSnapshot = await findDocumentSnapshot('notificacao', student.matricula, data.id);
-
         if (docSnapshot && docSnapshot.signatures) {
             const isSigned = Object.keys(docSnapshot.signatures).some(k => k.startsWith('responsible_'));
             if (isSigned) {
-                await showAlert(`Edição Bloqueada: A Notificação desta tentativa já foi assinada.\n\nPara alterar os dados, cancele o documento assinado.`);
-                return;
+                isLockedBySignature = true;
+                showToast("Aviso: Dados da tentativa bloqueados p/ edição (Documento Assinado). Apenas o feedback pode ser alterado.");
             }
         }
     }
@@ -666,7 +665,10 @@ export const openAbsenceModalForStudent = async (student, forceActionType = null
             previewContainer.className = 'flex flex-wrap gap-2 mt-2 hidden';
             fileInput.parentElement.parentElement.appendChild(previewContainer);
         }
-    } else { previewContainer.innerHTML = ''; previewContainer.classList.add('hidden'); }
+    } else {
+        previewContainer.innerHTML = '';
+        previewContainer.classList.add('hidden');
+    }
 
     // ... (restante do setup do modal mantido)
     ['meeting-date', 'contact-date', 'visit-date', 'ct-sent-date'].forEach(id => {
@@ -851,6 +853,18 @@ export const openAbsenceModalForStudent = async (student, forceActionType = null
             if (radio) { radio.checked = true; toggleVisitContactFields(preFilledData.succeeded === 'yes', document.getElementById('visit-contact-fields')); }
         }
     }
+
+    if (isLockedBySignature) {
+        ['meeting-date', 'meeting-time', 'visit-date', 'visit-agent'].forEach(fid => {
+            const el = document.getElementById(fid);
+            if (el) {
+                el.disabled = true;
+                el.classList.add('bg-gray-100', 'cursor-not-allowed');
+                el.title = "Campo bloqueado pois existe um documento assinado vinculado.";
+            }
+        });
+    }
+
     openModal(dom.absenceModal);
 };
 
