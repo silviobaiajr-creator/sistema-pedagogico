@@ -126,12 +126,51 @@ const openRoleEditDropdown = (buttonElement, studentId) => {
     setTimeout(() => document.addEventListener('click', closeListener), 0);
 };
 
+const populateClassSelect = () => {
+    const select = document.getElementById('occurrence-class-filter');
+    if (!select) return;
+
+    // Coleta turmas únicas de várias fontes para garantir completude
+    const classes = new Set();
+
+    // 1. Do estado de alunos (parcial/paginado)
+    state.students.forEach(s => { if (s.class) classes.add(s.class); });
+
+    // 2. Das ocorrências carregadas (pois contém snapshots de alunos)
+    state.occurrences.forEach(o => {
+        o.participantsInvolved?.forEach(p => {
+            if (p.student?.class) classes.add(p.student.class);
+        });
+    });
+
+    // 3. (Opcional) Das ausências
+    state.absences.forEach(a => {
+        if (a.studentClass) classes.add(a.studentClass);
+    });
+
+    const sortedClasses = Array.from(classes).sort();
+
+    // Mantém a opção "Todas" e reconstrói
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">Todas as Turmas</option>';
+
+    sortedClasses.forEach(cls => {
+        const option = document.createElement('option');
+        option.value = cls;
+        option.textContent = cls;
+        select.appendChild(option);
+    });
+
+    select.value = currentVal; // Tenta restaurar seleção
+};
+
 export const setupStudentTagInput = (inputElement, suggestionsElement, tagsContainerElement) => {
     const roleSelectionPanel = document.getElementById('role-selection-panel');
     const roleSelectionStudentName = document.getElementById('role-selection-student-name');
     const roleSelectButtons = roleSelectionPanel.querySelectorAll('.role-select-btn');
     const roleEditDropdown = document.getElementById('role-edit-dropdown');
     const roleEditOptions = roleEditDropdown.querySelectorAll('.role-edit-option');
+    const classSelect = document.getElementById('occurrence-class-filter'); // NOVO: Referência ao seletor
 
     studentPendingRoleSelection = null;
     roleSelectionPanel.classList.add('hidden');
@@ -140,6 +179,7 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
     inputElement.addEventListener('input', () => {
         const value = inputElement.value;
         const normalizedValue = normalizeText(value);
+        const selectedClass = classSelect ? classSelect.value : ''; // NOVO: Captura turma
 
         suggestionsElement.innerHTML = '';
         roleSelectionPanel.classList.add('hidden');
@@ -160,7 +200,12 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
                 const results = await searchStudentsByName(value);
                 suggestionsElement.innerHTML = '';
 
-                const filteredResults = results.filter(s => !state.selectedStudents.has(s.matricula));
+                let filteredResults = results.filter(s => !state.selectedStudents.has(s.matricula));
+
+                // NOVO: Filtragem por Turma (Client-side após busca por nome)
+                if (selectedClass) {
+                    filteredResults = filteredResults.filter(s => s.class === selectedClass);
+                }
 
                 if (filteredResults.length > 0) {
                     filteredResults.forEach(student => {
@@ -183,7 +228,8 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
                         suggestionsElement.appendChild(item);
                     });
                 } else {
-                    suggestionsElement.innerHTML = '<div class="p-2 text-gray-500 text-xs">Nenhum aluno encontrado.</div>';
+                    const msg = selectedClass ? `Nenhum aluno encontrado nesta turma.` : 'Nenhum aluno encontrado.';
+                    suggestionsElement.innerHTML = `<div class="p-2 text-gray-500 text-xs">${msg}</div>`;
                 }
             } catch (error) {
                 console.error("Erro na busca de alunos:", error);
@@ -191,6 +237,14 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             }
         }, 400);
     });
+
+    // NOVO: Listener para quando mudar a turma, limpar sugestões antigas para evitar confusão
+    if (classSelect) {
+        classSelect.addEventListener('change', () => {
+            inputElement.value = ''; // Limpa busca ao trocar turma
+            suggestionsElement.classList.add('hidden');
+        });
+    }
 
     roleSelectButtons.forEach(button => {
         button.addEventListener('click', () => {
@@ -564,6 +618,8 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     const studentInput = document.getElementById('student-search-input');
     const suggestionsDiv = document.getElementById('student-suggestions');
     const tagsContainer = document.getElementById('student-tags-container');
+
+    populateClassSelect(); // NOVO: Popula o seletor de turmas
     setupStudentTagInput(studentInput, suggestionsDiv, tagsContainer);
 
     openModal(dom.occurrenceModal);

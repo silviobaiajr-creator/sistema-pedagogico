@@ -120,6 +120,31 @@ const renderFilePreviews = (containerId) => {
 // ... (openAbsenceSearchFlowModal, setupAbsenceSearchFlowAutocomplete mantidos) ...
 let absenceSearchTimeout = null;
 
+// NOVO: Helper para popular classes (duplicado para isolamento ou poderia ser compartilhado)
+const populateAbsenceClassSelect = () => {
+    const select = document.getElementById('absence-class-filter');
+    if (!select) return;
+
+    const classes = new Set();
+    state.students.forEach(s => { if (s.class) classes.add(s.class); });
+    state.occurrences.forEach(o => {
+        o.participantsInvolved?.forEach(p => { if (p.student?.class) classes.add(p.student.class); });
+    });
+    state.absences.forEach(a => { if (a.studentClass) classes.add(a.studentClass); });
+
+    const sortedClasses = Array.from(classes).sort();
+    const currentVal = select.value;
+
+    select.innerHTML = '<option value="">Todas as Turmas</option>';
+    sortedClasses.forEach(cls => {
+        const option = document.createElement('option');
+        option.value = cls;
+        option.textContent = cls;
+        select.appendChild(option);
+    });
+    select.value = currentVal;
+};
+
 export const openAbsenceSearchFlowModal = () => {
     const input = document.getElementById('absence-search-flow-input');
     const suggestionsContainer = document.getElementById('absence-search-flow-suggestions');
@@ -130,6 +155,7 @@ export const openAbsenceSearchFlowModal = () => {
     suggestionsContainer.classList.add('hidden');
     resultsContainer.innerHTML = '<p class="text-sm text-gray-400 text-center">Comece a digitar o nome do aluno acima.</p>';
 
+    populateAbsenceClassSelect(); // NOVO: Popula turmas
     setupAbsenceSearchFlowAutocomplete(input, suggestionsContainer);
 
     const closeBtn = document.getElementById('close-absence-search-flow-modal-btn');
@@ -141,8 +167,20 @@ export const openAbsenceSearchFlowModal = () => {
 };
 
 const setupAbsenceSearchFlowAutocomplete = (input, suggestionsContainer) => {
+    const classSelect = document.getElementById('absence-class-filter');
+
+    // NOVO: Handler de mudança de turma
+    if (classSelect) {
+        classSelect.addEventListener('change', () => {
+            input.value = '';
+            suggestionsContainer.classList.add('hidden');
+        });
+    }
+
     input.addEventListener('input', () => {
         const rawValue = input.value;
+        const selectedClass = classSelect ? classSelect.value : '';
+
         suggestionsContainer.innerHTML = '';
 
         if (absenceSearchTimeout) clearTimeout(absenceSearchTimeout);
@@ -160,8 +198,15 @@ const setupAbsenceSearchFlowAutocomplete = (input, suggestionsContainer) => {
                 const results = await searchStudentsByName(rawValue);
                 suggestionsContainer.innerHTML = '';
 
-                if (results.length > 0) {
-                    results.forEach(student => {
+                let filteredResults = results;
+
+                // NOVO: Filtragem por Classe
+                if (selectedClass) {
+                    filteredResults = filteredResults.filter(s => s.class === selectedClass);
+                }
+
+                if (filteredResults.length > 0) {
+                    filteredResults.forEach(student => {
                         const item = document.createElement('div');
                         item.className = 'suggestion-item p-2 cursor-pointer hover:bg-emerald-50 border-b border-gray-100';
                         item.innerHTML = `<span class="font-semibold text-gray-800">${student.name}</span> <span class="text-xs text-gray-500">(${student.class || 'S/ Turma'})</span>`;
@@ -180,7 +225,8 @@ const setupAbsenceSearchFlowAutocomplete = (input, suggestionsContainer) => {
                         suggestionsContainer.appendChild(item);
                     });
                 } else {
-                    suggestionsContainer.innerHTML = '<div class="p-2 text-gray-500 text-xs">Nenhum aluno encontrado.</div>';
+                    const msg = selectedClass ? 'Nenhum aluno encontrado nesta turma.' : 'Nenhum aluno encontrado.';
+                    suggestionsContainer.innerHTML = `<div class="p-2 text-gray-500 text-xs">${msg}</div>`;
                 }
             } catch (error) {
                 console.error("Erro no autocomplete:", error);
