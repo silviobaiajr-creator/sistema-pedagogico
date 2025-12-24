@@ -1511,7 +1511,13 @@ export const initOccurrenceListeners = () => {
 
             if (button.closest('.process-content')) {
                 if (button.classList.contains('avancar-etapa-btn') && !button.disabled) {
-                    handleNewOccurrenceAction(studentIdBtn, groupIdBtn, recordIdBtn);
+                    console.log('Botão Avançar clicado:', studentIdBtn, groupIdBtn, recordIdBtn);
+                    try {
+                        handleNewOccurrenceAction(studentIdBtn, groupIdBtn, recordIdBtn);
+                    } catch (err) {
+                        console.error('Erro ao executar handleNewOccurrenceAction:', err);
+                        alert('Erro ao processar ação: ' + err.message);
+                    }
                     return;
                 }
                 if (button.classList.contains('edit-occurrence-action-btn') && !button.disabled) {

@@ -1051,7 +1051,17 @@ function handleDeleteAbsence(id) {
 
 export const initAbsenceListeners = () => {
     window.viewImage = (img, title) => openImageModal(img, title);
-    if (dom.addAbsenceBtn) dom.addAbsenceBtn.addEventListener('click', openAbsenceSearchFlowModal);
+    if (dom.addAbsenceBtn) {
+        dom.addAbsenceBtn.addEventListener('click', () => {
+            console.log("Botão Nova Ação clicado");
+            try {
+                openAbsenceSearchFlowModal();
+            } catch (err) {
+                console.error("Erro ao abrir modal Busca Ativa:", err);
+                alert("Erro: " + err.message);
+            }
+        });
+    }
     if (dom.searchAbsences) { dom.searchAbsences.addEventListener('input', (e) => { state.filterAbsences = e.target.value; document.getElementById('absence-student-suggestions').classList.add('hidden'); renderAbsences(); }); }
     if (dom.generalBaReportBtn) dom.generalBaReportBtn.addEventListener('click', generateAndShowBuscaAtivaReport);
     document.getElementById('filter-process-status').addEventListener('change', (e) => { state.filtersAbsences.processStatus = e.target.value; renderAbsences(); });
