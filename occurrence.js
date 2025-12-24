@@ -579,23 +579,23 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     const classFilter = document.getElementById('occurrence-class-filter');
 
     // Reset Class Filter
-    currentClassStudents = null;
-    populateClassDropdown(classFilter);
-    classFilter.onchange = async () => {
-        const selectedClass = classFilter.value;
-        studentInput.value = ''; // Clear search
-        if (selectedClass) {
-            studentInput.placeholder = "Carregando alunos...";
-            studentInput.disabled = true;
-            currentClassStudents = await getStudentsByClass(selectedClass);
-            studentInput.disabled = false;
-            studentInput.placeholder = `Pesquisar aluno da turma ${selectedClass}...`;
-            studentInput.focus();
-        } else {
-            currentClassStudents = null;
-            studentInput.placeholder = "Pesquisar nome do aluno...";
-        }
-    };
+    // currentClassStudents = null;
+    // populateClassDropdown(classFilter);
+    // classFilter.onchange = async () => {
+    //     const selectedClass = classFilter.value;
+    //     studentInput.value = ''; // Clear search
+    //     if (selectedClass) {
+    //         studentInput.placeholder = "Carregando alunos...";
+    //         studentInput.disabled = true;
+    //         currentClassStudents = await getStudentsByClass(selectedClass);
+    //         studentInput.disabled = false;
+    //         studentInput.placeholder = `Pesquisar aluno da turma ${selectedClass}...`;
+    //         studentInput.focus();
+    //     } else {
+    //         currentClassStudents = null;
+    //         studentInput.placeholder = "Pesquisar nome do aluno...";
+    //     }
+    // };
 
     setupStudentTagInput(studentInput, suggestionsDiv, tagsContainer);
 

@@ -129,23 +129,23 @@ export const openAbsenceSearchFlowModal = () => {
     const classFilter = document.getElementById('absence-class-filter');
 
     // Reset Class Filter
-    currentAbsenceClassStudents = null;
-    populateAbsenceClassDropdown(classFilter);
-    classFilter.onchange = async () => {
-        const selectedClass = classFilter.value;
-        input.value = '';
-        if (selectedClass) {
-            input.placeholder = "Carregando alunos...";
-            input.disabled = true;
-            currentAbsenceClassStudents = await getStudentsByClass(selectedClass);
-            input.disabled = false;
-            input.placeholder = `Pesquisar aluno da turma ${selectedClass}...`;
-            input.focus();
-        } else {
-            currentAbsenceClassStudents = null;
-            input.placeholder = "Pesquisar aluno por nome...";
-        }
-    };
+    // currentAbsenceClassStudents = null;
+    // populateAbsenceClassDropdown(classFilter);
+    // classFilter.onchange = async () => {
+    //     const selectedClass = classFilter.value;
+    //     input.value = '';
+    //     if (selectedClass) {
+    //         input.placeholder = "Carregando alunos...";
+    //         input.disabled = true;
+    //         currentAbsenceClassStudents = await getStudentsByClass(selectedClass);
+    //         input.disabled = false;
+    //         input.placeholder = `Pesquisar aluno da turma ${selectedClass}...`;
+    //         input.focus();
+    //     } else {
+    //         currentAbsenceClassStudents = null;
+    //         input.placeholder = "Pesquisar aluno por nome...";
+    //     }
+    // };
 
     input.value = '';
     suggestionsContainer.innerHTML = '';
