@@ -7,9 +7,11 @@ import { state, dom } from './state.js';
 import { showToast, showAlert, openModal, closeModal, formatDate, formatTime, getStatusBadge, openImageModal, uploadToStorage } from './utils.js';
 import { getStudentProcessInfo, determineNextActionForStudent, validateAbsenceChronology } from './logic.js';
 import { actionDisplayTitles, openFichaViewModal, generateAndShowConsolidatedFicha, generateAndShowOficio, openAbsenceHistoryModal, generateAndShowBuscaAtivaReport } from './reports.js';
-import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName, getStudentById, findDocumentSnapshot } from './firestore.js';
+import { updateRecordWithHistory, addRecordWithHistory, deleteRecord, getCollectionRef, searchStudentsByName, getStudentById, findDocumentSnapshot, getAllClasses, getStudentsByClass } from './firestore.js';
 import { doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from './firebase.js';
+
+let currentAbsenceClassStudents = null;
 
 
 // --- Funções Auxiliares ---
@@ -124,6 +126,26 @@ export const openAbsenceSearchFlowModal = () => {
     const input = document.getElementById('absence-search-flow-input');
     const suggestionsContainer = document.getElementById('absence-search-flow-suggestions');
     const resultsContainer = document.getElementById('absence-search-flow-results');
+    const classFilter = document.getElementById('absence-class-filter');
+
+    // Reset Class Filter
+    currentAbsenceClassStudents = null;
+    populateAbsenceClassDropdown(classFilter);
+    classFilter.onchange = async () => {
+        const selectedClass = classFilter.value;
+        input.value = '';
+        if (selectedClass) {
+            input.placeholder = "Carregando alunos...";
+            input.disabled = true;
+            currentAbsenceClassStudents = await getStudentsByClass(selectedClass);
+            input.disabled = false;
+            input.placeholder = `Pesquisar aluno da turma ${selectedClass}...`;
+            input.focus();
+        } else {
+            currentAbsenceClassStudents = null;
+            input.placeholder = "Pesquisar aluno por nome...";
+        }
+    };
 
     input.value = '';
     suggestionsContainer.innerHTML = '';
@@ -157,7 +179,13 @@ const setupAbsenceSearchFlowAutocomplete = (input, suggestionsContainer) => {
             suggestionsContainer.innerHTML = '<div class="p-2 text-gray-500 text-xs"><i class="fas fa-spinner fa-spin"></i> Buscando alunos...</div>';
 
             try {
-                const results = await searchStudentsByName(rawValue);
+                let results = [];
+                if (currentAbsenceClassStudents) {
+                    const normalizedSearch = normalizeText(rawValue);
+                    results = currentAbsenceClassStudents.filter(s => normalizeText(s.name).includes(normalizedSearch));
+                } else {
+                    results = await searchStudentsByName(rawValue);
+                }
                 suggestionsContainer.innerHTML = '';
 
                 if (results.length > 0) {
@@ -1075,5 +1103,23 @@ export const initAbsenceListeners = () => {
             if (content) { const isHidden = !content.style.maxHeight || content.style.maxHeight === '0px'; if (isHidden) { content.style.maxHeight = `${content.scrollHeight}px`; content.style.overflow = 'visible'; } else { content.style.maxHeight = null; setTimeout(() => content.style.overflow = 'hidden', 300); } icon?.classList.toggle('rotate-180', isHidden); }
             return;
         }
+    });
+};
+
+const populateAbsenceClassDropdown = async (selectElement) => {
+    if (!selectElement) return;
+    selectElement.innerHTML = '<option value="">Carregando...</option>';
+    if (state.classes && state.classes.length > 0) {
+        // use cache
+    } else {
+        state.classes = await getAllClasses();
+    }
+
+    selectElement.innerHTML = '<option value="">Todas as Turmas</option>';
+    state.classes.forEach(cls => {
+        const option = document.createElement('option');
+        option.value = cls;
+        option.textContent = cls;
+        selectElement.appendChild(option);
     });
 };

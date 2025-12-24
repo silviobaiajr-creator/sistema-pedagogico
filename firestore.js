@@ -194,6 +194,45 @@ export const getStudentById = async (studentId) => {
     }
 };
 
+export const getAllClasses = async () => {
+    try {
+        const studentsRef = getStudentsCollectionRef();
+        const q = query(studentsRef, limit(2000));
+        const snapshot = await getDocs(q);
+
+        const classesSet = new Set();
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.class) classesSet.add(data.class);
+            if (data.turma) classesSet.add(data.turma);
+        });
+
+        return Array.from(classesSet).filter(c => c).sort();
+    } catch (error) {
+        console.error("Erro ao buscar turmas:", error);
+        return [];
+    }
+};
+
+export const getStudentsByClass = async (className) => {
+    try {
+        const studentsRef = getStudentsCollectionRef();
+        const q = query(studentsRef, where('class', '==', className));
+        const snapshot = await getDocs(q);
+
+        const students = snapshot.docs.map(doc => {
+            const data = doc.data();
+            if (!data.matricula) data.matricula = doc.id;
+            return data;
+        });
+
+        return students.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (error) {
+        console.error(`Erro ao buscar alunos da turma ${className}:`, error);
+        return [];
+    }
+};
+
 // --- CONFIGURAÇÕES E INCIDENTES ---
 
 export const loadSchoolConfig = async () => {

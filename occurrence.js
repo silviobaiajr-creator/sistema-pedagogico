@@ -13,7 +13,9 @@ import {
     deleteRecord,
     getIncidentByGroupId as fetchIncidentById,
     searchStudentsByName,
-    findDocumentSnapshot
+    findDocumentSnapshot,
+    getAllClasses,
+    getStudentsByClass
 } from './firestore.js';
 import {
     determineNextOccurrenceStep,
@@ -24,6 +26,8 @@ import {
     getFilteredOccurrences,
     validateOccurrenceChronology
 } from './logic.js';
+
+let currentClassStudents = null; // Cache for selected class students
 import {
     openOccurrenceRecordModal,
     openHistoryModal,
@@ -157,7 +161,15 @@ export const setupStudentTagInput = (inputElement, suggestionsElement, tagsConta
             suggestionsElement.innerHTML = '<div class="p-2 text-gray-500 text-xs"><i class="fas fa-spinner fa-spin"></i> Buscando no servidor...</div>';
 
             try {
-                const results = await searchStudentsByName(value);
+                let results = [];
+                if (currentClassStudents) {
+                    // Local filtering from cached class students
+                    const normalizedSearch = normalizeText(value);
+                    results = currentClassStudents.filter(s => normalizeText(s.name).includes(normalizedSearch));
+                } else {
+                    // Server-side search (Global)
+                    results = await searchStudentsByName(value);
+                }
                 suggestionsElement.innerHTML = '';
 
                 const filteredResults = results.filter(s => !state.selectedStudents.has(s.matricula));
@@ -564,9 +576,49 @@ export const openOccurrenceModal = (incidentToEdit = null) => {
     const studentInput = document.getElementById('student-search-input');
     const suggestionsDiv = document.getElementById('student-suggestions');
     const tagsContainer = document.getElementById('student-tags-container');
+    const classFilter = document.getElementById('occurrence-class-filter');
+
+    // Reset Class Filter
+    currentClassStudents = null;
+    populateClassDropdown(classFilter);
+    classFilter.onchange = async () => {
+        const selectedClass = classFilter.value;
+        studentInput.value = ''; // Clear search
+        if (selectedClass) {
+            studentInput.placeholder = "Carregando alunos...";
+            studentInput.disabled = true;
+            currentClassStudents = await getStudentsByClass(selectedClass);
+            studentInput.disabled = false;
+            studentInput.placeholder = `Pesquisar aluno da turma ${selectedClass}...`;
+            studentInput.focus();
+        } else {
+            currentClassStudents = null;
+            studentInput.placeholder = "Pesquisar nome do aluno...";
+        }
+    };
+
     setupStudentTagInput(studentInput, suggestionsDiv, tagsContainer);
 
     openModal(dom.occurrenceModal);
+};
+
+const populateClassDropdown = async (selectElement) => {
+    if (!selectElement) return;
+    selectElement.innerHTML = '<option value="">Carregando...</option>';
+    // Check if classes are cached in state (we added it to state.js)
+    if (state.classes && state.classes.length > 0) {
+        // use cache
+    } else {
+        state.classes = await getAllClasses();
+    }
+
+    selectElement.innerHTML = '<option value="">Todas as Turmas</option>';
+    state.classes.forEach(cls => {
+        const option = document.createElement('option');
+        option.value = cls;
+        option.textContent = cls;
+        selectElement.appendChild(option);
+    });
 };
 
 const toggleOccurrenceContactFields = (enable) => {
