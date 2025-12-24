@@ -1001,11 +1001,14 @@
 
                         <div class="lg:col-span-2">
                             <label class="block text-sm font-medium">Sexo</label>
-                            <select id="student-sexo-input" class="mt-1 w-full p-2 border rounded">
-                                <option value="">Selecione...</option>
-                                <option value="M">Masculino</option>
-                                <option value="F">Feminino</option>
-                            </select>
+                            <input type="text" id="student-sexo-input" list="sexo-options"
+                                class="mt-1 w-full p-2 border rounded" placeholder="Selecione ou digite...">
+                            <datalist id="sexo-options">
+                                <option value="Masculino">
+                                <option value="Feminino">
+                                <option value="M">
+                                <option value="F">
+                            </datalist>
                         </div>
                         <div class="lg:col-span-2">
                             <label class="block text-sm font-medium">Turma</label>
@@ -1020,13 +1023,17 @@
 
                         <div class="lg:col-span-2">
                             <label class="block text-sm font-medium">Turno</label>
-                            <select id="student-shift-input" class="mt-1 w-full p-2 border rounded">
-                                <option value="">Selecione...</option>
-                                <option value="Matutino">Matutino</option>
-                                <option value="Vespertino">Vespertino</option>
-                                <option value="Noturno">Noturno</option>
-                                <option value="Integral">Integral</option>
-                            </select>
+                            <input type="text" id="student-shift-input" list="turno-options"
+                                class="mt-1 w-full p-2 border rounded" placeholder="Selecione ou digite...">
+                            <datalist id="turno-options">
+                                <option value="Matutino">
+                                <option value="Vespertino">
+                                <option value="Noturno">
+                                <option value="Integral">
+                                <option value="Manhã">
+                                <option value="Tarde">
+                                <option value="Noite">
+                            </datalist>
                         </div>
                         <div class="lg:col-span-2">
                             <label class="block text-sm font-medium">Contato</label>
@@ -1079,7 +1086,8 @@
                     <h4 class="text-lg font-semibold mb-2">Importar em Massa (CSV)</h4>
                     <p class="text-sm text-gray-600">Carregue um ficheiro CSV com as colunas: <code>matricula</code>,
                         <code>nome</code>, <code>turma</code>, <code>sexo</code>, <code>ano escolar</code>,
-                        <code>turno</code>. (Opcionais: endereco, contato, resp1, resp2).</p>
+                        <code>turno</code>. (Opcionais: endereco, contato, resp1, resp2).
+                    </p>
                     <div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4"><input type="file"
                             id="csv-file" accept=".csv"
                             class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"><button
