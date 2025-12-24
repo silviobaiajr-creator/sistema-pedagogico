@@ -5,9 +5,9 @@
 
 import { state, dom } from './state.js';
 import { setDoc, doc, writeBatch, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getStudentsCollectionRef, loadStudentsPaginated, searchStudentsByName } from './firestore.js'; 
-import { db } from './firebase.js'; 
-import { showToast, showAlert, openModal, loadScript } from './utils.js'; 
+import { getStudentsCollectionRef, loadStudentsPaginated, searchStudentsByName } from './firestore.js';
+import { db } from './firebase.js';
+import { showToast, showAlert, openModal, loadScript } from './utils.js';
 
 // Variável local para controle de debounce da pesquisa
 let searchTimeout = null;
@@ -19,7 +19,7 @@ let searchTimeout = null;
  */
 const renderStudentsList = (append = false) => {
     const tableBody = dom.studentsListTable;
-    if (!tableBody) return; 
+    if (!tableBody) return;
 
     // --- 1. INJEÇÃO DA BARRA DE PESQUISA (Se não existir) ---
     // Como não alteramos o HTML, criamos o input via JS e inserimos antes da tabela.
@@ -40,14 +40,14 @@ const renderStudentsList = (append = false) => {
             </div>
         `;
         tableContainer.insertBefore(searchContainer, tableContainer.firstChild);
-        
+
         // Adiciona o listener de busca
         const searchInput = searchContainer.querySelector('#student-manager-search');
         searchInput.addEventListener('input', handleServerSideSearch);
     }
 
     // --- 2. RENDERIZAÇÃO DA LISTA ---
-    
+
     if (!append) {
         tableBody.innerHTML = ''; // Limpa se não for paginação (append)
     } else {
@@ -145,13 +145,13 @@ function handleServerSideSearch(e) {
     // Espera 500ms após o usuário parar de digitar
     searchTimeout = setTimeout(async () => {
         const tableBody = dom.studentsListTable;
-        
+
         if (!term) {
             // Se limpou a busca, recarrega a página inicial padrão
             tableBody.innerHTML = '<tr><td colspan="3" class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Restaurando lista...</td></tr>';
             state.pagination.lastVisible = null; // Reseta cursor
             state.pagination.hasMore = true;
-            
+
             try {
                 const { students, lastVisible } = await loadStudentsPaginated(null, 50);
                 state.students = students;
@@ -169,7 +169,7 @@ function handleServerSideSearch(e) {
             const results = await searchStudentsByName(term);
             state.students = results;
             // Busca desativa paginação padrão
-            state.pagination.hasMore = false; 
+            state.pagination.hasMore = false;
             renderStudentsList(false);
         } catch (error) {
             console.error("Erro na busca:", error);
@@ -183,25 +183,25 @@ function handleServerSideSearch(e) {
  */
 const resetStudentForm = () => {
     document.getElementById('student-form-title').textContent = 'Adicionar Novo Aluno';
-    dom.studentForm.reset(); 
+    dom.studentForm.reset();
     document.getElementById('student-id-input').value = '';
     document.getElementById('student-matricula-input').readOnly = false;
     document.getElementById('student-matricula-input').classList.remove('bg-gray-100');
-    dom.cancelEditStudentBtn.classList.add('hidden'); 
+    dom.cancelEditStudentBtn.classList.add('hidden');
 };
 
 /**
  * Lida com o upload do ficheiro CSV de alunos.
  */
 async function handleCsvUpload() {
-    const fileInput = dom.csvFile; 
-    const feedbackDiv = dom.csvFeedback; 
+    const fileInput = dom.csvFile;
+    const feedbackDiv = dom.csvFeedback;
 
     if (fileInput.files.length === 0) return showAlert("Por favor, selecione um ficheiro CSV.");
 
     try {
         if (typeof window.Papa === 'undefined') {
-            feedbackDiv.innerHTML = `<p class="text-sky-500">A carregar biblioteca de CSV...</p>`; 
+            feedbackDiv.innerHTML = `<p class="text-sky-500">A carregar biblioteca de CSV...</p>`;
             const papaScriptUrl = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js';
             await loadScript(papaScriptUrl);
             if (typeof window.Papa === 'undefined') throw new Error("Falha ao carregar PapaParse dinamicamente.");
@@ -229,6 +229,9 @@ async function handleCsvUpload() {
                     matricula: row.matricula ? String(row.matricula).trim() : '',
                     name: row.nome ? String(row.nome).trim() : '',
                     class: row.turma || '',
+                    schoolYear: row.anoescolar || row.ano || '',
+                    shift: row.turno || '',
+                    sexo: row.sexo || '',
                     endereco: row.endereco || '',
                     contato: row.contato || '',
                     resp1: row.resp1 || '',
@@ -236,11 +239,11 @@ async function handleCsvUpload() {
                 })).filter(s => s.name && s.matricula);
 
                 if (validStudents.length === 0) {
-                     feedbackDiv.innerHTML = `<p class="text-red-500">Nenhum aluno válido encontrado.</p>`;
-                     return;
+                    feedbackDiv.innerHTML = `<p class="text-red-500">Nenhum aluno válido encontrado.</p>`;
+                    return;
                 }
 
-                const BATCH_SIZE = 450; 
+                const BATCH_SIZE = 450;
                 const chunks = [];
                 for (let i = 0; i < validStudents.length; i += BATCH_SIZE) {
                     chunks.push(validStudents.slice(i, i + BATCH_SIZE));
@@ -267,14 +270,14 @@ async function handleCsvUpload() {
                     const { students, lastVisible } = await loadStudentsPaginated(null, 50);
                     state.students = students;
                     state.pagination = { lastVisible, hasMore: students.length === 50, isLoading: false };
-                    
+
                     renderStudentsList(false);
                     showToast(`${processedCount} alunos importados!`);
                     fileInput.value = '';
                     feedbackDiv.innerHTML = `<p class="text-green-600 font-bold">Sucesso!</p>`;
                     setTimeout(() => feedbackDiv.innerHTML = '', 5000);
 
-                } catch(error) {
+                } catch (error) {
                     console.error("Erro no batch:", error);
                     let msg = error.message;
                     if (error.code === 'permission-denied') msg = "Erro de Permissão (verifique firestore.rules).";
@@ -297,10 +300,10 @@ async function handleCsvUpload() {
  */
 async function handleStudentFormSubmit(e) {
     e.preventDefault();
-    const id = document.getElementById('student-id-input').value; 
+    const id = document.getElementById('student-id-input').value;
     const matricula = document.getElementById('student-matricula-input').value.trim();
     const name = document.getElementById('student-name-input').value.trim();
-    
+
     if (!matricula || !name) return showAlert("Matrícula e Nome são obrigatórios.");
 
     const studentData = {
@@ -326,19 +329,19 @@ async function handleStudentFormSubmit(e) {
         // Caso contrário, não faz nada (o user pode buscá-lo depois)
         if (id) {
             const index = state.students.findIndex(s => s.matricula === id);
-            if (index > -1) state.students.splice(index, 1); 
+            if (index > -1) state.students.splice(index, 1);
         }
-        
+
         // Adiciona ao topo da lista para feedback visual imediato (opcional, mas bom para UX)
         const existingIndex = state.students.findIndex(s => s.matricula === matricula);
         if (existingIndex > -1) state.students[existingIndex] = studentData;
         else state.students.unshift(studentData); // Adiciona no topo
 
-        renderStudentsList(false); 
-        resetStudentForm(); 
+        renderStudentsList(false);
+        resetStudentForm();
         showToast(`Aluno ${id ? 'atualizado' : 'adicionado'} com sucesso.`);
-        
-    } catch(error) {
+
+    } catch (error) {
         console.error("Erro ao salvar:", error);
         showAlert(error.code === 'permission-denied' ? "Erro de Permissão." : "Erro ao salvar.");
     }
@@ -362,7 +365,7 @@ async function handleStudentTableActions(e) {
             document.getElementById('student-contato-input').value = student.contato || '';
             document.getElementById('student-resp1-input').value = student.resp1 || '';
             document.getElementById('student-resp2-input').value = student.resp2 || '';
-            dom.cancelEditStudentBtn.classList.remove('hidden'); 
+            dom.cancelEditStudentBtn.classList.remove('hidden');
         }
         return;
     }
@@ -371,14 +374,14 @@ async function handleStudentTableActions(e) {
     if (deleteBtn) {
         const id = deleteBtn.dataset.id;
         const student = state.students.find(s => s.matricula === id);
-        
+
         if (student && confirm(`Tem a certeza que quer remover o aluno "${student.name}"?`)) {
             try {
                 await deleteDoc(doc(getStudentsCollectionRef(), id));
                 state.students = state.students.filter(s => s.matricula !== id);
-                renderStudentsList(false); 
+                renderStudentsList(false);
                 showToast("Aluno removido com sucesso.");
-            } catch(error) {
+            } catch (error) {
                 console.error(error);
                 showAlert("Erro ao remover aluno.");
             }
@@ -397,7 +400,7 @@ export const initStudentListeners = () => {
             if (state.students.length === 0) {
                 handleLoadMore(); // Tenta carregar primeira página
             } else {
-                renderStudentsList(false); 
+                renderStudentsList(false);
             }
             openModal(studentsModal);
         });
