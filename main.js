@@ -13,16 +13,16 @@ import { loadStudents, loadSchoolConfig, getCollectionRef, deleteRecord, updateR
 import { initAuthListeners } from './auth.js';
 import { initSettingsListeners } from './settings.js';
 import { initStudentListeners } from './students.js';
-import { initOccurrenceListeners, renderOccurrences } from './occurrence.js'; 
-import { initAbsenceListeners, renderAbsences } from './absence.js';     
-import { initDashboard } from './dashboard.js'; 
+import { initOccurrenceListeners, renderOccurrences } from './occurrence.js';
+import { initAbsenceListeners, renderAbsences } from './absence.js';
+import { initDashboard } from './dashboard.js';
 import { initDocumentListeners, renderDocuments } from './documents.js';
 
 import { occurrenceStepLogic } from './logic.js';
 import { writeBatch, query as firestoreQuery, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const SUPER_ADMIN_EMAILS = [
-    'silviobaiajr@gmail.com' 
+    'silviobaiajr@gmail.com'
 ];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -31,12 +31,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     onAuthStateChanged(auth, async user => {
         detachFirestoreListeners();
-        
+
         if (user) {
             if (!user.emailVerified) {
                 showAlert("Acesso negado: Seu email ainda não foi verificado. Por favor, cheque sua caixa de entrada.");
                 await signOut(auth);
-                return; 
+                return;
             }
 
             state.userId = user.uid;
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.isAdmin = SUPER_ADMIN_EMAILS.includes(user.email);
 
             try {
-                await loadSchoolConfig(); 
+                await loadSchoolConfig();
                 const dbAdminList = state.config.adminEmails || [];
                 if (!state.isAdmin) {
                     state.isAdmin = dbAdminList.includes(user.email);
@@ -60,18 +60,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (state.isAdmin) {
-                if(dom.settingsBtn) dom.settingsBtn.classList.remove('hidden');
-                if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.remove('hidden');
+                if (dom.settingsBtn) dom.settingsBtn.classList.remove('hidden');
+                if (dom.manageStudentsBtn) dom.manageStudentsBtn.classList.remove('hidden');
             } else {
-                if(dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
-                if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
+                if (dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
+                if (dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
             }
 
             try {
-                await loadStudents(); 
-                setupFirestoreListeners(); 
-                switchTab('dashboard'); 
-                
+                await loadStudents();
+                setupFirestoreListeners();
+                switchTab('dashboard');
+
             } catch (error) {
                 console.error("Erro no carregamento:", error);
                 showToast("Erro ao carregar dados.");
@@ -82,8 +82,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.mainContent.classList.add('hidden');
             dom.userProfile.classList.add('hidden');
             dom.loginScreen.classList.remove('hidden');
-            if(dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
-            if(dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
+            if (dom.settingsBtn) dom.settingsBtn.classList.add('hidden');
+            if (dom.manageStudentsBtn) dom.manageStudentsBtn.classList.add('hidden');
         }
     });
 
@@ -95,6 +95,10 @@ function setupFirestoreListeners() {
 
     const occurrencesQuery = query(getCollectionRef('occurrence'), orderBy('createdAt', 'desc'), limit(100));
     state.unsubscribeOccurrences = onSnapshot(occurrencesQuery, (snapshot) => {
+        if (!snapshot || !snapshot.docs) {
+            console.warn("Snapshot de Ocorrências inválido ou vazio.");
+            return;
+        }
         state.occurrences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if (state.activeTab === 'occurrences') renderOccurrences();
         if (state.activeTab === 'dashboard') initDashboard();
@@ -102,6 +106,10 @@ function setupFirestoreListeners() {
 
     const absencesQuery = query(getCollectionRef('absence'), orderBy('createdAt', 'desc'), limit(100));
     state.unsubscribeAbsences = onSnapshot(absencesQuery, (snapshot) => {
+        if (!snapshot || !snapshot.docs) {
+            console.warn("Snapshot de Busca Ativa inválido ou vazio.");
+            return;
+        }
         state.absences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if (state.activeTab === 'absences') renderAbsences();
         if (state.activeTab === 'dashboard') initDashboard();
@@ -121,7 +129,7 @@ function setupEventListeners() {
 
     if (dom.cardNavOccurrences) dom.cardNavOccurrences.addEventListener('click', () => switchTab('occurrences'));
     if (dom.cardNavAbsences) dom.cardNavAbsences.addEventListener('click', () => switchTab('absences'));
-    
+
     if (dom.btnBackDashboardOcc) dom.btnBackDashboardOcc.addEventListener('click', () => switchTab('dashboard'));
     if (dom.btnBackDashboardAbs) dom.btnBackDashboardAbs.addEventListener('click', () => switchTab('dashboard'));
 
@@ -134,7 +142,7 @@ function setupEventListeners() {
 
     initSettingsListeners();
     initStudentListeners();
-    initOccurrenceListeners(); 
+    initOccurrenceListeners();
     initAbsenceListeners();
     initDocumentListeners();
 
@@ -146,10 +154,10 @@ function setupEventListeners() {
             e.stopPropagation();
             const tab = jumpLink.dataset.tab;
             const studentName = jumpLink.dataset.studentName;
-            
+
             if (tab && studentName) {
                 switchTab(tab);
-                
+
                 if (tab === 'occurrences') {
                     state.filterOccurrences = studentName;
                     dom.searchOccurrences.value = studentName;
@@ -157,7 +165,7 @@ function setupEventListeners() {
                 } else if (tab === 'absences') {
                     state.filterAbsences = studentName;
                     dom.searchAbsences.value = studentName;
-                    state.filtersAbsences.processStatus = 'all'; 
+                    state.filtersAbsences.processStatus = 'all';
                     renderAbsences();
                 }
             }
@@ -177,15 +185,15 @@ function setupEventListeners() {
 
 function switchTab(tabName) {
     state.activeTab = tabName;
-    
+
     // Oculta todas as abas
     [dom.tabContentDashboard, dom.tabContentOccurrences, dom.tabContentAbsences, dom.tabContentDocuments].forEach(el => {
-        if(el) el.classList.add('hidden');
+        if (el) el.classList.add('hidden');
     });
 
     if (tabName === 'dashboard') {
         dom.tabContentDashboard.classList.remove('hidden');
-        initDashboard(); 
+        initDashboard();
     } else if (tabName === 'occurrences') {
         dom.tabContentOccurrences.classList.remove('hidden');
         renderOccurrences();
@@ -197,7 +205,7 @@ function switchTab(tabName) {
         dom.emptyStateDocuments.classList.add('hidden');
         dom.tabContentDocuments.classList.remove('hidden');
         // Força a recarga dos documentos do zero ao abrir a aba
-        state.documents = []; 
+        state.documents = [];
         renderDocuments().finally(() => dom.loadingDocuments.classList.add('hidden')); // Renderiza e garante que o loading será escondido
         renderDocuments(); // Apenas chama a função de renderização
     }
@@ -206,7 +214,7 @@ function switchTab(tabName) {
 async function handleDeleteConfirmation() {
     if (!state.recordToDelete) return;
     const { type, id, recordId, actionToReset, historyAction } = state.recordToDelete;
-    
+
     try {
         if (type === 'occurrence') {
             const q = firestoreQuery(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', id));
@@ -224,17 +232,17 @@ async function handleDeleteConfirmation() {
             dataToUpdate.statusIndividual = logic.statusAfterReset;
             await updateRecordWithHistory('occurrence', recordId, dataToUpdate, historyAction, state.userEmail);
             showToast('Etapa resetada com sucesso.');
-            
+
         } else {
             await deleteRecord(type, id);
             showToast('Registro excluído com sucesso.');
         }
-    } catch (error) { 
-        showToast('Erro ao processar exclusão.'); 
-        console.error("Erro:", error); 
-    } finally { 
-        state.recordToDelete = null; 
-        closeModal(dom.deleteConfirmModal); 
+    } catch (error) {
+        showToast('Erro ao processar exclusão.');
+        console.error("Erro:", error);
+    } finally {
+        state.recordToDelete = null;
+        closeModal(dom.deleteConfirmModal);
     }
 }
 
@@ -256,24 +264,24 @@ function setupModalCloseButtons() {
         'cancel-follow-up-btn': dom.followUpModal,
         'close-send-ct-modal-btn': dom.sendOccurrenceCtModal,
         'cancel-send-ct-modal-btn': dom.sendOccurrenceCtModal,
-        'close-absence-search-flow-modal-btn': dom.absenceSearchFlowModal, 
-        'cancel-absence-search-flow-btn': dom.absenceSearchFlowModal,      
+        'close-absence-search-flow-modal-btn': dom.absenceSearchFlowModal,
+        'cancel-absence-search-flow-btn': dom.absenceSearchFlowModal,
     };
-    
+
     for (const [id, modal] of Object.entries(modalMap)) {
         const button = document.getElementById(id);
         if (button && modal) {
             const oldListener = button.__clickListener;
             if (oldListener) button.removeEventListener('click', oldListener);
-            
+
             const newListener = () => closeModal(modal);
             button.addEventListener('click', newListener);
             button.__clickListener = newListener;
-            
+
             if (button.hasAttribute('onclick')) button.removeAttribute('onclick');
         }
     }
-    
+
     document.getElementById('share-btn').addEventListener('click', () => shareContent(document.getElementById('notification-title').textContent, document.getElementById('notification-content').innerText));
     document.getElementById('report-share-btn').addEventListener('click', () => shareContent(document.getElementById('report-view-title').textContent, document.getElementById('report-view-content').innerText));
     document.getElementById('ficha-share-btn').addEventListener('click', () => shareContent(document.getElementById('ficha-view-title').textContent, document.getElementById('ficha-view-content').innerText));
