@@ -662,6 +662,30 @@ const toggleDesfechoFields = (choice) => {
 
 export const openOccurrenceStepModal = async (student, record, actionType, preFilledData = null) => {
     // -------------------------------------------------------------------------
+    // BLOQUEIO DE EDIÇÃO: Verificar se já existe Ata Assinada (Convocação)
+    // -------------------------------------------------------------------------
+    if (actionType.startsWith('convocacao_')) {
+        const attemptNum = actionType.split('_')[1];
+        const incidentId = record.incidentId || record.occurrenceGroupId;
+
+        // Verifica se é uma edição (já tem data)
+        const existingDate = record[`meetingDate_${attemptNum}`] || (attemptNum == 1 ? record.meetingDate : null);
+
+        if (incidentId && existingDate) {
+            const uniqueRefId = `${incidentId}_${student.matricula}_attempt_${attemptNum}`;
+            const notifDoc = await findDocumentSnapshot('notificacao_ocorrencia', student.matricula, uniqueRefId);
+
+            if (notifDoc && notifDoc.signatures) {
+                const requiredKey = `responsible_${student.matricula}`;
+                if (notifDoc.signatures[requiredKey]) {
+                    await showAlert(`Edição Bloqueada: A Notificação da ${attemptNum}ª Convocação já foi assinada pelo responsável.\n\nPara alterar a data ou horário, você deve primeiro cancelar o documento assinado.`);
+                    return;
+                }
+            }
+        }
+    }
+    // -------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // BLOQUEIO DE SEGURANÇA: Verificar Assinatura (Feedback)
     // -------------------------------------------------------------------------
     if (actionType.startsWith('feedback_')) {
@@ -1290,6 +1314,25 @@ async function handleResetActionConfirmation(studentId, groupId, recordId) {
     if (actionToReset === null) {
         return showAlert('Não é possível Limpar a Ação 1 (Fato). Use "Editar Fato".');
     }
+
+    // -------------------------------------------------------------------------
+    // BLOQUEIO DE RESET: Verificar se já existe Ata Assinada
+    // -------------------------------------------------------------------------
+    if (actionToReset.startsWith('convocacao_')) {
+        const attemptNum = actionToReset.split('_')[1];
+        const incidentId = record.incidentId || record.occurrenceGroupId;
+        if (incidentId) {
+            const uniqueRefId = `${incidentId}_${studentId}_attempt_${attemptNum}`;
+            const notifDoc = await findDocumentSnapshot('notificacao_ocorrencia', studentId, uniqueRefId);
+            if (notifDoc && notifDoc.signatures) {
+                const requiredKey = `responsible_${studentId}`;
+                if (notifDoc.signatures[requiredKey]) {
+                    return showAlert(`Ação Bloqueada: Esta etapa possui uma Notificação Assinada.\n\nPara limpar esta etapa, você deve primeiro cancelar o documento legal associado.`);
+                }
+            }
+        }
+    }
+    // -------------------------------------------------------------------------
 
     const actionTitle = occurrenceActionTitles[actionToReset] || `Etapa '${actionToReset}'`;
 

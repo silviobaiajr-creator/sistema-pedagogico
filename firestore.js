@@ -75,7 +75,14 @@ export const updateRecordWithHistory = (type, id, dataToUpdate, historyAction, u
     return setDoc(recordRef, finalUpdateData, { merge: true });
 };
 
-export const deleteRecord = (type, id) => deleteDoc(doc(getCollectionRef(type), id));
+export const deleteRecord = (type, id) => {
+    const recordRef = doc(getCollectionRef(type), id);
+    return updateDoc(recordRef, {
+        deleted: true,
+        deletedAt: new Date(),
+        deletedBy: state.userEmail || 'Sistema'
+    });
+};
 
 
 // --- FUNÇÕES DE LEITURA OTIMIZADAS (PAGINAÇÃO E BUSCA) ---
@@ -220,7 +227,7 @@ export const saveSchoolConfig = (data) => {
 };
 
 export const getIncidentByGroupId = async (groupId) => {
-    const incidentQuery = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', groupId));
+    const incidentQuery = query(getCollectionRef('occurrence'), where('occurrenceGroupId', '==', groupId), where('deleted', '!=', true));
 
     try {
         const querySnapshot = await getDocs(incidentQuery);
@@ -295,7 +302,7 @@ export const getIncidentByGroupId = async (groupId) => {
 export const getOccurrencesForReport = async (startDate, endDate, type) => {
     try {
         let q = getCollectionRef('occurrence');
-        const conditions = [];
+        const conditions = [where('deleted', '!=', true)];
 
         if (startDate) conditions.push(where('date', '>=', startDate));
         if (endDate) conditions.push(where('date', '<=', endDate));
@@ -319,7 +326,7 @@ export const getOccurrencesForReport = async (startDate, endDate, type) => {
 export const getAbsencesForReport = async (startDate, endDate) => {
     try {
         let q = getCollectionRef('absence');
-        const conditions = [];
+        const conditions = [where('deleted', '!=', true)];
 
         if (startDate) {
             const start = new Date(startDate);

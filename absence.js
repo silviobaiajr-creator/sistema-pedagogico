@@ -630,7 +630,25 @@ export const toggleVisitContactFields = (enable, fieldsContainer) => {
     returnedRadioGroup.forEach(radio => radio.required = enable);
 };
 
-export const openAbsenceModalForStudent = (student, forceActionType = null, data = null, preFilledData = null) => {
+export const openAbsenceModalForStudent = async (student, forceActionType = null, data = null, preFilledData = null) => {
+    // -------------------------------------------------------------------------
+    // BLOQUEIO DE EDIÇÃO: Verificar se já existe Ata Assinada (Busca Ativa)
+    // -------------------------------------------------------------------------
+    const finalActionTypeCheck = forceActionType || (data ? data.actionType : null);
+
+    if (data && data.id && finalActionTypeCheck && finalActionTypeCheck.startsWith('tentativa')) {
+        // Se tem ID (data.id), é uma edição.
+        const docSnapshot = await findDocumentSnapshot('notificacao', student.matricula, data.id);
+
+        if (docSnapshot && docSnapshot.signatures) {
+            const isSigned = Object.keys(docSnapshot.signatures).some(k => k.startsWith('responsible_'));
+            if (isSigned) {
+                await showAlert(`Edição Bloqueada: A Notificação desta tentativa já foi assinada.\n\nPara alterar os dados, cancele o documento assinado.`);
+                return;
+            }
+        }
+    }
+    // -------------------------------------------------------------------------
     dom.absenceForm.reset();
 
     // Reseta arquivos
@@ -1049,7 +1067,7 @@ function handleEditAbsence(id) {
     if (student) openAbsenceModalForStudent(student, data.actionType, data);
 }
 
-function handleDeleteAbsence(id) {
+async function handleDeleteAbsence(id) {
     const actionToDelete = state.absences.find(a => a.id === id);
     if (!actionToDelete) return;
     const processActions = state.absences.filter(a => a.processId === actionToDelete.processId).sort((a, b) => {
@@ -1062,6 +1080,20 @@ function handleDeleteAbsence(id) {
     const lastProcessAction = processActions.length > 0 ? processActions[processActions.length - 1] : null;
     const isConcluded = processActions.some(a => a.actionType === 'analise');
     if (isConcluded || !lastProcessAction || actionToDelete.id !== lastProcessAction.id) return showAlert(isConcluded ? "Processo concluído, não pode excluir." : "Apenas a última ação pode ser excluída.");
+
+    // -------------------------------------------------------------------------
+    // BLOQUEIO DE EXCLUSÃO: Verificar se já existe Ata Assinada (Busca Ativa)
+    // -------------------------------------------------------------------------
+    if (lastProcessAction.actionType.startsWith('tentativa')) {
+        const docSnapshot = await findDocumentSnapshot('notificacao', actionToDelete.studentId, lastProcessAction.id);
+        if (docSnapshot && docSnapshot.signatures) {
+            const isSigned = Object.keys(docSnapshot.signatures).some(k => k.startsWith('responsible_'));
+            if (isSigned) {
+                return showAlert(`Ação Bloqueada: Esta tentativa possui uma Notificação Assinada.\n\nPara excluir esta etapa, você deve primeiro cancelar/invalidar o documento assinado.`);
+            }
+        }
+    }
+    // -------------------------------------------------------------------------
     document.getElementById('delete-confirm-message').textContent = 'Tem certeza que deseja Limpar esta ação? Esta ação não pode ser desfeita.';
     state.recordToDelete = { type: 'absence', id: id };
     openModal(dom.deleteConfirmModal);
