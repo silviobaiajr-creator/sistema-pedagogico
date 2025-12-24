@@ -467,81 +467,69 @@
                         class="mt-1 flex flex-wrap gap-2 items-center p-2 border border-gray-300 rounded-md min-h-[42px] bg-gray-50">
                         <!-- As tags dos alunos com ícones de papel serão renderizadas aqui pelo JS -->
                     </div>
-                    <div class="flex flex-col sm:flex-row gap-2">
-                        <div class="sm:w-1/3">
-                            <select id="occurrence-class-filter"
-                                class="w-full border-gray-300 rounded-md shadow-sm h-[42px]">
-                                <option value="">Todas as Turmas</option>
-                            </select>
+                    <div class="relative">
+                        <input type="text" id="student-search-input"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                            placeholder="Pesquisar nome do aluno...">
+                        <div id="student-suggestions" class="autocomplete-suggestions hidden">
+                            <!-- Sugestões de alunos aparecerão aqui -->
                         </div>
-                        <div class="relative sm:w-2/3">
-                            <input type="text" id="student-search-input"
-                                class="block w-full border-gray-300 rounded-md shadow-sm h-[42px]"
-                                placeholder="Pesquisar nome do aluno...">
-                            <div id="student-suggestions" class="autocomplete-suggestions hidden">
-                                <!-- Sugestões de alunos aparecerão aqui -->
-                            </div>
-                            <!-- Painel Inline para Seleção de Papel -->
-                            <div id="role-selection-panel"
-                                class="hidden mt-2 p-2 border rounded-md bg-gray-50 shadow-sm relative z-10">
-                                <span class="text-sm font-medium text-gray-700">Definir papel para <strong
-                                        id="role-selection-student-name"></strong>:</span>
-                                <div class="mt-1 space-x-2">
-                                    <button type="button"
-                                        class="role-select-btn px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                        data-role="Vítima"><i class="fas fa-user-shield fa-fw"></i> Vítima</button>
-                                    <button type="button"
-                                        class="role-select-btn px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
-                                        data-role="Agente"><i class="fas fa-gavel fa-fw"></i> Agente</button>
-                                    <button type="button"
-                                        class="role-select-btn px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200"
-                                        data-role="Testemunha"><i class="fas fa-eye fa-fw"></i> Testemunha</button>
-                                    <button type="button"
-                                        class="role-select-btn px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 ring-1 ring-inset ring-sky-500"
-                                        data-role="Envolvido"><i class="fas fa-user fa-fw"></i> Envolvido</button>
-                                    <!-- Padrão -->
-                                </div>
+                        <!-- Painel Inline para Seleção de Papel -->
+                        <div id="role-selection-panel" class="hidden mt-2 p-2 border rounded-md bg-gray-50 shadow-sm">
+                            <span class="text-sm font-medium text-gray-700">Definir papel para <strong
+                                    id="role-selection-student-name"></strong>:</span>
+                            <div class="mt-1 space-x-2">
+                                <button type="button"
+                                    class="role-select-btn px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                    data-role="Vítima"><i class="fas fa-user-shield fa-fw"></i> Vítima</button>
+                                <button type="button"
+                                    class="role-select-btn px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
+                                    data-role="Agente"><i class="fas fa-gavel fa-fw"></i> Agente</button>
+                                <button type="button"
+                                    class="role-select-btn px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200"
+                                    data-role="Testemunha"><i class="fas fa-eye fa-fw"></i> Testemunha</button>
+                                <button type="button"
+                                    class="role-select-btn px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200 ring-1 ring-inset ring-sky-500"
+                                    data-role="Envolvido"><i class="fas fa-user fa-fw"></i> Envolvido</button>
+                                <!-- Padrão -->
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <div><label for="occurrence-type" class="block text-sm font-medium">Tipo de Ocorrência <span
-                                class="text-red-500">*</span></label><select id="occurrence-type"
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
-                            <option value="">Selecione um tipo...</option>
-                            <option value="Agressão (Física)">Agressão (Física)</option>
-                            <option value="Agressão (Verbal)">Agressão (Verbal)</option>
-                            <option value="Indisciplina / Comportamento Inadequado">Indisciplina / Comportamento
-                                Inadequado
-                            </option>
-                            <option value="Bullying">Bullying</option>
-                            <option value="Dano ao Patrimônio">Dano ao Patrimônio</option>
-                            <option value="Uso inadequado de telemóvel/eletrónicos">Uso inadequado de
-                                telemóvel/eletrónicos
-                            </option>
-                            <option value="Outros">Outros</option>
-                        </select></div>
-                    <div><label for="occurrence-date" class="block text-sm font-medium">Data da Ocorrência <span
-                                class="text-red-500">*</span></label><input type="date" id="occurrence-date"
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div>
+                <div><label for="occurrence-type" class="block text-sm font-medium">Tipo de Ocorrência <span
+                            class="text-red-500">*</span></label><select id="occurrence-type"
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required>
+                        <option value="">Selecione um tipo...</option>
+                        <option value="Agressão (Física)">Agressão (Física)</option>
+                        <option value="Agressão (Verbal)">Agressão (Verbal)</option>
+                        <option value="Indisciplina / Comportamento Inadequado">Indisciplina / Comportamento Inadequado
+                        </option>
+                        <option value="Bullying">Bullying</option>
+                        <option value="Dano ao Patrimônio">Dano ao Patrimônio</option>
+                        <option value="Uso inadequado de telemóvel/eletrónicos">Uso inadequado de telemóvel/eletrónicos
+                        </option>
+                        <option value="Outros">Outros</option>
+                    </select></div>
+                <div><label for="occurrence-date" class="block text-sm font-medium">Data da Ocorrência <span
+                            class="text-red-500">*</span></label><input type="date" id="occurrence-date"
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></div>
 
-                    <!-- Seção de Detalhes (Ação 1) -->
-                    <div class="pt-4 border-t space-y-4">
-                        <div><label for="description" class="block text-sm font-medium">Descrição da Ocorrência <span
-                                    class="text-red-500">*</span></label><textarea id="description" rows="4"
-                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></textarea>
-                        </div>
-                        <div><label for="providencias-escola" class="block text-sm font-medium">Providências Imediatas
-                                da
-                                Escola <span class="text-red-500">*</span></label><textarea id="providencias-escola"
-                                rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
-                                placeholder="O que a escola fez imediatamente após o fato?" required></textarea></div>
-                    </div>
+                <!-- Seção de Detalhes (Ação 1) -->
+                <div class="pt-4 border-t space-y-4">
+                    <div><label for="description" class="block text-sm font-medium">Descrição da Ocorrência <span
+                                class="text-red-500">*</span></label><textarea id="description" rows="4"
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm" required></textarea></div>
+                    <div><label for="providencias-escola" class="block text-sm font-medium">Providências Imediatas da
+                            Escola <span class="text-red-500">*</span></label><textarea id="providencias-escola"
+                            rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                            placeholder="O que a escola fez imediatamente após o fato?" required></textarea></div>
+                </div>
 
-                    <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn"
-                            class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button
-                            type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Fato (Ação
-                            1)</button></div>
+                <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn"
+                        class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Cancelar</button><button
+                        type="submit" class="bg-sky-600 text-white font-bold py-2 px-4 rounded-lg">Salvar Fato (Ação
+                        1)</button></div>
             </form>
             <!-- Dropdown Escondido para Edição de Papel -->
             <div id="role-edit-dropdown" class="hidden absolute z-20 w-32 bg-white rounded-md shadow-lg border">
@@ -757,22 +745,14 @@
                 <p class="text-sm text-gray-600">Pesquise o aluno para iniciar um novo ciclo de acompanhamento ou
                     continuar um processo em aberto.</p>
 
-                <div class="flex flex-col sm:flex-row gap-2 relative">
-                    <div class="sm:w-1/3">
-                        <select id="absence-class-filter"
-                            class="w-full border-gray-300 rounded-md shadow-sm h-[42px] bg-white">
-                            <option value="">Todas as Turmas</option>
-                        </select>
-                    </div>
-                    <div class="relative sm:w-2/3">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i
-                                class="fas fa-search text-gray-400"></i></div>
-                        <input type="text" id="absence-search-flow-input"
-                            class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm h-[42px]"
-                            placeholder="Pesquisar aluno por nome...">
-                        <div id="absence-search-flow-suggestions" class="autocomplete-suggestions hidden z-50">
-                            <!-- Sugestões de alunos aparecerão aqui -->
-                        </div>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i
+                            class="fas fa-search text-gray-400"></i></div>
+                    <input type="text" id="absence-search-flow-input"
+                        class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                        placeholder="Pesquisar aluno por nome...">
+                    <div id="absence-search-flow-suggestions" class="autocomplete-suggestions hidden">
+                        <!-- Sugestões de alunos aparecerão aqui -->
                     </div>
                 </div>
 
