@@ -18,135 +18,144 @@ export const initDashboard = async () => {
     document.getElementById('dash-total-students').innerHTML = loadingIcon;
     document.getElementById('dash-total-occurrences').innerHTML = loadingIcon;
     document.getElementById('dash-active-absences').innerHTML = loadingIcon;
-    
+
     // Limpa alertas anteriores
     const alertContainer = document.getElementById('urgent-alerts-container');
-    if(alertContainer) alertContainer.remove();
+    if (alertContainer) alertContainer.remove();
 
-    const stats = await getDashboardStats();
+    try {
+        const stats = await getDashboardStats();
 
-    if (!stats) {
-        document.getElementById('dash-total-students').textContent = 'Erro';
-        return;
+        if (!stats) {
+            document.getElementById('dash-total-students').textContent = 'Erro';
+            return;
+        }
+
+        // 1. Atualiza Cards Principais com Contexto
+
+        // Alunos
+        animateValue('dash-total-students', 0, stats.totalStudents, 800);
+
+        // Ocorrências (Incidência Aproximada)
+        animateValue('dash-total-occurrences', 0, stats.totalOccurrences, 800);
+        const incidentRate = stats.totalStudents > 0
+            ? ((stats.totalOccurrences / stats.totalStudents) * 100).toFixed(1)
+            : 0;
+
+        const occCard = document.getElementById('dash-total-occurrences').parentElement;
+        // Remove texto antigo se existir
+        const oldOccContext = occCard.querySelector('.context-stat');
+        if (oldOccContext) oldOccContext.remove();
+
+        const occContextHtml = `<p class="context-stat text-xs text-yellow-600 mt-1 font-medium"><i class="fas fa-chart-line"></i> ~${incidentRate}% de incidência</p>`;
+        occCard.insertAdjacentHTML('beforeend', occContextHtml);
+
+        // Busca Ativa (Taxa de Sucesso)
+        animateValue('dash-active-absences', 0, stats.totalAbsences, 800);
+        const successRate = stats.totalAbsences > 0
+            ? ((stats.concludedAbsences / stats.totalAbsences) * 100).toFixed(1)
+            : 0;
+
+        const absCard = document.getElementById('dash-active-absences').parentElement;
+        const oldAbsContext = absCard.querySelector('.context-stat');
+        if (oldAbsContext) oldAbsContext.remove();
+
+        const absContextHtml = `<p class="context-stat text-xs text-emerald-600 mt-1 font-medium"><i class="fas fa-check-circle"></i> ${successRate}% resolvidos</p>`;
+        absCard.insertAdjacentHTML('beforeend', absContextHtml);
+
+
+        // 2. Renderiza Alertas Urgentes
+        renderUrgentAlerts();
+
+        // 3. Renderiza Gráficos
+        renderCharts(stats.chartDataOccurrences, stats.chartDataAbsences);
+    } catch (e) {
+        console.error("Erro crítico ao carregar dashboard:", e);
+        document.getElementById('dash-total-students').textContent = '-';
     }
-
-    // 1. Atualiza Cards Principais com Contexto
-    
-    // Alunos
-    animateValue('dash-total-students', 0, stats.totalStudents, 800);
-
-    // Ocorrências (Incidência Aproximada)
-    animateValue('dash-total-occurrences', 0, stats.totalOccurrences, 800);
-    const incidentRate = stats.totalStudents > 0 
-        ? ((stats.totalOccurrences / stats.totalStudents) * 100).toFixed(1) 
-        : 0;
-    
-    const occCard = document.getElementById('dash-total-occurrences').parentElement;
-    // Remove texto antigo se existir
-    const oldOccContext = occCard.querySelector('.context-stat');
-    if (oldOccContext) oldOccContext.remove();
-    
-    const occContextHtml = `<p class="context-stat text-xs text-yellow-600 mt-1 font-medium"><i class="fas fa-chart-line"></i> ~${incidentRate}% de incidência</p>`;
-    occCard.insertAdjacentHTML('beforeend', occContextHtml);
-
-    // Busca Ativa (Taxa de Sucesso)
-    animateValue('dash-active-absences', 0, stats.totalAbsences, 800);
-    const successRate = stats.totalAbsences > 0
-        ? ((stats.concludedAbsences / stats.totalAbsences) * 100).toFixed(1)
-        : 0;
-        
-    const absCard = document.getElementById('dash-active-absences').parentElement;
-    const oldAbsContext = absCard.querySelector('.context-stat');
-    if (oldAbsContext) oldAbsContext.remove();
-
-    const absContextHtml = `<p class="context-stat text-xs text-emerald-600 mt-1 font-medium"><i class="fas fa-check-circle"></i> ${successRate}% resolvidos</p>`;
-    absCard.insertAdjacentHTML('beforeend', absContextHtml);
-
-
-    // 2. Renderiza Alertas Urgentes
-    renderUrgentAlerts();
-
-    // 3. Renderiza Gráficos
-    renderCharts(stats.chartDataOccurrences, stats.chartDataAbsences);
 };
 
 const renderUrgentAlerts = () => {
-    const today = new Date();
-    const urgentOccurrences = state.occurrences
-        .filter(o => o.statusIndividual !== 'Resolvido' && o.statusIndividual !== 'Finalizada')
-        .filter(o => {
-            const date = new Date(o.date);
-            const diffTime = Math.abs(today - date);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return diffDays > 7;
-        })
-        .slice(0, 3); 
+    try {
+        const today = new Date();
+        const urgentOccurrences = state.occurrences
+            .filter(o => o.statusIndividual !== 'Resolvido' && o.statusIndividual !== 'Finalizada')
+            .filter(o => {
+                const date = new Date(o.date);
+                const diffTime = Math.abs(today - date);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays > 7;
+            })
+            .slice(0, 3);
 
-    const urgentAbsences = state.absences
-        .filter(a => a.actionType !== 'analise') 
-        .filter(a => {
-            const date = a.createdAt ? (a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt)) : new Date();
-            const diffTime = Math.abs(today - date);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return diffDays > 5;
-        })
-        .slice(0, 3);
+        const urgentAbsences = state.absences
+            .filter(a => a.actionType !== 'analise')
+            .filter(a => {
+                const date = a.createdAt ? (a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt)) : new Date();
+                const diffTime = Math.abs(today - date);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays > 5;
+            })
+            .slice(0, 3);
 
-    if (urgentOccurrences.length === 0 && urgentAbsences.length === 0) return;
+        if (urgentOccurrences.length === 0 && urgentAbsences.length === 0) return;
 
-    const cardsRow = document.querySelector('#tab-content-dashboard > .grid:first-child');
-    const existingContainer = document.getElementById('urgent-alerts-container');
-    if(existingContainer) existingContainer.remove();
+        const cardsRow = document.querySelector('#tab-content-dashboard > .grid:first-child');
+        const existingContainer = document.getElementById('urgent-alerts-container');
+        if (existingContainer) existingContainer.remove();
 
-    const alertSection = document.createElement('div');
-    alertSection.id = 'urgent-alerts-container';
-    alertSection.className = 'mb-8 bg-red-50 border border-red-200 rounded-lg p-4';
-    
-    let alertsHtml = `<h3 class="text-sm font-bold text-red-800 uppercase mb-3"><i class="fas fa-bell animate-pulse mr-2"></i> Atenção Necessária</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
+        const alertSection = document.createElement('div');
+        alertSection.id = 'urgent-alerts-container';
+        alertSection.className = 'mb-8 bg-red-50 border border-red-200 rounded-lg p-4';
 
-    if (urgentOccurrences.length > 0) {
-        alertsHtml += `
-            <div>
-                <h4 class="text-xs font-semibold text-red-700 mb-2">Ocorrências Pendentes (+7 dias)</h4>
-                <ul class="space-y-2">
-                    ${urgentOccurrences.map(o => `
-                        <li class="bg-white p-2 rounded border border-red-100 shadow-sm text-xs flex justify-between items-center cursor-pointer hover:bg-red-50 dashboard-jump-link" 
-                            data-tab="occurrences" data-student-name="${o.studentName}">
-                            <span><strong>${o.studentName}</strong>: ${o.statusIndividual}</span>
-                            <span class="text-gray-400">${formatDate(o.date)}</span>
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>`;
+        let alertsHtml = `<h3 class="text-sm font-bold text-red-800 uppercase mb-3"><i class="fas fa-bell animate-pulse mr-2"></i> Atenção Necessária</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
+
+        if (urgentOccurrences.length > 0) {
+            alertsHtml += `
+                <div>
+                    <h4 class="text-xs font-semibold text-red-700 mb-2">Ocorrências Pendentes (+7 dias)</h4>
+                    <ul class="space-y-2">
+                        ${urgentOccurrences.map(o => `
+                            <li class="bg-white p-2 rounded border border-red-100 shadow-sm text-xs flex justify-between items-center cursor-pointer hover:bg-red-50 dashboard-jump-link" 
+                                data-tab="occurrences" data-student-name="${o.studentName}">
+                                <span><strong>${o.studentName}</strong>: ${o.statusIndividual}</span>
+                                <span class="text-gray-400">${formatDate(o.date)}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>`;
+        }
+
+        if (urgentAbsences.length > 0) {
+            alertsHtml += `
+                <div>
+                    <h4 class="text-xs font-semibold text-red-700 mb-2">Busca Ativa Parada (+5 dias)</h4>
+                    <ul class="space-y-2">
+                        ${urgentAbsences.map(a => {
+                const date = a.createdAt?.toDate ? a.createdAt.toDate() : new Date();
+                return `
+                            <li class="bg-white p-2 rounded border border-red-100 shadow-sm text-xs flex justify-between items-center cursor-pointer hover:bg-red-50 dashboard-jump-link" 
+                                data-tab="absences" data-student-name="${a.studentName}">
+                                <span><strong>${a.studentName || 'Aluno'}</strong>: Aguardando ação</span>
+                                <span class="text-gray-400">${formatDate(date)}</span>
+                            </li>
+                        `}).join('')}
+                    </ul>
+                </div>`;
+        }
+
+        alertsHtml += `</div>`;
+        alertSection.innerHTML = alertsHtml;
+
+        if (cardsRow) cardsRow.parentNode.insertBefore(alertSection, cardsRow.nextSibling);
+    } catch (e) {
+        console.warn("Erro ao renderizar alertas:", e);
     }
-
-    if (urgentAbsences.length > 0) {
-        alertsHtml += `
-            <div>
-                <h4 class="text-xs font-semibold text-red-700 mb-2">Busca Ativa Parada (+5 dias)</h4>
-                <ul class="space-y-2">
-                    ${urgentAbsences.map(a => {
-                         const date = a.createdAt?.toDate ? a.createdAt.toDate() : new Date();
-                         return `
-                        <li class="bg-white p-2 rounded border border-red-100 shadow-sm text-xs flex justify-between items-center cursor-pointer hover:bg-red-50 dashboard-jump-link" 
-                            data-tab="absences" data-student-name="${a.studentName}">
-                            <span><strong>${a.studentName || 'Aluno'}</strong>: Aguardando ação</span>
-                            <span class="text-gray-400">${formatDate(date)}</span>
-                        </li>
-                    `}).join('')}
-                </ul>
-            </div>`;
-    }
-    
-    alertsHtml += `</div>`;
-    alertSection.innerHTML = alertsHtml;
-    
-    if(cardsRow) cardsRow.parentNode.insertBefore(alertSection, cardsRow.nextSibling);
 }
 
 const animateValue = (id, start, end, duration) => {
     const obj = document.getElementById(id);
-    if(!obj) return;
+    if (!obj) return;
     let startTimestamp = null;
     const step = (timestamp) => {
         if (!startTimestamp) startTimestamp = timestamp;
@@ -160,90 +169,100 @@ const animateValue = (id, start, end, duration) => {
 };
 
 const renderCharts = (occurrences, absences) => {
-    // Gráfico 1: Tipos de Ocorrência (Top 5)
-    const typesCount = {};
-    occurrences.forEach(o => {
-        const type = o.occurrenceType || 'Outros';
-        typesCount[type] = (typesCount[type] || 0) + 1;
-    });
-    
-    const sortedTypes = Object.entries(typesCount)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
+    try {
+        // Gráfico 1: Tipos de Ocorrência (Top 5)
+        const typesCount = {};
+        occurrences.forEach(o => {
+            const type = o.occurrenceType || 'Outros';
+            typesCount[type] = (typesCount[type] || 0) + 1;
+        });
 
-    const ctxTypes = document.getElementById('dash-chart-types').getContext('2d');
-    if (chartTypes) chartTypes.destroy();
+        const sortedTypes = Object.entries(typesCount)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
 
-    const totalTypes = sortedTypes.reduce((acc, curr) => acc + curr[1], 0);
+        const canvasTypes = document.getElementById('dash-chart-types');
+        if (!canvasTypes) return;
 
-    chartTypes = new Chart(ctxTypes, {
-        type: 'doughnut',
-        data: {
-            labels: sortedTypes.map(i => i[0]),
-            datasets: [{
-                data: sortedTypes.map(i => i[1]),
-                backgroundColor: ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6'],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: 'right' },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const label = context.label || '';
-                            const value = context.raw || 0;
-                            const percentage = totalTypes > 0 ? ((value / totalTypes) * 100).toFixed(1) + '%' : '0%';
-                            return `${label}: ${value} (${percentage})`;
-                        }
-                    }
-                }
-            }
-        }
-    });
+        const ctxTypes = canvasTypes.getContext('2d');
+        if (chartTypes) chartTypes.destroy();
 
-    // Gráfico 2: Status Busca Ativa
-    const statusCount = { 'Em Andamento': 0, 'Concluído': 0 };
-    absences.forEach(a => {
-        if (a.actionType === 'analise') statusCount['Concluído']++;
-        else statusCount['Em Andamento']++;
-    });
+        const totalTypes = sortedTypes.reduce((acc, curr) => acc + curr[1], 0);
 
-    const ctxStatus = document.getElementById('dash-chart-status').getContext('2d');
-    if (chartStatus) chartStatus.destroy();
-
-    chartStatus = new Chart(ctxStatus, {
-        type: 'bar',
-        data: {
-            labels: Object.keys(statusCount),
-            datasets: [{
-                label: 'Ações',
-                data: Object.values(statusCount),
-                backgroundColor: ['#f59e0b', '#10b981'],
-                borderRadius: 5
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+        chartTypes = new Chart(ctxTypes, {
+            type: 'doughnut',
+            data: {
+                labels: sortedTypes.map(i => i[0]),
+                datasets: [{
+                    data: sortedTypes.map(i => i[1]),
+                    backgroundColor: ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6'],
+                    borderWidth: 0
+                }]
             },
-            plugins: { 
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const label = context.dataset.label || '';
-                            const value = context.raw || 0;
-                            const total = statusCount['Em Andamento'] + statusCount['Concluído'];
-                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
-                            return `${label}: ${value} (${percentage})`;
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'right' },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const label = context.label || '';
+                                const value = context.raw || 0;
+                                const percentage = totalTypes > 0 ? ((value / totalTypes) * 100).toFixed(1) + '%' : '0%';
+                                return `${label}: ${value} (${percentage})`;
+                            }
                         }
                     }
                 }
             }
-        }
-    });
+        });
+
+        // Gráfico 2: Status Busca Ativa
+        const statusCount = { 'Em Andamento': 0, 'Concluído': 0 };
+        absences.forEach(a => {
+            if (a.actionType === 'analise') statusCount['Concluído']++;
+            else statusCount['Em Andamento']++;
+        });
+
+        const canvasStatus = document.getElementById('dash-chart-status');
+        if (!canvasStatus) return;
+
+        const ctxStatus = canvasStatus.getContext('2d');
+        if (chartStatus) chartStatus.destroy();
+
+        chartStatus = new Chart(ctxStatus, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(statusCount),
+                datasets: [{
+                    label: 'Ações',
+                    data: Object.values(statusCount),
+                    backgroundColor: ['#f59e0b', '#10b981'],
+                    borderRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const label = context.dataset.label || '';
+                                const value = context.raw || 0;
+                                const total = statusCount['Em Andamento'] + statusCount['Concluído'];
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
+                                return `${label}: ${value} (${percentage})`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (err) {
+        console.error("Erro ao renderizar gráficos:", err);
+    }
 };
