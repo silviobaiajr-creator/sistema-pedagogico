@@ -64,7 +64,10 @@ const renderStudentsList = (append = false) => {
         const row = document.createElement('tr');
         row.id = `row-${student.matricula}`;
         row.innerHTML = `
-            <td class="px-4 py-2 text-sm text-gray-900">${student.name}</td>
+            <td class="px-4 py-2 text-sm text-gray-900">
+                <div class="font-bold">${student.name}</div>
+                <div class="text-xs text-gray-500">${student.schoolYear || ''} ${student.shift ? '• ' + student.shift : ''}</div>
+            </td>
             <td class="px-4 py-2 text-sm text-gray-500">${student.class || '-'}</td>
             <td class="px-4 py-2 text-right text-sm space-x-2">
                 <button class="edit-student-btn text-yellow-600 hover:text-yellow-900" data-id="${student.matricula}" title="Editar">
@@ -187,6 +190,12 @@ const resetStudentForm = () => {
     document.getElementById('student-id-input').value = '';
     document.getElementById('student-matricula-input').readOnly = false;
     document.getElementById('student-matricula-input').classList.remove('bg-gray-100');
+
+    // Clear new fields explicitely if reset() doesn't cover them (safe bet)
+    document.getElementById('student-sexo-input').value = '';
+    document.getElementById('student-schoolyear-input').value = '';
+    document.getElementById('student-shift-input').value = '';
+
     dom.cancelEditStudentBtn.classList.add('hidden');
 };
 
@@ -218,7 +227,8 @@ async function handleCsvUpload() {
                     return;
                 }
 
-                const requiredHeaders = ['matricula', 'nome', 'turma', 'endereco', 'contato', 'resp1', 'resp2'];
+                const requiredHeaders = ['matricula', 'nome', 'turma'];
+                // Optional but recommended: 'ano escolar', 'turno', 'sexo', 'endereco', 'contato', 'resp1', 'resp2'
                 const hasAllHeaders = requiredHeaders.every(h => results.meta.fields.includes(h));
                 if (!hasAllHeaders) {
                     feedbackDiv.innerHTML = `<p class="text-red-500">Faltam colunas obrigatórias: ${requiredHeaders.join(', ')}.</p>`;
@@ -309,6 +319,9 @@ async function handleStudentFormSubmit(e) {
     const studentData = {
         matricula, name,
         class: document.getElementById('student-class-input').value.trim(),
+        schoolYear: document.getElementById('student-schoolyear-input').value.trim(),
+        shift: document.getElementById('student-shift-input').value.trim(),
+        sexo: document.getElementById('student-sexo-input').value,
         endereco: document.getElementById('student-endereco-input').value.trim(),
         contato: document.getElementById('student-contato-input').value.trim(),
         resp1: document.getElementById('student-resp1-input').value.trim(),
@@ -361,6 +374,9 @@ async function handleStudentTableActions(e) {
             document.getElementById('student-matricula-input').value = student.matricula;
             document.getElementById('student-name-input').value = student.name;
             document.getElementById('student-class-input').value = student.class || '';
+            document.getElementById('student-schoolyear-input').value = student.schoolYear || '';
+            document.getElementById('student-shift-input').value = student.shift || '';
+            document.getElementById('student-sexo-input').value = student.sexo || '';
             document.getElementById('student-endereco-input').value = student.endereco || '';
             document.getElementById('student-contato-input').value = student.contato || '';
             document.getElementById('student-resp1-input').value = student.resp1 || '';
