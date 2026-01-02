@@ -792,7 +792,6 @@ const ensureSignatureModalExists = () => {
             
             <div class="flex border-b bg-gray-50">
                 <button id="tab-draw" class="flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition"><i class="fas fa-pen-alt mr-1"></i> Desenhar</button>
-                <button id="tab-upload" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition"><i class="fas fa-upload mr-1"></i> Upload / Papel</button>
                 <button id="tab-link" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition"><i class="fas fa-fingerprint mr-1"></i> Digital / Link</button>
             </div>
             
@@ -827,25 +826,6 @@ const ensureSignatureModalExists = () => {
                     </div>
                 </div>
 
-                <!-- TAB 2: UPLOAD (NOVO) -->
-                <div id="content-tab-upload" class="hidden">
-                    <div class="border-2 border-dashed border-sky-300 bg-sky-50 rounded-lg p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-sky-100 transition relative h-64" onclick="document.getElementById('upload-signature-input').click()">
-                        <input type="file" id="upload-signature-input" class="hidden" accept="image/*">
-                        
-                        <div id="upload-placeholder">
-                            <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm text-sky-500 text-2xl">
-                                <i class="fas fa-cloud-upload-alt"></i>
-                            </div>
-                            <p class="font-bold text-sky-800 text-sm">Clique para enviar foto</p>
-                            <p class="text-xs text-sky-600 mt-1">Tire uma foto do papel assinado</p>
-                        </div>
-
-                        <img id="upload-preview-img" class="absolute inset-0 w-full h-full object-contain hidden p-2" />
-                    </div>
-                    <p class="text-[10px] text-gray-400 text-center mt-2">Formatos: JPG, PNG. A imagem será ajustada automaticamente.</p>
-                </div>
-
-                <!-- TAB 3: LINK OU PRESENCIAL -->
                 <div id="content-tab-link" class="hidden">
                     <div id="local-options-container" class="space-y-4">
                         <div class="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -926,22 +906,13 @@ const setupSignaturePadEvents = () => {
             tabDraw.className = "flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition";
             tabLink.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
             btnConfirm.classList.remove('hidden');
-            startCamera(); // Camera do Tab 1 (Desenho)
             const rect = canvas.parentElement.getBoundingClientRect();
             if (rect.width > 0) { canvas.width = rect.width; canvas.height = 128; redrawCanvas(); }
-        } else if (tab === 'upload') {
-            contentDraw.classList.add('hidden'); contentLink.classList.add('hidden'); contentUpload.classList.remove('hidden');
-            tabUpload.className = "flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition";
-            tabDraw.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
-            tabLink.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
-            btnConfirm.classList.remove('hidden'); // Salvar habilitado (condicionalmente)
-            stopCameraStream();
         } else {
             // Tab Link
-            contentDraw.classList.add('hidden'); contentLink.classList.remove('hidden'); contentUpload.classList.add('hidden');
+            contentDraw.classList.add('hidden'); contentLink.classList.remove('hidden');
             tabLink.className = "flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition";
             tabDraw.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
-            tabUpload.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
             btnConfirm.classList.add('hidden');
             stopCameraStream(); // Para camera do Tab 1
 
@@ -1238,28 +1209,10 @@ const setupSignaturePadEvents = () => {
     document.getElementById('btn-clear-signature').onclick = () => { savedPaths = []; currentPath = []; ctx.clearRect(0, 0, canvas.width, canvas.height); };
 
     btnConfirm.onclick = () => {
-        // Lógica de Salvar baseada na aba ativa
-        const activeTab = document.querySelector('#signature-pad-modal button[class*="text-sky-700"]');
-        let signatureData = null;
-        let finalData = {};
-
-        if (activeTab.id === 'tab-upload') {
-            if (uploadedBase64) {
-                finalData = {
-                    signature: null,
-                    image: uploadedBase64,
-                    type: 'upload',
-                    timestamp: new Date().toISOString()
-                };
-            } else {
-                return alert("Selecione uma imagem primeiro.");
-            }
-        } else {
-            // Tab Draw (Padrão)
-            signatureData = canvas.toDataURL('image/png');
-            const evidenceData = !photoResult.classList.contains('hidden') ? photoResult.src : null;
-            finalData = { signature: signatureData, photo: evidenceData }; // Legacy format
-        }
+        // Tab Draw (Padrão)
+        const signatureData = canvas.toDataURL('image/png');
+        const evidenceData = !photoResult.classList.contains('hidden') ? photoResult.src : null;
+        const finalData = { signature: signatureData, photo: evidenceData };
 
         stopCameraStream();
         modal.classList.add('hidden'); modal.classList.remove('flex');
@@ -1272,30 +1225,7 @@ const setupSignaturePadEvents = () => {
         modal.classList.add('hidden'); modal.classList.remove('flex');
     };
 
-    // --- LÓGICA DO TAB UPLOAD (NOVO) ---
-    const tabUpload = document.getElementById('tab-upload');
-    const contentUpload = document.getElementById('content-tab-upload');
-    const fileInput = document.getElementById('upload-signature-input');
-    const previewImg = document.getElementById('upload-preview-img');
-    const uploadPlaceholder = document.getElementById('upload-placeholder');
-    let uploadedBase64 = null;
-
-    tabUpload.onclick = () => switchTab('upload');
-
-    fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            uploadedBase64 = evt.target.result;
-            previewImg.src = uploadedBase64;
-            previewImg.classList.remove('hidden');
-            uploadPlaceholder.classList.add('hidden');
-            btnConfirm.classList.remove('hidden'); // Habilita salvar
-        };
-        reader.readAsDataURL(file);
-    });
+    // --- REMOVIDO TAB UPLOAD ---
 };
 
 const startCamera = async () => {
@@ -1657,240 +1587,249 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
         { docType, studentId, refId, generatorFn, title, extraData }
     );
 
-    // --- INJECT PRINT STYLES & UPLOAD BUTTON ---
-    const modalContent = document.getElementById(contentDivId);
 
-    // 1. Inject Print Styles (Idempotent)
+    // --- INJECT PRINT STYLES & UPLOAD BUTTON (NEW LOGIC) ---
+    const modalContent = contentDiv; // Reuse existing reference
+
+    // 1. Inject Print Styles (ROBUST FIX)
     if (!document.getElementById('doc-print-styles')) {
         const style = document.createElement('style');
         style.id = 'doc-print-styles';
         style.innerHTML = `
             @media print {
-                body * { visibility: hidden; }
-                #report-view-modal, #report-view-modal * { visibility: visible; }
-                #report-view-modal { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: white; z-index: 9999; }
-                .no-print, .modal-close-btn, .modal-actions { display: none !important; }
+                html, body { 
+                    height: auto !important; 
+                    overflow: visible !important; 
+                    background: white !important;
+                }
+                body > * { display: none !important; }
                 
-                /* Digital Sig Fix for Print */
+                #report-view-modal, .modal-visible, [id$="modal"] {
+                    display: block !important;
+                    position: absolute !important;
+                    left: 0 !important;
+                    top: 0 !important;
+                    width: 100% !important;
+                    height: auto !important;
+                    z-index: 9999 !important;
+                    overflow: visible !important;
+                    background: white !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+                
+                #report-view-modal *, .modal-visible *, [id$="modal"] * { visibility: visible !important; }
+                .no-print, .modal-close-btn, .modal-actions, #doc-view-toolbar, #signature-pad-modal, #btn-print-doc, #btn-send-doc { display: none !important; }
                 .bg-green-50, .bg-green-50\\/50 { background-color: white !important; border: 1px solid #000 !important; }
                 .text-green-800, .text-green-700, .text-green-900 { color: #000 !important; }
                 .border-green-500, .border-green-200, .border-green-100 { border-color: #000 !important; }
-                
-                /* Layout */
                 .break-inside-avoid { page-break-inside: avoid; }
             }
         `;
         document.head.appendChild(style);
     }
 
-    // 2. Add 'Anexar Digitalização' Button to Actions
-    // Assuming there is a container for actions, we will try to find it. 
-    // Usually, modals have a footer or we can inject one.
-    // Based on previous knowledge, 'report-view-content' is inside a modal. 
-    // Let's look for a toolbar or add a floating action button if needed.
+    // 2. Add 'Anexar Digitalização' Button & Fixed Print
+    {
+        let toolBar = document.getElementById('doc-view-toolbar');
+        if (!toolBar) {
+            toolBar = document.createElement('div');
+            toolBar.id = 'doc-view-toolbar';
+            toolBar.className = "flex flex-wrap gap-2 mb-4 p-2 bg-gray-100 rounded border border-gray-200 no-print justify-end";
+            modalContent.parentElement.insertBefore(toolBar, modalContent);
+        }
 
-    // For now, let's inject a toolbar at the TOP if it doesn't exist
-    let toolBar = document.getElementById('doc-view-toolbar');
-    if (!toolBar) {
-        toolBar = document.createElement('div');
-        toolBar.id = 'doc-view-toolbar';
-        toolBar.className = "flex flex-wrap gap-2 mb-4 p-2 bg-gray-100 rounded border border-gray-200 no-print justify-end";
-        modalContent.parentElement.insertBefore(toolBar, modalContent);
-    }
+        toolBar.innerHTML = ''; // Clear previous
 
-    toolBar.innerHTML = ''; // Clear previous
+        // Upload Full Doc Button
+        const btnUploadScan = document.createElement('button');
+        btnUploadScan.className = "bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-purple-700 flex items-center gap-2";
+        btnUploadScan.innerHTML = `<i class="fas fa-file-upload"></i> Anexar Digitalização`;
 
-    const btnUploadScan = document.createElement('button');
-    btnUploadScan.className = "bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-purple-700 flex items-center gap-2";
-    btnUploadScan.innerHTML = `<i class="fas fa-file-upload"></i> Anexar Digitalização`;
+        const inputScan = document.createElement('input');
+        inputScan.type = 'file';
+        inputScan.accept = 'image/*,application/pdf'; // Basic image support first
+        inputScan.className = "hidden";
 
-    const inputScan = document.createElement('input');
-    inputScan.type = 'file';
-    inputScan.accept = 'image/*,application/pdf'; // Basic image support first
-    inputScan.className = "hidden";
+        inputScan.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
 
-    // Handle Upload
-    inputScan.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                const base64 = evt.target.result;
+                const scanData = {
+                    type: 'scanned_doc_legacy', // Custom type
+                    image: base64,
+                    timestamp: new Date().toISOString(),
+                    signerName: 'Arquivo Digitalizado'
+                };
 
-        // Convert to Base64
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-            const base64 = evt.target.result;
+                signatureMap.set('_scanned_doc', scanData);
 
-            // Save as a special signature entry OR separate field
-            // We use '_scanned_doc' key in signatureMap to persist it
-            const scanData = {
-                type: 'scanned_doc_legacy', // Custom type
-                image: base64,
-                timestamp: new Date().toISOString(),
-                signerName: 'Arquivo Digitalizado'
+                if (confirm("Arquivo carregado. Deseja salvar e definir esta imagem como o documento oficial?")) {
+                    const signaturesToSave = Object.fromEntries(signatureMap);
+                    await saveDocumentSnapshot(docType, title, html, studentId, {
+                        refId: refId,
+                        signatures: signaturesToSave
+                    });
+                    alert("Documento digitalizado salvo com sucesso!");
+                    renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn, extraData);
+                }
             };
-
-            signatureMap.set('_scanned_doc', scanData);
-
-            // Trigger Save immediately
-            if (confirm("Arquivo carregado. Deseja salvar e definir esta imagem como o documento oficial?")) {
-                // Re-trigger render to show the scanned image (if we implement that view)
-                // For now, let's just save.
-
-                // Reuse the save logic from listeners
-                const signaturesToSave = Object.fromEntries(signatureMap);
-                await saveDocumentSnapshot(docType, title, html, studentId, {
-                    refId: refId,
-                    signatures: signaturesToSave,
-                    // If we supported a dedicated field, we'd add it here.
-                    // But 'signatures' is flexible enough for now.
-                });
-
-                alert("Documento digitalizado salvo com sucesso!");
-                // Reload
-                renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn, extraData);
-            }
+            reader.readAsDataURL(file);
         };
-        reader.readAsDataURL(file);
-    };
 
-    btnUploadScan.onclick = () => inputScan.click();
+        btnUploadScan.onclick = () => inputScan.click();
 
-    // Print Button
-    const btnPrint = document.createElement('button');
-    btnPrint.className = "bg-gray-700 text-white px-3 py-1 rounded text-xs font-bold hover:bg-gray-800 flex items-center gap-2";
-    btnPrint.innerHTML = `<i class="fas fa-print"></i> Imprimir`;
-    btnPrint.onclick = () => window.print();
-
-    toolBar.appendChild(inputScan);
-    toolBar.appendChild(btnUploadScan);
-    toolBar.appendChild(btnPrint);
-
-    // CHECK IF SCANNED DOC EXISTS TO SHOW IT
-    const scanned = signatureMap.get('_scanned_doc');
-    if (scanned && scanned.image) {
-        // Option to toggle view
-        const btnToggleView = document.createElement('button');
-        btnToggleView.className = "bg-sky-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-sky-700 flex items-center gap-2";
-        btnToggleView.innerHTML = `<i class="fas fa-exchange-alt"></i> Ver Digital / Digitalizado`;
-        btnToggleView.onclick = () => {
-            // Simple toggle: If showing HTML, show Image.
-            const current = modalContent.getAttribute('data-view-mode') || 'html';
-            if (current === 'html') {
-                modalContent.innerHTML = `<div class="flex items-center justify-center p-4 bg-gray-800 min-h-[500px]"><img src="${scanned.image}" class="max-w-full h-auto shadow-lg border border-gray-600" /></div>`;
-                modalContent.setAttribute('data-view-mode', 'image');
-            } else {
-                renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn, extraData); // Rerender full HTML
-            }
+        // Print Button (Fixed Focus)
+        const btnPrint = document.createElement('button');
+        btnPrint.className = "bg-gray-700 text-white px-3 py-1 rounded text-xs font-bold hover:bg-gray-800 flex items-center gap-2";
+        btnPrint.innerHTML = `<i class="fas fa-print"></i> Imprimir`;
+        btnPrint.onclick = () => {
+            const activeEl = document.activeElement;
+            if (activeEl) activeEl.blur(); // Remove focus to prevent keyboard traps
+            setTimeout(() => window.print(), 100);
         };
-        toolBar.insertBefore(btnToggleView, btnUploadScan);
 
-        // Render Image by default? Maybe not, keep HTML default so they can see data, but show alert.
-        const alertDiv = document.createElement('div');
-        alertDiv.className = "w-full bg-blue-50 text-blue-800 p-2 text-xs text-center border-b border-blue-100 mb-2";
-        alertDiv.innerHTML = `<i class="fas fa-check-circle"></i> Este documento possui uma versão digitalizada anexada.`;
-        modalContent.parentElement.insertBefore(alertDiv, modalContent);
-    }
-};
+        toolBar.appendChild(inputScan);
+        toolBar.appendChild(btnUploadScan);
+        toolBar.appendChild(btnPrint);
 
-// ... (existing helper functions) ...
+        // HIDE OLD BUTTONS (Legacy 'Enviar' and 'Imprimir Verde')
+        // We look for them in the parent modal container
+        setTimeout(() => {
+            const p = modalContent.parentElement;
+            if (p) {
+                const oldActions = p.querySelectorAll('.modal-actions, #btn-print-doc, #btn-send-doc');
+                oldActions.forEach(el => el.style.display = 'none');
+            }
+        }, 50);
 
-// --- MODO "PARENT VIEW" (VISÃO DO PAI - LINK SEGURO) ---
-
-
-// ... restoring original implementations ...
-
-const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
-    document.querySelectorAll('.signature-interaction-area').forEach(area => {
-        area.onclick = (e) => {
-            e.stopPropagation();
-            const key = area.getAttribute('data-sig-key');
-            // Busca o ID do documento renderizado na div pai
-            const contentDiv = area.closest('[data-doc-ref-id]'); // Tenta achar wrapper com ID
-            // Se não achar, procura container genérico e assume 'temp'
-            let currentDocRefId = contentDiv ? contentDiv.getAttribute('data-doc-ref-id') : 'temp';
-
-            // Captura contexto para geração de link
-            window.currentDocParams = {
-                refId: context.refId || context.title,
-                type: context.docType,
-                studentId: context.studentId,
-                extraData: context.extraData
-            };
-
-            // FIX: Context Extension for Save Logic
-            context.studentName = context.extraData?.studentName || context.name || 'Aluno';
-
-            // Helper para salvar documento
-            const saveDocLogic = async () => {
-                let docRealId = currentDocRefId;
-                const newHtmlRaw = await generateSmartHTML(context.docType, context.studentId, context.refId, context.generatorFn);
-                const signaturesToSave = Object.fromEntries(signatureMap); // Moved AFTER generateSmartHTML to include merged DB sigs
-
-                if (!docRealId || docRealId === 'temp' || docRealId === 'undefined' || docRealId.startsWith('temp')) {
-                    // Create (or Find if exists but untracked)
-                    try {
-                        const newDocRef = await saveDocumentSnapshot(context.docType, context.title, newHtmlRaw.html, context.studentId, {
-                            refId: context.refId,
-                            signatures: signaturesToSave,
-                            studentName: context.studentName
-                        });
-
-                        if (newDocRef && newDocRef.id) {
-                            docRealId = newDocRef.id;
-                        } else {
-                            throw new Error("Save returned null (Lock matched?)");
-                        }
-                    } catch (saveErr) {
-                        console.warn("Falha ao salvar/criar (possível bloqueio ou cache). Tentando recuperar ID existente...", saveErr);
-                        // FALLBACK: Tenta achar o documento pelo RefID
-                        const existing = await findDocumentSnapshot(context.docType, context.studentId, context.refId);
-                        if (existing && existing.id) {
-                            docRealId = existing.id;
-                            console.log("ID recuperado via fallback:", docRealId);
-                        } else {
-                            throw saveErr; // Se não achou, então é erro real
-                        }
-                    }
+        // CHECK IF SCANNED DOC EXISTS TO SHOW IT
+        const scanned = signatureMap.get('_scanned_doc');
+        if (scanned && scanned.image) {
+            // Option to toggle view
+            const btnToggleView = document.createElement('button');
+            btnToggleView.className = "bg-sky-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-sky-700 flex items-center gap-2";
+            btnToggleView.innerHTML = `<i class="fas fa-exchange-alt"></i> Ver Digital / Digitalizado`;
+            btnToggleView.onclick = () => {
+                const current = modalContent.getAttribute('data-view-mode') || 'html';
+                if (current === 'html') {
+                    modalContent.innerHTML = `<div class="flex items-center justify-center p-4 bg-gray-800 min-h-[500px]"><img src="${scanned.image}" class="max-w-full h-auto shadow-lg border border-gray-600" /></div>`;
+                    modalContent.setAttribute('data-view-mode', 'image');
                 } else {
-                    // Update
-                    await updateDocumentSignatures(docRealId, signatureMap, newHtmlRaw.html);
+                    renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn, extraData);
                 }
-
-                // Atualiza referência local para próximas chamadas
-                currentDocRefId = docRealId;
-                if (contentDiv) contentDiv.setAttribute('data-doc-ref-id', docRealId);
-
-                return docRealId;
             };
+            toolBar.insertBefore(btnToggleView, btnUploadScan);
 
-            openSignaturePad(key, currentDocRefId, async (data) => {
-                // 1. ATUALIZA MEMÓRIA LOCAL
-                signatureMap.set(key, data);
-                showToast("Assinatura coletada! Processando...");
+            const alertDiv = document.createElement('div');
+            alertDiv.className = "w-full bg-blue-50 text-blue-800 p-2 text-xs text-center border-b border-blue-100 mb-2";
+            alertDiv.innerHTML = `<i class="fas fa-check-circle"></i> Este documento possui uma versão digitalizada anexada.`;
+            modalContent.parentElement.insertBefore(alertDiv, modalContent);
+        }
+    }
 
-                try {
-                    // 2. SALVA O DOCUMENTO (E ASSINATURA)
-                    const docId = await saveDocLogic();
-                    showToast("Assinatura registrada no doc " + docId);
+    // ... (existing helper functions) ...
 
-                    // 3. REFLETE NA UI GLOBAL
-                    const docIndex = state.documents.findIndex(d => d.id === docId);
-                    if (docIndex > -1) {
-                        // Atualiza estado se possível (opcional, pois o reRender vai buscar do banco ou usar signatureMap)
+    // --- MODO "PARENT VIEW" (VISÃO DO PAI - LINK SEGURO) ---
+
+
+    // ... restoring original implementations ...
+
+
+    const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
+        document.querySelectorAll('.signature-interaction-area').forEach(area => {
+            area.onclick = (e) => {
+                e.stopPropagation();
+                const key = area.getAttribute('data-sig-key');
+                // Busca o ID do documento renderizado na div pai
+                const contentDiv = area.closest('[data-doc-ref-id]'); // Tenta achar wrapper com ID
+                // Se não achar, procura container genérico e assume 'temp'
+                let currentDocRefId = contentDiv ? contentDiv.getAttribute('data-doc-ref-id') : 'temp';
+
+                // Captura contexto para geração de link
+                window.currentDocParams = {
+                    refId: context.refId || context.title,
+                    type: context.docType,
+                    studentId: context.studentId,
+                    extraData: context.extraData
+                };
+
+                // FIX: Context Extension for Save Logic
+                context.studentName = context.extraData?.studentName || context.name || 'Aluno';
+
+                // Helper para salvar documento
+                const saveDocLogic = async () => {
+                    let docRealId = currentDocRefId;
+                    const newHtmlRaw = await generateSmartHTML(context.docType, context.studentId, context.refId, context.generatorFn);
+                    const signaturesToSave = Object.fromEntries(signatureMap); // Moved AFTER generateSmartHTML to include merged DB sigs
+
+                    if (!docRealId || docRealId === 'temp' || docRealId === 'undefined' || docRealId.startsWith('temp')) {
+                        // Create (or Find if exists but untracked)
+                        try {
+                            const newDocRef = await saveDocumentSnapshot(context.docType, context.title, newHtmlRaw.html, context.studentId, {
+                                refId: context.refId,
+                                signatures: signaturesToSave,
+                                studentName: context.studentName
+                            });
+
+                            if (newDocRef && newDocRef.id) {
+                                docRealId = newDocRef.id;
+                            } else {
+                                throw new Error("Save returned null (Lock matched?)");
+                            }
+                        } catch (saveErr) {
+                            console.warn("Falha ao salvar/criar (possível bloqueio ou cache). Tentando recuperar ID existente...", saveErr);
+                            // FALLBACK: Tenta achar o documento pelo RefID
+                            const existing = await findDocumentSnapshot(context.docType, context.studentId, context.refId);
+                            if (existing && existing.id) {
+                                docRealId = existing.id;
+                                console.log("ID recuperado via fallback:", docRealId);
+                            } else {
+                                throw saveErr; // Se não achou, então é erro real
+                            }
+                        }
+                    } else {
+                        // Update
+                        await updateDocumentSignatures(docRealId, signatureMap, newHtmlRaw.html);
                     }
 
-                } catch (err) {
-                    console.error("Erro ao salvar assinatura local:", err);
-                    showToast("Erro ao salvar assinatura: " + err.message);
-                }
+                    // Atualiza referência local para próximas chamadas
+                    currentDocRefId = docRealId;
+                    if (contentDiv) contentDiv.setAttribute('data-doc-ref-id', docRealId);
 
-                // 4. RE-RENDERIZA A VISUALIZAÇÃO ATUAL
-                reRenderCallback();
-            }, async () => {
-                // Callback onSave (Aba Link)
-                return await saveDocLogic();
-            });
-        };
-    });
+                    return docRealId;
+                };
+
+                openSignaturePad(key, currentDocRefId, async (data) => {
+                    // 1. ATUALIZA MEMÓRIA LOCAL
+                    signatureMap.set(key, data);
+                    showToast("Assinatura coletada! Processando...");
+
+                    try {
+                        // 2. SALVA O DOCUMENTO (E ASSINATURA)
+                        const docId = await saveDocLogic();
+                        showToast("Assinatura registrada no doc " + docId);
+
+                        // 3. REFLETE NA UI GLOBAL
+                        const docIndex = state.documents.findIndex(d => d.id === docId);
+                        if (docIndex > -1) {
+                            // Atualiza estado se possível (opcional, pois o reRender vai buscar do banco ou usar signatureMap)
+                        }
+
+                    } catch (err) {
+                        console.error("Erro ao salvar assinatura local:", err);
+                        showToast("Erro ao salvar assinatura: " + err.message);
+                    }
+
+                    // 4. RE-RENDERIZA A VISUALIZAÇÃO ATUAL
+                    reRenderCallback();
+                });
+            };
+        });
+    };
 };
 
 
