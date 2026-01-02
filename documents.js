@@ -130,40 +130,61 @@ const openSnapshotModal = (docData) => {
         if (keys.length > 0) {
             const sig = docData.signatures[keys[0]];
             const signedDate = sig.timestamp ? new Date(sig.timestamp).toLocaleString() : 'Data N/A';
+            let signatureFooter = '';
 
-            const signatureFooter = `
-            <div class="mt-8 pt-6 border-t-2 border-gray-100 break-inside-avoid">
-                <div class="bg-green-50/50 p-4 rounded-lg border border-green-100">
-                     <h3 class="text-xs font-bold text-green-700 uppercase tracking-wider mb-4 border-b border-green-200 pb-2 flex items-center gap-2">
-                        <i class="fas fa-certificate"></i> Assinatura Digital Verificada
-                     </h3>
-                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                        <div>
-                            <p class="text-gray-500 text-xs">Assinado por</p>
-                            <p class="font-bold text-gray-800">${sig.signerName || 'Não informado'}</p>
+            // TIPO 1: DIGITAL (COM BIOMETRIA)
+            if (!sig.type || sig.type === 'digital_ack') {
+                signatureFooter = `
+                <div class="mt-8 pt-6 border-t-2 border-gray-100 break-inside-avoid">
+                    <div class="bg-green-50/50 p-4 rounded-lg border border-green-100">
+                        <h3 class="text-xs font-bold text-green-700 uppercase tracking-wider mb-4 border-b border-green-200 pb-2 flex items-center gap-2">
+                            <i class="fas fa-certificate"></i> Assinatura Digital Verificada
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <p class="text-gray-500 text-xs">Assinado por</p>
+                                <p class="font-bold text-gray-800">${sig.signerName || 'Não informado'}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-xs">CPF</p>
+                                <p class="font-bold text-gray-800 font-mono">${sig.signerCPF || '***'}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-xs">Data do Registro</p>
+                                <p class="font-bold text-gray-800">${signedDate}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-xs">IP / Dispositivo</p>
+                                <p class="font-bold text-gray-800 font-mono text-xs truncate" title="${sig.ip}">${sig.ip || 'N/A'}</p>
+                            </div>
                         </div>
-                        <div>
-                            <p class="text-gray-500 text-xs">CPF</p>
-                            <p class="font-bold text-gray-800 font-mono">${sig.signerCPF || '***'}</p>
-                        </div>
-                        <div>
-                            <p class="text-gray-500 text-xs">Data do Registro</p>
-                            <p class="font-bold text-gray-800">${signedDate}</p>
-                        </div>
-                        <div>
-                            <p class="text-gray-500 text-xs">IP / Dispositivo</p>
-                            <p class="font-bold text-gray-800 font-mono text-xs truncate" title="${sig.ip}">${sig.ip || 'N/A'}</p>
-                        </div>
+                        ${sig.photo ? `
+                        <div class="mt-4 pt-4 border-t border-green-100">
+                            <p class="text-xs text-green-700 font-bold mb-2">Registro Biométrico Facial (Selfie)</p>
+                            <img src="${sig.photo}" class="w-24 h-24 object-cover rounded-lg border border-green-200 shadow-sm">
+                        </div>` : ''}
                     </div>
-                    ${sig.photo ? `
-                    <div class="mt-4 pt-4 border-t border-green-100">
-                        <p class="text-xs text-green-700 font-bold mb-2">Registro Biométrico Facial (Selfie)</p>
-                        <img src="${sig.photo}" class="w-24 h-24 object-cover rounded-lg border border-green-200 shadow-sm">
-                    </div>` : ''}
-                </div>
-            </div>`;
+                </div>`;
+            }
+            // TIPO 2: UPLOAD (PAPEL)
+            else if (sig.type === 'upload') {
+                signatureFooter = `
+                <div class="mt-8 pt-6 border-t-2 border-gray-100 break-inside-avoid">
+                    <div class="bg-white p-4 rounded-lg border border-dashed border-gray-300">
+                         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 border-b border-gray-200 pb-2 flex items-center gap-2">
+                            <i class="fas fa-file-signature"></i> Assinatura Digitalizada
+                         </h3>
+                         <div class="flex flex-col items-center">
+                            <img src="${sig.image}" class="max-w-xs max-h-40 object-contain mb-2 border p-1 rounded bg-gray-50 mix-blend-multiply" />
+                            <p class="text-[10px] text-gray-400 font-mono">Registro: ${signedDate}</p>
+                         </div>
+                    </div>
+                </div>`;
+            }
 
-            contentEl.insertAdjacentHTML('beforeend', signatureFooter);
+            if (signatureFooter) {
+                contentEl.insertAdjacentHTML('beforeend', signatureFooter);
+            }
         }
     }
 

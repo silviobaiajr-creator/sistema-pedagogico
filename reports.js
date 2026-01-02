@@ -792,6 +792,7 @@ const ensureSignatureModalExists = () => {
             
             <div class="flex border-b bg-gray-50">
                 <button id="tab-draw" class="flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition"><i class="fas fa-pen-alt mr-1"></i> Desenhar</button>
+                <button id="tab-upload" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition"><i class="fas fa-upload mr-1"></i> Upload / Papel</button>
                 <button id="tab-link" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition"><i class="fas fa-fingerprint mr-1"></i> Digital / Link</button>
             </div>
             
@@ -799,7 +800,12 @@ const ensureSignatureModalExists = () => {
                 
                 <!-- TAB 1: DESENHO -->
                 <div id="content-tab-draw">
-                    <div class="bg-black rounded-lg overflow-hidden relative mb-4 h-40 flex items-center justify-center group shadow-inner">
+                    <div class="bg-gray-100 rounded-lg overflow-hidden relative mb-4 h-16 flex items-center justify-center group border border-dashed border-gray-300">
+                        <p class="text-[10px] text-gray-500">Câmera opcional para este modo.</p>
+                         <button id="btn-toggle-camera-draw" class="absolute right-2 top-2 text-gray-400 hover:text-sky-600"><i class="fas fa-camera"></i></button>
+                    </div>
+                    <!-- Área de camera escondida por padrão -->
+                    <div id="draw-camera-area" class="hidden mb-4 relative h-40 bg-black rounded-lg overflow-hidden">
                         <video id="camera-preview" autoplay playsinline class="w-full h-full object-cover"></video>
                         <canvas id="photo-canvas" class="hidden"></canvas>
                         <img id="photo-result" class="hidden w-full h-full object-cover absolute top-0 left-0 z-10" />
@@ -808,19 +814,38 @@ const ensureSignatureModalExists = () => {
                             <button id="btn-retake-photo" class="hidden bg-yellow-400 text-yellow-900 rounded-full px-3 py-1 text-xs font-bold shadow"><i class="fas fa-redo"></i> Refazer</button>
                         </div>
                     </div>
+
                     <div class="flex justify-between items-end mb-1">
-                        <p class="text-xs font-bold text-gray-600 uppercase">Assinatura</p>
+                        <p class="text-xs font-bold text-gray-600 uppercase">Assinatura (Stylus/Dedo)</p>
                         <div class="flex gap-1">
                             <button id="btn-undo-signature" class="bg-gray-200 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-gray-300"><i class="fas fa-undo"></i></button>
                             <button id="btn-clear-signature" class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold hover:bg-red-200"><i class="fas fa-trash"></i></button>
                         </div>
                     </div>
                     <div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 relative touch-none" style="touch-action: none;">
-                        <canvas id="signature-canvas" class="w-full h-32 cursor-crosshair"></canvas>
+                        <canvas id="signature-canvas" class="w-full h-48 cursor-crosshair"></canvas>
                     </div>
                 </div>
 
-                <!-- TAB 2: LINK OU PRESENCIAL -->
+                <!-- TAB 2: UPLOAD (NOVO) -->
+                <div id="content-tab-upload" class="hidden">
+                    <div class="border-2 border-dashed border-sky-300 bg-sky-50 rounded-lg p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-sky-100 transition relative h-64" onclick="document.getElementById('upload-signature-input').click()">
+                        <input type="file" id="upload-signature-input" class="hidden" accept="image/*">
+                        
+                        <div id="upload-placeholder">
+                            <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm text-sky-500 text-2xl">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <p class="font-bold text-sky-800 text-sm">Clique para enviar foto</p>
+                            <p class="text-xs text-sky-600 mt-1">Tire uma foto do papel assinado</p>
+                        </div>
+
+                        <img id="upload-preview-img" class="absolute inset-0 w-full h-full object-contain hidden p-2" />
+                    </div>
+                    <p class="text-[10px] text-gray-400 text-center mt-2">Formatos: JPG, PNG. A imagem será ajustada automaticamente.</p>
+                </div>
+
+                <!-- TAB 3: LINK OU PRESENCIAL -->
                 <div id="content-tab-link" class="hidden">
                     <div id="local-options-container" class="space-y-4">
                         <div class="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -904,10 +929,19 @@ const setupSignaturePadEvents = () => {
             startCamera(); // Camera do Tab 1 (Desenho)
             const rect = canvas.parentElement.getBoundingClientRect();
             if (rect.width > 0) { canvas.width = rect.width; canvas.height = 128; redrawCanvas(); }
+        } else if (tab === 'upload') {
+            contentDraw.classList.add('hidden'); contentLink.classList.add('hidden'); contentUpload.classList.remove('hidden');
+            tabUpload.className = "flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition";
+            tabDraw.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
+            tabLink.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
+            btnConfirm.classList.remove('hidden'); // Salvar habilitado (condicionalmente)
+            stopCameraStream();
         } else {
-            contentDraw.classList.add('hidden'); contentLink.classList.remove('hidden');
+            // Tab Link
+            contentDraw.classList.add('hidden'); contentLink.classList.remove('hidden'); contentUpload.classList.add('hidden');
             tabLink.className = "flex-1 py-3 text-sm font-bold text-sky-700 border-b-2 border-sky-600 bg-white transition";
             tabDraw.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
+            tabUpload.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-sky-600 transition";
             btnConfirm.classList.add('hidden');
             stopCameraStream(); // Para camera do Tab 1
 
@@ -1091,7 +1125,22 @@ const setupSignaturePadEvents = () => {
         if (modal._onConfirmCallback) modal._onConfirmCallback(digitalData);
     };
 
-    // --- LÓGICA DA CÂMERA (TAB 1) ---
+    // --- LÓGICA DA CÂMERA (TAB 1 - AGORA OPCIONAL) ---
+    const btnToggleCam = document.getElementById('btn-toggle-camera-draw');
+    const drawCameraArea = document.getElementById('draw-camera-area');
+
+    if (btnToggleCam) {
+        btnToggleCam.onclick = () => {
+            if (drawCameraArea.classList.contains('hidden')) {
+                drawCameraArea.classList.remove('hidden');
+                startCamera();
+            } else {
+                drawCameraArea.classList.add('hidden');
+                stopCameraStream();
+            }
+        };
+    }
+
     const btnTake = document.getElementById('btn-take-photo');
     const btnRetake = document.getElementById('btn-retake-photo');
     const video = document.getElementById('camera-preview');
@@ -1189,11 +1238,32 @@ const setupSignaturePadEvents = () => {
     document.getElementById('btn-clear-signature').onclick = () => { savedPaths = []; currentPath = []; ctx.clearRect(0, 0, canvas.width, canvas.height); };
 
     btnConfirm.onclick = () => {
-        const signatureData = canvas.toDataURL('image/png');
-        const evidenceData = !photoResult.classList.contains('hidden') ? photoResult.src : null;
+        // Lógica de Salvar baseada na aba ativa
+        const activeTab = document.querySelector('#signature-pad-modal button[class*="text-sky-700"]');
+        let signatureData = null;
+        let finalData = {};
+
+        if (activeTab.id === 'tab-upload') {
+            if (uploadedBase64) {
+                finalData = {
+                    signature: null,
+                    image: uploadedBase64,
+                    type: 'upload',
+                    timestamp: new Date().toISOString()
+                };
+            } else {
+                return alert("Selecione uma imagem primeiro.");
+            }
+        } else {
+            // Tab Draw (Padrão)
+            signatureData = canvas.toDataURL('image/png');
+            const evidenceData = !photoResult.classList.contains('hidden') ? photoResult.src : null;
+            finalData = { signature: signatureData, photo: evidenceData }; // Legacy format
+        }
+
         stopCameraStream();
         modal.classList.add('hidden'); modal.classList.remove('flex');
-        if (modal._onConfirmCallback) modal._onConfirmCallback({ signature: signatureData, photo: evidenceData });
+        if (modal._onConfirmCallback) modal._onConfirmCallback(finalData);
     };
 
     document.getElementById('btn-cancel-signature').onclick = () => {
@@ -1201,6 +1271,31 @@ const setupSignaturePadEvents = () => {
         if (localStream) localStream.getTracks().forEach(t => t.stop());
         modal.classList.add('hidden'); modal.classList.remove('flex');
     };
+
+    // --- LÓGICA DO TAB UPLOAD (NOVO) ---
+    const tabUpload = document.getElementById('tab-upload');
+    const contentUpload = document.getElementById('content-tab-upload');
+    const fileInput = document.getElementById('upload-signature-input');
+    const previewImg = document.getElementById('upload-preview-img');
+    const uploadPlaceholder = document.getElementById('upload-placeholder');
+    let uploadedBase64 = null;
+
+    tabUpload.onclick = () => switchTab('upload');
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            uploadedBase64 = evt.target.result;
+            previewImg.src = uploadedBase64;
+            previewImg.classList.remove('hidden');
+            uploadPlaceholder.classList.add('hidden');
+            btnConfirm.classList.remove('hidden'); // Habilita salvar
+        };
+        reader.readAsDataURL(file);
+    });
 };
 
 const startCamera = async () => {
@@ -1208,7 +1303,10 @@ const startCamera = async () => {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
         currentStream = stream;
         document.getElementById('camera-preview').srcObject = stream;
-    } catch (e) { console.error("Erro Câmera Tab 1", e); }
+    } catch (e) {
+        console.warn("Camera opcional não iniciada ou erro:", e);
+        // Não vamos mais bloquear ou alertar erro crítico, pois agora é opcional na aba Desenho
+    }
 };
 
 const stopCameraStream = () => {
@@ -1329,32 +1427,48 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
     // 1. Digital com Biometria
     if (sigData && sigData.type === 'digital_ack') {
         return `
-            <div class="relative group border border-green-500 bg-green-50 rounded flex flex-row overflow-hidden h-32 break-inside-avoid" data-sig-key="${key}">
+            <div class="relative group border border-green-500 bg-green-50 rounded flex flex-row overflow-hidden h-32 break-inside-avoid print:bg-white print:border-black" data-sig-key="${key}">
                 <div class="flex-1 p-2 flex flex-col justify-between overflow-hidden relative">
                     <div class="overflow-y-auto z-10">
-                        <p class="font-bold uppercase text-xs text-green-800 leading-tight flex items-center gap-1"><i class="fas fa-certificate"></i> ${roleTitle}</p>
-                        <p class="text-[10px] text-green-700 font-semibold mb-1 truncate">${nameSubtitle}</p>
-                        <div class="text-[9px] text-green-900 leading-snug break-words whitespace-normal font-mono">
+                        <p class="font-bold uppercase text-xs text-green-800 leading-tight flex items-center gap-1 print:text-black"><i class="fas fa-certificate"></i> ${roleTitle}</p>
+                        <p class="text-[10px] text-green-700 font-semibold mb-1 truncate print:text-black">${nameSubtitle}</p>
+                        <div class="text-[9px] text-green-900 leading-snug break-words whitespace-normal font-mono print:text-black">
                             ${sigData.signerName ? `<strong>Assinado por:</strong> ${sigData.signerName}<br>` : ''}
                             ${sigData.signerCPF ? `<strong>CPF:</strong> ${sigData.signerCPF}<br>` : ''}
                             ${sigData.ip ? `IP: ${sigData.ip}<br>` : ''}
                             ${new Date(sigData.timestamp).toLocaleString()}
                         </div>
                     </div>
-                     <div class="absolute bottom-1 right-1 opacity-10"><i class="fas fa-check-circle text-4xl text-green-500"></i></div>
+                     <div class="absolute bottom-1 right-1 opacity-10 print:hidden"><i class="fas fa-check-circle text-4xl text-green-500"></i></div>
                 </div>
-                ${sigData.photo ? `<div class="w-32 min-w-[30%] border-l border-green-200 bg-gray-100"><img src="${sigData.photo}" class="w-full h-full object-cover"></div>` : ''}
+                ${sigData.photo ? `<div class="w-32 min-w-[30%] border-l border-green-200 bg-gray-100 print:border-black print:grayscale"><img src="${sigData.photo}" class="w-full h-full object-cover"></div>` : ''}
             </div>`;
     }
-    // 2. Desenhada
+    // 2. Upload / Papel Digitalizado (NOVO)
+    else if (sigData && sigData.type === 'upload') {
+        return `
+            <div class="relative group cursor-pointer border border-gray-400 border-dashed rounded bg-white flex flex-row h-32 overflow-hidden" data-sig-key="${key}">
+                <div class="flex-1 flex flex-col p-2 justify-between relative overflow-hidden">
+                     <div class="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+                        <i class="fas fa-file-signature text-6xl text-gray-800"></i>
+                     </div>
+                    <img src="${sigData.image}" class="h-full w-full object-contain mix-blend-multiply z-10" />
+                </div>
+                 <div class="absolute top-1 right-1 bg-white/80 backdrop-blur-sm px-1 rounded text-[8px] text-gray-500 font-mono border">DIGITALIZADO</div>
+                 <div class="absolute bottom-0 w-full bg-white/90 px-2 py-1 border-t text-center z-20">
+                    <p class="text-[9px] font-bold uppercase leading-none">${roleTitle}</p>
+                 </div>
+            </div>`;
+    }
+    // 3. Desenhada (Legacy ou Stylus)
     else if (sigData && (sigData.signature || typeof sigData === 'string')) {
         const img = sigData.signature || sigData;
-        const photo = sigData.photo;
+        const photo = sigData.photo; // Pode ser undefined agora
         return `
             <div class="relative group cursor-pointer border border-gray-300 rounded bg-white flex flex-row h-32 overflow-hidden" data-sig-key="${key}">
-                 ${photo ? `<div class="w-32 min-w-[30%] border-r border-gray-200"><img src="${photo}" class="w-full h-full object-cover" /></div>` : `<div class="w-8 bg-gray-50 border-r border-gray-200 flex items-center justify-center"><i class="fas fa-pen-nib text-gray-300"></i></div>`}
+                 ${photo ? `<div class="w-32 min-w-[30%] border-r border-gray-200"><img src="${photo}" class="w-full h-full object-cover" /></div>` : ``}
                 <div class="flex-1 flex flex-col p-2 justify-between relative overflow-hidden">
-                    <img src="${img}" class="h-16 object-contain mix-blend-multiply self-center" />
+                    <img src="${img}" class="h-20 object-contain mix-blend-multiply self-center" />
                     <div class="border-t border-black w-full pt-1 text-center">
                         <p class="text-[9px] font-bold uppercase leading-none">${roleTitle}</p>
                         <p class="text-[8px] text-gray-500 truncate">${nameSubtitle}</p>
@@ -1362,13 +1476,20 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
                 </div>
             </div>`;
     }
-    // 3. Vazio
+    // 4. Vazio
     else {
         return `
-            <div class="h-32 border border-dashed border-gray-300 rounded bg-gray-50 flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-100 transition signature-interaction-area" data-sig-key="${key}">
-                <i class="fas fa-fingerprint text-xl mb-1 opacity-50"></i>
-                <p class="text-[9px] uppercase font-bold text-center">Aguardando<br>Assinatura</p>
-                <p class="text-[8px] mt-1">${roleTitle}</p>
+            <div class="h-32 border border-dashed border-gray-300 rounded bg-gray-50 flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-100 transition signature-interaction-area relative print:bg-white print:border-none" data-sig-key="${key}">
+                <div class="print:hidden flex flex-col items-center">
+                    <i class="fas fa-fingerprint text-xl mb-1 opacity-50"></i>
+                    <p class="text-[9px] uppercase font-bold text-center">Aguardando<br>Assinatura</p>
+                    <p class="text-[8px] mt-1">${roleTitle}</p>
+                </div>
+                <!-- PRINT ONLY VIEW -->
+                <div class="hidden print:flex flex-col items-center justify-end w-full h-full pb-2">
+                     <div class="w-10/12 border-b border-black mb-1"></div>
+                     <p class="text-[8px] uppercase font-bold text-black">${roleTitle}</p>
+                </div>
             </div>`;
     }
 };
@@ -1535,6 +1656,139 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
         () => renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn, extraData),
         { docType, studentId, refId, generatorFn, title, extraData }
     );
+
+    // --- INJECT PRINT STYLES & UPLOAD BUTTON ---
+    const modalContent = document.getElementById(contentDivId);
+
+    // 1. Inject Print Styles (Idempotent)
+    if (!document.getElementById('doc-print-styles')) {
+        const style = document.createElement('style');
+        style.id = 'doc-print-styles';
+        style.innerHTML = `
+            @media print {
+                body * { visibility: hidden; }
+                #report-view-modal, #report-view-modal * { visibility: visible; }
+                #report-view-modal { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: white; z-index: 9999; }
+                .no-print, .modal-close-btn, .modal-actions { display: none !important; }
+                
+                /* Digital Sig Fix for Print */
+                .bg-green-50, .bg-green-50\\/50 { background-color: white !important; border: 1px solid #000 !important; }
+                .text-green-800, .text-green-700, .text-green-900 { color: #000 !important; }
+                .border-green-500, .border-green-200, .border-green-100 { border-color: #000 !important; }
+                
+                /* Layout */
+                .break-inside-avoid { page-break-inside: avoid; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // 2. Add 'Anexar Digitalização' Button to Actions
+    // Assuming there is a container for actions, we will try to find it. 
+    // Usually, modals have a footer or we can inject one.
+    // Based on previous knowledge, 'report-view-content' is inside a modal. 
+    // Let's look for a toolbar or add a floating action button if needed.
+
+    // For now, let's inject a toolbar at the TOP if it doesn't exist
+    let toolBar = document.getElementById('doc-view-toolbar');
+    if (!toolBar) {
+        toolBar = document.createElement('div');
+        toolBar.id = 'doc-view-toolbar';
+        toolBar.className = "flex flex-wrap gap-2 mb-4 p-2 bg-gray-100 rounded border border-gray-200 no-print justify-end";
+        modalContent.parentElement.insertBefore(toolBar, modalContent);
+    }
+
+    toolBar.innerHTML = ''; // Clear previous
+
+    const btnUploadScan = document.createElement('button');
+    btnUploadScan.className = "bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-purple-700 flex items-center gap-2";
+    btnUploadScan.innerHTML = `<i class="fas fa-file-upload"></i> Anexar Digitalização`;
+
+    const inputScan = document.createElement('input');
+    inputScan.type = 'file';
+    inputScan.accept = 'image/*,application/pdf'; // Basic image support first
+    inputScan.className = "hidden";
+
+    // Handle Upload
+    inputScan.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Convert to Base64
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            const base64 = evt.target.result;
+
+            // Save as a special signature entry OR separate field
+            // We use '_scanned_doc' key in signatureMap to persist it
+            const scanData = {
+                type: 'scanned_doc_legacy', // Custom type
+                image: base64,
+                timestamp: new Date().toISOString(),
+                signerName: 'Arquivo Digitalizado'
+            };
+
+            signatureMap.set('_scanned_doc', scanData);
+
+            // Trigger Save immediately
+            if (confirm("Arquivo carregado. Deseja salvar e definir esta imagem como o documento oficial?")) {
+                // Re-trigger render to show the scanned image (if we implement that view)
+                // For now, let's just save.
+
+                // Reuse the save logic from listeners
+                const signaturesToSave = Object.fromEntries(signatureMap);
+                await saveDocumentSnapshot(docType, title, html, studentId, {
+                    refId: refId,
+                    signatures: signaturesToSave,
+                    // If we supported a dedicated field, we'd add it here.
+                    // But 'signatures' is flexible enough for now.
+                });
+
+                alert("Documento digitalizado salvo com sucesso!");
+                // Reload
+                renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn, extraData);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    btnUploadScan.onclick = () => inputScan.click();
+
+    // Print Button
+    const btnPrint = document.createElement('button');
+    btnPrint.className = "bg-gray-700 text-white px-3 py-1 rounded text-xs font-bold hover:bg-gray-800 flex items-center gap-2";
+    btnPrint.innerHTML = `<i class="fas fa-print"></i> Imprimir`;
+    btnPrint.onclick = () => window.print();
+
+    toolBar.appendChild(inputScan);
+    toolBar.appendChild(btnUploadScan);
+    toolBar.appendChild(btnPrint);
+
+    // CHECK IF SCANNED DOC EXISTS TO SHOW IT
+    const scanned = signatureMap.get('_scanned_doc');
+    if (scanned && scanned.image) {
+        // Option to toggle view
+        const btnToggleView = document.createElement('button');
+        btnToggleView.className = "bg-sky-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-sky-700 flex items-center gap-2";
+        btnToggleView.innerHTML = `<i class="fas fa-exchange-alt"></i> Ver Digital / Digitalizado`;
+        btnToggleView.onclick = () => {
+            // Simple toggle: If showing HTML, show Image.
+            const current = modalContent.getAttribute('data-view-mode') || 'html';
+            if (current === 'html') {
+                modalContent.innerHTML = `<div class="flex items-center justify-center p-4 bg-gray-800 min-h-[500px]"><img src="${scanned.image}" class="max-w-full h-auto shadow-lg border border-gray-600" /></div>`;
+                modalContent.setAttribute('data-view-mode', 'image');
+            } else {
+                renderDocumentModal(title, contentDivId, docType, studentId, refId, generatorFn, extraData); // Rerender full HTML
+            }
+        };
+        toolBar.insertBefore(btnToggleView, btnUploadScan);
+
+        // Render Image by default? Maybe not, keep HTML default so they can see data, but show alert.
+        const alertDiv = document.createElement('div');
+        alertDiv.className = "w-full bg-blue-50 text-blue-800 p-2 text-xs text-center border-b border-blue-100 mb-2";
+        alertDiv.innerHTML = `<i class="fas fa-check-circle"></i> Este documento possui uma versão digitalizada anexada.`;
+        modalContent.parentElement.insertBefore(alertDiv, modalContent);
+    }
 };
 
 // ... (existing helper functions) ...
