@@ -1554,6 +1554,98 @@ async function generateSmartHTML(docType, studentId, refId, htmlGeneratorFn) {
 }
 
 const renderDocumentModal = async (title, contentDivId, docType, studentId, refId, generatorFn, extraData = null) => {
+
+    const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
+        document.querySelectorAll('.signature-interaction-area').forEach(area => {
+            area.onclick = (e) => {
+                e.stopPropagation();
+                const key = area.getAttribute('data-sig-key');
+                // Busca o ID do documento renderizado na div pai
+                const contentDiv = area.closest('[data-doc-ref-id]'); // Tenta achar wrapper com ID
+                // Se não achar, procura container genérico e assume 'temp'
+                let currentDocRefId = contentDiv ? contentDiv.getAttribute('data-doc-ref-id') : 'temp';
+
+                // Captura contexto para geração de link
+                window.currentDocParams = {
+                    refId: context.refId || context.title,
+                    type: context.docType,
+                    studentId: context.studentId,
+                    extraData: context.extraData
+                };
+
+                // FIX: Context Extension for Save Logic
+                context.studentName = context.extraData?.studentName || context.name || 'Aluno';
+
+                // Helper para salvar documento
+                const saveDocLogic = async () => {
+                    let docRealId = currentDocRefId;
+                    const newHtmlRaw = await generateSmartHTML(context.docType, context.studentId, context.refId, context.generatorFn);
+                    const signaturesToSave = Object.fromEntries(signatureMap); // Moved AFTER generateSmartHTML to include merged DB sigs
+
+                    if (!docRealId || docRealId === 'temp' || docRealId === 'undefined' || docRealId.startsWith('temp')) {
+                        // Create (or Find if exists but untracked)
+                        try {
+                            const newDocRef = await saveDocumentSnapshot(context.docType, context.title, newHtmlRaw.html, context.studentId, {
+                                refId: context.refId,
+                                signatures: signaturesToSave,
+                                studentName: context.studentName
+                            });
+
+                            if (newDocRef && newDocRef.id) {
+                                docRealId = newDocRef.id;
+                            } else {
+                                throw new Error("Save returned null (Lock matched?)");
+                            }
+                        } catch (saveErr) {
+                            console.warn("Falha ao salvar/criar (possível bloqueio ou cache). Tentando recuperar ID existente...", saveErr);
+                            // FALLBACK: Tenta achar o documento pelo RefID
+                            const existing = await findDocumentSnapshot(context.docType, context.studentId, context.refId);
+                            if (existing && existing.id) {
+                                docRealId = existing.id;
+                                console.log("ID recuperado via fallback:", docRealId);
+                            } else {
+                                throw saveErr; // Se não achou, então é erro real
+                            }
+                        }
+                    } else {
+                        // Update
+                        await updateDocumentSignatures(docRealId, signatureMap, newHtmlRaw.html);
+                    }
+
+                    // Atualiza referência local para próximas chamadas
+                    currentDocRefId = docRealId;
+                    if (contentDiv) contentDiv.setAttribute('data-doc-ref-id', docRealId);
+
+                    return docRealId;
+                };
+
+                openSignaturePad(key, currentDocRefId, async (data) => {
+                    // 1. ATUALIZA MEMÓRIA LOCAL
+                    signatureMap.set(key, data);
+                    showToast("Assinatura coletada! Processando...");
+
+                    try {
+                        // 2. SALVA O DOCUMENTO (E ASSINATURA)
+                        const docId = await saveDocLogic();
+                        showToast("Assinatura registrada no doc " + docId);
+
+                        // 3. REFLETE NA UI GLOBAL
+                        const docIndex = state.documents.findIndex(d => d.id === docId);
+                        if (docIndex > -1) {
+                            // Atualiza estado se possível (opcional, pois o reRender vai buscar do banco ou usar signatureMap)
+                        }
+
+                    } catch (err) {
+                        console.error("Erro ao salvar assinatura local:", err);
+                        showToast("Erro ao salvar assinatura: " + err.message);
+                    }
+
+                    // 4. RE-RENDERIZA A VISUALIZAÇÃO ATUAL
+                    reRenderCallback();
+                });
+            };
+        });
+    };
     // Gera o HTML já com a assinatura que está em memória (signatureMap)
     const { html, docId } = await generateSmartHTML(docType, studentId, refId, generatorFn);
 
@@ -1739,99 +1831,11 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
     // ... restoring original implementations ...
 
 
-    const attachDynamicSignatureListeners = (reRenderCallback, context = {}) => {
-        document.querySelectorAll('.signature-interaction-area').forEach(area => {
-            area.onclick = (e) => {
-                e.stopPropagation();
-                const key = area.getAttribute('data-sig-key');
-                // Busca o ID do documento renderizado na div pai
-                const contentDiv = area.closest('[data-doc-ref-id]'); // Tenta achar wrapper com ID
-                // Se não achar, procura container genérico e assume 'temp'
-                let currentDocRefId = contentDiv ? contentDiv.getAttribute('data-doc-ref-id') : 'temp';
 
-                // Captura contexto para geração de link
-                window.currentDocParams = {
-                    refId: context.refId || context.title,
-                    type: context.docType,
-                    studentId: context.studentId,
-                    extraData: context.extraData
-                };
 
-                // FIX: Context Extension for Save Logic
-                context.studentName = context.extraData?.studentName || context.name || 'Aluno';
 
-                // Helper para salvar documento
-                const saveDocLogic = async () => {
-                    let docRealId = currentDocRefId;
-                    const newHtmlRaw = await generateSmartHTML(context.docType, context.studentId, context.refId, context.generatorFn);
-                    const signaturesToSave = Object.fromEntries(signatureMap); // Moved AFTER generateSmartHTML to include merged DB sigs
 
-                    if (!docRealId || docRealId === 'temp' || docRealId === 'undefined' || docRealId.startsWith('temp')) {
-                        // Create (or Find if exists but untracked)
-                        try {
-                            const newDocRef = await saveDocumentSnapshot(context.docType, context.title, newHtmlRaw.html, context.studentId, {
-                                refId: context.refId,
-                                signatures: signaturesToSave,
-                                studentName: context.studentName
-                            });
-
-                            if (newDocRef && newDocRef.id) {
-                                docRealId = newDocRef.id;
-                            } else {
-                                throw new Error("Save returned null (Lock matched?)");
-                            }
-                        } catch (saveErr) {
-                            console.warn("Falha ao salvar/criar (possível bloqueio ou cache). Tentando recuperar ID existente...", saveErr);
-                            // FALLBACK: Tenta achar o documento pelo RefID
-                            const existing = await findDocumentSnapshot(context.docType, context.studentId, context.refId);
-                            if (existing && existing.id) {
-                                docRealId = existing.id;
-                                console.log("ID recuperado via fallback:", docRealId);
-                            } else {
-                                throw saveErr; // Se não achou, então é erro real
-                            }
-                        }
-                    } else {
-                        // Update
-                        await updateDocumentSignatures(docRealId, signatureMap, newHtmlRaw.html);
-                    }
-
-                    // Atualiza referência local para próximas chamadas
-                    currentDocRefId = docRealId;
-                    if (contentDiv) contentDiv.setAttribute('data-doc-ref-id', docRealId);
-
-                    return docRealId;
-                };
-
-                openSignaturePad(key, currentDocRefId, async (data) => {
-                    // 1. ATUALIZA MEMÓRIA LOCAL
-                    signatureMap.set(key, data);
-                    showToast("Assinatura coletada! Processando...");
-
-                    try {
-                        // 2. SALVA O DOCUMENTO (E ASSINATURA)
-                        const docId = await saveDocLogic();
-                        showToast("Assinatura registrada no doc " + docId);
-
-                        // 3. REFLETE NA UI GLOBAL
-                        const docIndex = state.documents.findIndex(d => d.id === docId);
-                        if (docIndex > -1) {
-                            // Atualiza estado se possível (opcional, pois o reRender vai buscar do banco ou usar signatureMap)
-                        }
-
-                    } catch (err) {
-                        console.error("Erro ao salvar assinatura local:", err);
-                        showToast("Erro ao salvar assinatura: " + err.message);
-                    }
-
-                    // 4. RE-RENDERIZA A VISUALIZAÇÃO ATUAL
-                    reRenderCallback();
-                });
-            };
-        });
-    };
 };
-
 
 // =================================================================================
 // FUNÇÕES DE ABERTURA DE MODAIS (EXPORTADAS)
