@@ -800,7 +800,8 @@ const ensureSignatureModalExists = () => {
                 <!-- TAB 1: DESENHO -->
                 <div id="content-tab-draw">
                     <div class="bg-gray-100 rounded-lg overflow-hidden relative mb-4 h-16 flex items-center justify-center group border border-dashed border-gray-300">
-                        <p class="text-[10px] text-gray-500">Câmera opcional para este modo.</p>
+                    <div class="bg-gray-100 rounded-lg overflow-hidden relative mb-4 h-16 flex items-center justify-center group border border-dashed border-gray-300">
+                        <p class="text-[10px] text-red-600 font-bold uppercase"><i class="fas fa-camera"></i> Câmera Obrigatória para Validação</p>
                          <button id="btn-toggle-camera-draw" class="absolute right-2 top-2 text-gray-400 hover:text-sky-600"><i class="fas fa-camera"></i></button>
                     </div>
                     <!-- Área de camera escondida por padrão -->
@@ -1212,6 +1213,12 @@ const setupSignaturePadEvents = () => {
         // Tab Draw (Padrão)
         const signatureData = canvas.toDataURL('image/png');
         const evidenceData = !photoResult.classList.contains('hidden') ? photoResult.src : null;
+
+        // VALIDAÇÃO: Selfie Obrigatória
+        if (!evidenceData) {
+            return showToast("A selfie é OBRIGATÓRIA para validar a assinatura.");
+        }
+
         const finalData = { signature: signatureData, photo: evidenceData };
 
         stopCameraStream();
@@ -1357,21 +1364,21 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
     // 1. Digital com Biometria
     if (sigData && sigData.type === 'digital_ack') {
         return `
-            <div class="relative group border border-green-500 bg-green-50 rounded flex flex-row overflow-hidden h-32 break-inside-avoid print:bg-white print:border-black" data-sig-key="${key}">
+            <div class="relative group border border-gray-300 bg-white rounded flex flex-row overflow-hidden h-28 break-inside-avoid print:bg-white print:border-black shadow-sm" data-sig-key="${key}">
                 <div class="flex-1 p-2 flex flex-col justify-between overflow-hidden relative">
-                    <div class="overflow-y-auto z-10">
-                        <p class="font-bold uppercase text-xs text-green-800 leading-tight flex items-center gap-1 print:text-black"><i class="fas fa-certificate"></i> ${roleTitle}</p>
-                        <p class="text-[10px] text-green-700 font-semibold mb-1 truncate print:text-black">${nameSubtitle}</p>
-                        <div class="text-[9px] text-green-900 leading-snug break-words whitespace-normal font-mono print:text-black">
-                            ${sigData.signerName ? `<strong>Assinado por:</strong> ${sigData.signerName}<br>` : ''}
-                            ${sigData.signerCPF ? `<strong>CPF:</strong> ${sigData.signerCPF}<br>` : ''}
-                            ${sigData.ip ? `IP: ${sigData.ip}<br>` : ''}
+                    <div class="overflow-y-auto z-10 w-full">
+                        <p class="font-bold uppercase text-[10px] text-gray-800 leading-tight flex items-center gap-1 print:text-black border-b border-gray-100 pb-1 mb-1">
+                            <i class="fas fa-check-circle text-green-600"></i> ${roleTitle}
+                        </p>
+                        <p class="text-[9px] text-gray-600 font-bold mb-0.5 truncate print:text-black">${nameSubtitle}</p>
+                        <div class="text-[8px] text-gray-500 leading-tight break-words whitespace-normal font-mono print:text-black">
+                            ${sigData.signerName ? `Assinado por: ${sigData.signerName}<br>` : ''}
+                            ${sigData.signerCPF ? `CPF: ${sigData.signerCPF}<br>` : ''}
                             ${new Date(sigData.timestamp).toLocaleString()}
                         </div>
                     </div>
-                     <div class="absolute bottom-1 right-1 opacity-10 print:hidden"><i class="fas fa-check-circle text-4xl text-green-500"></i></div>
                 </div>
-                ${sigData.photo ? `<div class="w-32 min-w-[30%] border-l border-green-200 bg-gray-100 print:border-black print:grayscale"><img src="${sigData.photo}" class="w-full h-full object-cover"></div>` : ''}
+                ${sigData.photo ? `<div class="w-24 min-w-[80px] border-l border-gray-200 bg-gray-50 print:border-black print:grayscale p-1 flex items-center justify-center"><img src="${sigData.photo}" class="w-full h-full object-cover rounded shadow-inner"></div>` : ''}
             </div>`;
     }
     // 2. Upload / Papel Digitalizado (NOVO)
@@ -1395,12 +1402,12 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
         const img = sigData.signature || sigData;
         const photo = sigData.photo; // Pode ser undefined agora
         return `
-            <div class="relative group cursor-pointer border border-gray-300 rounded bg-white flex flex-row h-32 overflow-hidden" data-sig-key="${key}">
-                 ${photo ? `<div class="w-32 min-w-[30%] border-r border-gray-200"><img src="${photo}" class="w-full h-full object-cover" /></div>` : ``}
+            <div class="relative group cursor-pointer border border-gray-400 bg-white rounded flex flex-row h-28 overflow-hidden shadow-sm" data-sig-key="${key}">
+                 ${photo ? `<div class="w-24 min-w-[80px] border-r border-gray-200 p-1 flex items-center justify-center"><img src="${photo}" class="w-full h-full object-cover rounded shadow-inner" /></div>` : ``}
                 <div class="flex-1 flex flex-col p-2 justify-between relative overflow-hidden">
-                    <img src="${img}" class="h-20 object-contain mix-blend-multiply self-center" />
-                    <div class="border-t border-black w-full pt-1 text-center">
-                        <p class="text-[9px] font-bold uppercase leading-none">${roleTitle}</p>
+                    <img src="${img}" class="h-16 object-contain mix-blend-multiply self-center" />
+                    <div class="border-t border-gray-200 w-full pt-1 text-center mt-1">
+                        <p class="text-[9px] font-bold uppercase leading-none text-gray-800">${roleTitle}</p>
                         <p class="text-[8px] text-gray-500 truncate">${nameSubtitle}</p>
                     </div>
                 </div>
@@ -1409,15 +1416,14 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
     // 4. Vazio
     else {
         return `
-            <div class="h-32 border border-dashed border-gray-300 rounded bg-gray-50 flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-100 transition signature-interaction-area relative print:bg-white print:border-none" data-sig-key="${key}">
-                <div class="print:hidden flex flex-col items-center">
-                    <i class="fas fa-fingerprint text-xl mb-1 opacity-50"></i>
-                    <p class="text-[9px] uppercase font-bold text-center">Aguardando<br>Assinatura</p>
-                    <p class="text-[8px] mt-1">${roleTitle}</p>
+            <div class="h-28 border border-dashed border-gray-300 rounded bg-gray-50 flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-100 transition signature-interaction-area relative print:bg-white print:border-none" data-sig-key="${key}">
+                <div class="print:hidden flex flex-col items-center p-4">
+                    <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-2"><i class="fas fa-pen-nib text-sm"></i></div>
+                    <p class="text-[9px] uppercase font-bold text-center">Assinar<br>${roleTitle}</p>
                 </div>
                 <!-- PRINT ONLY VIEW -->
-                <div class="hidden print:flex flex-col items-center justify-end w-full h-full pb-2">
-                     <div class="w-10/12 border-b border-black mb-1"></div>
+                <div class="hidden print:flex flex-col items-center justify-end w-full h-full pb-1">
+                     <div class="w-full border-b border-black mb-1"></div>
                      <p class="text-[8px] uppercase font-bold text-black">${roleTitle}</p>
                 </div>
             </div>`;
