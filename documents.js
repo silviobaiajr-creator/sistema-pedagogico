@@ -182,33 +182,34 @@ const openSnapshotModal = (docData) => {
                 </div>`;
             }
 
-            // CHECK FOR FULL SCANNED DOCUMENT (Prioridade Alta)
-            if (docData.signatures['_scanned_doc']) {
-                const scanned = docData.signatures['_scanned_doc'];
-                // Botão PROMINENTE para abrir o digitalizado
-                const scannedBanner = `
-                <div class="mt-2 mb-6 bg-sky-50 border-l-4 border-sky-500 p-4 shadow-sm break-inside-avoid flex flex-col sm:flex-row items-center justify-between gap-4">
-                     <div>
-                         <h3 class="text-base font-bold text-sky-900 flex items-center gap-2"><i class="fas fa-file-contract text-xl"></i> Documento Digitalizado Disponível</h3>
-                         <p class="text-sm text-sky-700 mt-1">Este arquivo possui uma cópia digitalizada completa anexada.</p>
-                     </div>
-                     <button onclick="const el = document.getElementById('scanned-doc-viewer-${docData.id}'); el.classList.toggle('hidden');" 
-                        class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-6 rounded shadow transition flex items-center gap-2 text-sm uppercase tracking-wide">
-                         <i class="fas fa-eye"></i> Abrir Digitalização
-                     </button>
-                </div>
-                <div id="scanned-doc-viewer-${docData.id}" class="hidden mb-6 p-4 bg-gray-800 rounded-lg border border-gray-600 shadow-inner flex justify-center">
-                     <img src="${scanned.image}" class="max-w-full h-auto shadow-2xl rounded" />
-                </div>`;
-                // Inserir LOGO APÓS o banner de arquivado
-                contentEl.insertAdjacentHTML('afterbegin', scannedBanner);
-            }
-
             if (signatureFooter) {
                 contentEl.insertAdjacentHTML('beforeend', signatureFooter);
             }
         }
     }
+
+    // CHECK FOR FULL SCANNED DOCUMENT (Universal Check for ALL types)
+    // This must be outside the legacy signature check to work for v2 documents
+    if (docData.signatures && docData.signatures['_scanned_doc']) {
+        const scanned = docData.signatures['_scanned_doc'];
+        const scannedBanner = `
+        <div class="mt-2 mb-6 bg-sky-50 border-l-4 border-sky-500 p-4 shadow-sm break-inside-avoid flex flex-col sm:flex-row items-center justify-between gap-4 no-print">
+                <div>
+                    <h3 class="text-base font-bold text-sky-900 flex items-center gap-2"><i class="fas fa-file-contract text-xl"></i> Documento Digitalizado Disponível</h3>
+                    <p class="text-sm text-sky-700 mt-1">Este arquivo possui uma cópia digitalizada completa anexada.</p>
+                </div>
+                <button onclick="const el = document.getElementById('scanned-doc-viewer-${docData.id || 'temp'}'); el.classList.toggle('hidden');" 
+                class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-6 rounded shadow transition flex items-center gap-2 text-sm uppercase tracking-wide">
+                    <i class="fas fa-eye"></i> Abrir Digitalização
+                </button>
+        </div>
+        <div id="scanned-doc-viewer-${docData.id || 'temp'}" class="hidden mb-6 p-4 bg-gray-800 rounded-lg border border-gray-600 shadow-inner flex justify-center no-print">
+                <img src="${scanned.image}" class="max-w-full h-auto shadow-2xl rounded" />
+        </div>`;
+        contentEl.insertAdjacentHTML('afterbegin', scannedBanner);
+    }
+
+
 
     // Adiciona uma faixa de aviso no topo
     const dateStr = docData.createdAt?.toDate ? formatDate(docData.createdAt.toDate()) : formatDate(new Date());

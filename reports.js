@@ -1363,21 +1363,21 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
     // 1. Digital com Biometria
     if (sigData && sigData.type === 'digital_ack') {
         return `
-            <div class="relative group border border-gray-300 bg-white rounded flex flex-row overflow-hidden h-28 break-inside-avoid print:bg-white print:border-black shadow-sm" data-sig-key="${key}">
-                <div class="flex-1 p-2 flex flex-col justify-between overflow-hidden relative">
-                    <div class="overflow-y-auto z-10 w-full">
-                        <p class="font-bold uppercase text-[10px] text-gray-800 leading-tight flex items-center gap-1 print:text-black border-b border-gray-100 pb-1 mb-1">
-                            <i class="fas fa-check-circle text-green-600"></i> ${roleTitle}
+            <div class="relative group border border-gray-300 bg-white rounded flex flex-col sm:flex-row overflow-hidden min-h-[160px] break-inside-avoid print:bg-white print:border-black shadow-sm" data-sig-key="${key}">
+                <div class="flex-1 p-4 flex flex-col justify-between relative">
+                    <div class="w-full">
+                        <p class="font-bold uppercase text-xs text-gray-800 leading-tight flex items-center gap-2 print:text-black border-b border-gray-100 pb-2 mb-2">
+                            <i class="fas fa-check-circle text-green-600 text-lg"></i> ${roleTitle}
                         </p>
-                        <p class="text-[9px] text-gray-600 font-bold mb-0.5 truncate print:text-black">${nameSubtitle}</p>
-                        <div class="text-[8px] text-gray-500 leading-tight break-words whitespace-normal font-mono print:text-black">
-                            ${sigData.signerName ? `Assinado por: ${sigData.signerName}<br>` : ''}
-                            ${sigData.signerCPF ? `CPF: ${sigData.signerCPF}<br>` : ''}
-                            ${new Date(sigData.timestamp).toLocaleString()}
+                        <p class="text-xs text-gray-600 font-bold mb-1 print:text-black">${nameSubtitle}</p>
+                        <div class="text-[10px] text-gray-500 leading-snug font-mono print:text-black mt-2">
+                            ${sigData.signerName ? `<span class="block mb-1">Assinado por: <strong>${sigData.signerName}</strong></span>` : ''}
+                            ${sigData.signerCPF ? `<span class="block mb-1">CPF: ${sigData.signerCPF}</span>` : ''}
+                            <span class="block text-gray-400">${new Date(sigData.timestamp).toLocaleString()}</span>
                         </div>
                     </div>
                 </div>
-                ${sigData.photo ? `<div class="w-24 min-w-[80px] border-l border-gray-200 bg-gray-50 print:border-black print:grayscale p-1 flex items-center justify-center"><img src="${sigData.photo}" class="w-full h-full object-cover rounded shadow-inner"></div>` : ''}
+                ${sigData.photo ? `<div class="w-40 min-w-[150px] border-l border-gray-200 bg-gray-50 print:border-black print:grayscale p-2 flex items-center justify-center"><img src="${sigData.photo}" class="max-w-full max-h-full object-contain rounded shadow-sm"></div>` : ''}
             </div>`;
     }
     // 2. Upload / Papel Digitalizado (NOVO)
@@ -1401,13 +1401,13 @@ const getSingleSignatureBoxHTML = (key, roleTitle, nameSubtitle, sigData) => {
         const img = sigData.signature || sigData;
         const photo = sigData.photo; // Pode ser undefined agora
         return `
-            <div class="relative group cursor-pointer border border-gray-400 bg-white rounded flex flex-row h-28 overflow-hidden shadow-sm" data-sig-key="${key}">
-                 ${photo ? `<div class="w-24 min-w-[80px] border-r border-gray-200 p-1 flex items-center justify-center"><img src="${photo}" class="w-full h-full object-cover rounded shadow-inner" /></div>` : ``}
-                <div class="flex-1 flex flex-col p-2 justify-between relative overflow-hidden">
-                    <img src="${img}" class="h-16 object-contain mix-blend-multiply self-center" />
-                    <div class="border-t border-gray-200 w-full pt-1 text-center mt-1">
-                        <p class="text-[9px] font-bold uppercase leading-none text-gray-800">${roleTitle}</p>
-                        <p class="text-[8px] text-gray-500 truncate">${nameSubtitle}</p>
+            <div class="relative group cursor-pointer border border-gray-400 bg-white rounded flex flex-col sm:flex-row min-h-[160px] overflow-hidden shadow-sm" data-sig-key="${key}">
+                 ${photo ? `<div class="w-40 min-w-[150px] border-r border-gray-200 p-2 flex items-center justify-center bg-gray-50"><img src="${photo}" class="max-w-full max-h-full object-contain rounded shadow-sm" /></div>` : ``}
+                <div class="flex-1 flex flex-col p-4 justify-between relative">
+                    <img src="${img}" class="h-24 object-contain mix-blend-multiply self-center my-2" />
+                    <div class="border-t border-gray-200 w-full pt-2 text-center mt-2">
+                        <p class="text-[10px] font-bold uppercase leading-none text-gray-800">${roleTitle}</p>
+                        <p class="text-[9px] text-gray-500 mt-1">${nameSubtitle}</p>
                     </div>
                 </div>
             </div>`;
@@ -1442,8 +1442,8 @@ const generateSignaturesGrid = (slots) => {
                 <span>Registro de Validação</span>
                 <span class="font-normal"><i class="fas fa-shield-alt"></i> Biometria</span>
              </h5>
-             <!-- LAYOUT: 3 COLUNAS (Ajustado p/ 4 em telas grandes) -->
-             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">${itemsHTML}</div>
+             <!-- LAYOUT: 1 COLUNA (Vertical) conforme solicitado -->
+             <div class="grid grid-cols-1 gap-4">${itemsHTML}</div>
              
              <div class="mt-4 pt-2 border-t border-gray-200 flex justify-center">
                 <div class="w-full max-w-[250px]">
