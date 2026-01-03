@@ -182,6 +182,20 @@ const openSnapshotModal = (docData) => {
                 </div>`;
             }
 
+            // CHECK FOR FULL SCANNED DOCUMENT (Prioridade Alta)
+            if (docData.signatures['_scanned_doc']) {
+                const scanned = docData.signatures['_scanned_doc'];
+                // Se houver um documento escaneado completo, adicionamos um aviso e opção de ver
+                const scannedBanner = `
+                <div class="mt-4 mb-4 bg-blue-50 border border-blue-200 rounded p-4 break-inside-avoid">
+                     <h3 class="text-sm font-bold text-blue-800 mb-2"><i class="fas fa-file-contract"></i> Versão Digitalizada Disponível</h3>
+                     <p class="text-xs text-blue-700 mb-3">Este documento possui uma versão digitalizada completa (papel assinado/digitalizado).</p>
+                     <img src="${scanned.image}" class="w-full h-auto shadow-lg border border-gray-300 rounded" />
+                </div>`;
+                // Inserir LOGO APÓS o banner de arquivado (ou antes do conteúdo HTML)
+                contentEl.insertAdjacentHTML('afterbegin', scannedBanner);
+            }
+
             if (signatureFooter) {
                 contentEl.insertAdjacentHTML('beforeend', signatureFooter);
             }

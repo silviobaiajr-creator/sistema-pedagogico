@@ -1821,10 +1821,13 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
             };
             toolBar.insertBefore(btnToggleView, btnUploadScan);
 
-            const alertDiv = document.createElement('div');
-            alertDiv.className = "w-full bg-blue-50 text-blue-800 p-2 text-xs text-center border-b border-blue-100 mb-2";
-            alertDiv.innerHTML = `<i class="fas fa-check-circle"></i> Este documento possui uma versão digitalizada anexada.`;
-            modalContent.parentElement.insertBefore(alertDiv, modalContent);
+            if (!document.getElementById('scanned-doc-alert')) {
+                const alertDiv = document.createElement('div');
+                alertDiv.id = 'scanned-doc-alert';
+                alertDiv.className = "w-full bg-blue-50 text-blue-800 p-2 text-xs text-center border-b border-blue-100 mb-2";
+                alertDiv.innerHTML = `<i class="fas fa-check-circle"></i> Este documento possui uma versão digitalizada anexada.`;
+                modalContent.parentElement.insertBefore(alertDiv, modalContent);
+            }
         }
     }
 
