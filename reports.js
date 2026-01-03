@@ -1647,7 +1647,7 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
 
                     // 4. RE-RENDERIZA A VISUALIZAÇÃO ATUAL
                     reRenderCallback();
-                });
+                }, saveDocLogic);
             };
         });
     };
