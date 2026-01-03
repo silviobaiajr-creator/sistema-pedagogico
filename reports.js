@@ -800,7 +800,6 @@ const ensureSignatureModalExists = () => {
                 <!-- TAB 1: DESENHO -->
                 <div id="content-tab-draw">
                     <div class="bg-gray-100 rounded-lg overflow-hidden relative mb-4 h-16 flex items-center justify-center group border border-dashed border-gray-300">
-                    <div class="bg-gray-100 rounded-lg overflow-hidden relative mb-4 h-16 flex items-center justify-center group border border-dashed border-gray-300">
                         <p class="text-[10px] text-red-600 font-bold uppercase"><i class="fas fa-camera"></i> Câmera Obrigatória para Validação</p>
                          <button id="btn-toggle-camera-draw" class="absolute right-2 top-2 text-gray-400 hover:text-sky-600"><i class="fas fa-camera"></i></button>
                     </div>
