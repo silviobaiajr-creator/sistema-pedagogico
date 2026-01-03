@@ -1637,7 +1637,15 @@ const renderDocumentModal = async (title, contentDivId, docType, studentId, refI
                         // 3. REFLETE NA UI GLOBAL
                         const docIndex = state.documents.findIndex(d => d.id === docId);
                         if (docIndex > -1) {
-                            // Atualiza estado se possível (opcional, pois o reRender vai buscar do banco ou usar signatureMap)
+                            // Atualiza os dados principais em memória
+                            state.documents[docIndex] = {
+                                ...state.documents[docIndex],
+                                signatures: Object.fromEntries(signatureMap),
+                                htmlContent: (await generateSmartHTML(context.docType, context.studentId, context.refId, context.generatorFn)).html
+                            };
+                        } else {
+                            // Se for novo e não estava na lista (ex: filtro), poderíamos adicionar, 
+                            // mas o refresh da lista cuida disso. A atualização acima é crucial para itens já listados.
                         }
 
                     } catch (err) {

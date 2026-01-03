@@ -170,13 +170,13 @@ const openSnapshotModal = (docData) => {
             else if (sig.type === 'upload') {
                 signatureFooter = `
                 <div class="mt-8 pt-6 border-t-2 border-gray-100 break-inside-avoid">
-                    <div class="bg-white p-4 rounded-lg border border-dashed border-gray-300">
-                         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 border-b border-gray-200 pb-2 flex items-center gap-2">
-                            <i class="fas fa-file-signature"></i> Assinatura Digitalizada
+                    <div class="bg-white p-6 rounded-lg border border-dashed border-gray-400">
+                         <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider mb-6 border-b border-gray-300 pb-3 flex items-center gap-3">
+                            <i class="fas fa-file-signature text-lg"></i> Assinatura Digitalizada
                          </h3>
-                         <div class="flex flex-col items-center">
-                            <img src="${sig.image}" class="max-w-xs max-h-40 object-contain mb-2 border p-1 rounded bg-gray-50 mix-blend-multiply" />
-                            <p class="text-[10px] text-gray-400 font-mono">Registro: ${signedDate}</p>
+                         <div class="flex flex-col items-center gap-4">
+                            <img src="${sig.image}" class="max-w-md w-full h-auto object-contain border-2 border-gray-100 p-2 rounded shadow-sm bg-gray-50 mix-blend-multiply" />
+                            <p class="text-xs text-gray-500 font-mono font-bold bg-gray-100 px-3 py-1 rounded">Registro: ${signedDate}</p>
                          </div>
                     </div>
                 </div>`;
@@ -185,14 +185,22 @@ const openSnapshotModal = (docData) => {
             // CHECK FOR FULL SCANNED DOCUMENT (Prioridade Alta)
             if (docData.signatures['_scanned_doc']) {
                 const scanned = docData.signatures['_scanned_doc'];
-                // Se houver um documento escaneado completo, adicionamos um aviso e opção de ver
+                // Botão PROMINENTE para abrir o digitalizado
                 const scannedBanner = `
-                <div class="mt-4 mb-4 bg-blue-50 border border-blue-200 rounded p-4 break-inside-avoid">
-                     <h3 class="text-sm font-bold text-blue-800 mb-2"><i class="fas fa-file-contract"></i> Versão Digitalizada Disponível</h3>
-                     <p class="text-xs text-blue-700 mb-3">Este documento possui uma versão digitalizada completa (papel assinado/digitalizado).</p>
-                     <img src="${scanned.image}" class="w-full h-auto shadow-lg border border-gray-300 rounded" />
+                <div class="mt-2 mb-6 bg-sky-50 border-l-4 border-sky-500 p-4 shadow-sm break-inside-avoid flex flex-col sm:flex-row items-center justify-between gap-4">
+                     <div>
+                         <h3 class="text-base font-bold text-sky-900 flex items-center gap-2"><i class="fas fa-file-contract text-xl"></i> Documento Digitalizado Disponível</h3>
+                         <p class="text-sm text-sky-700 mt-1">Este arquivo possui uma cópia digitalizada completa anexada.</p>
+                     </div>
+                     <button onclick="const el = document.getElementById('scanned-doc-viewer-${docData.id}'); el.classList.toggle('hidden');" 
+                        class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-6 rounded shadow transition flex items-center gap-2 text-sm uppercase tracking-wide">
+                         <i class="fas fa-eye"></i> Abrir Digitalização
+                     </button>
+                </div>
+                <div id="scanned-doc-viewer-${docData.id}" class="hidden mb-6 p-4 bg-gray-800 rounded-lg border border-gray-600 shadow-inner flex justify-center">
+                     <img src="${scanned.image}" class="max-w-full h-auto shadow-2xl rounded" />
                 </div>`;
-                // Inserir LOGO APÓS o banner de arquivado (ou antes do conteúdo HTML)
+                // Inserir LOGO APÓS o banner de arquivado
                 contentEl.insertAdjacentHTML('afterbegin', scannedBanner);
             }
 
